@@ -1,0 +1,32 @@
+[run]
+omit =
+    */tests/*
+    */conftest.py
+    # Exclude CLI main/run functions - these are integration-level
+    discord_bot/commands/run/run.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+
+# Coverage Expectations by Layer:
+# --------------------------------
+# Services/Connectors/Models: 95%+ (business logic, fully testable)
+# Core Infrastructure: 90%+ (utilities, event bus, settings)
+# Discord Cogs: 30-40% (UI-heavy, requires extensive mocking or integration tests)
+#
+# Why cogs have lower coverage:
+# - Heavy Discord.py interaction code (buttons, modals, embeds)
+# - Async event handling and state management
+# - Role/channel/member management requires mocking Discord's object hierarchy
+# - UI flows span multiple interactions and events
+# - Best tested with integration tests using a real Discord bot
+#
+# The architecture ensures business logic (services) is fully testable and
+# independent of Discord. Cogs are THIN adapters over services.

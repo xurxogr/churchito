@@ -1,0 +1,54 @@
+name: Cog Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  validate-cogs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff check (including ASYNC rules for blocking detection)
+        run: |
+          ruff check discord_bot/
+
+      - name: Ruff format check
+        run: |
+          ruff format --check discord_bot/
+
+      - name: MyPy type checking
+        run: |
+          mypy discord_bot/
+
+      - name: Validate cog structure
+        run: |
+          python scripts/validate_cog_structure.py
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=discord_bot --cov-report=term --cov-report=xml --cov-fail-under=75
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella

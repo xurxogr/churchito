@@ -149,3 +149,4 @@ data/
 .claude
 *.db
 *.db-journal
+custom/
