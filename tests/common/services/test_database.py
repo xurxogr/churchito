@@ -1,4 +1,4 @@
-"""Tests for database service."""
+"""Tests para el servicio de base de datos."""
 
 import tempfile
 from pathlib import Path
@@ -14,27 +14,27 @@ from discord_bot.common.services.database import get_database_service
 
 
 async def test_database_initialization(test_database: DatabaseService) -> None:
-    """Test database initialization.
+    """Prueba de inicialización de base de datos.
 
     Args:
-        test_database: Test database service fixture
+        test_database (DatabaseService): Fixture del servicio de base de datos de prueba
     """
     assert test_database.engine is not None
     assert test_database.session_maker is not None
 
 
 async def test_database_session_context_manager(test_database: DatabaseService) -> None:
-    """Test database session context manager.
+    """Test de creación y uso de sesión de base de datos.
 
     Args:
-        test_database: Test database service fixture
+        test_database (DatabaseService): Fixture del servicio de base de datos de prueba
     """
     async with test_database.session() as session:
-        # Create a test guild
+        # Crear y agregar una nueva guild
         guild = Guild(id=123456789, name="Test Guild", prefix="!")
         session.add(guild)
 
-    # Query the guild in a new session
+    # Verificar que la guild fue guardada correctamente
     async with test_database.session() as session:
         result = await session.execute(select(Guild).where(Guild.id == 123456789))
         fetched_guild = result.scalar_one_or_none()
@@ -45,10 +45,10 @@ async def test_database_session_context_manager(test_database: DatabaseService) 
 
 
 async def test_database_session_rollback_on_error(test_database: DatabaseService) -> None:
-    """Test that session rolls back on error.
+    """Test de rollback de sesión de base de datos en caso de error.
 
     Args:
-        test_database: Test database service fixture
+        test_database (DatabaseService): Fixture del servicio de base de datos de prueba
     """
     with pytest.raises(ValueError):
         async with test_database.session() as session:
@@ -57,7 +57,7 @@ async def test_database_session_rollback_on_error(test_database: DatabaseService
             # Raise an error to trigger rollback
             raise ValueError("Test error")
 
-    # Verify the guild was not saved
+    # Verificar que la guild no fue guardada debido al rollback
     async with test_database.session() as session:
         result = await session.execute(select(Guild).where(Guild.id == 999))
         fetched_guild = result.scalar_one_or_none()
@@ -66,23 +66,23 @@ async def test_database_session_rollback_on_error(test_database: DatabaseService
 
 
 async def test_database_close(test_database: DatabaseService) -> None:
-    """Test database close.
+    """Test de cierre del servicio de base de datos.
 
     Args:
-        test_database: Test database service fixture
+        test_database (DatabaseService): Fixture del servicio de base de datos de prueba
     """
     await test_database.close()
 
-    # Engine should still exist but be disposed
+    # Después de cerrar, el engine debería ser None
     assert test_database._engine is not None
 
 
 def test_database_engine_not_initialized() -> None:
-    """Test that accessing engine before initialization raises RuntimeError."""
+    """Probar que acceder a engine antes de la inicialización lanza RuntimeError."""
     settings = DatabaseSettings(url="sqlite+aiosqlite:///:memory:")
     db_service = DatabaseService(settings)
 
-    # Try to access engine without calling initialize()
+    # Intentar acceder a engine sin llamar a initialize()
     with pytest.raises(RuntimeError) as exc_info:
         _ = db_service.engine
 
@@ -91,11 +91,11 @@ def test_database_engine_not_initialized() -> None:
 
 
 def test_database_session_maker_not_initialized() -> None:
-    """Test that accessing session_maker before initialization raises RuntimeError."""
+    """Probar que acceder a session_maker antes de la inicialización lanza RuntimeError."""
     settings = DatabaseSettings(url="sqlite+aiosqlite:///:memory:")
     db_service = DatabaseService(settings)
 
-    # Try to access session_maker without calling initialize()
+    # Intentar acceder a session_maker sin llamar a initialize()
     with pytest.raises(RuntimeError) as exc_info:
         _ = db_service.session_maker
 
@@ -104,11 +104,11 @@ def test_database_session_maker_not_initialized() -> None:
 
 
 def test_database_get_session_not_initialized() -> None:
-    """Test that get_session() fails when session_maker is not initialized."""
+    """Probar que llamar a get_session() antes de la inicialización lanza RuntimeError."""
     settings = DatabaseSettings(url="sqlite+aiosqlite:///:memory:")
     db_service = DatabaseService(settings)
 
-    # get_session() will try to access session_maker property, which should raise
+    # Intentar llamar a get_session() sin llamar a initialize()
     with pytest.raises(RuntimeError) as exc_info:
         db_service.get_session()
 
@@ -116,19 +116,17 @@ def test_database_get_session_not_initialized() -> None:
 
 
 def test_get_database_service() -> None:
-    """Test the get_database_service function logic (line 127).
+    """Test de la función get_database_service.
 
-    Note: The function uses @lru_cache which requires hashable arguments,
-    but DatabaseSettings is not hashable. We test the underlying function
-    by accessing __wrapped__ to bypass the cache.
+    Nota: Esta prueba accede a la función envuelta para evitar el caché de lru_cache.
     """
     settings = DatabaseSettings(url="sqlite+aiosqlite:///:memory:")
 
-    # Access the wrapped function (bypasses lru_cache)
+    # Acceder a la función envuelta para evitar el caché
     if hasattr(get_database_service, "__wrapped__"):
         service = get_database_service.__wrapped__(settings)
     else:
-        # If not wrapped (shouldn't happen), call directly
+        # Si no existe __wrapped__, llamar directamente (no se probará el caché)
         service = DatabaseService(settings)
 
     assert isinstance(service, DatabaseService)
@@ -136,7 +134,7 @@ def test_get_database_service() -> None:
 
 
 def test_ensure_database_directory_creates_directory() -> None:
-    """Test that _ensure_database_directory creates missing directories."""
+    """Probar que _ensure_database_directory crea el directorio si no existe."""
     with tempfile.TemporaryDirectory() as tmpdir:
         import os
 
@@ -144,23 +142,23 @@ def test_ensure_database_directory_creates_directory() -> None:
         try:
             os.chdir(tmpdir)
 
-            # Use a relative path that doesn't exist
+            # Usar una ruta de base de datos dentro de un subdirectorio
             settings = DatabaseSettings(url="sqlite+aiosqlite:///foo/bar/test.db")
             db_service = DatabaseService(settings)
 
-            # Directory should not exist yet
+            # El directorio no debería existir aún
             db_dir = Path(tmpdir) / "foo" / "bar"
             assert not db_dir.exists()
 
-            # Call the method
+            # Llamar al método para crear el directorio
             with patch("discord_bot.common.services.database.logger") as mock_logger:
                 db_service._ensure_database_directory()
 
-                # Directory should now exist
+                # El directorio ahora debería existir
                 assert db_dir.exists()
                 assert db_dir.is_dir()
 
-                # Logger should have been called
+                # El logger debería haber sido llamado
                 mock_logger.info.assert_called_once()
                 log_message = mock_logger.info.call_args[0][0]
                 assert "Creado directorio de base de datos" in log_message
@@ -169,7 +167,7 @@ def test_ensure_database_directory_creates_directory() -> None:
 
 
 def test_ensure_database_directory_handles_existing_directory() -> None:
-    """Test that _ensure_database_directory doesn't fail if directory exists."""
+    """Probar que _ensure_database_directory maneja el caso donde el directorio ya existe."""
     with tempfile.TemporaryDirectory() as tmpdir:
         import os
 
@@ -177,43 +175,43 @@ def test_ensure_database_directory_handles_existing_directory() -> None:
         try:
             os.chdir(tmpdir)
 
-            # Create the directory first
+            # Crear el directorio de antemano
             db_dir = Path(tmpdir) / "existing"
             db_dir.mkdir(parents=True, exist_ok=True)
 
-            # Use the existing directory
+            # Usar una ruta de base de datos dentro del directorio existente
             settings = DatabaseSettings(url="sqlite+aiosqlite:///existing/test.db")
             db_service = DatabaseService(settings)
 
-            # Call the method - should not fail
+            # Llamar al método, no debería intentar crear de nuevo
             with patch("discord_bot.common.services.database.logger") as mock_logger:
                 db_service._ensure_database_directory()
 
-                # Directory should still exist
+                # El directorio debería seguir existiendo
                 assert db_dir.exists()
 
-                # Logger should NOT be called since directory already existed
+                # Logger no debería haber sido llamado
                 mock_logger.info.assert_not_called()
         finally:
             os.chdir(original_cwd)
 
 
 def test_ensure_database_directory_skips_current_directory() -> None:
-    """Test that _ensure_database_directory skips if parent is current directory."""
+    """Test that _ensure_database_directory skips when DB file is in current directory."""
     settings = DatabaseSettings(url="sqlite+aiosqlite:///test.db")
     db_service = DatabaseService(settings)
 
     with patch("discord_bot.common.services.database.logger") as mock_logger:
-        # Should not try to create "." directory
+        # No debería crear ningún directorio
         db_service._ensure_database_directory()
 
-        # Logger should not be called
+        # Logger no debería haber sido llamado
         mock_logger.info.assert_not_called()
 
 
 def test_ensure_database_directory_skips_in_memory() -> None:
-    """Test that _ensure_database_directory skips for in-memory databases."""
-    # Test both :memory: formats
+    """Test that _ensure_database_directory skips for in-memory SQLite databases."""
+    # Probar ambas variantes de URL en memoria
     for url in ["sqlite+aiosqlite:///:memory:", "sqlite:///:memory:"]:
         settings = DatabaseSettings(url=url)
         db_service = DatabaseService(settings)
@@ -221,12 +219,12 @@ def test_ensure_database_directory_skips_in_memory() -> None:
         with patch("discord_bot.common.services.database.logger") as mock_logger:
             db_service._ensure_database_directory()
 
-            # Should not create any directory or log anything
+            # No debería crear ningún directorio
             mock_logger.info.assert_not_called()
 
 
 def test_ensure_database_directory_skips_non_sqlite() -> None:
-    """Test that _ensure_database_directory skips for non-SQLite databases."""
+    """Probar que _ensure_database_directory omite bases de datos que no son SQLite."""
     # Test PostgreSQL URL
     settings = DatabaseSettings(url="postgresql+asyncpg://user:pass@localhost/dbname")
     db_service = DatabaseService(settings)
@@ -234,14 +232,14 @@ def test_ensure_database_directory_skips_non_sqlite() -> None:
     with patch("discord_bot.common.services.database.logger") as mock_logger:
         db_service._ensure_database_directory()
 
-        # Should not create any directory or log anything
+        # No debería crear ningún directorio
         mock_logger.info.assert_not_called()
 
 
 def test_ensure_database_directory_with_relative_path() -> None:
-    """Test _ensure_database_directory with a simple relative path."""
+    """Probar que _ensure_database_directory maneja rutas relativas correctamente."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Change to temp directory to test relative paths
+        # Cambiar al directorio temporal
         import os
 
         original_cwd = os.getcwd()
@@ -254,12 +252,12 @@ def test_ensure_database_directory_with_relative_path() -> None:
             with patch("discord_bot.common.services.database.logger") as mock_logger:
                 db_service._ensure_database_directory()
 
-                # Directory should be created relative to current dir
+                # El directorio debería haberse creado correctamente relativo al cwd
                 data_dir = Path(tmpdir) / "data"
                 assert data_dir.exists()
                 assert data_dir.is_dir()
 
-                # Logger should have been called
+                # Debería haberse registrado la creación del directorio
                 mock_logger.info.assert_called_once()
         finally:
             os.chdir(original_cwd)

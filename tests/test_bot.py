@@ -1,4 +1,4 @@
-"""Tests for main bot class."""
+"""Tests de la clase principal."""
 
 import asyncio
 from collections.abc import AsyncGenerator
@@ -15,18 +15,18 @@ from discord_bot.common.services import DatabaseService
 async def test_bot(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> AsyncGenerator[DiscordBot, None]:
-    """Create a test bot instance.
+    """Fixture para crear una instancia de bot de prueba.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
 
     Returns:
-        DiscordBot: Test bot instance
+        DiscordBot: Instancia del bot de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        # Mock guilds and user as properties
+        # Falsear propiedades necesarias
         type(bot).guilds = PropertyMock(return_value=[])  # type: ignore[method-assign]
         mock_user = MagicMock()
         mock_user.name = "TestBot"
@@ -37,11 +37,11 @@ async def test_bot(
 
 
 def test_bot_initialization(test_settings: AppSettings, test_database: DatabaseService) -> None:
-    """Test bot initialization.
+    """Probar inicialización del bot.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
@@ -52,19 +52,19 @@ def test_bot_initialization(test_settings: AppSettings, test_database: DatabaseS
 
 
 async def test_bot_on_ready(test_bot: DiscordBot) -> None:
-    """Test bot on_ready event.
+    """Probar el método on_ready del bot.
 
     Args:
-        test_bot: Test bot instance
+        test_bot: Instancia del bot de prueba
     """
-    # Mock event bus emit
+    # Falsear el método emit del event bus
     mock_emit = MagicMock()
     test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
 
-    # Call on_ready
+    # Llamar on_ready
     await test_bot.on_ready()
 
-    # Verify event was emitted with correct data
+    # Verificar que se emitió el evento correcto
     from discord_bot.common.enums.event_type import EventType
 
     mock_emit.assert_called_once_with(
@@ -78,19 +78,19 @@ async def test_bot_on_ready(test_bot: DiscordBot) -> None:
 
 
 async def test_bot_close(test_bot: DiscordBot) -> None:
-    """Test bot close method.
+    """Probar el método close del bot.
 
     Args:
-        test_bot: Test bot instance
+        test_bot: Instancia del bot de prueba
     """
-    # Mock the database close and parent close
+    # Falsear el cierre de la base de datos
     test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
 
-    # Mock event bus emit
+    # Falsear el método emit del event bus
     mock_emit = MagicMock()
     test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
 
-    # Create a real asyncio task that can be cancelled
+    # Crear una tarea de monitor falsa
     async def dummy_monitor() -> None:
         await asyncio.sleep(100)  # Long sleep to simulate running task
 
@@ -100,30 +100,30 @@ async def test_bot_close(test_bot: DiscordBot) -> None:
     with patch("discord_bot.bot.commands.Bot.close", new_callable=AsyncMock):
         await test_bot.close()
 
-        # Verify shutdown event was emitted
+        # Verificar que se emitió el evento de apagado
         from discord_bot.common.enums.event_type import EventType
 
         mock_emit.assert_called_once_with(EventType.BOT_SHUTDOWN, {})
 
-        # Verify monitor task was cancelled
+        # Verificar que la tarea de monitor fue cancelada
         assert monitor_task.cancelled()
 
-        # Verify database was closed
+        # Verificar que la base de datos fue cerrada
         test_bot.database.close.assert_called_once()
 
 
 async def test_bot_setup_hook(test_settings: AppSettings, test_database: DatabaseService) -> None:
-    """Test bot setup hook.
+    """Probar el método setup_hook del bot.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
         bot.load_extension = AsyncMock()  # type: ignore[method-assign]
 
-        # Mock the database and table creation
+        # Falsear la inicialización de la base de datos
         test_database.initialize = AsyncMock()  # type: ignore[method-assign]
 
         with (
@@ -132,7 +132,7 @@ async def test_bot_setup_hook(test_settings: AppSettings, test_database: Databas
         ):
             await bot.setup_hook()
 
-            # Verify all setup methods were called
+            # Verificar que se llamaron los métodos correctos
             test_database.initialize.assert_called_once()
             mock_create_tables.assert_called_once()
             mock_load_cogs.assert_called_once()
@@ -141,20 +141,20 @@ async def test_bot_setup_hook(test_settings: AppSettings, test_database: Databas
 async def test_bot_load_cogs_success(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test bot cog loading success.
+    """Probar la carga exitosa de cogs del bot.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
         bot.load_extension = AsyncMock()  # type: ignore[method-assign]
 
-        # Should load all cogs successfully
+        # Debería cargar sin errores
         await bot._load_cogs()
 
-        # Verify load_extension was called for each cog
+        # Validar que se llamaron las extensiones esperadas
         assert bot.load_extension.call_count > 0
         bot.load_extension.assert_any_call("discord_bot.general.cog")
 
@@ -162,46 +162,46 @@ async def test_bot_load_cogs_success(
 async def test_bot_load_cogs_with_error(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test bot cog loading with errors.
+    """Probar la carga de cogs del bot con errores.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
         bot.load_extension = AsyncMock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
 
-        # Should not raise even if cog loading fails
+        # Debería manejar el error internamente
         await bot._load_cogs()
 
-        # Verify load_extension was called for each cog
+        # Validar que se llamaron las extensiones esperadas
         assert bot.load_extension.call_count > 0
 
 
 async def test_bot_create_tables(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test database table creation.
+    """Probar la creación de tablas de la base de datos del bot.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
 
-        # Mock database engine and connection
+        # Falsear el engine y la conexión
         mock_conn = AsyncMock()
         mock_begin_context = AsyncMock()
         mock_begin_context.__aenter__.return_value = mock_conn
         mock_begin_context.__aexit__.return_value = None
 
-        # Mock the engine's begin method
+        # Falsear el engine para devolver el contexto de begin
         mock_engine = MagicMock()
         mock_engine.begin.return_value = mock_begin_context
 
-        # Patch the engine property
+        # Parchear el engine del bot para usar el mock
         with patch.object(
             type(test_database), "engine", new_callable=PropertyMock
         ) as mock_engine_prop:
@@ -209,24 +209,24 @@ async def test_bot_create_tables(
 
             await bot._create_tables()
 
-            # Verify connection was used
+            # Verificar que se llamó a run_sync para crear tablas
             mock_conn.run_sync.assert_called_once()
 
 
 async def test_bot_close_with_done_monitor_task(test_bot: DiscordBot) -> None:
-    """Test bot close when monitor task is already done.
+    """Probar el cierre del bot cuando la tarea de monitor ya está completada.
 
     Args:
-        test_bot: Test bot instance
+        test_bot: Instancia del bot de prueba
     """
-    # Mock the database close and parent close
+    # Falsear el cierre de la base de datos
     test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
 
-    # Mock event bus emit
+    # Falsear el método emit del event bus
     mock_emit = MagicMock()
     test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
 
-    # Mock monitor task as already done
+    # Falsear una tarea de monitor ya completada
     mock_task = AsyncMock()
     mock_task.done.return_value = True
     test_bot._monitor_task = mock_task
@@ -234,40 +234,40 @@ async def test_bot_close_with_done_monitor_task(test_bot: DiscordBot) -> None:
     with patch("discord_bot.bot.commands.Bot.close", new_callable=AsyncMock):
         await test_bot.close()
 
-        # Verify shutdown event was emitted
+        # Verificar que se emitió el evento de apagado
         from discord_bot.common.enums.event_type import EventType
 
         mock_emit.assert_called_once_with(EventType.BOT_SHUTDOWN, {})
 
-        # Verify database was closed
+        # Verificar que la tarea de monitor no fue cancelada (ya estaba done)
         test_bot.database.close.assert_called_once()
 
 
 async def test_bot_close_without_monitor_task(test_bot: DiscordBot) -> None:
-    """Test bot close when no monitor task exists.
+    """Probar el cierre del bot cuando no hay tarea de monitor.
 
     Args:
-        test_bot: Test bot instance
+        test_bot: Instancia del bot de prueba
     """
-    # Mock the database close and parent close
+    # Falsear el cierre de la base de datos
     test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
 
-    # Mock event bus emit
+    # Falsear el método emit del event bus
     mock_emit = MagicMock()
     test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
 
-    # No monitor task
+    # Sin tarea de monitor
     test_bot._monitor_task = None
 
     with patch("discord_bot.bot.commands.Bot.close", new_callable=AsyncMock):
         await test_bot.close()
 
-        # Verify shutdown event was emitted
+        # Verificar que se emitió el evento de apagado
         from discord_bot.common.enums.event_type import EventType
 
         mock_emit.assert_called_once_with(EventType.BOT_SHUTDOWN, {})
 
-        # Verify database was closed
+        # Verificar que la base de datos fue cerrada
         test_bot.database.close.assert_called_once()
 
 
@@ -275,25 +275,25 @@ async def test_bot_close_without_monitor_task(test_bot: DiscordBot) -> None:
 async def test_monitor_event_loop_cancellation(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test event loop monitor cancellation.
+    """Probar la cancelación del monitor del bucle de eventos.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
 
-        # Start monitoring
+        # Empezar el monitor
         task = asyncio.create_task(bot._monitor_event_loop())
 
-        # Let it run briefly
+        # Dejarlo correr un poco
         await asyncio.sleep(0.2)
 
-        # Cancel the task
+        # Cancelar la tarea
         task.cancel()
 
-        # Verify it handles cancellation
+        # Verificar que se cancela sin errores
         with pytest.raises(asyncio.CancelledError):
             await task
 
@@ -302,43 +302,42 @@ async def test_monitor_event_loop_cancellation(
 async def test_monitor_event_loop_detects_lag(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test event loop monitor detects blocking operations.
+    """Probar que el monitor del bucle de eventos detecta retrasos.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     import time
 
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
 
-        # Set a low threshold for testing
+        # Establecer un umbral bajo para la prueba
         bot.settings.bot.event_loop_warning_threshold = 0.1
 
-        # Mock the logger to capture warnings
+        # Falsear el logger
         with patch("discord_bot.bot.logger") as mock_logger:
-            # Start monitoring
+            # Empezar el monitor
             task = asyncio.create_task(bot._monitor_event_loop())
 
-            # Let monitor start
+            # Dejarlo correr un poco
             await asyncio.sleep(0.15)
 
-            # Simulate a blocking operation (blocks the event loop)
-            # This is intentional - we're testing that the monitor detects blocking calls
+            # Introducir un retraso artificial
             time.sleep(0.6)  # noqa: ASYNC251
 
-            # Give monitor time to detect the lag
+            # Dar tiempo al monitor para detectar el retraso
             await asyncio.sleep(0.15)
 
-            # Cancel the task
+            # Cancelar la tarea
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
 
-            # Verify warning was logged
+            # Verificar que se registró una advertencia sobre el retraso
             warning_calls = [
                 call
                 for call in mock_logger.warning.call_args_list
@@ -351,33 +350,33 @@ async def test_monitor_event_loop_detects_lag(
 async def test_monitor_event_loop_uses_custom_threshold(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Test event loop monitor uses custom threshold from settings.
+    """Probar que el monitor del bucle de eventos usa un umbral personalizado.
 
     Args:
-        test_settings: Test application settings
-        test_database: Test database service
+        test_settings (AppSettings): Configuración de la aplicación de prueba
+        test_database (DatabaseService): Servicio de base de datos de prueba
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
-        # Set custom threshold
+        # Establecer un umbral alto para la prueba
         test_settings.bot.event_loop_warning_threshold = 2.0
         bot = DiscordBot(test_settings, test_database)
 
-        # Mock the logger
+        # Falsear el logger
         with patch("discord_bot.bot.logger") as mock_logger:
-            # Start monitoring
+            # Empezar el monitor
             task = asyncio.create_task(bot._monitor_event_loop())
 
-            # Let it run briefly
+            # Dejarlo correr un poco
             await asyncio.sleep(0.2)
 
-            # Cancel the task
+            # Cancelar la tarea
             task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
 
-            # With high threshold (2.0s), no warnings should be logged for normal operation
+            # Confirmar que no se registraron advertencias
             warning_calls = [
                 call
                 for call in mock_logger.warning.call_args_list

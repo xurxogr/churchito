@@ -1,4 +1,4 @@
-# Discord Bot Skeleton
+# Esqueleto del Bot
 
 Un esqueleto de bot de Discord listo para producción con arquitectura basada en características, SQLAlchemy 2.0 y pruebas exhaustivas.
 

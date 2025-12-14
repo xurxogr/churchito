@@ -23,8 +23,8 @@ class EventBus:
         """Suscribirse a un manejador para un tipo de evento.
 
         Args:
-            event_type: El tipo de evento al que suscribirse
-            handler: Callable que será invocado cuando se emita el evento
+            event_type (str): El tipo de evento al que suscribirse
+            handler (EventHandler): Callable que será invocado cuando se emita el evento
         """
         self._subscribers[event_type].append(handler)
         logger.debug(f"Suscrito el manejador {handler.__name__} al evento '{event_type}'")
@@ -33,8 +33,8 @@ class EventBus:
         """Cancelar la suscripción de un manejador de un tipo de evento.
 
         Args:
-            event_type: El tipo de evento del que cancelar la suscripción
-            handler: El manejador a eliminar
+            event_type (str): El tipo de evento del que cancelar la suscripción
+            handler (EventHandler): El manejador a eliminar
         """
         if event_type in self._subscribers:
             try:
@@ -52,8 +52,8 @@ class EventBus:
         """Emitir un evento a todos los manejadores suscritos.
 
         Args:
-            event_type: El tipo de evento que se emite
-            data: Datos del evento a pasar a los manejadores
+            event_type (str): El tipo de evento que se emite
+            data (dict[str, Any]): Datos del evento a pasar a los manejadores
         """
         handlers = self._subscribers.get(event_type, [])
         logger.debug(f"Emitiendo evento '{event_type}' a {len(handlers)} manejador(es)")

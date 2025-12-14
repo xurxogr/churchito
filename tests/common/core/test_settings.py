@@ -1,4 +1,4 @@
-"""Tests for settings module."""
+"""Tests para la configuración de devops."""
 
 from discord_bot.common.core import AppSettings, get_settings
 from discord_bot.common.core.settings.bot import BotSettings
@@ -7,7 +7,7 @@ from discord_bot.common.core.settings.logging import LoggingSettings
 
 
 def test_bot_settings_default() -> None:
-    """Test BotSettings default values."""
+    """Probar opciones por defecto de BotSettings."""
     settings = BotSettings(token="test_token")
 
     assert settings.token == "test_token"
@@ -17,7 +17,7 @@ def test_bot_settings_default() -> None:
 
 
 def test_logging_settings_default() -> None:
-    """Test LoggingSettings default values."""
+    """Probar opciones por defecto de LoggingSettings."""
     settings = LoggingSettings()
 
     assert settings.log_level == "INFO"
@@ -27,7 +27,7 @@ def test_logging_settings_default() -> None:
 
 
 def test_database_settings_default() -> None:
-    """Test DatabaseSettings default values."""
+    """Probar opciones por defecto de DatabaseSettings."""
     settings = DatabaseSettings()
 
     assert settings.url == "sqlite+aiosqlite:///data/bot.db"
@@ -36,10 +36,10 @@ def test_database_settings_default() -> None:
 
 
 def test_app_settings_creation(test_settings: AppSettings) -> None:
-    """Test AppSettings creation.
+    """Probar creación de AppSettings.
 
     Args:
-        test_settings: Test application settings fixture
+        test_settings (AppSettings): Instancia de configuración de la aplicación para pruebas
     """
     assert test_settings.bot.token == "test_token_123"
     assert test_settings.bot.command_prefix == "!"
@@ -48,7 +48,7 @@ def test_app_settings_creation(test_settings: AppSettings) -> None:
 
 
 def test_get_settings_singleton() -> None:
-    """Test that get_settings returns a singleton."""
+    """Probar que se devuelve un singleton."""
     settings1 = get_settings()
     settings2 = get_settings()
 

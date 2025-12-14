@@ -1,4 +1,4 @@
-"""Tests for event bus module."""
+"""Tests para el bus de eventos."""
 
 from collections.abc import Generator
 from typing import Any
@@ -11,10 +11,10 @@ from discord_bot.common.services.event_bus import EventBus, get_event_bus
 
 @pytest.fixture
 def event_bus() -> Generator[EventBus, None, None]:
-    """Create a fresh event bus for testing.
+    """Crear un bus de eventos.
 
     Returns:
-        EventBus: New event bus instance
+        EventBus: Nueva instancia del bus de eventos
     """
     bus = EventBus()
     yield bus
@@ -22,10 +22,10 @@ def event_bus() -> Generator[EventBus, None, None]:
 
 
 def test_subscribe_and_emit(event_bus: EventBus) -> None:
-    """Test subscribing to and emitting events.
+    """Probar a suscribirse y emitir un evento.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
     received_data: list[dict[str, Any]] = []
 
@@ -43,10 +43,10 @@ def test_subscribe_and_emit(event_bus: EventBus) -> None:
 
 
 def test_multiple_subscribers(event_bus: EventBus) -> None:
-    """Test multiple subscribers for the same event.
+    """Probar múltiples suscriptores para el mismo evento.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
     counter = {"count": 0}
 
@@ -65,10 +65,10 @@ def test_multiple_subscribers(event_bus: EventBus) -> None:
 
 
 def test_unsubscribe(event_bus: EventBus) -> None:
-    """Test unsubscribing from events.
+    """Probar la desuscripción de un manejador.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
     received_data: list[dict[str, Any]] = []
 
@@ -86,10 +86,10 @@ def test_unsubscribe(event_bus: EventBus) -> None:
 
 
 def test_handler_exception_doesnt_break_emit(event_bus: EventBus) -> None:
-    """Test that handler exceptions don't break event emission.
+    """Probar que una excepción en un manejador no rompe la emisión.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
     received_data: list[dict[str, Any]] = []
 
@@ -110,7 +110,7 @@ def test_handler_exception_doesnt_break_emit(event_bus: EventBus) -> None:
 
 
 def test_get_event_bus_singleton() -> None:
-    """Test that get_event_bus returns a singleton."""
+    """Probar que get_event_bus devuelve la misma instancia."""
     bus1 = get_event_bus()
     bus2 = get_event_bus()
 
@@ -118,10 +118,10 @@ def test_get_event_bus_singleton() -> None:
 
 
 def test_clear(event_bus: EventBus) -> None:
-    """Test clearing all subscriptions.
+    """Probar que clear elimina todos los suscriptores.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
     received_data: list[dict[str, Any]] = []
 
@@ -136,10 +136,10 @@ def test_clear(event_bus: EventBus) -> None:
 
 
 def test_unsubscribe_nonexistent_handler(event_bus: EventBus) -> None:
-    """Test unsubscribing a handler that was never subscribed (line 45).
+    """Probar desuscribir un manejador que no está suscrito.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
 
     def handler1(data: dict[str, Any]) -> None:
@@ -164,10 +164,10 @@ def test_unsubscribe_nonexistent_handler(event_bus: EventBus) -> None:
 
 
 def test_unsubscribe_handler_twice(event_bus: EventBus) -> None:
-    """Test unsubscribing the same handler twice triggers warning.
+    """Probar desuscribir un manejador dos veces.
 
     Args:
-        event_bus: Event bus fixture
+        event_bus (EventBus): Instancia del bus de eventos
     """
 
     def handler(data: dict[str, Any]) -> None:

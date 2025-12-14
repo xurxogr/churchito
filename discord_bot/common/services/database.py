@@ -25,7 +25,7 @@ class DatabaseService:
         """Inicializar el servicio de base de datos.
 
         Args:
-            settings: Configuración de la base de datos
+            settings (DatabaseSettings): Configuración de la base de datos
         """
         self.settings = settings
         self._engine: AsyncEngine | None = None
@@ -52,7 +52,7 @@ class DatabaseService:
         """Obtener el creador de sesiones.
 
         Returns:
-            async_sessionmaker: creador de sesiones asíncronas de SQLAlchemy
+            async_sessionmaker[AsyncSession]: creador de sesiones asíncronas de SQLAlchemy
 
         Raises:
             RuntimeError: Si el creador de sesiones no está inicializado
@@ -154,7 +154,7 @@ def get_database_service(settings: DatabaseSettings) -> DatabaseService:
     """Obtener el singleton del servicio de base de datos.
 
     Args:
-        settings: Configuración de la base de datos
+        settings (DatabaseSettings): Configuración de la base de datos
 
     Returns:
         DatabaseService: instancia del servicio de base de datos

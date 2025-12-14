@@ -1,4 +1,4 @@
-"""Tests for general cog."""
+"""Pruebas para el cog general."""
 
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
@@ -10,19 +10,19 @@ from discord_bot.general.cog import GeneralCog, setup
 
 @pytest.fixture
 def mock_bot() -> MagicMock:
-    """Create a mock Discord bot.
+    """Crear un bot de Discord simulado.
 
     Returns:
-        MagicMock: Mocked bot instance
+        MagicMock: Instancia de bot simulada
     """
     bot = MagicMock(spec=commands.Bot)
-    bot.latency = 0.05  # 50ms latency
+    bot.latency = 0.05  # latencia de 50ms
     bot.command_prefix = "!"
 
-    # Mock guilds
+    # Simular servidores
     type(bot).guilds = PropertyMock(return_value=[MagicMock(), MagicMock()])
 
-    # Mock user
+    # Simular usuario
     mock_user = MagicMock()
     mock_user.name = "TestBot"
     mock_user.id = 123456789
@@ -33,26 +33,26 @@ def mock_bot() -> MagicMock:
 
 @pytest.fixture
 def general_cog(mock_bot: MagicMock) -> GeneralCog:
-    """Create a GeneralCog instance.
+    """Crear una instancia de GeneralCog.
 
     Args:
-        mock_bot: Mock bot fixture
+        mock_bot (MagicMock): Fixture del bot simulado
 
     Returns:
-        GeneralCog: General cog instance
+        GeneralCog: Instancia del cog general
     """
     return GeneralCog(mock_bot)
 
 
 @pytest.fixture
 def mock_context(mock_bot: MagicMock) -> MagicMock:
-    """Create a mock command context.
+    """Crear un contexto de comando simulado.
 
     Args:
-        mock_bot: Mock bot fixture
+        mock_bot (MagicMock): Fixture del bot simulado
 
     Returns:
-        MagicMock: Mocked context
+        MagicMock: Contexto simulado
     """
     ctx = MagicMock(spec=commands.Context)
     ctx.send = AsyncMock()
@@ -63,10 +63,10 @@ def mock_context(mock_bot: MagicMock) -> MagicMock:
 
 
 def test_general_cog_initialization(mock_bot: MagicMock) -> None:
-    """Test GeneralCog initialization.
+    """Probar la inicialización de GeneralCog.
 
     Args:
-        mock_bot: Mock bot fixture
+        mock_bot (MagicMock): Fixture del bot simulado
     """
     cog = GeneralCog(mock_bot)
     assert cog.bot == mock_bot
@@ -75,25 +75,25 @@ def test_general_cog_initialization(mock_bot: MagicMock) -> None:
 async def test_ping_command(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test ping command.
+    """Probar el comando ping.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
     with patch("discord_bot.general.cog.logger") as mock_logger:
-        # Call the underlying command function directly (bypasses decorator complexity)
-        # Type ignore needed: mypy doesn't understand discord.py's callback pattern
+        # Llamar la función del comando directamente (evita complejidad del decorador)
+        # Ignore de tipo necesario: mypy no entiende el patrón de callback de discord.py
         await general_cog.ping.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
 
-        # Verify message was sent
+        # Verificar que el mensaje fue enviado
         mock_context.send.assert_called_once()
         sent_message = mock_context.send.call_args[0][0]
         assert "Pong!" in sent_message
         assert "50ms" in sent_message  # bot.latency = 0.05 * 1000 = 50ms
 
-        # Verify logging
+        # Verificar logging
         mock_logger.info.assert_called_once()
         log_message = mock_logger.info.call_args[0][0]
         assert "ping ejecutado" in log_message
@@ -103,14 +103,14 @@ async def test_ping_command(
 async def test_ping_command_with_high_latency(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test ping command with high latency.
+    """Probar el comando ping con latencia alta.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
-    # Set high latency
+    # Establecer latencia alta
     mock_bot.latency = 0.123  # 123ms
 
     await general_cog.ping.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
@@ -122,27 +122,27 @@ async def test_ping_command_with_high_latency(
 async def test_info_command(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test info command.
+    """Probar el comando info.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
     with patch("discord_bot.general.cog.logger") as mock_logger:
         await general_cog.info.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
 
-        # Verify message was sent
+        # Verificar que el mensaje fue enviado
         mock_context.send.assert_called_once()
         sent_message = mock_context.send.call_args[0][0]
 
-        # Check all expected information is present
+        # Verificar que toda la información esperada esté presente
         assert "Información del Bot" in sent_message
-        assert "TestBot" in sent_message  # bot name
-        assert "Servidores: 2" in sent_message  # guild count
-        assert "Prefijo: `!`" in sent_message  # command prefix
+        assert "TestBot" in sent_message  # nombre del bot
+        assert "Servidores: 2" in sent_message  # cantidad de servidores
+        assert "Prefijo: `!`" in sent_message  # prefijo del comando
 
-        # Verify logging
+        # Verificar logging
         mock_logger.info.assert_called_once()
         log_message = mock_logger.info.call_args[0][0]
         assert "info ejecutado" in log_message
@@ -151,14 +151,14 @@ async def test_info_command(
 async def test_info_command_no_user(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test info command when bot.user is None.
+    """Probar el comando info cuando bot.user es None.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
-    # Set user to None
+    # Establecer usuario a None
     type(mock_bot).user = PropertyMock(return_value=None)
 
     await general_cog.info.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
@@ -170,35 +170,35 @@ async def test_info_command_no_user(
 async def test_info_command_with_list_prefix(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test info command with list of prefixes.
+    """Probar el comando info con una lista de prefijos.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
-    # Set command prefix to a list
+    # Establecer el prefijo del comando a una lista
     mock_bot.command_prefix = ["!", "?", "$"]
 
     await general_cog.info.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
 
     sent_message = mock_context.send.call_args[0][0]
-    # Should display all prefixes
+    # Debe mostrar todos los prefijos
     assert "Prefijo:" in sent_message
 
 
 async def test_info_command_with_callable_prefix(
     general_cog: GeneralCog, mock_context: MagicMock, mock_bot: MagicMock
 ) -> None:
-    """Test info command with callable prefix.
+    """Probar el comando info con un prefijo callable.
 
     Args:
-        general_cog: General cog fixture
-        mock_context: Mock context fixture
-        mock_bot: Mock bot fixture
+        general_cog (GeneralCog): Fixture del cog general
+        mock_context (MagicMock): Fixture del contexto simulado
+        mock_bot (MagicMock): Fixture del bot simulado
     """
-    # Set command prefix to a callable
-    mock_bot.command_prefix = lambda bot, msg: "!"
+    # Establecer el prefijo del comando a una función
+    mock_bot.command_prefix = "!"
 
     await general_cog.info.callback(general_cog, mock_context)  # type: ignore[call-arg, arg-type]
 
@@ -207,16 +207,16 @@ async def test_info_command_with_callable_prefix(
 
 
 async def test_setup_function() -> None:
-    """Test the setup function adds the cog to the bot."""
+    """Probar que la función setup agrega el cog al bot."""
     mock_bot = MagicMock(spec=commands.Bot)
     mock_bot.add_cog = AsyncMock()
 
     await setup(mock_bot)
 
-    # Verify add_cog was called once
+    # Verificar que add_cog fue llamado una vez
     mock_bot.add_cog.assert_called_once()
 
-    # Verify the argument is a GeneralCog instance
+    # Verificar que el argumento es una instancia de GeneralCog
     added_cog = mock_bot.add_cog.call_args[0][0]
     assert isinstance(added_cog, GeneralCog)
     assert added_cog.bot == mock_bot

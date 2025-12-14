@@ -1,4 +1,4 @@
-"""Tests for main entry point."""
+"""Tests para punto de entrada principal."""
 
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,7 +10,7 @@ from discord_bot.common.core import AppSettings
 
 
 def test_parse_args_defaults() -> None:
-    """Test argument parsing with defaults."""
+    """Test parseo de argumentos con valores por defecto."""
     with patch("sys.argv", ["bot"]):
         args = parse_args()
 
@@ -20,7 +20,7 @@ def test_parse_args_defaults() -> None:
 
 
 def test_parse_args_with_config() -> None:
-    """Test argument parsing with config file."""
+    """Test parseo de argumentos con archivo de configuración."""
     with patch("sys.argv", ["bot", "--config", "/path/to/config.json"]):
         args = parse_args()
 
@@ -28,7 +28,7 @@ def test_parse_args_with_config() -> None:
 
 
 def test_parse_args_with_token() -> None:
-    """Test argument parsing with token."""
+    """Test parseo de argumentos con token."""
     with patch("sys.argv", ["bot", "--token", "test_token"]):
         args = parse_args()
 
@@ -36,7 +36,7 @@ def test_parse_args_with_token() -> None:
 
 
 def test_parse_args_with_log_level() -> None:
-    """Test argument parsing with log level."""
+    """Test parseo de argumentos con nivel de log."""
     with patch("sys.argv", ["bot", "--log-level", "DEBUG"]):
         args = parse_args()
 

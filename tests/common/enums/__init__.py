@@ -1,1 +1,0 @@
-"""Inicializacion del modulo."""

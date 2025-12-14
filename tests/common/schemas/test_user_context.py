@@ -1,10 +1,13 @@
-"""Tests for UserContext model."""
+"""Tests del model UserContext.
+
+Estos tests son temporales, hasta que haya un servicio que los utilice.
+"""
 
 from discord_bot.common.schemas import UserContext
 
 
 def test_user_context_creation() -> None:
-    """Test creating a UserContext."""
+    """Test para crear UserContext."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -19,7 +22,7 @@ def test_user_context_creation() -> None:
 
 
 def test_user_context_minimal() -> None:
-    """Test creating UserContext with minimal fields."""
+    """Test para crear UserContext con los campos mínimos."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -27,12 +30,12 @@ def test_user_context_minimal() -> None:
 
     assert context.user_id == 123456789
     assert context.guild_id == 987654321
-    assert context.role_ids == []  # Default
-    assert context.username is None  # Default
+    assert context.role_ids == []  # Por defecto
+    assert context.username is None  # Por defecto
 
 
 def test_user_context_has_role() -> None:
-    """Test has_role method."""
+    """Test del método has_role."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -45,7 +48,7 @@ def test_user_context_has_role() -> None:
 
 
 def test_user_context_has_any_role() -> None:
-    """Test has_any_role method."""
+    """Test del método has_any_role."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -66,7 +69,7 @@ def test_user_context_has_any_role() -> None:
 
 
 def test_user_context_has_all_roles() -> None:
-    """Test has_all_roles method."""
+    """Test del método has_all_roles."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -87,7 +90,7 @@ def test_user_context_has_all_roles() -> None:
 
 
 def test_user_context_no_roles() -> None:
-    """Test UserContext with no roles."""
+    """Test de UserContext sin roles."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
