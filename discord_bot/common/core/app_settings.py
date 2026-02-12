@@ -13,6 +13,7 @@ from pydantic_settings import (
 from discord_bot.common.core.settings.bot import BotSettings
 from discord_bot.common.core.settings.database import DatabaseSettings
 from discord_bot.common.core.settings.logging import LoggingSettings
+from discord_bot.common.core.settings.web import WebSettings
 
 
 class AppSettings(BaseSettings):
@@ -21,6 +22,7 @@ class AppSettings(BaseSettings):
     bot: BotSettings = Field(default_factory=BotSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    web: WebSettings = Field(default_factory=WebSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",

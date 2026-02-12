@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    {% if bot %}
+    <div class="bot-info">
+        {% if bot.avatar %}
+        <img src="{{ bot.avatar }}" alt="{{ bot.name }}" class="bot-avatar">
+        {% endif %}
+        <div class="bot-details">
+            <h1>{{ bot.name }}</h1>
+            <p class="subtitle">Conectado a {{ bot.guild_count }} servidor(es)</p>
+        </div>
+    </div>
+    {% else %}
+    <h1>Dashboard</h1>
+    {% endif %}
+
+    <h2>Tus Servidores</h2>
+    <p class="subtitle">Selecciona un servidor para configurar el bot.</p>
+
+    {% if guilds %}
+    <div class="guild-grid">
+        {% for guild in guilds %}
+        <div class="guild-card {% if not guild.bot_present %}guild-disabled{% endif %}">
+            <div class="guild-icon">
+                {% if guild.icon %}
+                <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png" alt="{{ guild.name }}">
+                {% else %}
+                <div class="guild-icon-placeholder">{{ guild.name[0] }}</div>
+                {% endif %}
+            </div>
+            <div class="guild-info">
+                <h3>{{ guild.name }}</h3>
+                {% if guild.bot_present %}
+                <span class="badge badge-success">Bot presente</span>
+                <a href="/guild/{{ guild.id }}" class="btn btn-primary btn-sm">Configurar</a>
+                {% else %}
+                <span class="badge badge-warning">Bot no presente</span>
+                <button class="btn btn-secondary btn-sm" disabled>Invitar primero</button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No tienes servidores donde puedas gestionar el bot.</p>
+        <p>Necesitas el permiso "Gestionar servidor" o ser propietario del servidor.</p>
+    </div>
+    {% endif %}
+
+    <div class="debug-info" style="margin-top: 2rem; padding: 1rem; background: #1a1a2e; border-radius: 8px; font-size: 0.8rem; color: #888;">
+        <p>Usuario: {{ user.username }} (ID: {{ user.id }})</p>
+        <p>Es owner del bot: {{ is_owner }}</p>
+        <p>Servidores con permisos: {{ guilds|length }}</p>
+    </div>
+</div>
+{% endblock %}

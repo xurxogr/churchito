@@ -6,10 +6,13 @@ import logging
 import sys
 from pathlib import Path
 
+import uvicorn
+
 from discord_bot.bot import DiscordBot
 from discord_bot.common.core import AppSettings, get_settings
 from discord_bot.common.core.logging import setup_logging
 from discord_bot.common.services import DatabaseService
+from discord_bot.web.app import create_app
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +75,37 @@ def load_settings(args: argparse.Namespace) -> AppSettings:
     return settings
 
 
+async def run_bot(bot: DiscordBot, token: str) -> None:
+    """Ejecuta el bot de Discord.
+
+    Args:
+        bot (DiscordBot): Instancia del bot
+        token (str): Token de autenticación
+    """
+    async with bot:
+        await bot.start(token)
+
+
+async def run_web(settings: AppSettings, database: DatabaseService, bot: DiscordBot) -> None:
+    """Ejecuta el servidor web del dashboard.
+
+    Args:
+        settings (AppSettings): Configuración de la aplicación
+        database (DatabaseService): Servicio de base de datos
+        bot (DiscordBot): Instancia del bot (para acceder a guilds, etc.)
+    """
+    app = create_app(settings, database, bot)
+
+    config = uvicorn.Config(
+        app,
+        host=settings.web.host,
+        port=settings.web.port,
+        log_level="info",
+    )
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 async def main() -> None:
     """Punto de entrada principal del bot."""
     # Procesa argumentos
@@ -106,12 +140,21 @@ async def main() -> None:
     # Inicializa el servicio de base de datos
     database = DatabaseService(settings.database)
 
-    # Crea y ejecuta el bot
+    # Crea el bot
     bot = DiscordBot(settings, database)
 
     try:
-        async with bot:
-            await bot.start(settings.bot.token)
+        if settings.web.enabled:
+            # Ejecutar bot y web dashboard en paralelo
+            logger.info(
+                f"Dashboard web habilitado en http://{settings.web.host}:{settings.web.port}"
+            )
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(run_bot(bot, settings.bot.token))
+                tg.create_task(run_web(settings, database, bot))
+        else:
+            # Solo ejecutar el bot
+            await run_bot(bot, settings.bot.token)
     except KeyboardInterrupt:
         logger.info("Interrupción por teclado recibida, apagando...")
     except Exception as e:

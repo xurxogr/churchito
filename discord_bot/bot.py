@@ -93,6 +93,13 @@ class DiscordBot(commands.Bot):
             logger.info(f"Bot conectado como {self.user.name} (ID: {self.user.id})")
             logger.info(f"Conectado a {len(self.guilds)} servidor(s)")
 
+            # Sincronizar comandos de aplicación con Discord
+            try:
+                synced = await self.tree.sync()
+                logger.info(f"Sincronizados {len(synced)} comandos de aplicación")
+            except Exception as e:
+                logger.error(f"Error al sincronizar comandos: {e}")
+
             # Emitir evento
             self.event_bus.emit(
                 EventType.BOT_READY,

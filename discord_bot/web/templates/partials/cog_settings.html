@@ -1,0 +1,181 @@
+<div class="cog-settings-panel">
+    <div class="cog-header">
+        <h2>{{ schema.icon }} {{ schema.display_name }}</h2>
+        <p>{{ schema.description }}</p>
+
+        <div class="cog-actions">
+            <button
+                class="btn {% if enabled %}btn-danger{% else %}btn-success{% endif %}"
+                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
+                hx-target="#cog-settings"
+                hx-swap="innerHTML"
+            >
+                {% if enabled %}Deshabilitar{% else %}Habilitar{% endif %}
+            </button>
+
+            <button
+                class="btn btn-secondary"
+                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/reset"
+                hx-target="#cog-settings"
+                hx-swap="innerHTML"
+                hx-confirm="¿Estás seguro de que quieres reiniciar la configuración a valores por defecto?"
+            >
+                Reiniciar
+            </button>
+        </div>
+    </div>
+
+    <div class="options-list">
+        {% for option in options %}
+        <div class="option-item">
+            <div class="option-header">
+                <label for="opt-{{ option.key }}">{{ option.name }}</label>
+                {% if option.required %}
+                <span class="badge badge-required">Requerido</span>
+                {% endif %}
+            </div>
+            {% if option.description %}
+            <p class="option-description">{{ option.description }}</p>
+            {% endif %}
+
+            <form
+                class="option-form"
+                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
+                hx-target="#cog-settings"
+                hx-swap="innerHTML"
+            >
+                {% if option.type == 'string' %}
+                <input
+                    type="text"
+                    name="value"
+                    id="opt-{{ option.key }}"
+                    value="{{ option.value if option.value is not none else '' }}"
+                    placeholder="{{ option.default or 'Sin valor' }}"
+                    {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
+                    class="input"
+                >
+                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+
+                {% elif option.type == 'integer' %}
+                <input
+                    type="number"
+                    name="value"
+                    id="opt-{{ option.key }}"
+                    value="{{ option.value if option.value is not none else '' }}"
+                    placeholder="{{ option.default or '0' }}"
+                    {% if option.min_value is not none %}min="{{ option.min_value }}"{% endif %}
+                    {% if option.max_value is not none %}max="{{ option.max_value }}"{% endif %}
+                    class="input"
+                >
+                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+
+                {% elif option.type == 'boolean' %}
+                <label class="toggle">
+                    <input
+                        type="checkbox"
+                        name="value"
+                        value="true"
+                        {% if option.value %}checked{% endif %}
+                        onchange="this.form.requestSubmit()"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">{{ 'Activado' if option.value else 'Desactivado' }}</span>
+                </label>
+
+                {% elif option.type == 'text_choice' and option.choices %}
+                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                    <option value="">-- Seleccionar --</option>
+                    {% for label, val in option.choices %}
+                    <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                {% elif option.type == 'channel' %}
+                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                    <option value="">-- Seleccionar canal --</option>
+                    {% for ch in channels %}
+                    <option value="{{ ch.id }}" {% if option.value == ch.id %}selected{% endif %}>
+                        #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if option.display_value and option.value %}
+                <span class="current-value">Actual: {{ option.display_value }}</span>
+                {% endif %}
+
+                {% elif option.type == 'role' %}
+                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                    <option value="">-- Seleccionar rol --</option>
+                    {% for role in roles %}
+                    <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
+                        @{{ role.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if option.display_value and option.value %}
+                <span class="current-value">Actual: {{ option.display_value }}</span>
+                {% endif %}
+
+                {% elif option.type == 'channel_list' %}
+                <div class="multi-select-wrapper">
+                    <select id="sel-{{ option.key }}" class="select select-multiple" multiple size="6">
+                        {% for ch in channels %}
+                        <option value="{{ ch.id }}" {% if option.value and ch.id in option.value %}selected{% endif %}>
+                            #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="
+                        const sel = document.getElementById('sel-{{ option.key }}');
+                        const hidden = document.getElementById('val-{{ option.key }}');
+                        hidden.value = Array.from(sel.selectedOptions).map(o => o.value).join(',');
+                        this.closest('form').requestSubmit();
+                    ">Guardar</button>
+                </div>
+                {% if option.display_value %}
+                <p class="current-value">Actual: {{ option.display_value }}</p>
+                {% endif %}
+
+                {% elif option.type == 'role_list' %}
+                <div class="multi-select-wrapper">
+                    <select id="sel-{{ option.key }}" class="select select-multiple" multiple size="6">
+                        {% for role in roles %}
+                        <option value="{{ role.id }}" {% if option.value and role.id in option.value %}selected{% endif %}>
+                            @{{ role.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="
+                        const sel = document.getElementById('sel-{{ option.key }}');
+                        const hidden = document.getElementById('val-{{ option.key }}');
+                        hidden.value = Array.from(sel.selectedOptions).map(o => o.value).join(',');
+                        this.closest('form').requestSubmit();
+                    ">Guardar</button>
+                </div>
+                {% if option.display_value %}
+                <p class="current-value">Actual: {{ option.display_value }}</p>
+                {% endif %}
+
+                {% else %}
+                <input
+                    type="text"
+                    name="value"
+                    id="opt-{{ option.key }}"
+                    value="{{ option.value if option.value is not none else '' }}"
+                    class="input"
+                >
+                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                {% endif %}
+            </form>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Este módulo no tiene opciones configurables.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>

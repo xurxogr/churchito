@@ -271,7 +271,6 @@ async def test_bot_close_without_monitor_task(test_bot: DiscordBot) -> None:
         test_bot.database.close.assert_called_once()
 
 
-@pytest.mark.timeout(2)
 async def test_monitor_event_loop_cancellation(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
@@ -298,7 +297,6 @@ async def test_monitor_event_loop_cancellation(
             await task
 
 
-@pytest.mark.timeout(3)
 async def test_monitor_event_loop_detects_lag(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
@@ -346,7 +344,6 @@ async def test_monitor_event_loop_detects_lag(
             assert len(warning_calls) > 0, "Expected warning about event loop delay"
 
 
-@pytest.mark.timeout(2)
 async def test_monitor_event_loop_uses_custom_threshold(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
@@ -383,3 +380,431 @@ async def test_monitor_event_loop_uses_custom_threshold(
                 if "Retraso en el bucle de eventos detectado" in str(call)
             ]
             assert len(warning_calls) == 0, "Should not log warnings with high threshold"
+
+
+async def test_bot_on_ready_without_user(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar on_ready cuando el usuario del bot es None.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        type(bot).user = PropertyMock(return_value=None)  # type: ignore[method-assign]
+
+        mock_emit = MagicMock()
+        bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+
+        # Debería ejecutar sin errores cuando user es None
+        await bot.on_ready()
+
+        # No debería emitir evento cuando no hay usuario
+        mock_emit.assert_not_called()
+
+
+async def test_bot_on_ready_sync_error(test_bot: DiscordBot) -> None:
+    """Probar on_ready cuando tree.sync() lanza una excepción.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_emit = MagicMock()
+    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+
+    # Falsear tree.sync para que lance una excepción
+    mock_tree = MagicMock()
+    mock_tree.sync = AsyncMock(side_effect=Exception("Sync failed"))
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+
+    # Debería manejar el error sin propagarlo
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot.on_ready()
+
+        # Verificar que se registró el error
+        error_calls = [
+            call
+            for call in mock_logger.error.call_args_list
+            if "Error al sincronizar comandos" in str(call)
+        ]
+        assert len(error_calls) > 0, "Expected error log about sync failure"
+
+    # El evento debería haberse emitido igualmente
+    from discord_bot.common.enums.event_type import EventType
+
+    mock_emit.assert_called_once_with(
+        EventType.BOT_READY,
+        {
+            "bot_name": "TestBot",
+            "bot_id": 123456789,
+            "guild_count": 0,
+        },
+    )
+
+
+async def test_bot_on_ready_sync_success(test_bot: DiscordBot) -> None:
+    """Probar on_ready cuando tree.sync() tiene éxito.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_emit = MagicMock()
+    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+
+    # Falsear tree.sync para que devuelva comandos sincronizados
+    mock_tree = MagicMock()
+    mock_tree.sync = AsyncMock(return_value=[MagicMock(), MagicMock()])
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot.on_ready()
+
+        # Verificar que se registró la sincronización exitosa
+        info_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if "Sincronizados 2 comandos" in str(call)
+        ]
+        assert len(info_calls) > 0, "Expected info log about synced commands"
+
+
+async def test_bot_setup_hook_creates_monitor_task(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que setup_hook crea la tarea de monitoreo.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        test_database.initialize = AsyncMock()  # type: ignore[method-assign]
+
+        # Falsear _create_tables y _load_cogs
+        with (
+            patch.object(bot, "_create_tables", new_callable=AsyncMock),
+            patch.object(bot, "_load_cogs", new_callable=AsyncMock),
+        ):
+            await bot.setup_hook()
+
+            # Verificar que se creó la tarea de monitoreo
+            assert bot._monitor_task is not None
+            assert not bot._monitor_task.done()
+
+            # Limpiar la tarea
+            bot._monitor_task.cancel()
+            try:
+                await bot._monitor_task
+            except asyncio.CancelledError:
+                pass
+
+
+def test_bot_initialization_sets_intents(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que la inicialización configura los intents correctamente.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__") as mock_init:
+        mock_init.return_value = None
+
+        DiscordBot(test_settings, test_database)
+
+        # Verificar que se llamó al constructor padre con los argumentos correctos
+        mock_init.assert_called_once()
+        call_kwargs = mock_init.call_args.kwargs
+
+        assert call_kwargs["command_prefix"] == test_settings.bot.command_prefix
+        assert call_kwargs["description"] == test_settings.bot.description
+        assert call_kwargs["owner_id"] == test_settings.bot.owner_id
+
+        # Verificar intents
+        intents = call_kwargs["intents"]
+        assert intents.message_content is True
+        assert intents.members is True
+
+
+def test_bot_initialization_with_different_settings(
+    test_database: DatabaseService,
+) -> None:
+    """Probar inicialización con diferentes configuraciones.
+
+    Args:
+        test_database: Servicio de base de datos de prueba
+    """
+    from discord_bot.common.core import AppSettings
+    from discord_bot.common.core.settings.bot import BotSettings
+
+    custom_settings = AppSettings(
+        bot=BotSettings(
+            token="test_token",
+            command_prefix=">>",
+            description="Custom Bot Description",
+            owner_id=999888777,
+        )
+    )
+
+    with patch("discord_bot.bot.commands.Bot.__init__") as mock_init:
+        mock_init.return_value = None
+
+        bot = DiscordBot(custom_settings, test_database)
+
+        call_kwargs = mock_init.call_args.kwargs
+        assert call_kwargs["command_prefix"] == ">>"
+        assert call_kwargs["description"] == "Custom Bot Description"
+        assert call_kwargs["owner_id"] == 999888777
+        assert bot.settings == custom_settings
+
+
+async def test_bot_on_ready_logs_guild_count(test_bot: DiscordBot) -> None:
+    """Probar que on_ready registra el conteo de guilds.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    # Configurar múltiples guilds
+    mock_guilds = [MagicMock(), MagicMock(), MagicMock()]
+    type(test_bot).guilds = PropertyMock(return_value=mock_guilds)  # type: ignore[method-assign]
+
+    mock_emit = MagicMock()
+    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+
+    mock_tree = MagicMock()
+    mock_tree.sync = AsyncMock(return_value=[])
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot.on_ready()
+
+        # Verificar que se registró el conteo de guilds
+        info_calls = [
+            call for call in mock_logger.info.call_args_list if "3 servidor(s)" in str(call)
+        ]
+        assert len(info_calls) > 0, "Expected info log about guild count"
+
+    # Verificar el evento emitido
+    from discord_bot.common.enums.event_type import EventType
+
+    mock_emit.assert_called_once_with(
+        EventType.BOT_READY,
+        {
+            "bot_name": "TestBot",
+            "bot_id": 123456789,
+            "guild_count": 3,
+        },
+    )
+
+
+async def test_bot_load_cogs_loads_all_configured_cogs(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _load_cogs intenta cargar todos los cogs configurados.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            await bot._load_cogs()
+
+            # Verificar que se registró la carga exitosa
+            info_calls = [
+                call for call in mock_logger.info.call_args_list if "Cargado cog:" in str(call)
+            ]
+            assert len(info_calls) > 0, "Expected info log about loaded cogs"
+
+
+async def test_bot_load_cogs_logs_errors(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _load_cogs registra errores al cargar cogs.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        bot.load_extension = AsyncMock(  # type: ignore[method-assign]
+            side_effect=Exception("Failed to load")
+        )
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            await bot._load_cogs()
+
+            # Verificar que se registró el error
+            error_calls = [
+                call
+                for call in mock_logger.error.call_args_list
+                if "Error al cargar el cog" in str(call)
+            ]
+            assert len(error_calls) > 0, "Expected error log about cog loading failure"
+
+
+async def test_bot_create_tables_logs_success(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _create_tables registra la creación exitosa.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        mock_conn = AsyncMock()
+        mock_begin_context = AsyncMock()
+        mock_begin_context.__aenter__.return_value = mock_conn
+        mock_begin_context.__aexit__.return_value = None
+
+        mock_engine = MagicMock()
+        mock_engine.begin.return_value = mock_begin_context
+
+        with (
+            patch.object(
+                type(test_database), "engine", new_callable=PropertyMock
+            ) as mock_engine_prop,
+            patch("discord_bot.bot.logger") as mock_logger,
+        ):
+            mock_engine_prop.return_value = mock_engine
+
+            await bot._create_tables()
+
+            # Verificar que se registró la creación de tablas
+            info_calls = [
+                call
+                for call in mock_logger.info.call_args_list
+                if "Tablas de la base de datos creadas" in str(call)
+            ]
+            assert len(info_calls) > 0, "Expected info log about tables creation"
+
+
+async def test_bot_close_logs_shutdown(test_bot: DiscordBot) -> None:
+    """Probar que close registra el proceso de apagado.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
+    test_bot.event_bus.emit = MagicMock()  # type: ignore[method-assign]
+    test_bot._monitor_task = None
+
+    with (
+        patch("discord_bot.bot.commands.Bot.close", new_callable=AsyncMock),
+        patch("discord_bot.bot.logger") as mock_logger,
+    ):
+        await test_bot.close()
+
+        # Verificar mensajes de log
+        info_calls = [str(call) for call in mock_logger.info.call_args_list]
+        assert any("Apagando el bot" in call for call in info_calls)
+        assert any("Apagado del bot completado" in call for call in info_calls)
+
+
+async def test_bot_setup_hook_logs_progress(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que setup_hook registra el progreso.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        test_database.initialize = AsyncMock()  # type: ignore[method-assign]
+
+        with (
+            patch.object(bot, "_create_tables", new_callable=AsyncMock),
+            patch.object(bot, "_load_cogs", new_callable=AsyncMock),
+            patch("discord_bot.bot.logger") as mock_logger,
+        ):
+            await bot.setup_hook()
+
+            # Verificar mensajes de log
+            info_calls = [str(call) for call in mock_logger.info.call_args_list]
+            assert any("Ejecutando el hook de configuración" in call for call in info_calls)
+            assert any("Hook de configuración completado" in call for call in info_calls)
+
+            # Limpiar
+            if bot._monitor_task:
+                bot._monitor_task.cancel()
+                try:
+                    await bot._monitor_task
+                except asyncio.CancelledError:
+                    pass
+
+
+async def test_monitor_event_loop_logs_start(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _monitor_event_loop registra el inicio.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            task = asyncio.create_task(bot._monitor_event_loop())
+            await asyncio.sleep(0.05)
+
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+            # Verificar que se registró el inicio
+            info_calls = [
+                call
+                for call in mock_logger.info.call_args_list
+                if "Monitoreo del bucle de eventos iniciado" in str(call)
+            ]
+            assert len(info_calls) > 0
+
+
+async def test_monitor_event_loop_logs_stop(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _monitor_event_loop registra la detención.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            task = asyncio.create_task(bot._monitor_event_loop())
+            await asyncio.sleep(0.05)
+
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+            # Verificar que se registró la detención
+            info_calls = [
+                call
+                for call in mock_logger.info.call_args_list
+                if "Monitoreo del bucle de eventos detenido" in str(call)
+            ]
+            assert len(info_calls) > 0

@@ -1,0 +1,171 @@
+"""Tests para las rutas del dashboard."""
+
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+
+from discord_bot.web.routers.dashboard import dashboard, index, login_page
+
+
+class TestDashboardRoutes:
+    """Tests para rutas del dashboard."""
+
+    @pytest.fixture
+    def mock_request_with_user(self, simple_app: FastAPI, test_user: dict[str, Any]) -> MagicMock:
+        """Crear request mock con usuario.
+
+        Args:
+            simple_app (FastAPI): Aplicación
+            test_user (dict[str, Any]): Usuario de prueba
+
+        Returns:
+            MagicMock: Request mock
+        """
+        request = MagicMock(spec=Request)
+        request.app = simple_app
+        request.session = {"user": test_user}
+        request.query_params = {}
+        return request
+
+    @pytest.fixture
+    def mock_request_without_user(self, simple_app: FastAPI) -> MagicMock:
+        """Crear request mock sin usuario.
+
+        Args:
+            simple_app (FastAPI): Aplicación
+
+        Returns:
+            MagicMock: Request mock
+        """
+        request = MagicMock(spec=Request)
+        request.app = simple_app
+        request.session = {}
+        request.query_params = {"error": None}
+        return request
+
+    async def test_index_with_user_redirects(
+        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que index con usuario redirige al dashboard."""
+        response = await index(mock_request_with_user, test_user)
+        assert response.status_code == 307
+        assert response.headers["location"] == "/dashboard"
+
+    async def test_index_without_user_shows_login(
+        self, mock_request_without_user: MagicMock
+    ) -> None:
+        """Probar que index sin usuario muestra login."""
+        # Necesitamos templates reales o mock
+        mock_request_without_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_without_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        response = await index(mock_request_without_user, None)
+
+        mock_request_without_user.app.state.templates.TemplateResponse.assert_called_once()
+        assert response == mock_response
+
+    async def test_login_page_with_user_redirects(
+        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que login_page con usuario redirige al dashboard."""
+        response = await login_page(mock_request_with_user, test_user)
+        assert response.status_code == 307
+        assert response.headers["location"] == "/dashboard"
+
+    async def test_login_page_without_user_shows_login(
+        self, mock_request_without_user: MagicMock
+    ) -> None:
+        """Probar que login_page sin usuario muestra login."""
+        mock_request_without_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_without_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        response = await login_page(mock_request_without_user, None)
+
+        mock_request_without_user.app.state.templates.TemplateResponse.assert_called_once()
+        assert response == mock_response
+
+    async def test_dashboard_shows_guilds(
+        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que dashboard muestra los guilds del usuario."""
+        # Setup mock templates
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        # Setup mock bot
+        mock_request_with_user.app.state.bot = MagicMock()
+        mock_request_with_user.app.state.bot.guilds = []
+        mock_request_with_user.app.state.bot.user = MagicMock()
+        mock_request_with_user.app.state.bot.user.name = "TestBot"
+        mock_request_with_user.app.state.bot.user.avatar = None
+
+        await dashboard(mock_request_with_user, test_user)
+
+        # Verificar que se llamó a TemplateResponse
+        mock_request_with_user.app.state.templates.TemplateResponse.assert_called_once()
+        call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
+
+        # Verificar contexto
+        context = call_kwargs["context"]
+        assert "user" in context
+        assert "guilds" in context
+        assert "bot" in context
+
+    async def test_dashboard_for_owner(
+        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+    ) -> None:
+        """Probar dashboard para owner del bot."""
+        # Setup owner
+        mock_request_with_user.app.state.settings.web.owner_ids = [123456789]
+
+        # Setup mock templates
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        # Setup mock bot
+        mock_request_with_user.app.state.bot = MagicMock()
+        mock_request_with_user.app.state.bot.guilds = []
+        mock_request_with_user.app.state.bot.user = None
+
+        await dashboard(mock_request_with_user, test_user)
+
+        call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
+        context = call_kwargs["context"]
+        assert context["is_owner"] is True
+
+    async def test_dashboard_with_bot_in_guild(
+        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+    ) -> None:
+        """Probar dashboard cuando el bot está en el guild del usuario."""
+        # Setup mock templates
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        # Setup mock bot con guild
+        mock_guild = MagicMock()
+        mock_guild.id = 111222333
+        mock_request_with_user.app.state.bot = MagicMock()
+        mock_request_with_user.app.state.bot.guilds = [mock_guild]
+        mock_request_with_user.app.state.bot.user = MagicMock()
+        mock_request_with_user.app.state.bot.user.name = "TestBot"
+        mock_request_with_user.app.state.bot.user.avatar = MagicMock()
+        mock_request_with_user.app.state.bot.user.avatar.url = "http://example.com/avatar.png"
+
+        await dashboard(mock_request_with_user, test_user)
+
+        call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
+        context = call_kwargs["context"]
+
+        # Verificar que el guild tiene bot_present=True
+        guilds = context["guilds"]
+        guild_with_bot = next((g for g in guilds if g["id"] == "111222333"), None)
+        assert guild_with_bot is not None
+        assert guild_with_bot["bot_present"] is True
