@@ -20,7 +20,13 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Convert timestamp columns to timezone-aware
+    # SQLite doesn't support ALTER COLUMN TYPE, so skip for SQLite
+    # The models already have DateTime(timezone=True), which SQLite ignores anyway
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        return
+
+    # Convert timestamp columns to timezone-aware (PostgreSQL only)
     op.alter_column(
         "guilds",
         "created_at",
@@ -55,7 +61,11 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Convert back to timezone-naive
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        return
+
+    # Convert back to timezone-naive (PostgreSQL only)
     op.alter_column(
         "guilds",
         "created_at",
