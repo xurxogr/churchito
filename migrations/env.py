@@ -1,7 +1,6 @@
 """Alembic environment configuration for async SQLAlchemy."""
 
 import asyncio
-from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
@@ -19,10 +18,10 @@ from discord_bot.verification.models import VerificationRequest  # noqa: F401
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# NOTE: We intentionally skip fileConfig() here to avoid overriding
+# the application's logging configuration. When running from CLI,
+# basic logging will still work. When running from the bot, it
+# preserves the bot's logging setup.
 
 # Usar metadata de nuestros modelos para autogenerate
 target_metadata = Base.metadata
