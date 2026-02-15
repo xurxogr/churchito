@@ -19,14 +19,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy pyproject.toml and version file for dependency installation
-COPY pyproject.toml .
-COPY discord_bot/__init__.py discord_bot/__init__.py
-COPY discord_bot/__version__.py discord_bot/__version__.py
+# Install pip
+RUN pip install --no-cache-dir --upgrade pip
 
-# Install dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir . && \
+# Copy only dependency-related files first (better caching)
+COPY pyproject.toml .
+
+# Create minimal package structure for pip install
+# This avoids needing the actual version file for dependency installation
+RUN mkdir -p discord_bot && \
+    echo '__version__ = "0.0.0"' > discord_bot/__version__.py && \
+    echo 'from discord_bot.__version__ import __version__' > discord_bot/__init__.py
+
+# Install dependencies (cached unless pyproject.toml changes)
+RUN pip install --no-cache-dir . && \
     # Strip debug symbols to reduce image size
     find /opt/venv -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true
 
