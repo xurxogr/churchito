@@ -5,7 +5,7 @@
 {% block content %}
 <div class="guild-config">
     <div class="page-header">
-        <a href="/dashboard" class="btn btn-secondary">← Volver</a>
+        <a href="{{ root_path }}/dashboard" class="btn btn-secondary">← Volver</a>
         <h1>
             {% if guild.icon %}
             <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png" alt="" class="guild-header-icon">
@@ -22,7 +22,7 @@
                 <li>
                     <button
                         class="cog-item"
-                        hx-get="/guild/{{ guild_id }}/cog/{{ cog.name }}"
+                        hx-get="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog.name }}"
                         hx-target="#cog-settings"
                         hx-swap="innerHTML"
                     >

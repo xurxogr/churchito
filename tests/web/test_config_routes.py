@@ -83,6 +83,7 @@ def mock_config_request(simple_app: FastAPI, test_user: dict[str, Any]) -> Magic
     """
     request = MagicMock(spec=Request)
     request.app = simple_app
+    request.scope = {"root_path": ""}
 
     # Mock templates
     request.app.state.templates = MagicMock(spec=Jinja2Templates)

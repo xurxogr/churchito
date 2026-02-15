@@ -27,6 +27,20 @@ def get_templates(request: Request) -> Jinja2Templates:
     return templates
 
 
+def base_context(request: Request) -> dict[str, Any]:
+    """Contexto base para todas las plantillas.
+
+    Args:
+        request (Request): Request de FastAPI
+
+    Returns:
+        dict[str, Any]: Contexto con variables comunes
+    """
+    return {
+        "root_path": request.scope.get("root_path", ""),
+    }
+
+
 @router.get("/", response_class=HTMLResponse, response_model=None)
 async def index(
     request: Request,
@@ -42,13 +56,14 @@ async def index(
         Response: Página de inicio o redirección
     """
     if user:
-        return RedirectResponse(url="/dashboard")
+        root_path = request.scope.get("root_path", "")
+        return RedirectResponse(url=f"{root_path}/dashboard")
 
     templates = get_templates(request)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"error": request.query_params.get("error")},
+        context={**base_context(request), "error": request.query_params.get("error")},
     )
 
 
@@ -67,13 +82,14 @@ async def login_page(
         Response: Página de login o redirección
     """
     if user:
-        return RedirectResponse(url="/dashboard")
+        root_path = request.scope.get("root_path", "")
+        return RedirectResponse(url=f"{root_path}/dashboard")
 
     templates = get_templates(request)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"error": request.query_params.get("error")},
+        context={**base_context(request), "error": request.query_params.get("error")},
     )
 
 
@@ -145,6 +161,7 @@ async def dashboard(
         request=request,
         name="dashboard.html",
         context={
+            **base_context(request),
             "user": user,
             "guilds": manageable_guilds,
             "is_owner": is_owner,

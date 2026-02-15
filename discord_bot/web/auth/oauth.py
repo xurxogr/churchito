@@ -65,17 +65,19 @@ async def callback(
     Returns:
         RedirectResponse: Redirección al dashboard o login
     """
+    root_path = request.scope.get("root_path", "")
+
     if error:
         logger.warning(f"Error en OAuth callback: {error}")
-        return RedirectResponse(url="/login?error=oauth_denied")
+        return RedirectResponse(url=f"{root_path}/login?error=oauth_denied")
 
     if not code:
-        return RedirectResponse(url="/login?error=no_code")
+        return RedirectResponse(url=f"{root_path}/login?error=no_code")
 
     stored_state = request.session.get("oauth_state")
     if not state or state != stored_state:
         logger.warning("Estado OAuth inválido")
-        return RedirectResponse(url="/login?error=invalid_state")
+        return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
 
     request.session.pop("oauth_state", None)
 
@@ -143,14 +145,14 @@ async def callback(
         logger.info(f"Guilds con permisos: {len(manageable_guilds)} de {len(guilds_data)}")
 
         # Use status_code=303 (See Other) to ensure proper redirect after POST-like operation
-        return RedirectResponse(url="/dashboard", status_code=303)
+        return RedirectResponse(url=f"{root_path}/dashboard", status_code=303)
 
     except httpx.HTTPStatusError as e:
         logger.exception(f"Error HTTP en OAuth: {e.response.status_code}")
-        return RedirectResponse(url="/login?error=api_error")
+        return RedirectResponse(url=f"{root_path}/login?error=api_error")
     except Exception:
         logger.exception("Error en OAuth callback")
-        return RedirectResponse(url="/login?error=unknown")
+        return RedirectResponse(url=f"{root_path}/login?error=unknown")
 
 
 @router.get("/logout")
@@ -163,5 +165,6 @@ async def logout(request: Request) -> RedirectResponse:
     Returns:
         RedirectResponse: Redirección a la página de login
     """
+    root_path = request.scope.get("root_path", "")
     request.session.clear()
-    return RedirectResponse(url="/")
+    return RedirectResponse(url=f"{root_path}/")

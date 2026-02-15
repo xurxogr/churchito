@@ -36,7 +36,7 @@
                 <h3>{{ guild.name }}</h3>
                 {% if guild.bot_present %}
                 <span class="badge badge-success">Bot presente</span>
-                <a href="/guild/{{ guild.id }}" class="btn btn-primary btn-sm">Configurar</a>
+                <a href="{{ root_path }}/guild/{{ guild.id }}" class="btn btn-primary btn-sm">Configurar</a>
                 {% else %}
                 <span class="badge badge-warning">Bot no presente</span>
                 <button class="btn btn-secondary btn-sm" disabled>Invitar primero</button>

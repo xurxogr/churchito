@@ -28,6 +28,7 @@ class TestDashboardRoutes:
         request.app = simple_app
         request.session = {"user": test_user}
         request.query_params = {}
+        request.scope = {"root_path": ""}
         return request
 
     @pytest.fixture
@@ -44,6 +45,7 @@ class TestDashboardRoutes:
         request.app = simple_app
         request.session = {}
         request.query_params = {"error": None}
+        request.scope = {"root_path": ""}
         return request
 
     async def test_index_with_user_redirects(

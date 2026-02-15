@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard{% endblock %} - Bot Discord</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ root_path }}/static/css/style.css">
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-brand">
-            <a href="/dashboard">🤖 Bot Dashboard</a>
+            <a href="{{ root_path }}/dashboard">🤖 Bot Dashboard</a>
         </div>
         {% if user %}
         <div class="nav-user">
             <span class="username">{{ user.username }}</span>
-            <a href="/auth/logout" class="btn btn-secondary">Cerrar sesión</a>
+            <a href="{{ root_path }}/auth/logout" class="btn btn-secondary">Cerrar sesión</a>
         </div>
         {% endif %}
     </nav>

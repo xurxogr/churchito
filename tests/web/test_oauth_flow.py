@@ -25,6 +25,7 @@ class TestOAuthCallbackFlow:
         request = MagicMock(spec=Request)
         request.app = simple_app
         request.session = {"oauth_state": "valid_state"}
+        request.scope = {"root_path": ""}
         return request
 
     async def test_callback_success_flow(

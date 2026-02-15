@@ -12,7 +12,7 @@
 
         <div class="cog-actions">
             <form
-                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
+                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
             >
@@ -29,7 +29,7 @@
 
             <button
                 class="btn btn-secondary"
-                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/reset"
+                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reset"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
                 hx-confirm="¿Estás seguro de que quieres reiniciar la configuración a valores por defecto?"
@@ -67,7 +67,7 @@
 
             <form
                 class="option-form"
-                hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
+                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
             >

@@ -30,6 +30,20 @@ def get_templates(request: Request) -> Jinja2Templates:
     return templates
 
 
+def base_context(request: Request) -> dict[str, Any]:
+    """Contexto base para todas las plantillas.
+
+    Args:
+        request (Request): Request de FastAPI
+
+    Returns:
+        dict[str, Any]: Contexto con variables comunes
+    """
+    return {
+        "root_path": request.scope.get("root_path", ""),
+    }
+
+
 async def guild_access_dep(
     request: Request,
     guild_id: Annotated[int, Path()],
@@ -113,6 +127,7 @@ async def guild_config(
         request=request,
         name="guild_config.html",
         context={
+            **base_context(request),
             "user": user,
             "guild": guild_info,
             "guild_id": guild_id,
@@ -238,6 +253,7 @@ async def _render_cog_settings(
         request=request,
         name="partials/cog_settings.html",
         context={
+            **base_context(request),
             "guild_id": guild_id,
             "cog_name": cog_name,
             "schema": {
