@@ -156,7 +156,7 @@ async def test_bot_load_cogs_success(
 
         # Validar que se llamaron las extensiones esperadas
         assert bot.load_extension.call_count > 0
-        bot.load_extension.assert_any_call("discord_bot.general.cog")
+        bot.load_extension.assert_any_call("discord_bot.verification.cog")
 
 
 async def test_bot_load_cogs_with_error(

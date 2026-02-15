@@ -86,7 +86,6 @@ class DiscordBot(commands.Bot):
     async def _load_cogs(self) -> None:
         """Carga todos los cogs."""
         cogs_to_load = [
-            "discord_bot.general.cog",
             "discord_bot.verification.cog",
         ]
 
