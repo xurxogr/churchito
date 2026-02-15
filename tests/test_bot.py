@@ -1,13 +1,17 @@
 """Tests de la clase principal."""
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
+import discord
 import pytest
+from sqlalchemy import select
 
 from discord_bot.bot import DiscordBot
 from discord_bot.common.core import AppSettings
+from discord_bot.common.models import Guild as GuildModel
 from discord_bot.common.services import DatabaseService
 
 
@@ -780,5 +784,500 @@ async def test_monitor_event_loop_logs_stop(
                 call
                 for call in mock_logger.info.call_args_list
                 if "Monitoreo del bucle de eventos detenido" in str(call)
+            ]
+            assert len(info_calls) > 0
+
+
+# Tests para on_guild_join
+
+
+async def test_on_guild_join_finds_inviter_in_audit_log(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join encuentra al invitador en el audit log.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    # Crear mock de guild
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    # Configurar permisos
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Crear entrada de audit log que coincida con el bot
+    mock_entry = MagicMock()
+    mock_entry.target = MagicMock()
+    mock_entry.target.id = 123456789  # Mismo ID que test_bot.user
+    mock_entry.user = MagicMock()
+    mock_entry.user.id = 888777666
+    mock_entry.user.name = "InviterUser"
+
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        yield mock_entry
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    # Falsear _save_guild
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        # Verificar que se llamó _save_guild con el invitador correcto
+        mock_save.assert_called_once_with(mock_guild, 888777666)
+
+
+async def test_on_guild_join_fallback_to_owner_when_no_audit_log_permission(
+    test_bot: DiscordBot,
+) -> None:
+    """Probar que on_guild_join usa el owner cuando no hay permiso de audit log.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    # Sin permiso de audit log
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = False
+    mock_guild.me = mock_me
+
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        # Debe usar el owner_id
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_fallback_to_owner_when_guild_me_is_none(
+    test_bot: DiscordBot,
+) -> None:
+    """Probar que on_guild_join usa el owner cuando guild.me es None.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+    mock_guild.me = None
+
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_fallback_to_owner_when_bot_user_is_none(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que on_guild_join usa el owner cuando self.user es None.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        type(bot).user = PropertyMock(return_value=None)  # type: ignore[method-assign]
+
+        mock_guild = MagicMock()
+        mock_guild.id = 123456
+        mock_guild.name = "Test Server"
+        mock_guild.owner_id = 999999
+
+        mock_me = MagicMock()
+        mock_me.guild_permissions.view_audit_log = True
+        mock_guild.me = mock_me
+
+        with patch.object(bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+            await bot.on_guild_join(mock_guild)
+
+            mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_handles_forbidden_exception(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join maneja discord.Forbidden correctamente.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Simular excepción Forbidden
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        raise discord.Forbidden(MagicMock(), "No permission")
+        yield  # Para que sea un generator
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    with (
+        patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save,
+        patch("discord_bot.bot.logger") as mock_logger,
+    ):
+        await test_bot.on_guild_join(mock_guild)
+
+        # Debe usar el owner_id como fallback
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+        # Verificar que se registró la advertencia
+        warning_calls = [
+            call
+            for call in mock_logger.warning.call_args_list
+            if "No se pudo acceder al audit log" in str(call)
+        ]
+        assert len(warning_calls) > 0
+
+
+async def test_on_guild_join_handles_generic_exception(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join maneja excepciones genéricas correctamente.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Simular excepción genérica
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        raise RuntimeError("Something went wrong")
+        yield  # Para que sea un generator
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    with (
+        patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save,
+        patch("discord_bot.bot.logger") as mock_logger,
+    ):
+        await test_bot.on_guild_join(mock_guild)
+
+        # Debe usar el owner_id como fallback
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+        # Verificar que se registró el error
+        error_calls = [
+            call
+            for call in mock_logger.error.call_args_list
+            if "Error al consultar audit log" in str(call)
+        ]
+        assert len(error_calls) > 0
+
+
+async def test_on_guild_join_no_matching_entry_in_audit_log(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join usa owner cuando no encuentra entrada coincidente.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Crear entrada de audit log que NO coincida con el bot
+    mock_entry = MagicMock()
+    mock_entry.target = MagicMock()
+    mock_entry.target.id = 111111111  # ID diferente al bot
+    mock_entry.user = MagicMock()
+    mock_entry.user.id = 888777666
+
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        yield mock_entry
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        # Debe usar el owner_id porque no encontró entrada coincidente
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_entry_with_none_target(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join maneja entrada con target None.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Entrada con target None
+    mock_entry = MagicMock()
+    mock_entry.target = None
+    mock_entry.user = MagicMock()
+    mock_entry.user.id = 888777666
+
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        yield mock_entry
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_entry_with_none_user(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join maneja entrada con user None.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+
+    mock_me = MagicMock()
+    mock_me.guild_permissions.view_audit_log = True
+    mock_guild.me = mock_me
+
+    # Entrada con user None
+    mock_entry = MagicMock()
+    mock_entry.target = MagicMock()
+    mock_entry.target.id = 123456789  # Mismo ID que test_bot.user
+    mock_entry.user = None
+
+    async def mock_audit_logs(*args: Any, **kwargs: Any) -> AsyncIterator[MagicMock]:
+        yield mock_entry
+
+    mock_guild.audit_logs = mock_audit_logs
+
+    with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+        await test_bot.on_guild_join(mock_guild)
+
+        mock_save.assert_called_once_with(mock_guild, 999999)
+
+
+async def test_on_guild_join_logs_info(test_bot: DiscordBot) -> None:
+    """Probar que on_guild_join registra información de log.
+
+    Args:
+        test_bot: Instancia del bot de prueba
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Test Server"
+    mock_guild.owner_id = 999999
+    mock_guild.me = None
+
+    with (
+        patch.object(test_bot, "_save_guild", new_callable=AsyncMock),
+        patch("discord_bot.bot.logger") as mock_logger,
+    ):
+        await test_bot.on_guild_join(mock_guild)
+
+        # Verificar log de unión
+        info_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if "Bot unido al servidor: Test Server" in str(call)
+        ]
+        assert len(info_calls) > 0
+
+
+# Tests para _save_guild
+
+
+async def test_save_guild_creates_new_guild(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _save_guild crea un nuevo guild en la BD.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        mock_guild = MagicMock()
+        mock_guild.id = 987654321
+        mock_guild.name = "New Test Server"
+
+        await bot._save_guild(mock_guild, invited_by_id=111222333)
+
+        # Verificar que se creó en la BD
+        async with test_database.session() as session:
+            result = await session.execute(select(GuildModel).where(GuildModel.id == 987654321))
+            saved_guild = result.scalar_one_or_none()
+
+            assert saved_guild is not None
+            assert saved_guild.name == "New Test Server"
+            assert saved_guild.invited_by_id == 111222333
+
+
+async def test_save_guild_updates_existing_guild_name(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _save_guild actualiza el nombre de un guild existente.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        # Crear guild inicial
+        async with test_database.session() as session:
+            initial_guild = GuildModel(
+                id=555666777,
+                name="Old Name",
+                invited_by_id=111222333,
+            )
+            session.add(initial_guild)
+            await session.commit()
+
+        # Actualizar
+        mock_guild = MagicMock()
+        mock_guild.id = 555666777
+        mock_guild.name = "New Name"
+
+        await bot._save_guild(mock_guild, invited_by_id=444555666)
+
+        # Verificar actualización
+        async with test_database.session() as session:
+            result = await session.execute(select(GuildModel).where(GuildModel.id == 555666777))
+            updated_guild = result.scalar_one_or_none()
+
+            assert updated_guild is not None
+            assert updated_guild.name == "New Name"
+            # invited_by_id NO debe cambiar porque ya estaba establecido
+            assert updated_guild.invited_by_id == 111222333
+
+
+async def test_save_guild_updates_invited_by_if_null(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _save_guild actualiza invited_by_id si era NULL.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        # Crear guild sin invitador
+        async with test_database.session() as session:
+            initial_guild = GuildModel(
+                id=888999000,
+                name="Server Without Inviter",
+                invited_by_id=None,
+            )
+            session.add(initial_guild)
+            await session.commit()
+
+        # Actualizar con invitador
+        mock_guild = MagicMock()
+        mock_guild.id = 888999000
+        mock_guild.name = "Server Without Inviter"
+
+        await bot._save_guild(mock_guild, invited_by_id=123123123)
+
+        # Verificar que se actualizó invited_by_id
+        async with test_database.session() as session:
+            result = await session.execute(select(GuildModel).where(GuildModel.id == 888999000))
+            updated_guild = result.scalar_one_or_none()
+
+            assert updated_guild is not None
+            assert updated_guild.invited_by_id == 123123123
+
+
+async def test_save_guild_does_not_update_invited_by_if_none_provided(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _save_guild no actualiza invited_by_id si se pasa None.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        # Crear guild sin invitador
+        async with test_database.session() as session:
+            initial_guild = GuildModel(
+                id=777888999,
+                name="Server",
+                invited_by_id=None,
+            )
+            session.add(initial_guild)
+            await session.commit()
+
+        # Actualizar pasando None como invited_by_id
+        mock_guild = MagicMock()
+        mock_guild.id = 777888999
+        mock_guild.name = "Server Updated"
+
+        await bot._save_guild(mock_guild, invited_by_id=None)
+
+        # Verificar que sigue siendo None
+        async with test_database.session() as session:
+            result = await session.execute(select(GuildModel).where(GuildModel.id == 777888999))
+            updated_guild = result.scalar_one_or_none()
+
+            assert updated_guild is not None
+            assert updated_guild.name == "Server Updated"
+            assert updated_guild.invited_by_id is None
+
+
+async def test_save_guild_logs_success(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Probar que _save_guild registra el éxito.
+
+    Args:
+        test_settings: Configuración de la aplicación de prueba
+        test_database: Servicio de base de datos de prueba
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+
+        mock_guild = MagicMock()
+        mock_guild.id = 111222333444
+        mock_guild.name = "Log Test Server"
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            await bot._save_guild(mock_guild, invited_by_id=None)
+
+            # Verificar log de éxito
+            info_calls = [
+                call
+                for call in mock_logger.info.call_args_list
+                if "Servidor guardado en BD: Log Test Server" in str(call)
             ]
             assert len(info_calls) > 0
