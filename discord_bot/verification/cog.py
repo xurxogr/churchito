@@ -131,7 +131,11 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.VERIFICATION_PANEL_MESSAGE,
             name="Mensaje del panel",
-            description="Mensaje que aparece en el panel de verificacion",
+            description=(
+                "Mensaje que aparece en el panel de verificacion. "
+                "Si incluyes una URL de imagen (terminada en .png, .jpg, .gif, etc.) "
+                "se mostrara como imagen en el embed."
+            ),
             option_type=ConfigOptionType.TEXTAREA,
             default=(
                 "**Bienvenido a {server_name}!**\n\n"
@@ -800,11 +804,18 @@ class VerificationCog(commands.Cog):
             )
             view = None
 
+        # Crear embed si hay imagen en el mensaje
+        embed, clean_text = self._create_panel_embed(formatted_message)
+
         try:
-            if view is not None:
-                new_message = await channel.send(content=formatted_message, view=view)
+            if embed and view:
+                new_message = await channel.send(embed=embed, view=view)
+            elif embed:
+                new_message = await channel.send(embed=embed)
+            elif view:
+                new_message = await channel.send(content=clean_text, view=view)
             else:
-                new_message = await channel.send(content=formatted_message)
+                new_message = await channel.send(content=clean_text)
             await config_service.set_value(
                 guild_id=guild.id,
                 cog_name=COG_NAME,
@@ -858,6 +869,39 @@ class VerificationCog(commands.Cog):
         for key, value in kwargs.items():
             result = result.replace(f"{{{key}}}", value or "")
         return result
+
+    def _create_panel_embed(self, text: str) -> tuple[discord.Embed | None, str]:
+        """Crear un embed para el panel de verificacion si hay una imagen.
+
+        Busca URLs de imagen en el texto y las usa para crear un embed.
+        La URL de imagen se elimina del texto mostrado.
+
+        Args:
+            text (str): Texto del mensaje que puede contener URLs de imagen
+
+        Returns:
+            tuple[discord.Embed | None, str]: Embed (o None) y texto limpio
+        """
+        import re
+
+        # Buscar URLs de imagen
+        image_pattern = r"(https?://[^\s]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s]*)?)"
+        match = re.search(image_pattern, text, re.IGNORECASE)
+
+        if not match:
+            return None, text
+
+        image_url = match.group(1)
+        # Eliminar la URL del texto (y lineas vacias extra)
+        clean_text = re.sub(image_pattern, "", text, count=1, flags=re.IGNORECASE)
+        clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()
+
+        embed = discord.Embed(
+            description=clean_text,
+            color=discord.Color.blurple(),
+        )
+        embed.set_image(url=image_url)
+        return embed, clean_text
 
     def _get_mod_channel(
         self,
