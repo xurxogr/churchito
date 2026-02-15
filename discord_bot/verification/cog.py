@@ -127,6 +127,14 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="Aliado",
             max_length=50,
         ),
+        ConfigOption(
+            key=ConfigKey.HISTORY_LABEL,
+            name="Etiqueta historial",
+            description="Texto para la seccion de historial en el mensaje de revision",
+            option_type=ConfigOptionType.STRING,
+            default="Historial",
+            max_length=50,
+        ),
         # Mensajes configurables
         ConfigOption(
             key=ConfigKey.VERIFICATION_PANEL_MESSAGE,
@@ -147,12 +155,30 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.DM_INSTRUCTIONS_MESSAGE,
-            name="Instrucciones por DM",
-            description="Mensaje enviado al usuario por DM con las instrucciones",
+            name="Instrucciones por DM (Normal)",
+            description=(
+                "Mensaje enviado al usuario por DM con las instrucciones para verificacion normal"
+            ),
             option_type=ConfigOptionType.TEXTAREA,
             default=(
                 "**Instrucciones de Verificacion**\n\n"
                 "Hola {username}! Para completar tu verificacion en **{server_name}**, "
+                "envia **2 capturas de pantalla** en un solo mensaje."
+            ),
+            max_length=4000,
+            placeholders=["username", "user_mention", "server_name", "verification_type"],
+        ),
+        ConfigOption(
+            key=ConfigKey.DM_INSTRUCTIONS_ALLY_MESSAGE,
+            name="Instrucciones por DM (Aliado)",
+            description=(
+                "Mensaje enviado al usuario por DM "
+                "con las instrucciones para verificacion de aliado"
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "**Instrucciones de Verificacion (Aliado)**\n\n"
+                "Hola {username}! Para completar tu verificacion como aliado en **{server_name}**, "
                 "envia **2 capturas de pantalla** en un solo mensaje."
             ),
             max_length=4000,
@@ -1088,8 +1114,13 @@ class VerificationCog(commands.Cog):
                 verification_type=verification_type,
             )
 
+            dm_template = (
+                config.get(ConfigKey.DM_INSTRUCTIONS_MESSAGE)
+                if verification_type == VerificationType.REGULAR
+                else config.get(ConfigKey.DM_INSTRUCTIONS_ALLY_MESSAGE)
+            )
             formatted_dm = self._format_message(
-                template=config.get(ConfigKey.DM_INSTRUCTIONS_MESSAGE),
+                template=dm_template,
                 username=user.name,
                 user_mention=user.mention,
                 server_name=guild.name,
@@ -1249,7 +1280,8 @@ class VerificationCog(commands.Cog):
         past_requests = [r for r in history if r.id != request.id]
 
         if past_requests:
-            formatted += "\n**Historial:**"
+            history_label = config.get(ConfigKey.HISTORY_LABEL) or "Historial"
+            formatted += f"\n**{history_label}:**"
             for past in past_requests[:5]:
                 status_emoji = {
                     VerificationStatus.APPROVED: "✅",

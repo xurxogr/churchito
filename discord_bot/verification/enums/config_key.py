@@ -21,10 +21,12 @@ class ConfigKey(StrEnum):
     # Nombres de tipos de verificacion
     VERIFICATION_TYPE_REGULAR_DISPLAY = "verification_type_regular_display"
     VERIFICATION_TYPE_ALLY_DISPLAY = "verification_type_ally_display"
+    HISTORY_LABEL = "history_label"
 
     # Mensajes del panel y DM
     VERIFICATION_PANEL_MESSAGE = "verification_panel_message"
     DM_INSTRUCTIONS_MESSAGE = "dm_instructions_message"
+    DM_INSTRUCTIONS_ALLY_MESSAGE = "dm_instructions_ally_message"
     VERIFICATION_STARTED_MESSAGE = "verification_started_message"
     WRONG_IMAGES_MESSAGE = "wrong_images_message"
     SCREENSHOTS_RECEIVED_MESSAGE = "screenshots_received_message"
