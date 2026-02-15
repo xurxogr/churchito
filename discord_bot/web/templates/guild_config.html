@@ -14,34 +14,39 @@
         </h1>
     </div>
 
-    <div class="config-layout">
-        <aside class="cog-sidebar">
-            <h2>Categorías</h2>
-            <ul class="cog-list">
-                {% for cog in cogs %}
-                <li>
-                    <button
-                        class="cog-item"
-                        hx-get="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog.name }}"
-                        hx-target="#cog-settings"
-                        hx-swap="innerHTML"
-                    >
-                        <span class="cog-icon">{{ cog.icon }}</span>
-                        <span class="cog-name">{{ cog.display_name }}</span>
-                        <span class="cog-status {% if cog.enabled %}status-enabled{% else %}status-disabled{% endif %}">
-                            {% if cog.enabled %}✓{% else %}✗{% endif %}
-                        </span>
-                    </button>
-                </li>
-                {% endfor %}
-            </ul>
-        </aside>
+    <div class="config-tabs">
+        <nav class="cog-tabs">
+            {% for cog in cogs %}
+            <button
+                class="cog-tab"
+                hx-get="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog.name }}"
+                hx-target="#cog-settings"
+                hx-swap="innerHTML"
+                onclick="setActiveTab(this)"
+            >
+                <span class="cog-icon">{{ cog.icon }}</span>
+                <span class="cog-name">{{ cog.display_name }}</span>
+                {% if cog.toggleable %}
+                <span class="cog-status {% if cog.enabled %}status-enabled{% else %}status-disabled{% endif %}">
+                    {% if cog.enabled %}✓{% else %}✗{% endif %}
+                </span>
+                {% endif %}
+            </button>
+            {% endfor %}
+        </nav>
 
         <section class="cog-content" id="cog-settings">
             <div class="empty-state">
-                <p>Selecciona una categoría de la izquierda para ver y editar su configuración.</p>
+                <p>Selecciona una categoria de arriba para ver y editar su configuracion.</p>
             </div>
         </section>
     </div>
 </div>
+
+<script>
+function setActiveTab(el) {
+    document.querySelectorAll('.cog-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+}
+</script>
 {% endblock %}
