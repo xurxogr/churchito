@@ -40,6 +40,7 @@ def create_app(
         title="Bot Dashboard",
         description="Dashboard web para configuración del bot de Discord",
         version="1.0.0",
+        root_path=settings.web.root_path,
     )
 
     secret_key = settings.web.secret_key

@@ -18,6 +18,10 @@ class WebSettings(BaseModel):
         description="Puerto para el servidor web",
         default=8000,
     )
+    root_path: str = Field(
+        description="Ruta base cuando se sirve detrás de un proxy (ej: /bot)",
+        default="",
+    )
     secret_key: str = Field(
         description="Clave secreta para sesiones (generada automáticamente si está vacía)",
         default="",
@@ -46,6 +50,7 @@ class WebSettings(BaseModel):
                 "enabled": True,
                 "host": "0.0.0.0",
                 "port": 8000,
+                "root_path": "/bot",
                 "secret_key": "tu-clave-secreta-aqui",
                 "client_id": "tu-client-id-de-discord",
                 "client_secret": "tu-client-secret-de-discord",
