@@ -120,4 +120,4 @@ filterwarnings = [
 ]
 
 [project.scripts]
-7hpbot = "discord_bot.__main__:run"
+discord-bot = "discord_bot.__main__:run"
