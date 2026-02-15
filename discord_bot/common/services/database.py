@@ -1,11 +1,13 @@
 """Servicio de base de datos para gestionar conexiones de SQLAlchemy."""
 
 import logging
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -104,8 +106,6 @@ class DatabaseService:
         Returns:
             str: URL con credenciales redactadas
         """
-        import re
-
         # Redact password in URLs like: postgresql+asyncpg://user:password@host:port/db
         return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
 
@@ -128,7 +128,16 @@ class DatabaseService:
             expire_on_commit=False,
         )
 
-        logger.info("Base de datos inicializada con éxito")
+        # Verify connection works
+        try:
+            async with self._engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            logger.info("Base de datos inicializada con éxito")
+        except Exception as e:
+            await self._engine.dispose()
+            self._engine = None
+            self._session_maker = None
+            raise RuntimeError(f"No se pudo conectar a la base de datos: {e}") from e
 
     async def close(self) -> None:
         """Cerrar conexiones de base de datos."""
