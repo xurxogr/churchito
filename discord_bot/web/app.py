@@ -74,6 +74,11 @@ def create_app(
     app.include_router(dashboard_router)
     app.include_router(config_router)
 
+    @app.get("/health")
+    async def health_check() -> dict[str, str]:
+        """Endpoint de verificación de salud para Docker healthcheck."""
+        return {"status": "ok"}
+
     logger.info("Dashboard web inicializado")
     return app
 

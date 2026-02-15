@@ -31,10 +31,12 @@ target_metadata = Base.metadata
 def get_database_url() -> str:
     """Obtener URL de base de datos desde configuración."""
     settings = AppSettings()
-    # Alembic necesita URL sync, convertir aiosqlite a sqlite
+    # Alembic offline necesita URL sync
     url = settings.database.url
-    if "aiosqlite" in url:
+    if "+aiosqlite" in url:
         url = url.replace("+aiosqlite", "")
+    elif "+asyncpg" in url:
+        url = url.replace("+asyncpg", "+psycopg")
     return url
 
 
