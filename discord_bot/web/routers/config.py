@@ -241,6 +241,7 @@ async def _render_cog_settings(
                 "display_value": display_value,
                 "default": opt.default,
                 "required": opt.required,
+                "group": opt.group,
                 "choices": opt.choices,
                 "min_value": opt.min_value,
                 "max_value": opt.max_value,

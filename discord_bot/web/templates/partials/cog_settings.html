@@ -49,238 +49,284 @@
     </div>
     {% endif %}
 
-    <div class="options-list">
-        {% for option in options %}
-        <div class="option-item">
-            <div class="option-header">
-                <label for="opt-{{ option.key }}">{{ option.name }}</label>
-                {% if option.required %}
-                <span class="badge badge-required">Requerido</span>
-                {% endif %}
-            </div>
-            {% if option.description %}
-            <p class="option-description">{{ option.description }}</p>
+    {# Macro para renderizar una opción #}
+    {% macro render_option(option) %}
+    <div class="option-item">
+        <div class="option-header">
+            <label for="opt-{{ option.key }}">{{ option.name }}</label>
+            {% if option.required %}
+            <span class="badge badge-required">Requerido</span>
             {% endif %}
-            {% if option.placeholders %}
-            <p class="option-placeholders">
-                Placeholders: {% for p in option.placeholders %}<code>{{ '{' }}{{ p }}{{ '}' }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
-            </p>
-            {% endif %}
+        </div>
+        {% if option.description %}
+        <p class="option-description">{{ option.description }}</p>
+        {% endif %}
+        {% if option.placeholders %}
+        <p class="option-placeholders">
+            Placeholders: {% for p in option.placeholders %}<code>{{ '{' }}{{ p }}{{ '}' }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+        </p>
+        {% endif %}
 
-            <form
-                class="option-form"
-                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
-                hx-target="#cog-settings"
-                hx-swap="innerHTML"
+        <form
+            class="option-form"
+            hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
+            hx-target="#cog-settings"
+            hx-swap="innerHTML"
+        >
+            {% if option.type == 'string' %}
+            <input
+                type="text"
+                name="value"
+                id="opt-{{ option.key }}"
+                value="{{ option.value if option.value is not none else '' }}"
+                placeholder="{{ option.default or 'Sin valor' }}"
+                {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
+                class="input"
             >
-                {% if option.type == 'string' %}
-                <input
-                    type="text"
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+
+            {% elif option.type == 'textarea' %}
+            <div class="textarea-wrapper">
+                <textarea
                     name="value"
                     id="opt-{{ option.key }}"
-                    value="{{ option.value if option.value is not none else '' }}"
                     placeholder="{{ option.default or 'Sin valor' }}"
                     {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
-                    class="input"
-                >
-                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
-
-                {% elif option.type == 'textarea' %}
-                <div class="textarea-wrapper">
-                    <textarea
-                        name="value"
-                        id="opt-{{ option.key }}"
-                        placeholder="{{ option.default or 'Sin valor' }}"
-                        {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
-                        class="textarea"
-                        rows="8"
-                    >{{ option.value if option.value is not none else '' }}</textarea>
-                    <div class="textarea-actions">
-                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
-                        {% if option.max_length %}
-                        <small class="char-count">
-                            <span id="count-{{ option.key }}">{{ (option.value | length) if option.value else 0 }}</span> / {{ option.max_length }}
-                        </small>
-                        {% endif %}
-                    </div>
-                    <div class="textarea-preview-label">Vista previa</div>
-                    <div class="textarea-preview"><div class="textarea-preview-content" id="preview-content-{{ option.key }}"></div></div>
-                    <script>
-                        (function() {
-                            const textarea = document.getElementById('opt-{{ option.key }}');
-                            const content = document.getElementById('preview-content-{{ option.key }}');
-                            function updatePreview() {
-                                content.innerHTML = textarea.value.trim()
-                                    .replace(/&/g, '&amp;')
-                                    .replace(/</g, '&lt;')
-                                    .replace(/>/g, '&gt;')
-                                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                                    .replace(/~~(.+?)~~/g, '<del>$1</del>')
-                                    .replace(/__(.+?)__/g, '<u>$1</u>')
-                                    .replace(/\n/g, '<br>');
-                            }
-                            textarea.addEventListener('input', function() {
-                                {% if option.max_length %}
-                                document.getElementById('count-{{ option.key }}').textContent = this.value.length;
-                                {% endif %}
-                                updatePreview();
-                            });
+                    class="textarea"
+                    rows="8"
+                >{{ option.value if option.value is not none else '' }}</textarea>
+                <div class="textarea-actions">
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                    {% if option.max_length %}
+                    <small class="char-count">
+                        <span id="count-{{ option.key }}">{{ (option.value | length) if option.value else 0 }}</span> / {{ option.max_length }}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="textarea-preview-label">Vista previa</div>
+                <div class="textarea-preview"><div class="textarea-preview-content" id="preview-content-{{ option.key }}"></div></div>
+                <script>
+                    (function() {
+                        const textarea = document.getElementById('opt-{{ option.key }}');
+                        const content = document.getElementById('preview-content-{{ option.key }}');
+                        function updatePreview() {
+                            content.innerHTML = textarea.value.trim()
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                .replace(/~~(.+?)~~/g, '<del>$1</del>')
+                                .replace(/__(.+?)__/g, '<u>$1</u>')
+                                .replace(/\n/g, '<br>');
+                        }
+                        textarea.addEventListener('input', function() {
+                            {% if option.max_length %}
+                            document.getElementById('count-{{ option.key }}').textContent = this.value.length;
+                            {% endif %}
                             updatePreview();
-                        })();
-                    </script>
-                </div>
+                        });
+                        updatePreview();
+                    })();
+                </script>
+            </div>
 
-                {% elif option.type == 'integer' %}
+            {% elif option.type == 'integer' %}
+            <input
+                type="number"
+                name="value"
+                id="opt-{{ option.key }}"
+                value="{{ option.value if option.value is not none else '' }}"
+                placeholder="{{ option.default or '0' }}"
+                {% if option.min_value is not none %}min="{{ option.min_value }}"{% endif %}
+                {% if option.max_value is not none %}max="{{ option.max_value }}"{% endif %}
+                class="input"
+            >
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+
+            {% elif option.type == 'boolean' %}
+            <label class="toggle">
+                <input type="hidden" name="value" value="false">
                 <input
-                    type="number"
+                    type="checkbox"
                     name="value"
-                    id="opt-{{ option.key }}"
-                    value="{{ option.value if option.value is not none else '' }}"
-                    placeholder="{{ option.default or '0' }}"
-                    {% if option.min_value is not none %}min="{{ option.min_value }}"{% endif %}
-                    {% if option.max_value is not none %}max="{{ option.max_value }}"{% endif %}
-                    class="input"
+                    value="true"
+                    {% if option.value %}checked{% endif %}
+                    onchange="this.form.requestSubmit()"
                 >
-                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                <span class="toggle-slider"></span>
+                <span class="toggle-label">{{ 'Activado' if option.value else 'Desactivado' }}</span>
+            </label>
 
-                {% elif option.type == 'boolean' %}
-                <label class="toggle">
-                    <input type="hidden" name="value" value="false">
-                    <input
-                        type="checkbox"
-                        name="value"
-                        value="true"
-                        {% if option.value %}checked{% endif %}
-                        onchange="this.form.requestSubmit()"
-                    >
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-label">{{ 'Activado' if option.value else 'Desactivado' }}</span>
-                </label>
+            {% elif option.type == 'text_choice' and option.choices %}
+            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                <option value="">-- Seleccionar --</option>
+                {% for label, val in option.choices %}
+                <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
 
-                {% elif option.type == 'text_choice' and option.choices %}
-                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
-                    <option value="">-- Seleccionar --</option>
-                    {% for label, val in option.choices %}
-                    <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>
-                        {{ label }}
-                    </option>
-                    {% endfor %}
-                </select>
+            {% elif option.type == 'channel' %}
+            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                <option value="">-- Seleccionar canal --</option>
+                {% for ch in channels %}
+                <option value="{{ ch.id }}" {% if option.value == ch.id %}selected{% endif %}>
+                    #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            {% if option.display_value and option.value %}
+            <span class="current-value">Actual: {{ option.display_value }}</span>
+            {% endif %}
 
-                {% elif option.type == 'channel' %}
-                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
-                    <option value="">-- Seleccionar canal --</option>
-                    {% for ch in channels %}
-                    <option value="{{ ch.id }}" {% if option.value == ch.id %}selected{% endif %}>
-                        #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                {% if option.display_value and option.value %}
-                <span class="current-value">Actual: {{ option.display_value }}</span>
-                {% endif %}
+            {% elif option.type == 'role' %}
+            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+                <option value="">-- Seleccionar rol --</option>
+                {% for role in roles %}
+                <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
+                    @{{ role.name }}
+                </option>
+                {% endfor %}
+            </select>
+            {% if option.display_value and option.value %}
+            <span class="current-value">Actual: {{ option.display_value }}</span>
+            {% endif %}
 
-                {% elif option.type == 'role' %}
-                <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
-                    <option value="">-- Seleccionar rol --</option>
-                    {% for role in roles %}
-                    <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
-                        @{{ role.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-                {% if option.display_value and option.value %}
-                <span class="current-value">Actual: {{ option.display_value }}</span>
-                {% endif %}
-
-                {% elif option.type == 'channel_list' %}
-                <div class="dual-listbox">
-                    <div class="listbox-container">
-                        <label class="listbox-label">Disponibles</label>
-                        <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
-                            {% for ch in channels %}
-                            {% if not option.value or ch.id not in option.value %}
-                            <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listbox-buttons">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
-                    </div>
-                    <div class="listbox-container">
-                        <label class="listbox-label">Seleccionados</label>
-                        <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
-                            {% for ch in channels %}
-                            {% if option.value and ch.id in option.value %}
-                            <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+            {% elif option.type == 'channel_list' %}
+            <div class="dual-listbox">
+                <div class="listbox-container">
+                    <label class="listbox-label">Disponibles</label>
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                        {% for ch in channels %}
+                        {% if not option.value or ch.id not in option.value %}
+                        <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
-                    const sel = document.getElementById('sel-{{ option.key }}');
-                    const hidden = document.getElementById('val-{{ option.key }}');
-                    hidden.value = Array.from(sel.options).map(o => o.value).join(',');
-                    this.closest('form').requestSubmit();
-                ">Guardar</button>
-
-                {% elif option.type == 'role_list' %}
-                <div class="dual-listbox">
-                    <div class="listbox-container">
-                        <label class="listbox-label">Disponibles</label>
-                        <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
-                            {% for role in roles %}
-                            {% if not option.value or role.id not in option.value %}
-                            <option value="{{ role.id }}">@{{ role.name }}</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listbox-buttons">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
-                    </div>
-                    <div class="listbox-container">
-                        <label class="listbox-label">Seleccionados</label>
-                        <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
-                            {% for role in roles %}
-                            {% if option.value and role.id in option.value %}
-                            <option value="{{ role.id }}">@{{ role.name }}</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+                <div class="listbox-buttons">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
-                    const sel = document.getElementById('sel-{{ option.key }}');
-                    const hidden = document.getElementById('val-{{ option.key }}');
-                    hidden.value = Array.from(sel.options).map(o => o.value).join(',');
-                    this.closest('form').requestSubmit();
-                ">Guardar</button>
+                <div class="listbox-container">
+                    <label class="listbox-label">Seleccionados</label>
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                        {% for ch in channels %}
+                        {% if option.value and ch.id in option.value %}
+                        <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
+                const sel = document.getElementById('sel-{{ option.key }}');
+                const hidden = document.getElementById('val-{{ option.key }}');
+                hidden.value = Array.from(sel.options).map(o => o.value).join(',');
+                this.closest('form').requestSubmit();
+            ">Guardar</button>
 
-                {% else %}
-                <input
-                    type="text"
-                    name="value"
-                    id="opt-{{ option.key }}"
-                    value="{{ option.value if option.value is not none else '' }}"
-                    class="input"
-                >
-                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
-                {% endif %}
-            </form>
-        </div>
+            {% elif option.type == 'role_list' %}
+            <div class="dual-listbox">
+                <div class="listbox-container">
+                    <label class="listbox-label">Disponibles</label>
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                        {% for role in roles %}
+                        {% if not option.value or role.id not in option.value %}
+                        <option value="{{ role.id }}">@{{ role.name }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="listbox-buttons">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
+                </div>
+                <div class="listbox-container">
+                    <label class="listbox-label">Seleccionados</label>
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                        {% for role in roles %}
+                        {% if option.value and role.id in option.value %}
+                        <option value="{{ role.id }}">@{{ role.name }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
+                const sel = document.getElementById('sel-{{ option.key }}');
+                const hidden = document.getElementById('val-{{ option.key }}');
+                hidden.value = Array.from(sel.options).map(o => o.value).join(',');
+                this.closest('form').requestSubmit();
+            ">Guardar</button>
+
+            {% else %}
+            <input
+                type="text"
+                name="value"
+                id="opt-{{ option.key }}"
+                value="{{ option.value if option.value is not none else '' }}"
+                class="input"
+            >
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+            {% endif %}
+        </form>
+    </div>
+    {% endmacro %}
+
+    {# Collect unique groups maintaining order #}
+    {% set groups = [] %}
+    {% for option in options %}
+        {% if option.group and option.group not in groups %}
+            {% set _ = groups.append(option.group) %}
+        {% endif %}
+    {% endfor %}
+
+    {# Check if any options have groups #}
+    {% set has_groups = groups | length > 0 %}
+
+    <div class="options-list">
+        {% if has_groups %}
+            {# Render grouped options #}
+            {% for group_name in groups %}
+            <div class="option-group">
+                <h3 class="option-group-title">{{ group_name }}</h3>
+                <div class="option-group-content">
+                    {% for option in options %}
+                        {% if option.group == group_name %}
+                            {{ render_option(option) }}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {# Render ungrouped options at the end #}
+            {% set ungrouped = options | selectattr('group', 'none') | list %}
+            {% if ungrouped %}
+            <div class="option-group">
+                <h3 class="option-group-title">Otros</h3>
+                <div class="option-group-content">
+                    {% for option in ungrouped %}
+                        {{ render_option(option) }}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         {% else %}
-        <div class="empty-state">
-            <p>Este módulo no tiene opciones configurables.</p>
-        </div>
-        {% endfor %}
+            {# No groups, render all options flat #}
+            {% for option in options %}
+                {{ render_option(option) }}
+            {% else %}
+            <div class="empty-state">
+                <p>Este módulo no tiene opciones configurables.</p>
+            </div>
+            {% endfor %}
+        {% endif %}
     </div>
 </div>
 

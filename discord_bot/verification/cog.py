@@ -42,15 +42,24 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
     description="Sistema de verificacion de usuarios con capturas de pantalla",
     icon="✅",
     options=[
-        # Estado general
+        # ===== 1. OPCIONES GENERALES =====
         ConfigOption(
             key=ConfigKey.VERIFICATION_ENABLED,
             name="Verificacion habilitada",
             description="Habilitar o deshabilitar el sistema de verificacion",
             option_type=ConfigOptionType.BOOLEAN,
             default=True,
+            group="Opciones",
         ),
-        # Canales
+        ConfigOption(
+            key=ConfigKey.BLOCK_ALREADY_VERIFIED,
+            name="Bloquear usuarios verificados",
+            description="Impedir que usuarios con roles de verificado inicien nueva verificacion",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=True,
+            group="Opciones",
+        ),
+        # ===== 2. PANEL DE VERIFICACIÓN =====
         ConfigOption(
             key=ConfigKey.VERIFICATION_CHANNEL,
             name="Canal de verificacion",
@@ -59,83 +68,8 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "Solo se muestran canales donde el bot tiene permiso de escritura."
             ),
             option_type=ConfigOptionType.CHANNEL,
+            group="Panel de verificación",
         ),
-        ConfigOption(
-            key=ConfigKey.MOD_NOTIFICATION_CHANNEL,
-            name="Canal de notificaciones",
-            description=(
-                "Canal donde los moderadores reciben notificaciones de verificacion. "
-                "Solo se muestran canales donde el bot tiene permiso de escritura."
-            ),
-            option_type=ConfigOptionType.CHANNEL,
-        ),
-        ConfigOption(
-            key=ConfigKey.HEALTH_CHECK_INTERVAL,
-            name="Intervalo de verificacion (minutos)",
-            description="Frecuencia de verificacion del panel (0 para desactivar)",
-            option_type=ConfigOptionType.INTEGER,
-            default=30,
-            min_value=0,
-            max_value=1440,
-        ),
-        # Textos de botones
-        ConfigOption(
-            key=ConfigKey.VERIFY_BUTTON_TEXT,
-            name="Texto boton verificar",
-            description="Texto del boton de verificacion normal",
-            option_type=ConfigOptionType.STRING,
-            default="Verificar",
-            max_length=80,
-        ),
-        ConfigOption(
-            key=ConfigKey.VERIFY_ALLY_BUTTON_TEXT,
-            name="Texto boton aliado",
-            description="Texto del boton de verificacion como aliado",
-            option_type=ConfigOptionType.STRING,
-            default="Verificar como Aliado",
-            max_length=80,
-        ),
-        ConfigOption(
-            key=ConfigKey.ACCEPT_BUTTON_TEXT,
-            name="Texto boton aceptar",
-            description="Texto del boton de aceptar para moderadores",
-            option_type=ConfigOptionType.STRING,
-            default="Aceptar",
-            max_length=80,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECT_BUTTON_TEXT,
-            name="Texto boton rechazar",
-            description="Texto del boton de rechazar para moderadores",
-            option_type=ConfigOptionType.STRING,
-            default="Rechazar",
-            max_length=80,
-        ),
-        ConfigOption(
-            key=ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY,
-            name="Nombre tipo normal",
-            description="Nombre a mostrar para verificacion normal en mensajes",
-            option_type=ConfigOptionType.STRING,
-            default="Normal",
-            max_length=50,
-        ),
-        ConfigOption(
-            key=ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY,
-            name="Nombre tipo aliado",
-            description="Nombre a mostrar para verificacion de aliado en mensajes",
-            option_type=ConfigOptionType.STRING,
-            default="Aliado",
-            max_length=50,
-        ),
-        ConfigOption(
-            key=ConfigKey.HISTORY_LABEL,
-            name="Etiqueta historial",
-            description="Texto para la seccion de historial en el mensaje de revision",
-            option_type=ConfigOptionType.STRING,
-            default="Historial",
-            max_length=50,
-        ),
-        # Mensajes configurables
         ConfigOption(
             key=ConfigKey.VERIFICATION_PANEL_MESSAGE,
             name="Mensaje del panel",
@@ -152,13 +86,50 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             ),
             max_length=4000,
             placeholders=["server_name"],
+            group="Panel de verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFY_BUTTON_TEXT,
+            name="Texto boton verificar",
+            description="Texto del boton de verificacion normal",
+            option_type=ConfigOptionType.STRING,
+            default="Verificar",
+            max_length=80,
+            group="Panel de verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFY_ALLY_BUTTON_TEXT,
+            name="Texto boton aliado",
+            description="Texto del boton de verificacion como aliado",
+            option_type=ConfigOptionType.STRING,
+            default="Verificar como Aliado",
+            max_length=80,
+            group="Panel de verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.HEALTH_CHECK_INTERVAL,
+            name="Intervalo de verificacion (minutos)",
+            description="Frecuencia de verificacion del panel (0 para desactivar)",
+            option_type=ConfigOptionType.INTEGER,
+            default=30,
+            min_value=0,
+            max_value=1440,
+            group="Panel de verificación",
+        ),
+        # ===== 2. VERIFICACIÓN NORMAL =====
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY,
+            name="Nombre tipo normal",
+            description="Nombre a mostrar para verificacion normal en mensajes",
+            option_type=ConfigOptionType.STRING,
+            default="Normal",
+            max_length=50,
+            group="Verificación (Normal)",
         ),
         ConfigOption(
             key=ConfigKey.DM_INSTRUCTIONS_MESSAGE,
-            name="Instrucciones por DM (Normal)",
-            description=(
-                "Mensaje enviado al usuario por DM con las instrucciones para verificacion normal"
-            ),
+            name="Instrucciones por DM",
+            description="Mensaje enviado al usuario por DM con las instrucciones",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
                 "**Instrucciones de Verificacion**\n\n"
@@ -167,14 +138,52 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             ),
             max_length=4000,
             placeholders=["username", "user_mention", "server_name", "verification_type"],
+            group="Verificación (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.REGULAR_ROLES_ADD,
+            name="Roles a agregar",
+            description="Roles que se agregan al aprobar verificacion normal",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Verificación (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.REGULAR_ROLES_REMOVE,
+            name="Roles a quitar",
+            description="Roles que se quitan al aprobar verificacion normal",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Verificación (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.APPROVAL_MESSAGE_REGULAR,
+            name="Mensaje de aprobacion",
+            description="Mensaje enviado al usuario cuando es aprobado",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "**Verificacion aprobada!**\n\n"
+                "Tu verificacion en **{server_name}** ha sido aprobada. "
+                "Ya tienes acceso completo al servidor."
+            ),
+            max_length=2000,
+            placeholders=["username", "server_name"],
+            group="Verificación (Normal)",
+        ),
+        # ===== 3. VERIFICACIÓN ALIADO =====
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY,
+            name="Nombre tipo aliado",
+            description="Nombre a mostrar para verificacion de aliado en mensajes",
+            option_type=ConfigOptionType.STRING,
+            default="Aliado",
+            max_length=50,
+            group="Verificación (Aliado)",
         ),
         ConfigOption(
             key=ConfigKey.DM_INSTRUCTIONS_ALLY_MESSAGE,
-            name="Instrucciones por DM (Aliado)",
-            description=(
-                "Mensaje enviado al usuario por DM "
-                "con las instrucciones para verificacion de aliado"
-            ),
+            name="Instrucciones por DM",
+            description="Mensaje enviado al usuario por DM con las instrucciones",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
                 "**Instrucciones de Verificacion (Aliado)**\n\n"
@@ -183,30 +192,56 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             ),
             max_length=4000,
             placeholders=["username", "user_mention", "server_name", "verification_type"],
+            group="Verificación (Aliado)",
         ),
         ConfigOption(
-            key=ConfigKey.WRONG_IMAGES_MESSAGE,
-            name="Error de imagenes",
-            description="Mensaje cuando no se envian exactamente 2 imagenes",
-            option_type=ConfigOptionType.TEXTAREA,
-            default=(
-                "Debes enviar exactamente **2 capturas de pantalla** "
-                "en el mismo mensaje. Por favor, intentalo de nuevo."
-            ),
-            max_length=2000,
-            placeholders=["username"],
+            key=ConfigKey.ALLY_ROLES_ADD,
+            name="Roles a agregar",
+            description="Roles que se agregan al aprobar verificacion de aliado",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Verificación (Aliado)",
         ),
         ConfigOption(
-            key=ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE,
-            name="Capturas recibidas",
-            description="Mensaje de confirmacion cuando el usuario envia las capturas",
+            key=ConfigKey.ALLY_ROLES_REMOVE,
+            name="Roles a quitar",
+            description="Roles que se quitan al aprobar verificacion de aliado",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Verificación (Aliado)",
+        ),
+        ConfigOption(
+            key=ConfigKey.APPROVAL_MESSAGE_ALLY,
+            name="Mensaje de aprobacion",
+            description="Mensaje enviado al usuario cuando es aprobado como aliado",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
-                "Tus capturas han sido recibidas correctamente. "
-                "Un moderador revisara tu solicitud pronto."
+                "**Verificacion de aliado aprobada!**\n\n"
+                "Tu verificacion como aliado en **{server_name}** ha sido aprobada. "
+                "Ya tienes acceso como aliado al servidor."
             ),
             max_length=2000,
             placeholders=["username", "server_name"],
+            group="Verificación (Aliado)",
+        ),
+        # ===== 4. PANEL DE MODERACIÓN =====
+        ConfigOption(
+            key=ConfigKey.MOD_NOTIFICATION_CHANNEL,
+            name="Canal de moderacion",
+            description=(
+                "Canal donde los moderadores reciben notificaciones de verificacion. "
+                "Solo se muestran canales donde el bot tiene permiso de escritura."
+            ),
+            option_type=ConfigOptionType.CHANNEL,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_ROLES,
+            name="Roles de moderador",
+            description="Roles que pueden aprobar/rechazar verificaciones",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Panel de moderación",
         ),
         ConfigOption(
             key=ConfigKey.MOD_MESSAGE_TEMPLATE,
@@ -221,6 +256,42 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             ),
             max_length=2000,
             placeholders=["username", "user_mention", "verification_type", "status"],
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.DELETE_PROCESSED_MESSAGES,
+            name="Eliminar mensajes procesados",
+            description="Eliminar mensajes del canal de moderacion tras aceptar/rechazar",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.ACCEPT_BUTTON_TEXT,
+            name="Texto boton aceptar",
+            description="Texto del boton de aceptar para moderadores",
+            option_type=ConfigOptionType.STRING,
+            default="Aceptar",
+            max_length=80,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECT_BUTTON_TEXT,
+            name="Texto boton rechazar",
+            description="Texto del boton de rechazar para moderadores",
+            option_type=ConfigOptionType.STRING,
+            default="Rechazar",
+            max_length=80,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.HISTORY_LABEL,
+            name="Etiqueta historial",
+            description="Texto para la seccion de historial en el mensaje de revision",
+            option_type=ConfigOptionType.STRING,
+            default="Historial",
+            max_length=50,
+            group="Panel de moderación",
         ),
         ConfigOption(
             key=ConfigKey.STATUS_AWAITING_SCREENSHOTS,
@@ -229,6 +300,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.STRING,
             default="⏳ **Estado:** Esperando capturas de pantalla...",
             max_length=200,
+            group="Panel de moderación",
         ),
         ConfigOption(
             key=ConfigKey.STATUS_PENDING_REVIEW,
@@ -237,6 +309,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.STRING,
             default="🔍 **Estado:** Pendiente de revision",
             max_length=200,
+            group="Panel de moderación",
         ),
         ConfigOption(
             key=ConfigKey.STATUS_APPROVED,
@@ -246,6 +319,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="✅ **Estado:** Aprobado por {moderator}",
             max_length=200,
             placeholders=["moderator"],
+            group="Panel de moderación",
         ),
         ConfigOption(
             key=ConfigKey.STATUS_REJECTED,
@@ -255,40 +329,129 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="❌ **Estado:** Rechazado por {moderator}\n**Motivo:** {reason}",
             max_length=200,
             placeholders=["moderator", "reason"],
+            group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.REJECTION_REASON_1,
+            name="Motivo de rechazo 1",
+            description="Primer motivo predefinido para rechazar verificaciones",
+            option_type=ConfigOptionType.STRING,
+            default="Capturas incorrectas o ilegibles",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_REASON_2,
+            name="Motivo de rechazo 2",
+            description="Segundo motivo predefinido para rechazar verificaciones",
+            option_type=ConfigOptionType.STRING,
+            default="Nombre de usuario no coincide",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_REASON_3,
+            name="Motivo de rechazo 3",
+            description="Tercer motivo predefinido para rechazar verificaciones",
+            option_type=ConfigOptionType.STRING,
+            default="Informacion insuficiente",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_REASON_4,
+            name="Motivo de rechazo 4",
+            description="Cuarto motivo predefinido (dejar vacio para ocultar)",
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_SELECT_PLACEHOLDER,
+            name="Placeholder selector de rechazo",
+            description="Texto del placeholder del selector de motivos",
+            option_type=ConfigOptionType.STRING,
+            default="Selecciona el motivo de rechazo...",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_SELECT_MESSAGE,
+            name="Mensaje selector de rechazo",
+            description="Mensaje mostrado al moderador antes del selector de motivos",
+            option_type=ConfigOptionType.STRING,
+            default="Selecciona el motivo de rechazo:",
+            max_length=200,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_OTHER_LABEL,
+            name="Etiqueta 'Otro motivo'",
+            description="Texto de la opcion para escribir un motivo personalizado",
+            option_type=ConfigOptionType.STRING,
+            default="Otro motivo...",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_OTHER_DESCRIPTION,
+            name="Descripcion 'Otro motivo'",
+            description="Descripcion de la opcion para escribir un motivo personalizado",
+            option_type=ConfigOptionType.STRING,
+            default="Escribir un motivo personalizado",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_MODAL_TITLE,
+            name="Titulo modal de rechazo",
+            description="Titulo del modal para escribir un motivo personalizado",
+            option_type=ConfigOptionType.STRING,
+            default="Motivo de Rechazo",
+            max_length=45,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_MODAL_LABEL,
+            name="Etiqueta campo motivo",
+            description="Etiqueta del campo de texto en el modal de rechazo",
+            option_type=ConfigOptionType.STRING,
+            default="Motivo",
+            max_length=45,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECTION_MODAL_PLACEHOLDER,
+            name="Placeholder campo motivo",
+            description="Texto de ayuda en el campo de texto del modal de rechazo",
+            option_type=ConfigOptionType.STRING,
+            default="Explica por que se rechaza la verificacion...",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        # ===== 5. MENSAJES AL USUARIO =====
+        ConfigOption(
             key=ConfigKey.VERIFICATION_STARTED_MESSAGE,
-            name="Mensaje verificacion iniciada",
+            name="Verificacion iniciada",
             description="Mensaje mostrado al usuario cuando inicia la verificacion",
             option_type=ConfigOptionType.STRING,
             default="Revisa tus mensajes directos para continuar con la verificacion.",
             max_length=500,
+            group="Mensajes al usuario",
         ),
         ConfigOption(
-            key=ConfigKey.APPROVAL_MESSAGE_REGULAR,
-            name="Mensaje de aprobacion (Normal)",
-            description="Mensaje enviado al usuario cuando es aprobado como miembro normal",
+            key=ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE,
+            name="Capturas recibidas",
+            description="Mensaje de confirmacion cuando el usuario envia las capturas",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
-                "**Verificacion aprobada!**\n\n"
-                "Tu verificacion en **{server_name}** ha sido aprobada. "
-                "Ya tienes acceso completo al servidor."
+                "Tus capturas han sido recibidas correctamente. "
+                "Un moderador revisara tu solicitud pronto."
             ),
             max_length=2000,
             placeholders=["username", "server_name"],
-        ),
-        ConfigOption(
-            key=ConfigKey.APPROVAL_MESSAGE_ALLY,
-            name="Mensaje de aprobacion (Aliado)",
-            description="Mensaje enviado al usuario cuando es aprobado como aliado",
-            option_type=ConfigOptionType.TEXTAREA,
-            default=(
-                "**Verificacion de aliado aprobada!**\n\n"
-                "Tu verificacion como aliado en **{server_name}** ha sido aprobada. "
-                "Ya tienes acceso como aliado al servidor."
-            ),
-            max_length=2000,
-            placeholders=["username", "server_name"],
+            group="Mensajes al usuario",
         ),
         ConfigOption(
             key=ConfigKey.REJECTION_MESSAGE,
@@ -303,10 +466,24 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             ),
             max_length=2000,
             placeholders=["username", "server_name", "verification_type", "reason"],
+            group="Mensajes al usuario",
+        ),
+        ConfigOption(
+            key=ConfigKey.WRONG_IMAGES_MESSAGE,
+            name="Error: imagenes incorrectas",
+            description="Mensaje cuando no se envian exactamente 2 imagenes",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "Debes enviar exactamente **2 capturas de pantalla** "
+                "en el mismo mensaje. Por favor, intentalo de nuevo."
+            ),
+            max_length=2000,
+            placeholders=["username"],
+            group="Mensajes al usuario",
         ),
         ConfigOption(
             key=ConfigKey.DM_DISABLED_MESSAGE,
-            name="DMs deshabilitados",
+            name="Error: DMs deshabilitados",
             description="Mensaje cuando no se puede enviar DM al usuario",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
@@ -314,19 +491,30 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "Por favor, habilita los DMs de miembros del servidor e intentalo de nuevo."
             ),
             max_length=1000,
+            group="Mensajes al usuario",
         ),
         ConfigOption(
             key=ConfigKey.ALREADY_PENDING_MESSAGE,
-            name="Verificacion pendiente",
+            name="Error: verificacion pendiente",
             description="Mensaje cuando el usuario ya tiene una verificacion pendiente",
             option_type=ConfigOptionType.TEXTAREA,
             default="Ya tienes una solicitud de verificacion pendiente. Por favor, espera.",
             max_length=1000,
+            group="Mensajes al usuario",
+        ),
+        ConfigOption(
+            key=ConfigKey.ALREADY_VERIFIED_MESSAGE,
+            name="Error: ya verificado",
+            description="Mensaje cuando el usuario ya tiene los roles de verificacion",
+            option_type=ConfigOptionType.STRING,
+            default="Ya tienes los roles de verificacion. No necesitas verificarte de nuevo.",
+            max_length=500,
+            group="Mensajes al usuario",
         ),
         ConfigOption(
             key=ConfigKey.VERIFICATION_DISABLED_MESSAGE,
-            name="Verificacion deshabilitada",
-            description="Mensaje mostrado cuando la verificacion no esta configurada correctamente",
+            name="Error: verificacion deshabilitada",
+            description="Mensaje mostrado cuando la verificacion no esta configurada",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
                 "⚠️ **Verificacion no disponible**\n\n"
@@ -334,31 +522,18 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "Por favor, contacta a un administrador."
             ),
             max_length=2000,
+            group="Mensajes al usuario",
         ),
         ConfigOption(
-            key=ConfigKey.REQUEST_ALREADY_PROCESSED_MESSAGE,
-            name="Solicitud ya procesada",
-            description="Mensaje cuando se intenta procesar una solicitud ya procesada",
+            key=ConfigKey.REQUEST_NOT_FOUND_MESSAGE,
+            name="Error: solicitud no encontrada",
+            description="Mensaje cuando no se encuentra la solicitud de verificacion",
             option_type=ConfigOptionType.STRING,
-            default="Esta solicitud ya fue procesada.",
+            default="Error: No se encontro tu solicitud de verificacion.",
             max_length=500,
+            group="Mensajes al usuario",
         ),
-        ConfigOption(
-            key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-            name="Sin permisos para aprobar",
-            description="Mensaje cuando el moderador no tiene permisos para aprobar",
-            option_type=ConfigOptionType.STRING,
-            default="No tienes permisos para aprobar verificaciones.",
-            max_length=500,
-        ),
-        ConfigOption(
-            key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
-            name="Sin permisos para rechazar",
-            description="Mensaje cuando el moderador no tiene permisos para rechazar",
-            option_type=ConfigOptionType.STRING,
-            default="No tienes permisos para rechazar verificaciones.",
-            max_length=500,
-        ),
+        # ===== 6. MENSAJES DE MODERACIÓN =====
         ConfigOption(
             key=ConfigKey.MOD_APPROVED_CONFIRMATION,
             name="Confirmacion de aprobacion",
@@ -367,6 +542,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="Verificacion aprobada para {username}.",
             max_length=500,
             placeholders=["username"],
+            group="Mensajes de moderación",
         ),
         ConfigOption(
             key=ConfigKey.MOD_REJECTED_CONFIRMATION,
@@ -376,163 +552,34 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="Verificacion rechazada para {username}.",
             max_length=500,
             placeholders=["username"],
-        ),
-        # Roles - verificacion normal
-        ConfigOption(
-            key=ConfigKey.REGULAR_ROLES_ADD,
-            name="Roles a agregar (normal)",
-            description="Roles que se agregan al aprobar verificacion normal",
-            option_type=ConfigOptionType.ROLE_LIST,
-            default=[],
+            group="Mensajes de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REGULAR_ROLES_REMOVE,
-            name="Roles a quitar (normal)",
-            description="Roles que se quitan al aprobar verificacion normal",
-            option_type=ConfigOptionType.ROLE_LIST,
-            default=[],
-        ),
-        # Roles - verificacion aliado
-        ConfigOption(
-            key=ConfigKey.ALLY_ROLES_ADD,
-            name="Roles a agregar (aliado)",
-            description="Roles que se agregan al aprobar verificacion de aliado",
-            option_type=ConfigOptionType.ROLE_LIST,
-            default=[],
-        ),
-        ConfigOption(
-            key=ConfigKey.ALLY_ROLES_REMOVE,
-            name="Roles a quitar (aliado)",
-            description="Roles que se quitan al aprobar verificacion de aliado",
-            option_type=ConfigOptionType.ROLE_LIST,
-            default=[],
-        ),
-        # Roles de moderacion
-        ConfigOption(
-            key=ConfigKey.MOD_ROLES,
-            name="Roles de moderador",
-            description="Roles que pueden aprobar/rechazar verificaciones",
-            option_type=ConfigOptionType.ROLE_LIST,
-            default=[],
-        ),
-        # Motivos de rechazo predefinidos
-        ConfigOption(
-            key=ConfigKey.REJECTION_REASON_1,
-            name="Motivo de rechazo 1",
-            description="Primer motivo predefinido para rechazar verificaciones",
+            key=ConfigKey.REQUEST_ALREADY_PROCESSED_MESSAGE,
+            name="Error: solicitud ya procesada",
+            description="Mensaje cuando se intenta procesar una solicitud ya procesada",
             option_type=ConfigOptionType.STRING,
-            default="Capturas incorrectas o ilegibles",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_REASON_2,
-            name="Motivo de rechazo 2",
-            description="Segundo motivo predefinido para rechazar verificaciones",
-            option_type=ConfigOptionType.STRING,
-            default="Nombre de usuario no coincide",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_REASON_3,
-            name="Motivo de rechazo 3",
-            description="Tercer motivo predefinido para rechazar verificaciones",
-            option_type=ConfigOptionType.STRING,
-            default="Informacion insuficiente",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_REASON_4,
-            name="Motivo de rechazo 4",
-            description="Cuarto motivo predefinido (dejar vacio para ocultar)",
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_SELECT_MESSAGE,
-            name="Mensaje selector de rechazo",
-            description="Mensaje mostrado al moderador antes del selector de motivos",
-            option_type=ConfigOptionType.STRING,
-            default="Selecciona el motivo de rechazo:",
-            max_length=200,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_SELECT_PLACEHOLDER,
-            name="Placeholder selector de rechazo",
-            description="Texto del placeholder del selector de motivos",
-            option_type=ConfigOptionType.STRING,
-            default="Selecciona el motivo de rechazo...",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_OTHER_LABEL,
-            name="Etiqueta 'Otro motivo'",
-            description="Texto de la opcion para escribir un motivo personalizado",
-            option_type=ConfigOptionType.STRING,
-            default="Otro motivo...",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_OTHER_DESCRIPTION,
-            name="Descripcion 'Otro motivo'",
-            description="Descripcion de la opcion para escribir un motivo personalizado",
-            option_type=ConfigOptionType.STRING,
-            default="Escribir un motivo personalizado",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_MODAL_TITLE,
-            name="Titulo modal de rechazo",
-            description="Titulo del modal para escribir un motivo personalizado",
-            option_type=ConfigOptionType.STRING,
-            default="Motivo de Rechazo",
-            max_length=45,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_MODAL_LABEL,
-            name="Etiqueta campo motivo",
-            description="Etiqueta del campo de texto en el modal de rechazo",
-            option_type=ConfigOptionType.STRING,
-            default="Motivo",
-            max_length=45,
-        ),
-        ConfigOption(
-            key=ConfigKey.REJECTION_MODAL_PLACEHOLDER,
-            name="Placeholder campo motivo",
-            description="Texto de ayuda en el campo de texto del modal de rechazo",
-            option_type=ConfigOptionType.STRING,
-            default="Explica por que se rechaza la verificacion...",
-            max_length=100,
-        ),
-        ConfigOption(
-            key=ConfigKey.DELETE_PROCESSED_MESSAGES,
-            name="Eliminar mensajes procesados",
-            description="Eliminar mensajes del canal de moderacion tras aceptar/rechazar",
-            option_type=ConfigOptionType.BOOLEAN,
-            default=False,
-        ),
-        ConfigOption(
-            key=ConfigKey.BLOCK_ALREADY_VERIFIED,
-            name="Bloquear usuarios verificados",
-            description="Impedir que usuarios con roles de verificado inicien nueva verificacion",
-            option_type=ConfigOptionType.BOOLEAN,
-            default=True,
-        ),
-        ConfigOption(
-            key=ConfigKey.ALREADY_VERIFIED_MESSAGE,
-            name="Mensaje ya verificado",
-            description="Mensaje cuando el usuario ya tiene los roles de verificacion",
-            option_type=ConfigOptionType.STRING,
-            default="Ya tienes los roles de verificacion. No necesitas verificarte de nuevo.",
+            default="Esta solicitud ya fue procesada.",
             max_length=500,
+            group="Mensajes de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REQUEST_NOT_FOUND_MESSAGE,
-            name="Mensaje solicitud no encontrada",
-            description="Mensaje cuando no se encuentra la solicitud de verificacion",
+            key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
+            name="Error: sin permisos para aprobar",
+            description="Mensaje cuando el moderador no tiene permisos para aprobar",
             option_type=ConfigOptionType.STRING,
-            default="Error: No se encontro tu solicitud de verificacion.",
+            default="No tienes permisos para aprobar verificaciones.",
             max_length=500,
+            group="Mensajes de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
+            name="Error: sin permisos para rechazar",
+            description="Mensaje cuando el moderador no tiene permisos para rechazar",
+            option_type=ConfigOptionType.STRING,
+            default="No tienes permisos para rechazar verificaciones.",
+            max_length=500,
+            group="Mensajes de moderación",
         ),
     ],
 )
