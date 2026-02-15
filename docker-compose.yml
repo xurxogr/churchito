@@ -21,10 +21,7 @@ services:
       - bot_data:/app/data
       - bot_logs:/app/logs
     ports:
-      # Bind to localhost only - use reverse proxy (Caddy) for external access
       - "127.0.0.1:${WEB_PORT:-8000}:8000"
-    networks:
-      - bot-network
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
       interval: 30s
@@ -42,8 +39,6 @@ services:
       POSTGRES_DB: discord
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - bot-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U discord -d discord"]
       interval: 5s
@@ -54,7 +49,3 @@ volumes:
   bot_data:
   bot_logs:
   postgres_data:
-
-networks:
-  bot-network:
-    driver: bridge

@@ -150,3 +150,7 @@ data/
 *.db
 *.db-journal
 custom/
+
+# Docker
+docker-compose.override.yml
+config.json

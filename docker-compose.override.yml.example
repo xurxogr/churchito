@@ -1,0 +1,21 @@
+# Example override file for custom network configuration
+# Copy to docker-compose.override.yml and adjust as needed
+#
+# This connects the bot to Caddy's network for reverse proxy access
+# while keeping the database on an internal network
+
+services:
+  bot:
+    networks:
+      - internal
+      - caddy
+
+  db:
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+  caddy:
+    external: true
