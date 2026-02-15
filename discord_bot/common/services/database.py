@@ -95,9 +95,23 @@ class DatabaseService:
             db_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Creado directorio de base de datos: {db_dir}")
 
+    def _redact_url(self, url: str) -> str:
+        """Redactar credenciales de una URL de base de datos.
+
+        Args:
+            url (str): URL de conexión
+
+        Returns:
+            str: URL con credenciales redactadas
+        """
+        import re
+
+        # Redact password in URLs like: postgresql+asyncpg://user:password@host:port/db
+        return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
+
     async def initialize(self) -> None:
         """Inicializar el motor de la base de datos y el creador de sesiones."""
-        logger.info(f"Inicializando base de datos: {self.settings.url}")
+        logger.info(f"Inicializando base de datos: {self._redact_url(self.settings.url)}")
 
         # Ensure database directory exists (for SQLite)
         self._ensure_database_directory()
