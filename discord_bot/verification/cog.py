@@ -1259,9 +1259,12 @@ class VerificationCog(commands.Cog):
                 timestamp = past.reviewed_at or past.created_at
                 date_str = timestamp.strftime("%Y-%m-%d %H:%M")
                 moderator = past.reviewed_by_username or ""
-                formatted += (
-                    f"\n{status_emoji} {past.verification_type.title()} - {moderator} ({date_str})"
+                past_type_display = (
+                    config.get(ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY) or "Normal"
+                    if past.verification_type == VerificationType.REGULAR
+                    else config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Aliado"
                 )
+                formatted += f"\n{status_emoji} {past_type_display} - {moderator} ({date_str})"
                 if past.rejection_reason:
                     formatted += f" - {past.rejection_reason}"
 
