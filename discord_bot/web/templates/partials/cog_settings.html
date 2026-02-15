@@ -10,6 +10,7 @@
         <h2>{{ schema.icon }} {{ schema.display_name }}</h2>
         <p>{{ schema.description }}</p>
 
+        {% if schema.toggleable %}
         <div class="cog-actions">
             <form
                 hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
@@ -37,6 +38,7 @@
                 Reiniciar
             </button>
         </div>
+        {% endif %}
     </div>
 
     {% set has_textarea = options | selectattr('type', 'equalto', 'textarea') | list | length > 0 %}

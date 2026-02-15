@@ -6,13 +6,40 @@ import time
 
 import discord
 from discord.ext import commands
+from sqlalchemy import select
 
 from discord_bot.common.core import AppSettings
+from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.enums.event_type import EventType
+from discord_bot.common.models import Guild as GuildModel
+from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
+from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services import DatabaseService
+from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
+
+# Esquema de configuración del bot (permisos de administración)
+BOT_CONFIG_SCHEMA = CogConfigSchema(
+    cog_name="bot",
+    display_name="Bot",
+    description="Configuración general del bot y permisos de administración",
+    icon="🤖",
+    toggleable=False,
+    options=[
+        ConfigOption(
+            key="admin_roles",
+            name="Roles de administración",
+            description=(
+                "Roles que pueden configurar el bot desde el panel web. "
+                "El usuario que invitó al bot y el owner del servidor siempre tienen acceso."
+            ),
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+        ),
+    ],
+)
 
 
 class DiscordBot(commands.Bot):
@@ -52,6 +79,9 @@ class DiscordBot(commands.Bot):
         la base de datos.
         """
         logger.info("Ejecutando el hook de configuración...")
+
+        # Registrar esquema de configuración del bot
+        get_config_schema_service().register_schema(BOT_CONFIG_SCHEMA)
 
         # Inicializar base de datos
         await self.database.initialize()
@@ -118,6 +148,68 @@ class DiscordBot(commands.Bot):
                     "guild_count": len(self.guilds),
                 },
             )
+
+    async def on_guild_join(self, guild: discord.Guild) -> None:
+        """Manejador de evento cuando el bot se une a un servidor.
+
+        Registra el servidor en la base de datos y guarda quién invitó al bot.
+        """
+        logger.info(f"Bot unido al servidor: {guild.name} (ID: {guild.id})")
+
+        # Intentar obtener quién invitó al bot desde el audit log
+        invited_by_id: int | None = None
+        try:
+            if guild.me and guild.me.guild_permissions.view_audit_log and self.user:
+                async for entry in guild.audit_logs(
+                    limit=10, action=discord.AuditLogAction.bot_add
+                ):
+                    # Buscar la entrada que corresponde a este bot
+                    if entry.target and entry.user and entry.target.id == self.user.id:
+                        invited_by_id = entry.user.id
+                        logger.info(f"Bot invitado por: {entry.user.name} (ID: {invited_by_id})")
+                        break
+        except discord.Forbidden:
+            logger.warning(
+                f"No se pudo acceder al audit log de {guild.name} para determinar "
+                "quién invitó al bot"
+            )
+        except Exception as e:
+            logger.error(f"Error al consultar audit log: {e}")
+
+        # Si no pudimos obtener el invitador, usar el owner del servidor
+        if invited_by_id is None:
+            invited_by_id = guild.owner_id
+            logger.info(f"Usando owner del servidor como invitador: {invited_by_id}")
+
+        # Guardar en la base de datos
+        await self._save_guild(guild, invited_by_id)
+
+    async def _save_guild(self, guild: discord.Guild, invited_by_id: int | None) -> None:
+        """Guardar o actualizar un servidor en la base de datos.
+
+        Args:
+            guild: El servidor de Discord
+            invited_by_id: ID del usuario que invitó al bot
+        """
+        async with self.database.session() as session:
+            result = await session.execute(select(GuildModel).where(GuildModel.id == guild.id))
+            db_guild = result.scalar_one_or_none()
+
+            if db_guild:
+                db_guild.name = guild.name
+                # Solo actualizar invited_by_id si no estaba establecido
+                if db_guild.invited_by_id is None and invited_by_id:
+                    db_guild.invited_by_id = invited_by_id
+            else:
+                db_guild = GuildModel(
+                    id=guild.id,
+                    name=guild.name,
+                    invited_by_id=invited_by_id,
+                )
+                session.add(db_guild)
+
+            await session.commit()
+            logger.info(f"Servidor guardado en BD: {guild.name}")
 
     async def _monitor_event_loop(self) -> None:
         """Monitorea el bucle de eventos en busca de operaciones bloqueantes.

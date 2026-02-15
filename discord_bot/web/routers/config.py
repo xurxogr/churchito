@@ -116,6 +116,7 @@ async def guild_config(
                 "description": schema.description,
                 "icon": schema.icon or "⚙️",
                 "enabled": is_enabled,
+                "toggleable": schema.toggleable,
                 "options_count": len(schema.options),
             }
         )
@@ -260,6 +261,7 @@ async def _render_cog_settings(
                 "display_name": schema.display_name,
                 "description": schema.description,
                 "icon": schema.icon or "⚙️",
+                "toggleable": schema.toggleable,
             },
             "options": options_data,
             "enabled": is_enabled,

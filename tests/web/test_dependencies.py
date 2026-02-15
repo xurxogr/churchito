@@ -70,6 +70,27 @@ class TestRequireAuth:
 class TestRequireGuildAccess:
     """Tests para require_guild_access."""
 
+    def _setup_db_mock(self, simple_app: FastAPI, guild: Any = None, config: Any = None) -> None:
+        """Configurar mock de base de datos para tests."""
+        mock_session = AsyncMock()
+
+        # Mock para Guild query
+        guild_result = MagicMock()
+        guild_result.scalar_one_or_none.return_value = guild
+
+        # Mock para GuildConfig query
+        config_result = MagicMock()
+        config_result.scalar_one_or_none.return_value = config
+
+        # execute returns different results based on call order
+        mock_session.execute = AsyncMock(side_effect=[guild_result, config_result])
+
+        # Setup async context manager
+        simple_app.state.db_service.session.return_value.__aenter__ = AsyncMock(
+            return_value=mock_session
+        )
+        simple_app.state.db_service.session.return_value.__aexit__ = AsyncMock()
+
     async def test_owner_has_access(self, simple_app: FastAPI, test_user: dict[str, Any]) -> None:
         """Probar que el owner tiene acceso a cualquier guild."""
         request = MagicMock()
@@ -79,15 +100,64 @@ class TestRequireGuildAccess:
         result = await require_guild_access(request, 999999, test_user)
         assert result == test_user
 
-    async def test_user_with_manage_guild_has_access(
+    async def test_user_who_invited_bot_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que usuario con MANAGE_GUILD tiene acceso."""
+        """Probar que el usuario que invitó al bot tiene acceso."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
 
-        # El usuario tiene MANAGE_GUILD (0x20) para guild 111222333
+        # Mock guild with invited_by_id matching the user
+        mock_guild = MagicMock()
+        mock_guild.invited_by_id = 123456789  # Same as test_user id
+        self._setup_db_mock(simple_app, guild=mock_guild)
+
+        result = await require_guild_access(request, 111222333, test_user)
+        assert result == test_user
+
+    async def test_guild_owner_has_access(
+        self, simple_app: FastAPI, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que el owner del guild tiene acceso."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.settings.web.owner_ids = []
+
+        # Mock guild without invited_by_id
+        self._setup_db_mock(simple_app, guild=None)
+
+        # User is guild owner
+        test_user["guilds"][0]["owner"] = True
+
+        result = await require_guild_access(request, 111222333, test_user)
+        assert result == test_user
+
+        # Reset for other tests
+        test_user["guilds"][0]["owner"] = False
+
+    async def test_user_with_admin_role_has_access(
+        self, simple_app: FastAPI, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que usuario con rol de admin tiene acceso."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.settings.web.owner_ids = []
+
+        # Mock guild and admin_roles config
+        self._setup_db_mock(simple_app, guild=None, config=[999888777])
+
+        # Mock bot to return member with matching role
+        mock_member = MagicMock()
+        mock_role = MagicMock()
+        mock_role.id = 999888777
+        mock_member.roles = [mock_role]
+
+        mock_guild = MagicMock()
+        mock_guild.get_member.return_value = mock_member
+
+        simple_app.state.bot.get_guild.return_value = mock_guild
+
         result = await require_guild_access(request, 111222333, test_user)
         assert result == test_user
 
@@ -98,6 +168,10 @@ class TestRequireGuildAccess:
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
+
+        # Mock empty database results
+        self._setup_db_mock(simple_app, guild=None, config=None)
+        simple_app.state.bot.get_guild.return_value = None
 
         # El usuario no tiene permisos para guild 444555666
         with pytest.raises(HTTPException) as exc_info:

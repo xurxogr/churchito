@@ -5,7 +5,11 @@ from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from discord_bot.common.models import Guild as GuildModel
+from discord_bot.common.models import GuildConfig
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +72,11 @@ async def require_guild_access(
 ) -> dict[str, Any]:
     """Verificar que el usuario tiene acceso al guild.
 
-    El usuario debe tener permiso MANAGE_GUILD o ser owner del bot.
+    El acceso se concede si el usuario:
+    - Es owner del bot (definido en config)
+    - Es quien invitó al bot a este servidor
+    - Es owner del servidor
+    - Tiene uno de los roles de admin configurados para el bot
 
     Args:
         request (Request): Request de FastAPI
@@ -81,19 +89,67 @@ async def require_guild_access(
     Raises:
         HTTPException: Si no tiene acceso
     """
-    owner_ids = request.app.state.settings.web.owner_ids
     user_id = int(user.get("id", 0))
 
+    # 1. Check if user is bot owner (from config)
+    owner_ids = request.app.state.settings.web.owner_ids
     if user_id in owner_ids:
         return user
 
-    user_guilds = user.get("guilds", [])
-    for guild in user_guilds:
-        if int(guild.get("id", 0)) == guild_id:
-            permissions = int(guild.get("permissions", 0))
-            if permissions & 0x20:
-                return user
+    # Find the user's guild data from OAuth
+    user_guild = None
+    for g in user.get("guilds", []):
+        if int(g.get("id", 0)) == guild_id:
+            user_guild = g
             break
+
+    if not user_guild:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No eres miembro de este servidor",
+        )
+
+    # Get database info
+    db_service = request.app.state.db_service
+    async with db_service.session() as session:
+        # Get guild from database
+        result = await session.execute(select(GuildModel).where(GuildModel.id == guild_id))
+        db_guild = result.scalar_one_or_none()
+
+        # 2. Check if user is the one who invited the bot
+        if db_guild and db_guild.invited_by_id == user_id:
+            return user
+
+        # 3. Check if user is guild owner
+        # Discord sends owner info in the guild object from OAuth
+        # The "owner" field is True if the user owns the guild
+        if user_guild.get("owner"):
+            return user
+
+        # 4. Check if user has one of the configured admin roles
+        # Get admin_roles config for this guild
+        result = await session.execute(
+            select(GuildConfig.value).where(
+                GuildConfig.guild_id == guild_id,
+                GuildConfig.cog_name == "bot",
+                GuildConfig.key == "admin_roles",
+            )
+        )
+        admin_roles_config = result.scalar_one_or_none()
+
+        if admin_roles_config:
+            admin_role_ids = set(admin_roles_config)  # List of role IDs
+
+            # Get user's roles in this guild from the bot
+            bot = request.app.state.bot
+            if bot:
+                discord_guild = bot.get_guild(guild_id)
+                if discord_guild:
+                    member = discord_guild.get_member(user_id)
+                    if member:
+                        user_role_ids = {role.id for role in member.roles}
+                        if user_role_ids & admin_role_ids:
+                            return user
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

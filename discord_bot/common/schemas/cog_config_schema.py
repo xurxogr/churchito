@@ -18,6 +18,9 @@ class CogConfigSchema(BaseModel):
     display_name: str = Field(description="Nombre legible para mostrar en la UI")
     description: str = Field(default="", description="Descripción del cog")
     icon: str = Field(default="", description="Emoji o icono para mostrar en la UI")
+    toggleable: bool = Field(
+        default=True, description="Si el cog puede ser habilitado/deshabilitado"
+    )
     options: list[ConfigOption] = Field(
         default_factory=list, description="Lista de opciones configurables"
     )
