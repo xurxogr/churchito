@@ -1,8 +1,11 @@
-"""Vista de revision para moderadores."""
+"""Vista de revision para moderadores.
+
+Los botones de esta vista no tienen callbacks propios.
+Las interacciones son manejadas por el listener on_interaction del cog,
+lo que permite que funcionen incluso despues de reiniciar el bot.
+"""
 
 import discord
-
-from discord_bot.verification.views.protocols import get_verification_cog
 
 
 class AcceptButton(discord.ui.Button["ModReviewView"]):
@@ -20,19 +23,6 @@ class AcceptButton(discord.ui.Button["ModReviewView"]):
             style=discord.ButtonStyle.success,
             custom_id=f"verification:accept:{request_id}",
         )
-        self.request_id = request_id
-
-    async def callback(self, interaction: discord.Interaction[discord.Client]) -> None:
-        """Manejar clic en boton de aceptar.
-
-        Args:
-            interaction (discord.Interaction[discord.Client]): Interaccion del moderador
-        """
-        cog = get_verification_cog(interaction)
-        if not cog:
-            return
-
-        await cog.handle_accept(interaction=interaction, request_id=self.request_id)
 
 
 class RejectButton(discord.ui.Button["ModReviewView"]):
@@ -50,19 +40,6 @@ class RejectButton(discord.ui.Button["ModReviewView"]):
             style=discord.ButtonStyle.danger,
             custom_id=f"verification:reject:{request_id}",
         )
-        self.request_id = request_id
-
-    async def callback(self, interaction: discord.Interaction[discord.Client]) -> None:
-        """Manejar clic en boton de rechazar.
-
-        Args:
-            interaction (discord.Interaction[discord.Client]): Interaccion del moderador
-        """
-        cog = get_verification_cog(interaction)
-        if not cog:
-            return
-
-        await cog.show_rejection_select(interaction=interaction, request_id=self.request_id)
 
 
 class ModReviewView(discord.ui.View):

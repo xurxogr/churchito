@@ -150,69 +150,8 @@ class TestModReviewView:
         assert accept_btn.style == discord.ButtonStyle.success
         assert reject_btn.style == discord.ButtonStyle.danger
 
-    async def test_accept_button_callback(self) -> None:
-        """Probar callback del boton aceptar."""
-        view = ModReviewView(request_id=789)
-
-        interaction = MagicMock(spec=discord.Interaction)
-        bot = MagicMock(spec=commands.Bot)
-        mock_cog = MagicMock()
-        mock_cog.handle_accept = AsyncMock()
-        bot.get_cog.return_value = mock_cog
-        interaction.client = bot
-
-        accept_button = view.children[0]
-        await accept_button.callback(interaction)
-
-        mock_cog.handle_accept.assert_called_once_with(interaction=interaction, request_id=789)
-
-    async def test_reject_button_callback(self) -> None:
-        """Probar callback del boton rechazar."""
-        view = ModReviewView(request_id=789)
-
-        interaction = MagicMock(spec=discord.Interaction)
-        bot = MagicMock(spec=commands.Bot)
-        mock_cog = MagicMock()
-        mock_cog.show_rejection_select = AsyncMock()
-        bot.get_cog.return_value = mock_cog
-        interaction.client = bot
-
-        reject_button = view.children[1]
-        await reject_button.callback(interaction)
-
-        mock_cog.show_rejection_select.assert_called_once_with(
-            interaction=interaction, request_id=789
-        )
-
-    async def test_accept_button_callback_no_cog(self) -> None:
-        """Probar callback de aceptar cuando el cog no existe."""
-        view = ModReviewView(request_id=789)
-
-        interaction = MagicMock(spec=discord.Interaction)
-        bot = MagicMock(spec=commands.Bot)
-        bot.get_cog.return_value = None
-        interaction.client = bot
-
-        accept_button = view.children[0]
-        # No deberia fallar, solo retornar temprano
-        await accept_button.callback(interaction)
-
-        bot.get_cog.assert_called_once_with("VerificationCog")
-
-    async def test_reject_button_callback_no_cog(self) -> None:
-        """Probar callback de rechazar cuando el cog no existe."""
-        view = ModReviewView(request_id=789)
-
-        interaction = MagicMock(spec=discord.Interaction)
-        bot = MagicMock(spec=commands.Bot)
-        bot.get_cog.return_value = None
-        interaction.client = bot
-
-        reject_button = view.children[1]
-        # No deberia fallar, solo retornar temprano
-        await reject_button.callback(interaction)
-
-        bot.get_cog.assert_called_once_with("VerificationCog")
+    # Los botones no tienen callbacks propios.
+    # Las interacciones son manejadas por on_interaction del cog.
 
 
 class TestRejectionReasonView:

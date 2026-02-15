@@ -1696,10 +1696,12 @@ class VerificationCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction) -> None:
-        """Manejar interacciones de botones persistentes con IDs dinamicos.
+        """Manejar interacciones de botones de moderacion con IDs dinamicos.
 
-        Este listener maneja los botones de aceptar/rechazar que tienen
-        custom_ids dinamicos como 'verification:accept:123'.
+        Los botones de aceptar/rechazar tienen custom_ids dinamicos como
+        'verification:accept:123' que incluyen el request_id. Este listener
+        es el unico manejador de estos botones (no tienen callbacks en la vista),
+        lo que permite que funcionen incluso despues de reiniciar el bot.
 
         Args:
             interaction (discord.Interaction): Interaccion recibida

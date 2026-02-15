@@ -3061,6 +3061,7 @@ class TestOnInteraction:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = None
+        interaction.response.is_done.return_value = False
 
         with patch.object(verification_cog, "handle_accept", new_callable=AsyncMock) as mock_accept:
             await verification_cog.on_interaction(interaction)
