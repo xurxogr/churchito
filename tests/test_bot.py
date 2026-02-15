@@ -182,7 +182,7 @@ async def test_bot_load_cogs_with_error(
 async def test_bot_create_tables(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Probar la creación de tablas de la base de datos del bot.
+    """Probar la aplicación de migraciones de base de datos.
 
     Args:
         test_settings (AppSettings): Configuración de la aplicación de prueba
@@ -191,26 +191,12 @@ async def test_bot_create_tables(
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
 
-        # Falsear el engine y la conexión
-        mock_conn = AsyncMock()
-        mock_begin_context = AsyncMock()
-        mock_begin_context.__aenter__.return_value = mock_conn
-        mock_begin_context.__aexit__.return_value = None
-
-        # Falsear el engine para devolver el contexto de begin
-        mock_engine = MagicMock()
-        mock_engine.begin.return_value = mock_begin_context
-
-        # Parchear el engine del bot para usar el mock
-        with patch.object(
-            type(test_database), "engine", new_callable=PropertyMock
-        ) as mock_engine_prop:
-            mock_engine_prop.return_value = mock_engine
-
+        # Parchear alembic command.upgrade
+        with patch("alembic.command.upgrade") as mock_upgrade:
             await bot._create_tables()
 
-            # Verificar que se llamó a run_sync para crear tablas
-            mock_conn.run_sync.assert_called_once()
+            # Verificar que se llamó a alembic upgrade
+            mock_upgrade.assert_called_once()
 
 
 async def test_bot_close_with_done_monitor_task(test_bot: DiscordBot) -> None:
@@ -655,7 +641,7 @@ async def test_bot_load_cogs_logs_errors(
 async def test_bot_create_tables_logs_success(
     test_settings: AppSettings, test_database: DatabaseService
 ) -> None:
-    """Probar que _create_tables registra la creación exitosa.
+    """Probar que _create_tables registra la aplicación exitosa de migraciones.
 
     Args:
         test_settings: Configuración de la aplicación de prueba
@@ -664,31 +650,19 @@ async def test_bot_create_tables_logs_success(
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
 
-        mock_conn = AsyncMock()
-        mock_begin_context = AsyncMock()
-        mock_begin_context.__aenter__.return_value = mock_conn
-        mock_begin_context.__aexit__.return_value = None
-
-        mock_engine = MagicMock()
-        mock_engine.begin.return_value = mock_begin_context
-
         with (
-            patch.object(
-                type(test_database), "engine", new_callable=PropertyMock
-            ) as mock_engine_prop,
+            patch("alembic.command.upgrade"),
             patch("discord_bot.bot.logger") as mock_logger,
         ):
-            mock_engine_prop.return_value = mock_engine
-
             await bot._create_tables()
 
-            # Verificar que se registró la creación de tablas
+            # Verificar que se registró la aplicación de migraciones
             info_calls = [
                 call
                 for call in mock_logger.info.call_args_list
-                if "Tablas de la base de datos creadas" in str(call)
+                if "Migraciones de base de datos aplicadas" in str(call)
             ]
-            assert len(info_calls) > 0, "Expected info log about tables creation"
+            assert len(info_calls) > 0, "Expected info log about migrations"
 
 
 async def test_bot_close_logs_shutdown(test_bot: DiscordBot) -> None:

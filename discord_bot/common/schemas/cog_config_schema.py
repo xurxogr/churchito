@@ -1,5 +1,7 @@
 """Esquema de configuración de un cog."""
 
+import copy
+
 from pydantic import BaseModel, Field
 
 from discord_bot.common.schemas.config_option import ConfigOption
@@ -40,4 +42,4 @@ class CogConfigSchema(BaseModel):
         Returns:
             dict[str, object]: Diccionario con clave -> valor_default
         """
-        return {option.key: option.default for option in self.options}
+        return {option.key: copy.deepcopy(option.default) for option in self.options}

@@ -1,17 +1,31 @@
 <div class="cog-settings-panel">
+    {% if error %}
+    <div class="alert alert-error" id="config-error">
+        <strong>Error:</strong> {{ error }}
+        <button type="button" class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
     <div class="cog-header">
         <h2>{{ schema.icon }} {{ schema.display_name }}</h2>
         <p>{{ schema.description }}</p>
 
         <div class="cog-actions">
-            <button
-                class="btn {% if enabled %}btn-danger{% else %}btn-success{% endif %}"
+            <form
                 hx-post="/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
             >
-                {% if enabled %}Deshabilitar{% else %}Habilitar{% endif %}
-            </button>
+                <label class="toggle">
+                    <input
+                        type="checkbox"
+                        {% if enabled %}checked{% endif %}
+                        onchange="this.form.requestSubmit()"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">{{ 'Habilitado' if enabled else 'Deshabilitado' }}</span>
+                </label>
+            </form>
 
             <button
                 class="btn btn-secondary"
@@ -25,6 +39,14 @@
         </div>
     </div>
 
+    {% set has_textarea = options | selectattr('type', 'equalto', 'textarea') | list | length > 0 %}
+    {% if has_textarea %}
+    <div class="markdown-info">
+        Los campos de mensaje soportan formato de Discord (negrita, cursiva, etc.).
+        <a href="https://support.discord.com/hc/es/articles/210298617" target="_blank" rel="noopener">Ver guia de formato</a>
+    </div>
+    {% endif %}
+
     <div class="options-list">
         {% for option in options %}
         <div class="option-item">
@@ -36,6 +58,11 @@
             </div>
             {% if option.description %}
             <p class="option-description">{{ option.description }}</p>
+            {% endif %}
+            {% if option.placeholders %}
+            <p class="option-placeholders">
+                Placeholders: {% for p in option.placeholders %}<code>{{ '{' }}{{ p }}{{ '}' }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+            </p>
             {% endif %}
 
             <form
@@ -56,6 +83,52 @@
                 >
                 <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
 
+                {% elif option.type == 'textarea' %}
+                <div class="textarea-wrapper">
+                    <textarea
+                        name="value"
+                        id="opt-{{ option.key }}"
+                        placeholder="{{ option.default or 'Sin valor' }}"
+                        {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
+                        class="textarea"
+                        rows="8"
+                    >{{ option.value if option.value is not none else '' }}</textarea>
+                    <div class="textarea-actions">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        {% if option.max_length %}
+                        <small class="char-count">
+                            <span id="count-{{ option.key }}">{{ (option.value | length) if option.value else 0 }}</span> / {{ option.max_length }}
+                        </small>
+                        {% endif %}
+                    </div>
+                    <div class="textarea-preview-label">Vista previa</div>
+                    <div class="textarea-preview"><div class="textarea-preview-content" id="preview-content-{{ option.key }}"></div></div>
+                    <script>
+                        (function() {
+                            const textarea = document.getElementById('opt-{{ option.key }}');
+                            const content = document.getElementById('preview-content-{{ option.key }}');
+                            function updatePreview() {
+                                content.innerHTML = textarea.value.trim()
+                                    .replace(/&/g, '&amp;')
+                                    .replace(/</g, '&lt;')
+                                    .replace(/>/g, '&gt;')
+                                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+                                    .replace(/__(.+?)__/g, '<u>$1</u>')
+                                    .replace(/\n/g, '<br>');
+                            }
+                            textarea.addEventListener('input', function() {
+                                {% if option.max_length %}
+                                document.getElementById('count-{{ option.key }}').textContent = this.value.length;
+                                {% endif %}
+                                updatePreview();
+                            });
+                            updatePreview();
+                        })();
+                    </script>
+                </div>
+
                 {% elif option.type == 'integer' %}
                 <input
                     type="number"
@@ -71,6 +144,7 @@
 
                 {% elif option.type == 'boolean' %}
                 <label class="toggle">
+                    <input type="hidden" name="value" value="false">
                     <input
                         type="checkbox"
                         name="value"
@@ -119,46 +193,74 @@
                 {% endif %}
 
                 {% elif option.type == 'channel_list' %}
-                <div class="multi-select-wrapper">
-                    <select id="sel-{{ option.key }}" class="select select-multiple" multiple size="6">
-                        {% for ch in channels %}
-                        <option value="{{ ch.id }}" {% if option.value and ch.id in option.value %}selected{% endif %}>
-                            #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
+                <div class="dual-listbox">
+                    <div class="listbox-container">
+                        <label class="listbox-label">Disponibles</label>
+                        <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                            {% for ch in channels %}
+                            {% if not option.value or ch.id not in option.value %}
+                            <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="listbox-buttons">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
+                    </div>
+                    <div class="listbox-container">
+                        <label class="listbox-label">Seleccionados</label>
+                        <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                            {% for ch in channels %}
+                            {% if option.value and ch.id in option.value %}
+                            <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
                     <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="
-                        const sel = document.getElementById('sel-{{ option.key }}');
-                        const hidden = document.getElementById('val-{{ option.key }}');
-                        hidden.value = Array.from(sel.selectedOptions).map(o => o.value).join(',');
-                        this.closest('form').requestSubmit();
-                    ">Guardar</button>
                 </div>
-                {% if option.display_value %}
-                <p class="current-value">Actual: {{ option.display_value }}</p>
-                {% endif %}
+                <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
+                    const sel = document.getElementById('sel-{{ option.key }}');
+                    const hidden = document.getElementById('val-{{ option.key }}');
+                    hidden.value = Array.from(sel.options).map(o => o.value).join(',');
+                    this.closest('form').requestSubmit();
+                ">Guardar</button>
 
                 {% elif option.type == 'role_list' %}
-                <div class="multi-select-wrapper">
-                    <select id="sel-{{ option.key }}" class="select select-multiple" multiple size="6">
-                        {% for role in roles %}
-                        <option value="{{ role.id }}" {% if option.value and role.id in option.value %}selected{% endif %}>
-                            @{{ role.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
+                <div class="dual-listbox">
+                    <div class="listbox-container">
+                        <label class="listbox-label">Disponibles</label>
+                        <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                            {% for role in roles %}
+                            {% if not option.value or role.id not in option.value %}
+                            <option value="{{ role.id }}">@{{ role.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="listbox-buttons">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
+                    </div>
+                    <div class="listbox-container">
+                        <label class="listbox-label">Seleccionados</label>
+                        <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                            {% for role in roles %}
+                            {% if option.value and role.id in option.value %}
+                            <option value="{{ role.id }}">@{{ role.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
                     <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="
-                        const sel = document.getElementById('sel-{{ option.key }}');
-                        const hidden = document.getElementById('val-{{ option.key }}');
-                        hidden.value = Array.from(sel.selectedOptions).map(o => o.value).join(',');
-                        this.closest('form').requestSubmit();
-                    ">Guardar</button>
                 </div>
-                {% if option.display_value %}
-                <p class="current-value">Actual: {{ option.display_value }}</p>
-                {% endif %}
+                <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
+                    const sel = document.getElementById('sel-{{ option.key }}');
+                    const hidden = document.getElementById('val-{{ option.key }}');
+                    hidden.value = Array.from(sel.options).map(o => o.value).join(',');
+                    this.closest('form').requestSubmit();
+                ">Guardar</button>
 
                 {% else %}
                 <input
@@ -179,3 +281,21 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function moveItems(fromId, toId) {
+    const from = document.getElementById(fromId);
+    const to = document.getElementById(toId);
+    const selected = Array.from(from.selectedOptions);
+
+    selected.forEach(option => {
+        to.appendChild(option);
+        option.selected = false;
+    });
+
+    // Sort options alphabetically
+    const options = Array.from(to.options);
+    options.sort((a, b) => a.text.localeCompare(b.text));
+    options.forEach(option => to.appendChild(option));
+}
+</script>

@@ -261,3 +261,34 @@ def test_ensure_database_directory_with_relative_path() -> None:
                 mock_logger.info.assert_called_once()
         finally:
             os.chdir(original_cwd)
+
+
+def test_ensure_database_directory_with_double_slash_path() -> None:
+    """Probar que _ensure_database_directory maneja URLs con doble slash."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        import os
+
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+
+            # URL con 4 slashes: sqlite+aiosqlite:////path -> url_path = "//path"
+            # Esto entra en el branch de línea 87 (startswith "//")
+            # Después de lstrip("/"), queda "dbtest/test.db"
+            url = "sqlite+aiosqlite:////dbtest/test.db"
+
+            settings = DatabaseSettings(url=url)
+            db_service = DatabaseService(settings)
+
+            with patch("discord_bot.common.services.database.logger") as mock_logger:
+                db_service._ensure_database_directory()
+
+                # El directorio debería haberse creado (relativo al cwd)
+                db_dir = Path(tmpdir) / "dbtest"
+                assert db_dir.exists()
+                assert db_dir.is_dir()
+
+                # Debería haberse registrado la creación del directorio
+                mock_logger.info.assert_called_once()
+        finally:
+            os.chdir(original_cwd)

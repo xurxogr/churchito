@@ -7,6 +7,7 @@ class ConfigOptionType(StrEnum):
     """Tipos de opciones de configuración para cogs."""
 
     STRING = "string"
+    TEXTAREA = "textarea"
     INTEGER = "integer"
     BOOLEAN = "boolean"
     CHANNEL = "channel"

@@ -121,22 +121,21 @@ async def guild_config(
     )
 
 
-@router.get("/{guild_id}/cog/{cog_name}", response_class=HTMLResponse)
-async def cog_settings(
+async def _render_cog_settings(
     request: Request,
     guild_id: int,
     cog_name: str,
-    user: GuildAccess,
-    session: DbSession,
+    session: Any,
+    error: str | None = None,
 ) -> HTMLResponse:
-    """Obtener el partial de configuración de un cog (HTMX).
+    """Renderizar el partial de configuración de un cog.
 
     Args:
         request (Request): Request de FastAPI
         guild_id (int): ID del guild
         cog_name (str): Nombre del cog
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        session: Sesión de base de datos
+        error (str | None): Mensaje de error opcional
 
     Returns:
         HTMLResponse: Partial HTML con la configuración del cog
@@ -160,15 +159,24 @@ async def cog_settings(
     if bot:
         discord_guild = bot.get_guild(guild_id)
         if discord_guild:
-            # Get text channels
-            channels = [
-                {
-                    "id": ch.id,
-                    "name": ch.name,
-                    "category": ch.category.name if ch.category else None,
-                }
-                for ch in discord_guild.text_channels
-            ]
+            # Get bot member for permission checks
+            bot_member = discord_guild.get_member(bot.user.id)
+
+            # Get text channels (only those where bot can send messages)
+            for ch in discord_guild.text_channels:
+                can_send = True
+                if bot_member:
+                    permissions = ch.permissions_for(bot_member)
+                    can_send = permissions.send_messages
+
+                if can_send:
+                    channels.append(
+                        {
+                            "id": ch.id,
+                            "name": ch.name,
+                            "category": ch.category.name if ch.category else None,
+                        }
+                    )
             channels.sort(key=lambda c: (c["category"] or "", c["name"]))
 
             # Get roles (exclude @everyone)
@@ -179,7 +187,7 @@ async def cog_settings(
             ]
             roles.sort(key=lambda r: r["name"].lower())
 
-    options_data = []
+    options_data: list[dict[str, Any]] = []
     for opt in schema.options:
         current_value = config_values.get(opt.key, opt.default)
 
@@ -195,17 +203,17 @@ async def cog_settings(
             elif opt.option_type == ConfigOptionType.CHANNEL_LIST and isinstance(
                 current_value, list
             ):
-                names = []
+                names: list[str] = []
                 for ch_id in current_value:
                     ch = discord_guild.get_channel(ch_id)
                     names.append(f"#{ch.name}" if ch else f"ID: {ch_id}")
                 display_value = ", ".join(names) if names else None
             elif opt.option_type == ConfigOptionType.ROLE_LIST and isinstance(current_value, list):
-                names = []
+                role_names: list[str] = []
                 for r_id in current_value:
                     role = discord_guild.get_role(r_id)
-                    names.append(f"@{role.name}" if role else f"ID: {r_id}")
-                display_value = ", ".join(names) if names else None
+                    role_names.append(f"@{role.name}" if role else f"ID: {r_id}")
+                display_value = ", ".join(role_names) if role_names else None
 
         options_data.append(
             {
@@ -221,6 +229,7 @@ async def cog_settings(
                 "min_value": opt.min_value,
                 "max_value": opt.max_value,
                 "max_length": opt.max_length,
+                "placeholders": opt.placeholders,
             }
         )
 
@@ -241,7 +250,36 @@ async def cog_settings(
             "channels": channels,
             "roles": roles,
             "ConfigOptionType": ConfigOptionType,
+            "error": error,
         },
+    )
+
+
+@router.get("/{guild_id}/cog/{cog_name}", response_class=HTMLResponse)
+async def cog_settings(
+    request: Request,
+    guild_id: int,
+    cog_name: str,
+    user: GuildAccess,
+    session: DbSession,
+) -> HTMLResponse:
+    """Obtener el partial de configuración de un cog (HTMX).
+
+    Args:
+        request (Request): Request de FastAPI
+        guild_id (int): ID del guild
+        cog_name (str): Nombre del cog
+        user (GuildAccess): Usuario con acceso verificado
+        session (DbSession): Sesión de base de datos
+
+    Returns:
+        HTMLResponse: Partial HTML con la configuración del cog
+    """
+    return await _render_cog_settings(
+        request=request,
+        guild_id=guild_id,
+        cog_name=cog_name,
+        session=session,
     )
 
 
@@ -267,9 +305,20 @@ async def toggle_cog(
     """
     config_service = ConfigService(session)
     current = await config_service.is_cog_enabled(guild_id, cog_name)
-    await config_service.set_cog_enabled(guild_id, cog_name, not current)
+    new_state = not current
+    await config_service.set_cog_enabled(guild_id, cog_name, new_state)
 
-    return await cog_settings(request, guild_id, cog_name, user, session)
+    # Notificar al cog del cambio
+    await _notify_cog_toggled(
+        request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state
+    )
+
+    return await _render_cog_settings(
+        request=request,
+        guild_id=guild_id,
+        cog_name=cog_name,
+        session=session,
+    )
 
 
 @router.post("/{guild_id}/cog/{cog_name}/option/{key}", response_class=HTMLResponse)
@@ -305,12 +354,46 @@ async def update_option(
 
     converted_value = _convert_form_value(value, option.option_type)
 
-    success, error = await config_service.set_value(guild_id, cog_name, key, converted_value)
+    # Validar permisos del bot para canales
+    if converted_value and option.option_type == ConfigOptionType.CHANNEL:
+        permission_error = _validate_channel_permissions(
+            request=request, guild_id=guild_id, channel_id=converted_value
+        )
+        if permission_error:
+            return await _render_cog_settings(
+                request=request,
+                guild_id=guild_id,
+                cog_name=cog_name,
+                session=session,
+                error=permission_error,
+            )
+
+    success, validation_error = await config_service.set_value(
+        guild_id=guild_id, cog_name=cog_name, key=key, value=converted_value
+    )
 
     if not success:
-        logger.warning(f"Error al guardar configuración: {error}")
+        logger.warning(f"Error al guardar configuración: {validation_error}")
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            error=validation_error,
+        )
 
-    return await cog_settings(request, guild_id, cog_name, user, session)
+    # Commit para que el cog vea los cambios en su propia sesión
+    await session.commit()
+
+    # Notificar al cog que una configuración cambió
+    await _notify_cog_config_changed(request=request, guild_id=guild_id, cog_name=cog_name, key=key)
+
+    return await _render_cog_settings(
+        request=request,
+        guild_id=guild_id,
+        cog_name=cog_name,
+        session=session,
+    )
 
 
 @router.post("/{guild_id}/cog/{cog_name}/reset", response_class=HTMLResponse)
@@ -336,7 +419,120 @@ async def reset_cog_config(
     config_service = ConfigService(session)
     await config_service.reset_config(guild_id, cog_name)
 
-    return await cog_settings(request, guild_id, cog_name, user, session)
+    return await _render_cog_settings(
+        request=request,
+        guild_id=guild_id,
+        cog_name=cog_name,
+        session=session,
+    )
+
+
+async def _notify_cog_config_changed(
+    request: Request, guild_id: int, cog_name: str, key: str
+) -> None:
+    """Notificar a un cog que una configuración cambió.
+
+    Si el cog implementa el método `on_config_changed`, se llamará con
+    el guild_id y la key que cambió. El cog decide qué hacer.
+
+    Args:
+        request (Request): Request de FastAPI
+        guild_id (int): ID del guild
+        cog_name (str): Nombre del cog
+        key (str): Clave de configuración que cambió
+    """
+    bot = request.app.state.bot
+    if not bot:
+        return
+
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return
+
+    # Buscar el cog por nombre (convertir snake_case a CamelCase + Cog)
+    # Por ejemplo: "verification" -> "VerificationCog"
+    cog_class_name = cog_name.title().replace("_", "") + "Cog"
+    cog = bot.get_cog(cog_class_name)
+
+    if not cog:
+        return
+
+    try:
+        await cog.on_config_changed(guild=guild, key=key)
+    except Exception as e:
+        logger.error(f"Error en on_config_changed de {cog_name}: {e}")
+
+
+async def _notify_cog_toggled(
+    request: Request, guild_id: int, cog_name: str, enabled: bool
+) -> None:
+    """Notificar a un cog que fue habilitado o deshabilitado.
+
+    Si el cog implementa el método `on_cog_toggled`, se llamará con
+    el guild y el nuevo estado.
+
+    Args:
+        request (Request): Request de FastAPI
+        guild_id (int): ID del guild
+        cog_name (str): Nombre del cog
+        enabled (bool): True si fue habilitado, False si fue deshabilitado
+    """
+    bot = request.app.state.bot
+    if not bot:
+        return
+
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return
+
+    cog_class_name = cog_name.title().replace("_", "") + "Cog"
+    cog = bot.get_cog(cog_class_name)
+
+    if not cog:
+        return
+
+    try:
+        await cog.on_cog_toggled(guild=guild, enabled=enabled)
+    except Exception as e:
+        logger.error(f"Error en on_cog_toggled de {cog_name}: {e}")
+
+
+def _validate_channel_permissions(request: Request, guild_id: int, channel_id: int) -> str | None:
+    """Validar que el bot tiene permisos para enviar mensajes en un canal.
+
+    Args:
+        request (Request): Request de FastAPI
+        guild_id (int): ID del guild
+        channel_id (int): ID del canal
+
+    Returns:
+        str | None: Mensaje de error o None si tiene permisos
+    """
+    bot = request.app.state.bot
+    if not bot:
+        return None  # No podemos validar sin bot
+
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return None  # No podemos validar sin guild
+
+    channel = guild.get_channel(channel_id)
+    if not channel:
+        return f"Canal con ID {channel_id} no encontrado"
+
+    # Obtener permisos del bot en el canal
+    bot_member = guild.get_member(bot.user.id)
+    if not bot_member:
+        return None  # No podemos validar
+
+    permissions = channel.permissions_for(bot_member)
+    if not permissions.send_messages:
+        return (
+            f"El bot no tiene permisos para enviar mensajes en #{channel.name}. "
+            f"Agrega el permiso 'Enviar mensajes' al bot en ese canal."
+        )
+
+    return None
 
 
 def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
@@ -360,8 +556,6 @@ def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
         case ConfigOptionType.CHANNEL | ConfigOptionType.ROLE:
             return int(value)
         case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
-            if not value:
-                return []
             return [int(v.strip()) for v in value.split(",") if v.strip()]
         case _:
             return value

@@ -258,3 +258,59 @@ class TestConfigOptionValidation:
         is_valid, error = option.validate_value("anything")
         assert is_valid is True
         assert error is None
+
+    def test_validate_textarea_valid(self) -> None:
+        """Probar validación de textarea válido."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TEXTAREA,
+            max_length=2000,
+        )
+        multiline_text = "Linea 1\nLinea 2\nLinea 3"
+        is_valid, error = option.validate_value(multiline_text)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_textarea_with_markdown(self) -> None:
+        """Probar validación de textarea con markdown de Discord."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TEXTAREA,
+            max_length=2000,
+        )
+        markdown_text = (
+            "**Bienvenido**\n\n"
+            "Por favor sube capturas de:\n"
+            "- :flag_es: Perfil\n"
+            "- <#123456789> Canal\n"
+            "~~tachado~~ __subrayado__"
+        )
+        is_valid, error = option.validate_value(markdown_text)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_textarea_invalid_type(self) -> None:
+        """Probar validación de textarea con tipo inválido."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TEXTAREA,
+        )
+        is_valid, error = option.validate_value(123)
+        assert is_valid is False
+        assert error is not None and "debe ser texto" in error
+
+    def test_validate_textarea_too_long(self) -> None:
+        """Probar validación de textarea demasiado largo."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TEXTAREA,
+            max_length=100,
+        )
+        long_text = "a" * 150
+        is_valid, error = option.validate_value(long_text)
+        assert is_valid is False
+        assert error is not None and "no puede exceder" in error

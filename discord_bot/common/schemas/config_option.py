@@ -27,6 +27,10 @@ class ConfigOption(BaseModel):
     min_value: int | None = Field(default=None, description="Valor mínimo para INTEGER")
     max_value: int | None = Field(default=None, description="Valor máximo para INTEGER")
     max_length: int | None = Field(default=None, description="Longitud máxima para STRING")
+    placeholders: list[str] | None = Field(
+        default=None,
+        description="Lista de placeholders disponibles para TEXTAREA",
+    )
 
     def validate_value(self, value: Any) -> tuple[bool, str | None]:
         """Validar un valor contra las restricciones de esta opción.
@@ -43,7 +47,7 @@ class ConfigOption(BaseModel):
             return True, None
 
         match self.option_type:
-            case ConfigOptionType.STRING:
+            case ConfigOptionType.STRING | ConfigOptionType.TEXTAREA:
                 if not isinstance(value, str):
                     return False, f"'{self.name}' debe ser texto"
                 if self.max_length and len(value) > self.max_length:

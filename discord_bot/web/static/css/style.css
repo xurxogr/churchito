@@ -247,6 +247,25 @@ a:hover {
     background-color: rgba(240, 71, 71, 0.2);
     border: 1px solid var(--accent-danger);
     color: var(--accent-danger);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.alert-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.alert-close:hover {
+    opacity: 1;
 }
 
 /* Login Page */
@@ -474,6 +493,21 @@ a:hover {
     gap: 0.75rem;
 }
 
+.markdown-info {
+    background-color: rgba(88, 101, 242, 0.1);
+    border: 1px solid var(--accent-primary);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.markdown-info a {
+    color: var(--accent-primary);
+    font-weight: 500;
+}
+
 /* Options List */
 .options-list {
     display: flex;
@@ -501,7 +535,22 @@ a:hover {
 .option-description {
     color: var(--text-secondary);
     font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.option-placeholders {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
     margin-bottom: 0.75rem;
+}
+
+.option-placeholders code {
+    background-color: var(--bg-tertiary);
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-primary);
 }
 
 .option-form {
@@ -509,6 +558,11 @@ a:hover {
     gap: 0.75rem;
     align-items: flex-start;
     flex-wrap: wrap;
+    width: 100%;
+}
+
+.option-form:has(.textarea-wrapper) {
+    flex-direction: column;
 }
 
 .help-text {
@@ -540,6 +594,78 @@ a:hover {
     align-self: flex-start;
 }
 
+/* Dual Listbox */
+.dual-listbox {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+    width: 100%;
+}
+
+.listbox-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+}
+
+.listbox-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+.listbox {
+    flex: 1;
+    min-height: 200px;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.listbox option {
+    padding: 0.25rem 0.5rem;
+    border-radius: 2px;
+}
+
+.listbox option:checked {
+    background-color: var(--accent-primary);
+    color: white;
+}
+
+.listbox-buttons {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+}
+
+.listbox-buttons .btn {
+    min-width: 32px;
+    padding: 0.5rem;
+    font-weight: bold;
+}
+
+@media (max-width: 600px) {
+    .dual-listbox {
+        flex-direction: column;
+    }
+
+    .listbox-buttons {
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .listbox {
+        min-height: 120px;
+    }
+}
+
 /* Empty State */
 .empty-state {
     text-align: center;
@@ -569,4 +695,88 @@ a:hover {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Textarea */
+.textarea {
+    width: 100%;
+    padding: 0.625rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 150px;
+}
+
+.textarea:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.textarea-wrapper {
+    width: 100%;
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.textarea-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.char-count {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.textarea-preview-label {
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.textarea-preview {
+    padding: 0.5rem 0.75rem;
+    background-color: #36393f;
+    border-radius: 6px;
+    border: 2px solid var(--accent-primary);
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.textarea-preview-content {
+    color: #dcddde;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.textarea-preview-content:empty::after {
+    content: 'El texto aparecera aqui...';
+    color: #72767d;
+    font-style: italic;
+}
+
+.textarea-preview strong {
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.textarea-preview em {
+    font-style: italic;
+}
+
+.textarea-preview del {
+    text-decoration: line-through;
+    color: #a3a6aa;
+}
+
+.textarea-preview u {
+    text-decoration: underline;
 }

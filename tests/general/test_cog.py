@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 from discord.ext import commands
 
-from discord_bot.general.cog import GeneralCog, setup
+from discord_bot.general.cog import GeneralCog, setup, teardown
 
 
 @pytest.fixture
@@ -220,3 +220,26 @@ async def test_setup_function() -> None:
     added_cog = mock_bot.add_cog.call_args[0][0]
     assert isinstance(added_cog, GeneralCog)
     assert added_cog.bot == mock_bot
+
+
+async def test_teardown_function() -> None:
+    """Probar que la función teardown desregistra el schema."""
+    from discord_bot.common.services.config_schema_service import (
+        get_config_schema_service,
+    )
+
+    mock_bot = MagicMock(spec=commands.Bot)
+    mock_bot.add_cog = AsyncMock()
+
+    # Primero setup para registrar
+    await setup(mock_bot)
+
+    # Verificar que el schema existe
+    schema_service = get_config_schema_service()
+    assert schema_service.get_schema("general") is not None
+
+    # Luego teardown
+    await teardown(mock_bot)
+
+    # Schema ya no debe existir
+    assert schema_service.get_schema("general") is None

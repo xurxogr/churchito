@@ -2,6 +2,7 @@
 
 import logging
 
+import discord
 from discord.ext import commands
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
@@ -77,6 +78,26 @@ class GeneralCog(commands.Cog):
             bot (commands.Bot): La instancia del bot de Discord
         """
         self.bot = bot
+
+    async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
+        """Manejar cambios de configuración desde el dashboard web.
+
+        Args:
+            guild (discord.Guild): Guild donde cambió la configuración
+            key (str): Clave de configuración que cambió
+        """
+        # GeneralCog no necesita reaccionar a cambios de configuración
+        pass
+
+    async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
+        """Manejar cuando el cog es habilitado o deshabilitado.
+
+        Args:
+            guild (discord.Guild): Guild donde cambió el estado
+            enabled (bool): True si fue habilitado, False si fue deshabilitado
+        """
+        # GeneralCog no necesita reaccionar a cambios de estado
+        pass
 
     @commands.command()
     async def ping(self, ctx: commands.Context[commands.Bot]) -> None:

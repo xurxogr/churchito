@@ -363,3 +363,475 @@ class TestResetCogConfig:
             )
 
             mock_config_service.reset_config.assert_called_once_with(111222333, "test_cog")
+
+
+class TestCogSettingsDisplayValues:
+    """Tests para display_value de CHANNEL_LIST y ROLE_LIST."""
+
+    async def test_cog_settings_channel_list_display(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar display value de CHANNEL_LIST."""
+        # Setup mock Discord guild con canales
+        mock_channel1 = MagicMock()
+        mock_channel1.id = 111
+        mock_channel1.name = "general"
+        mock_channel1.category = MagicMock()
+        mock_channel1.category.name = "Text"
+
+        mock_channel2 = MagicMock()
+        mock_channel2.id = 222
+        mock_channel2.name = "help"
+        mock_channel2.category = MagicMock()
+        mock_channel2.category.name = "Text"
+
+        mock_guild = MagicMock()
+        mock_guild.text_channels = [mock_channel1, mock_channel2]
+        mock_guild.roles = []
+
+        def get_channel_side_effect(channel_id: int) -> MagicMock | None:
+            if channel_id == 111:
+                return mock_channel1
+            if channel_id == 222:
+                return mock_channel2
+            return None
+
+        mock_guild.get_channel.side_effect = get_channel_side_effect
+        mock_guild.get_role.return_value = None
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(
+                return_value={"channel_list": [111, 222]}
+            )
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+
+            # Verificar que las opciones incluyen channel_list con display_value
+            channel_list_opt = next(
+                (o for o in context["options"] if o["key"] == "channel_list"), None
+            )
+            assert channel_list_opt is not None
+            assert "#general" in channel_list_opt["display_value"]
+            assert "#help" in channel_list_opt["display_value"]
+
+    async def test_cog_settings_role_list_display(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar display value de ROLE_LIST."""
+        mock_role1 = MagicMock()
+        mock_role1.id = 333
+        mock_role1.name = "Admin"
+        mock_role1.color = MagicMock()
+        mock_role1.color.__str__ = MagicMock(return_value="#ff0000")
+
+        mock_role2 = MagicMock()
+        mock_role2.id = 444
+        mock_role2.name = "Mod"
+        mock_role2.color = MagicMock()
+        mock_role2.color.__str__ = MagicMock(return_value="#00ff00")
+
+        mock_everyone_role = MagicMock()
+        mock_everyone_role.name = "@everyone"
+
+        mock_guild = MagicMock()
+        mock_guild.text_channels = []
+        mock_guild.roles = [mock_everyone_role, mock_role1, mock_role2]
+        mock_guild.get_channel.return_value = None
+
+        def get_role_side_effect(role_id: int) -> MagicMock | None:
+            if role_id == 333:
+                return mock_role1
+            if role_id == 444:
+                return mock_role2
+            return None
+
+        mock_guild.get_role.side_effect = get_role_side_effect
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={"role_list": [333, 444]})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+
+            # Verificar que las opciones incluyen role_list con display_value
+            role_list_opt = next((o for o in context["options"] if o["key"] == "role_list"), None)
+            assert role_list_opt is not None
+            assert "@Admin" in role_list_opt["display_value"]
+            assert "@Mod" in role_list_opt["display_value"]
+
+    async def test_cog_settings_list_with_unknown_ids(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar display value cuando los IDs no se encuentran."""
+        mock_guild = MagicMock()
+        mock_guild.text_channels = []
+        mock_guild.roles = []
+        mock_guild.get_channel.return_value = None
+        mock_guild.get_role.return_value = None
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(
+                return_value={"channel_list": [999], "role_list": [888]}
+            )
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+
+            # Debe mostrar "ID: xxx" cuando no se encuentra
+            channel_list_opt = next(
+                (o for o in context["options"] if o["key"] == "channel_list"), None
+            )
+            assert channel_list_opt is not None
+            assert "ID: 999" in channel_list_opt["display_value"]
+
+            role_list_opt = next((o for o in context["options"] if o["key"] == "role_list"), None)
+            assert role_list_opt is not None
+            assert "ID: 888" in role_list_opt["display_value"]
+
+
+class TestUpdateOptionError:
+    """Tests para errores en update_option."""
+
+    async def test_update_option_set_value_fails(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar actualización de opción cuando set_value falla."""
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch("discord_bot.web.routers.config.logger") as mock_logger,
+        ):
+            mock_config_service = MagicMock()
+            # Simular fallo en set_value
+            mock_config_service.set_value = AsyncMock(return_value=(False, "Error de validación"))
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_option(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                "string_option",
+                "invalid_value",
+                test_user,
+                test_session,
+            )
+
+            # Debe loguear el warning
+            mock_logger.warning.assert_called_once()
+            warning_message = mock_logger.warning.call_args[0][0]
+            assert "Error al guardar configuración" in warning_message
+
+
+class TestNotifyCogConfigChanged:
+    """Tests para _notify_cog_config_changed."""
+
+    async def test_bot_is_none(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando bot es None."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_config_request.app.state.bot = None
+
+        # No debería fallar
+        await _notify_cog_config_changed(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            key="test_key",
+        )
+
+    async def test_guild_not_found(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando guild no existe."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_config_request.app.state.bot.get_guild.return_value = None
+
+        # No debería fallar
+        await _notify_cog_config_changed(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            key="test_key",
+        )
+
+    async def test_calls_on_config_changed(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que llama on_config_changed cuando el cog existe."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_guild = MagicMock()
+        mock_cog = MagicMock()
+        mock_cog.on_config_changed = AsyncMock()
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        await _notify_cog_config_changed(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            key="test_key",
+        )
+
+        mock_cog.on_config_changed.assert_called_once_with(guild=mock_guild, key="test_key")
+
+    async def test_handles_exception_in_on_config_changed(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que maneja excepciones en on_config_changed."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_guild = MagicMock()
+        mock_cog = MagicMock()
+        mock_cog.on_config_changed = AsyncMock(side_effect=Exception("Error de prueba"))
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        with patch("discord_bot.web.routers.config.logger") as mock_logger:
+            # No debería fallar
+            await _notify_cog_config_changed(
+                request=mock_config_request,
+                guild_id=123,
+                cog_name="test_cog",
+                key="test_key",
+            )
+
+            mock_logger.error.assert_called_once()
+
+    async def test_cog_not_found(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando el cog no existe."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_guild = MagicMock()
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = None
+
+        # No debería fallar
+        await _notify_cog_config_changed(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            key="test_key",
+        )
+
+
+class TestNotifyCogToggled:
+    """Tests para _notify_cog_toggled."""
+
+    async def test_bot_is_none(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando bot es None."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_config_request.app.state.bot = None
+
+        # No debería fallar
+        await _notify_cog_toggled(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            enabled=True,
+        )
+
+    async def test_guild_not_found(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando guild no existe."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_config_request.app.state.bot.get_guild.return_value = None
+
+        # No debería fallar
+        await _notify_cog_toggled(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            enabled=True,
+        )
+
+    async def test_calls_on_cog_toggled(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que llama on_cog_toggled cuando el cog existe."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_guild = MagicMock()
+        mock_cog = MagicMock()
+        mock_cog.on_cog_toggled = AsyncMock()
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        await _notify_cog_toggled(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            enabled=True,
+        )
+
+        mock_cog.on_cog_toggled.assert_called_once_with(guild=mock_guild, enabled=True)
+
+    async def test_handles_exception_in_on_cog_toggled(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que maneja excepciones en on_cog_toggled."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_guild = MagicMock()
+        mock_cog = MagicMock()
+        mock_cog.on_cog_toggled = AsyncMock(side_effect=Exception("Error de prueba"))
+
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        with patch("discord_bot.web.routers.config.logger") as mock_logger:
+            # No debería fallar
+            await _notify_cog_toggled(
+                request=mock_config_request,
+                guild_id=123,
+                cog_name="test_cog",
+                enabled=False,
+            )
+
+            mock_logger.error.assert_called_once()
+
+    async def test_cog_not_found(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """Probar que no falla cuando el cog no existe."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_guild = MagicMock()
+        mock_config_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_config_request.app.state.bot.get_cog.return_value = None
+
+        # No debería fallar
+        await _notify_cog_toggled(
+            request=mock_config_request,
+            guild_id=123,
+            cog_name="test_cog",
+            enabled=True,
+        )
+
+
+class TestChannelPermissionValidation:
+    """Tests para validación de permisos de canal."""
+
+    async def test_channel_permission_error(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que muestra error cuando el bot no tiene permisos en el canal."""
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch("discord_bot.web.routers.config._validate_channel_permissions") as mock_validate,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            # Simular error de permisos
+            mock_validate.return_value = "El bot no puede enviar mensajes en ese canal"
+
+            await update_option(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                "channel_option",
+                "123456789",  # ID de canal
+                test_user,
+                test_session,
+            )
+
+            # Debe mostrar error
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+            assert context.get("error") == "El bot no puede enviar mensajes en ese canal"

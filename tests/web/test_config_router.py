@@ -11,6 +11,7 @@ from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.web.routers.config import (
     _convert_form_value,
     _get_guild_info,
+    _validate_channel_permissions,
     get_templates,
     guild_access_dep,
     router,
@@ -129,6 +130,99 @@ class TestConvertFormValue:
         """Probar conversión de text choice."""
         result = _convert_form_value("option_a", ConfigOptionType.TEXT_CHOICE)
         assert result == "option_a"
+
+
+class TestValidateChannelPermissions:
+    """Tests para _validate_channel_permissions."""
+
+    def test_returns_none_when_no_bot(self, simple_app: FastAPI) -> None:
+        """Probar que retorna None cuando no hay bot."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.bot = None
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is None
+
+    def test_returns_none_when_guild_not_found(self, simple_app: FastAPI) -> None:
+        """Probar que retorna None cuando no se encuentra el guild."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = None
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is None
+
+    def test_returns_error_when_channel_not_found(self, simple_app: FastAPI) -> None:
+        """Probar que retorna error cuando no se encuentra el canal."""
+        request = MagicMock()
+        request.app = simple_app
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = None
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = mock_guild
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is not None
+        assert "456" in result
+        assert "no encontrado" in result
+
+    def test_returns_none_when_bot_member_not_found(self, simple_app: FastAPI) -> None:
+        """Probar que retorna None cuando no se encuentra el miembro bot."""
+        request = MagicMock()
+        request.app = simple_app
+        mock_channel = MagicMock()
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = mock_channel
+        mock_guild.get_member.return_value = None
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = mock_guild
+        simple_app.state.bot.user.id = 12345
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is None
+
+    def test_returns_error_when_no_send_permission(self, simple_app: FastAPI) -> None:
+        """Probar que retorna error cuando no tiene permisos de enviar."""
+        request = MagicMock()
+        request.app = simple_app
+        mock_permissions = MagicMock()
+        mock_permissions.send_messages = False
+        mock_channel = MagicMock()
+        mock_channel.name = "test-channel"
+        mock_channel.permissions_for.return_value = mock_permissions
+        mock_bot_member = MagicMock()
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = mock_channel
+        mock_guild.get_member.return_value = mock_bot_member
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = mock_guild
+        simple_app.state.bot.user.id = 12345
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is not None
+        assert "test-channel" in result
+        assert "permiso" in result.lower()
+
+    def test_returns_none_when_has_permission(self, simple_app: FastAPI) -> None:
+        """Probar que retorna None cuando tiene permisos."""
+        request = MagicMock()
+        request.app = simple_app
+        mock_permissions = MagicMock()
+        mock_permissions.send_messages = True
+        mock_channel = MagicMock()
+        mock_channel.permissions_for.return_value = mock_permissions
+        mock_bot_member = MagicMock()
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = mock_channel
+        mock_guild.get_member.return_value = mock_bot_member
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = mock_guild
+        simple_app.state.bot.user.id = 12345
+
+        result = _validate_channel_permissions(request, 123, 456)
+        assert result is None
 
 
 class TestGuildAccessDep:

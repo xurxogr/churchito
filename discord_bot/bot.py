@@ -9,7 +9,6 @@ from discord.ext import commands
 
 from discord_bot.common.core import AppSettings
 from discord_bot.common.enums.event_type import EventType
-from discord_bot.common.models import Base
 from discord_bot.common.services import DatabaseService
 from discord_bot.common.services.event_bus import get_event_bus
 
@@ -69,15 +68,26 @@ class DiscordBot(commands.Bot):
         logger.info("Hook de configuración completado")
 
     async def _create_tables(self) -> None:
-        """Crea las tablas de la base de datos si no existen."""
-        async with self.database.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Tablas de la base de datos creadas")
+        """Aplica migraciones de Alembic a la base de datos."""
+        from alembic import command
+        from alembic.config import Config
+
+        # Configurar Alembic
+        alembic_cfg = Config("alembic.ini")
+
+        # Ejecutar migraciones en un thread para no bloquear el event loop
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, command.upgrade, alembic_cfg, "head")
+
+        logger.info("Migraciones de base de datos aplicadas")
 
     async def _load_cogs(self) -> None:
         """Carga todos los cogs."""
         cogs_to_load = [
             "discord_bot.general.cog",
+            "discord_bot.verification.cog",
         ]
 
         for cog in cogs_to_load:
