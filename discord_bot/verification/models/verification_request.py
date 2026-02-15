@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Index, String, Text
+from sqlalchemy import BigInteger, DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
@@ -47,9 +47,13 @@ class VerificationRequest(Base):
     mod_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
-    screenshots_submitted_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    screenshots_submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
         """Representacion en cadena.

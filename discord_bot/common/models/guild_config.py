@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Index, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
@@ -29,7 +29,9 @@ class GuildConfig(Base):
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[Any] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     def __repr__(self) -> str:
