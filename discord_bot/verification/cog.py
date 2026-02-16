@@ -1,6 +1,7 @@
 """Cog de verificacion de usuarios."""
 
 import logging
+from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
 import discord
@@ -596,6 +597,7 @@ class VerificationCog(commands.Cog):
         """
         self.bot = bot
         self._pending_dm_verifications: dict[int, tuple[int, int]] = {}
+        self._last_health_check: dict[int, datetime] = {}
         self._health_check_started = False
 
     async def cog_load(self) -> None:
@@ -647,7 +649,7 @@ class VerificationCog(commands.Cog):
         """
         if key in self._PANEL_UPDATE_KEYS:
             logger.info(f"Configuración '{key}' cambió, actualizando panel en {guild.name}")
-            await self._check_verification_message(guild=guild, force=True)
+            await self._check_verification_message(guild=guild, recreate=True)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
         """Manejar cuando el cog es habilitado o deshabilitado.
@@ -658,7 +660,7 @@ class VerificationCog(commands.Cog):
         """
         if enabled:
             logger.info(f"Cog habilitado en {guild.name}, creando panel")
-            await self._check_verification_message(guild=guild, force=True)
+            await self._check_verification_message(guild=guild, recreate=True)
             return
 
         logger.info(f"Cog deshabilitado en {guild.name}, eliminando panel")
@@ -692,32 +694,85 @@ class VerificationCog(commands.Cog):
                 value=None,
             )
 
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=1)
     async def health_check_loop(self) -> None:
-        """Verificar periodicamente que los paneles de verificacion existen."""
+        """Verificar periodicamente que los paneles de verificacion existen.
+
+        Cada guild tiene su propio intervalo configurado. Este loop corre
+        cada minuto y verifica si cada guild esta listo para su health check.
+        """
         await self._run_health_check()
 
     @health_check_loop.before_loop
     async def before_health_check(self) -> None:
         """Esperar a que el bot este listo antes de iniciar el health check."""
         await self.bot.wait_until_ready()
-        # Ejecutar inmediatamente al iniciar, no esperar 30 minutos
-        await self._run_health_check()
+        # Ejecutar inmediatamente al iniciar para todos los guilds
+        await self._run_health_check(force_all=True)
 
-    async def _run_health_check(self) -> None:
-        """Ejecutar verificacion de salud de paneles en todos los guilds."""
+    async def _run_health_check(self, force_all: bool = False) -> None:
+        """Ejecutar verificacion de salud de paneles en guilds que esten listos.
+
+        Args:
+            force_all (bool): Si True, ejecuta para todos los guilds ignorando intervalos
+        """
+        now = datetime.now(UTC)
+
         for guild in self.bot.guilds:
             try:
+                # Obtener intervalo configurado para este guild
+                interval = await self._get_health_check_interval(guild.id)
+
+                # Si intervalo es 0, health check desactivado para este guild
+                if interval == 0:
+                    continue
+
+                # Verificar si es momento de ejecutar (a menos que sea forzado)
+                if not force_all:
+                    last_check = self._last_health_check.get(guild.id)
+                    if last_check:
+                        seconds_since_last = (now - last_check).total_seconds()
+                        if seconds_since_last < interval * 60:
+                            continue  # Aun no es momento
+
+                # Ejecutar health check y registrar timestamp
                 await self._check_verification_message(guild)
+                self._last_health_check[guild.id] = now
+
             except Exception as e:
                 logger.error(f"Error en health check para guild {guild.id}: {e}")
 
-    async def _check_verification_message(self, guild: discord.Guild, force: bool = False) -> None:
+    async def _get_health_check_interval(self, guild_id: int) -> int:
+        """Obtener el intervalo de health check configurado para un guild.
+
+        Args:
+            guild_id (int): ID del guild
+
+        Returns:
+            int: Intervalo en minutos (0 si desactivado, 30 por defecto)
+        """
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+
+            if not await config_service.is_cog_enabled(guild_id, COG_NAME):
+                return 0
+
+            interval = await config_service.get_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.HEALTH_CHECK_INTERVAL,
+            )
+            return interval if interval is not None else 30
+
+    async def _check_verification_message(
+        self, guild: discord.Guild, recreate: bool = False
+    ) -> None:
         """Verificar y restaurar panel de verificacion de un guild.
 
         Args:
             guild (discord.Guild): Guild a verificar
-            force (bool): Si True, siempre recrea el panel (usado en cambios de config)
+            recreate (bool): Si True, elimina el panel existente y lo recrea
+                (usado cuando cambia la configuracion del panel)
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
@@ -728,12 +783,6 @@ class VerificationCog(commands.Cog):
 
             # Obtener toda la configuracion de una vez
             config = await config_service.get_all_config(guild_id=guild.id, cog_name=COG_NAME)
-
-            # Verificar intervalo configurado (solo aplica si no es forzado)
-            if not force:
-                interval = config.get(ConfigKey.HEALTH_CHECK_INTERVAL)
-                if interval == 0:
-                    return  # Health check desactivado para este guild
 
             # Obtener canal configurado
             channel_id = config.get(ConfigKey.VERIFICATION_CHANNEL)
@@ -751,8 +800,8 @@ class VerificationCog(commands.Cog):
             panel_message_id = config.get(ConfigKey.PANEL_MESSAGE_ID)
             panel_channel_id = config.get(ConfigKey.PANEL_CHANNEL_ID)
 
-            # Si es forzado, eliminar panel viejo y crear nuevo
-            if force:
+            # Si recreate=True, eliminar panel viejo y crear nuevo
+            if recreate:
                 if panel_message_id and panel_channel_id:
                     await delete_message(
                         guild=guild,

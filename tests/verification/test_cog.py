@@ -922,10 +922,17 @@ class TestHealthCheck:
 
         object.__setattr__(verification_cog.bot, "guilds", [mock_guild1, mock_guild2])
 
-        with patch.object(
-            verification_cog, "_check_verification_message", new_callable=AsyncMock
-        ) as mock_check:
-            await verification_cog._run_health_check()
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            mock_interval.return_value = 30  # Health check habilitado
+
+            await verification_cog._run_health_check(force_all=True)
 
             assert mock_check.call_count == 2
 
@@ -940,16 +947,164 @@ class TestHealthCheck:
 
         object.__setattr__(verification_cog.bot, "guilds", [mock_guild1, mock_guild2])
 
-        with patch.object(
-            verification_cog, "_check_verification_message", new_callable=AsyncMock
-        ) as mock_check:
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            mock_interval.return_value = 30
             # Primer guild falla, segundo deberia continuar
             mock_check.side_effect = [Exception("Error"), None]
 
-            await verification_cog._run_health_check()
+            await verification_cog._run_health_check(force_all=True)
 
             # Ambos fueron llamados
             assert mock_check.call_count == 2
+
+    async def test_run_health_check_skips_disabled_guilds(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que health check omite guilds con intervalo 0."""
+        mock_guild1 = MagicMock(spec=discord.Guild)
+        mock_guild1.id = 111
+        mock_guild2 = MagicMock(spec=discord.Guild)
+        mock_guild2.id = 222
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild1, mock_guild2])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            # Guild 1 desactivado, Guild 2 activado
+            mock_interval.side_effect = [0, 30]
+
+            await verification_cog._run_health_check(force_all=True)
+
+            # Solo guild 2 fue verificado
+            assert mock_check.call_count == 1
+            mock_check.assert_called_once_with(mock_guild2)
+
+    async def test_run_health_check_respects_interval(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que health check respeta el intervalo por guild."""
+        from datetime import UTC, datetime, timedelta
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 111
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            mock_interval.return_value = 30  # 30 minutos
+
+            # Simular que se verifico hace 10 minutos
+            verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=10)
+
+            await verification_cog._run_health_check()
+
+            # No deberia verificar (solo pasaron 10 de 30 minutos)
+            assert mock_check.call_count == 0
+
+            # Simular que se verifico hace 35 minutos
+            verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=35)
+
+            await verification_cog._run_health_check()
+
+            # Ahora si deberia verificar
+            assert mock_check.call_count == 1
+
+    async def test_run_health_check_updates_last_check(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que health check actualiza el timestamp al verificar."""
+        from datetime import datetime
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 111
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(verification_cog, "_check_verification_message", new_callable=AsyncMock),
+        ):
+            mock_interval.return_value = 30
+
+            # Sin timestamp previo
+            assert 111 not in verification_cog._last_health_check
+
+            await verification_cog._run_health_check(force_all=True)
+
+            # Ahora debe tener timestamp
+            assert 111 in verification_cog._last_health_check
+            assert isinstance(verification_cog._last_health_check[111], datetime)
+
+    async def test_get_health_check_interval_returns_configured_value(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que _get_health_check_interval retorna el valor configurado."""
+        guild_id = 123
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, "verification", True)
+            await config_service.set_value(guild_id, "verification", "health_check_interval", 15)
+            await session.commit()
+
+        interval = await verification_cog._get_health_check_interval(guild_id)
+        assert interval == 15
+
+    async def test_get_health_check_interval_returns_default(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que _get_health_check_interval retorna 30 por defecto."""
+        guild_id = 456
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, "verification", True)
+            await session.commit()
+
+        interval = await verification_cog._get_health_check_interval(guild_id)
+        assert interval == 30
+
+    async def test_get_health_check_interval_returns_zero_when_disabled(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que _get_health_check_interval retorna 0 cuando cog deshabilitado."""
+        guild_id = 789
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, "verification", False)
+            await session.commit()
+
+        interval = await verification_cog._get_health_check_interval(guild_id)
+        assert interval == 0
 
     async def test_check_verification_message_no_panel_message_id(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -2649,7 +2804,7 @@ class TestOnConfigChanged:
         ) as mock_check:
             await verification_cog.on_config_changed(mock_guild, "verification_channel")
 
-            mock_check.assert_called_once_with(guild=mock_guild, force=True)
+            mock_check.assert_called_once_with(guild=mock_guild, recreate=True)
 
     async def test_ignores_irrelevant_key(self, verification_cog: VerificationCog) -> None:
         """Probar que ignora claves no relacionadas con el panel."""
@@ -2663,8 +2818,8 @@ class TestOnConfigChanged:
             mock_check.assert_not_called()
 
 
-class TestCheckVerificationMessageForce:
-    """Tests para _check_verification_message con force=True."""
+class TestCheckVerificationMessageRecreate:
+    """Tests para _check_verification_message con recreate=True."""
 
     async def test_no_channel_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -2676,7 +2831,7 @@ class TestCheckVerificationMessageForce:
         with patch(
             "discord_bot.verification.cog.delete_message", new_callable=AsyncMock
         ) as mock_delete:
-            await verification_cog._check_verification_message(guild=mock_guild, force=True)
+            await verification_cog._check_verification_message(guild=mock_guild, recreate=True)
 
             # No debe intentar eliminar panel si no hay canal
             mock_delete.assert_not_called()
@@ -2699,7 +2854,7 @@ class TestCheckVerificationMessageForce:
         with patch(
             "discord_bot.verification.cog.delete_message", new_callable=AsyncMock
         ) as mock_delete:
-            await verification_cog._check_verification_message(guild=mock_guild, force=True)
+            await verification_cog._check_verification_message(guild=mock_guild, recreate=True)
 
             mock_delete.assert_not_called()
 
@@ -2731,7 +2886,7 @@ class TestCheckVerificationMessageForce:
                 verification_cog, "_create_verification_message", new_callable=AsyncMock
             ) as mock_create,
         ):
-            await verification_cog._check_verification_message(guild=mock_guild, force=True)
+            await verification_cog._check_verification_message(guild=mock_guild, recreate=True)
 
             mock_delete.assert_called_once()
             mock_create.assert_called_once()
@@ -3083,7 +3238,7 @@ class TestOnCogToggled:
         ) as mock_check:
             await verification_cog.on_cog_toggled(guild, enabled=True)
 
-            mock_check.assert_called_once_with(guild=guild, force=True)
+            mock_check.assert_called_once_with(guild=guild, recreate=True)
 
     async def test_disabled_deletes_panel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -3143,7 +3298,7 @@ class TestCheckVerificationMessageCogDisabled:
         with patch.object(
             verification_cog, "_create_verification_message", new_callable=AsyncMock
         ) as mock_create:
-            await verification_cog._check_verification_message(guild, force=False)
+            await verification_cog._check_verification_message(guild, recreate=False)
 
             # No deberia crear mensaje si el cog esta deshabilitado
             mock_create.assert_not_called()
