@@ -117,6 +117,7 @@ class DiscordBot(commands.Bot):
         """Carga todos los cogs."""
         cogs_to_load = [
             "discord_bot.verification.cog",
+            "discord_bot.autoname.cog",
         ]
 
         for cog in cogs_to_load:

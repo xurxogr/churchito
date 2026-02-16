@@ -15,3 +15,4 @@ class ConfigOptionType(StrEnum):
     CHANNEL_LIST = "channel_list"
     ROLE_LIST = "role_list"
     TEXT_CHOICE = "text_choice"
+    TABLE = "table"

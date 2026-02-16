@@ -819,3 +819,82 @@ a:hover {
 .textarea-preview u {
     text-decoration: underline;
 }
+
+/* Config Table (TABLE type) */
+.config-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #2f3136;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.config-table thead {
+    background-color: #202225;
+}
+
+.config-table th {
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: #b9bbbe;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #40444b;
+}
+
+.config-table th .required-mark {
+    color: #ed4245;
+    margin-left: 0.25rem;
+}
+
+.config-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #40444b;
+    vertical-align: middle;
+}
+
+.config-table tbody tr:hover {
+    background-color: #36393f;
+}
+
+.config-table .actions-col {
+    width: 100px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.config-table .select-sm,
+.config-table .input-sm {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    width: 100%;
+}
+
+.config-table-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    justify-content: flex-end;
+}
+
+.btn-icon {
+    padding: 0.25rem 0.5rem;
+    min-width: auto;
+    font-size: 0.75rem;
+}
+
+.btn-icon.btn-danger {
+    background-color: transparent;
+    color: #ed4245;
+    border: 1px solid #ed4245;
+}
+
+.btn-icon.btn-danger:hover {
+    background-color: #ed4245;
+    color: #ffffff;
+}

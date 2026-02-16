@@ -314,3 +314,88 @@ class TestConfigOptionValidation:
         is_valid, error = option.validate_value(long_text)
         assert is_valid is False
         assert error is not None and "no puede exceder" in error
+
+    def test_validate_table_valid(self) -> None:
+        """Probar validación de tabla válida."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
+                {"key": "tag", "name": "Etiqueta", "type": "string", "required": True},
+            ],
+        )
+        table_value = [
+            {"role_id": 123, "tag": "CAP"},
+            {"role_id": 456, "tag": "SGT"},
+        ]
+        is_valid, error = option.validate_value(table_value)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_table_not_list(self) -> None:
+        """Probar validación de tabla con tipo no lista."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+        )
+        is_valid, error = option.validate_value("not a list")
+        assert is_valid is False
+        assert error is not None and "debe ser una lista" in error
+
+    def test_validate_table_row_not_dict(self) -> None:
+        """Probar validación de tabla con fila que no es dict."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+        )
+        is_valid, error = option.validate_value(["not", "dicts"])
+        assert is_valid is False
+        assert error is not None and "debe ser un objeto" in error
+
+    def test_validate_table_missing_required_column(self) -> None:
+        """Probar validación de tabla con columna requerida faltante."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
+                {"key": "tag", "name": "Etiqueta", "type": "string", "required": True},
+            ],
+        )
+        table_value = [
+            {"role_id": 123},  # Falta "tag"
+        ]
+        is_valid, error = option.validate_value(table_value)
+        assert is_valid is False
+        assert error is not None and "es obligatorio" in error
+
+    def test_validate_table_empty_list(self) -> None:
+        """Probar validación de tabla vacía (válido)."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
+            ],
+        )
+        is_valid, error = option.validate_value([])
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_table_no_columns(self) -> None:
+        """Probar validación de tabla sin columnas definidas."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+        )
+        table_value = [{"any": "data"}]
+        is_valid, error = option.validate_value(table_value)
+        assert is_valid is True
+        assert error is None

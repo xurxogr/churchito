@@ -35,6 +35,10 @@ class ConfigOption(BaseModel):
         default=None,
         description="Lista de placeholders disponibles para TEXTAREA",
     )
+    columns: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Definición de columnas para TABLE (key, name, type, required, etc.)",
+    )
 
     def validate_value(self, value: Any) -> tuple[bool, str | None]:
         """Validar un valor contra las restricciones de esta opción.
@@ -82,5 +86,20 @@ class ConfigOption(BaseModel):
                     valid_values = [choice[1] for choice in self.choices]
                     if value not in valid_values:
                         return False, f"'{self.name}' debe ser una de las opciones válidas"
+
+            case ConfigOptionType.TABLE:
+                if not isinstance(value, list):
+                    return False, f"'{self.name}' debe ser una lista"
+                for i, row in enumerate(value):
+                    if not isinstance(row, dict):
+                        return False, f"'{self.name}' fila {i + 1} debe ser un objeto"
+                    # Validate required columns
+                    if self.columns:
+                        for col in self.columns:
+                            if col.get("required") and not row.get(col["key"]):
+                                return (
+                                    False,
+                                    f"'{self.name}' fila {i + 1}: '{col['name']}' es obligatorio",
+                                )
 
         return True, None

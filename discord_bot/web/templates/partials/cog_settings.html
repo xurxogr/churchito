@@ -264,6 +264,73 @@
                 this.closest('form').requestSubmit();
             ">Guardar</button>
 
+            {% elif option.type == 'table' %}
+            <div class="config-table-wrapper" id="table-{{ option.key }}">
+                <table class="config-table">
+                    <thead>
+                        <tr>
+                            {% for col in option.columns %}
+                            <th>{{ col.name }}{% if col.required %}<span class="required-mark">*</span>{% endif %}</th>
+                            {% endfor %}
+                            <th class="actions-col">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-{{ option.key }}">
+                        {% for row in (option.value or []) %}
+                        <tr data-row-index="{{ loop.index0 }}">
+                            {% for col in option.columns %}
+                            <td>
+                                {% if col.type == 'role' %}
+                                <select class="select select-sm" data-col="{{ col.key }}">
+                                    <option value="">-- Seleccionar --</option>
+                                    {% for role in roles %}
+                                    <option value="{{ role.id }}" {% if row[col.key]|string == role.id|string %}selected{% endif %}>@{{ role.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% elif col.type == 'channel' %}
+                                <select class="select select-sm" data-col="{{ col.key }}">
+                                    <option value="">-- Seleccionar --</option>
+                                    {% for ch in channels %}
+                                    <option value="{{ ch.id }}" {% if row[col.key]|string == ch.id|string %}selected{% endif %}>#{{ ch.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% elif col.type == 'choice' %}
+                                <select class="select select-sm" data-col="{{ col.key }}">
+                                    {% for label, val in col.choices %}
+                                    <option value="{{ val }}" {% if row[col.key] == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% elif col.type == 'boolean' %}
+                                <input type="checkbox" data-col="{{ col.key }}" {% if row[col.key] %}checked{% endif %}>
+                                {% elif col.type == 'integer' %}
+                                <input type="number" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.min_value is defined %}min="{{ col.min_value }}"{% endif %} {% if col.max_value is defined %}max="{{ col.max_value }}"{% endif %}>
+                                {% else %}
+                                <input type="text" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.max_length %}maxlength="{{ col.max_length }}"{% endif %} {% if col.placeholder %}placeholder="{{ col.placeholder }}"{% endif %}>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td class="actions-col">
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Subir">&#9650;</button>
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Bajar">&#9660;</button>
+                                <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Eliminar">&#10005;</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="config-table-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTableRow('{{ option.key }}')">+ Añadir fila</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveTable('{{ option.key }}')">Guardar</button>
+                </div>
+                <input type="hidden" name="value" id="val-{{ option.key }}" value="">
+                <script>
+                    window.tableColumns = window.tableColumns || {};
+                    window.tableColumns['{{ option.key }}'] = {{ option.columns | tojson }};
+                    window.tableRoles = {{ roles | tojson }};
+                    window.tableChannels = {{ channels | tojson }};
+                </script>
+            </div>
+
             {% else %}
             <input
                 type="text"
@@ -345,5 +412,124 @@ function moveItems(fromId, toId) {
     const options = Array.from(to.options);
     options.sort((a, b) => a.text.localeCompare(b.text));
     options.forEach(option => to.appendChild(option));
+}
+
+// Table config functions
+function addTableRow(optionKey) {
+    const tbody = document.getElementById('tbody-' + optionKey);
+    const columns = window.tableColumns[optionKey] || [];
+    const roles = window.tableRoles || [];
+    const channels = window.tableChannels || [];
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-row-index', tbody.children.length);
+
+    columns.forEach(col => {
+        const td = document.createElement('td');
+        if (col.type === 'role') {
+            const select = document.createElement('select');
+            select.className = 'select select-sm';
+            select.setAttribute('data-col', col.key);
+            select.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                roles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('');
+            td.appendChild(select);
+        } else if (col.type === 'channel') {
+            const select = document.createElement('select');
+            select.className = 'select select-sm';
+            select.setAttribute('data-col', col.key);
+            select.innerHTML = '<option value="">-- Seleccionar --</option>' +
+                channels.map(c => `<option value="${c.id}">#${c.name}</option>`).join('');
+            td.appendChild(select);
+        } else if (col.type === 'choice' && col.choices) {
+            const select = document.createElement('select');
+            select.className = 'select select-sm';
+            select.setAttribute('data-col', col.key);
+            select.innerHTML = col.choices.map(c => `<option value="${c[1]}">${c[0]}</option>`).join('');
+            td.appendChild(select);
+        } else if (col.type === 'boolean') {
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.setAttribute('data-col', col.key);
+            td.appendChild(input);
+        } else if (col.type === 'integer') {
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'input input-sm';
+            input.setAttribute('data-col', col.key);
+            if (col.min_value !== undefined) input.min = col.min_value;
+            if (col.max_value !== undefined) input.max = col.max_value;
+            td.appendChild(input);
+        } else {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'input input-sm';
+            input.setAttribute('data-col', col.key);
+            if (col.max_length) input.maxLength = col.max_length;
+            if (col.placeholder) input.placeholder = col.placeholder;
+            td.appendChild(input);
+        }
+        tr.appendChild(td);
+    });
+
+    // Actions column
+    const actionsTd = document.createElement('td');
+    actionsTd.className = 'actions-col';
+    actionsTd.innerHTML = `
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Subir">&#9650;</button>
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Bajar">&#9660;</button>
+        <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Eliminar">&#10005;</button>
+    `;
+    tr.appendChild(actionsTd);
+
+    tbody.appendChild(tr);
+}
+
+function deleteRow(btn) {
+    btn.closest('tr').remove();
+}
+
+function moveRowUp(btn) {
+    const row = btn.closest('tr');
+    const prev = row.previousElementSibling;
+    if (prev) {
+        row.parentNode.insertBefore(row, prev);
+    }
+}
+
+function moveRowDown(btn) {
+    const row = btn.closest('tr');
+    const next = row.nextElementSibling;
+    if (next) {
+        row.parentNode.insertBefore(next, row);
+    }
+}
+
+function saveTable(optionKey) {
+    const tbody = document.getElementById('tbody-' + optionKey);
+    const columns = window.tableColumns[optionKey] || [];
+    const rows = [];
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const rowData = {};
+        columns.forEach(col => {
+            const el = tr.querySelector(`[data-col="${col.key}"]`);
+            if (!el) return;
+            if (col.type === 'boolean') {
+                rowData[col.key] = el.checked;
+            } else if (col.type === 'integer') {
+                rowData[col.key] = el.value ? parseInt(el.value, 10) : null;
+            } else if (col.type === 'role' || col.type === 'channel') {
+                // Keep as string to avoid JS precision loss with Discord snowflakes
+                rowData[col.key] = el.value || null;
+            } else {
+                rowData[col.key] = el.value || '';
+            }
+        });
+        rows.push(rowData);
+    });
+
+    const hidden = document.getElementById('val-' + optionKey);
+    hidden.value = JSON.stringify(rows);
+    hidden.closest('form').requestSubmit();
 }
 </script>

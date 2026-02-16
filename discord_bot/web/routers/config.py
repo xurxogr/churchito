@@ -188,7 +188,8 @@ async def _render_cog_settings(
                 if can_send:
                     channels.append(
                         {
-                            "id": ch.id,
+                            # Use string IDs to avoid JS precision loss with snowflakes
+                            "id": str(ch.id),
                             "name": ch.name,
                             "category": ch.category.name if ch.category else None,
                         }
@@ -197,7 +198,8 @@ async def _render_cog_settings(
 
             # Get roles (exclude @everyone)
             roles = [
-                {"id": r.id, "name": r.name, "color": str(r.color)}
+                # Use string IDs to avoid JS precision loss with snowflakes
+                {"id": str(r.id), "name": r.name, "color": str(r.color)}
                 for r in discord_guild.roles
                 if r.name != "@everyone"
             ]
@@ -247,6 +249,7 @@ async def _render_cog_settings(
                 "max_value": opt.max_value,
                 "max_length": opt.max_length,
                 "placeholders": opt.placeholders,
+                "columns": opt.columns,
             }
         )
 
@@ -576,5 +579,9 @@ def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
             return int(value)
         case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
             return [int(v.strip()) for v in value.split(",") if v.strip()]
+        case ConfigOptionType.TABLE:
+            import json
+
+            return json.loads(value)
         case _:
             return value
