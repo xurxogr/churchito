@@ -30,7 +30,10 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
 @pytest.fixture
 def verification_cog(mock_discord_bot: MagicMock) -> VerificationCog:
     """Crear instancia del cog para tests."""
-    return VerificationCog(mock_discord_bot)
+    cog = VerificationCog(mock_discord_bot)
+    # Mock _is_cog_enabled to return True by default (cogs are disabled by default now)
+    object.__setattr__(cog, "_is_cog_enabled", AsyncMock(return_value=True))
+    return cog
 
 
 class TestFormatMessage:
@@ -1159,6 +1162,7 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
@@ -1214,6 +1218,7 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
@@ -1240,6 +1245,7 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             # Solo canal configurado, sin panel existente
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await session.commit()
@@ -1281,6 +1287,7 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             # Canal configurado: 222 (nuevo)
             await config_service.set_value(123, "verification", "verification_channel", 222)
             # Panel existente en canal 111 (viejo)
@@ -2873,6 +2880,7 @@ class TestCheckVerificationMessageRecreate:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await config_service.set_value(123, "verification", "_panel_message_id", 777)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)

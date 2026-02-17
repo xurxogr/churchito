@@ -116,7 +116,7 @@ async def guild_config(
         return (priority, schema.display_name)
 
     for cog_name, schema in sorted(schemas.items(), key=cog_sort_key):
-        is_enabled = enabled_cogs.get(cog_name, True)
+        is_enabled = enabled_cogs.get(cog_name, False)
         cogs_data.append(
             {
                 "name": cog_name,

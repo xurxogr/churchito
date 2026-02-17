@@ -160,7 +160,7 @@ class ConfigService:
         )
         return int(result.rowcount)
 
-    async def is_cog_enabled(self, guild_id: int, cog_name: str, default: bool = True) -> bool:
+    async def is_cog_enabled(self, guild_id: int, cog_name: str, default: bool = False) -> bool:
         """Verificar si un cog está habilitado en un guild.
 
         Args:
