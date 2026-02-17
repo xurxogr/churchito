@@ -107,7 +107,15 @@ async def guild_config(
     enabled_cogs = await config_service.get_enabled_cogs(guild_id)
 
     cogs_data = []
-    for cog_name, schema in sorted(schemas.items(), key=lambda x: x[1].display_name):
+    # Sort cogs: "bot" first, then alphabetically by display_name
+
+    def cog_sort_key(item: tuple[str, Any]) -> tuple[int, str]:
+        cog_name, schema = item
+        # "bot" gets priority 0, everything else gets 1
+        priority = 0 if cog_name == "bot" else 1
+        return (priority, schema.display_name)
+
+    for cog_name, schema in sorted(schemas.items(), key=cog_sort_key):
         is_enabled = enabled_cogs.get(cog_name, True)
         cogs_data.append(
             {
