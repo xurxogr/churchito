@@ -13,6 +13,7 @@
         {% if schema.toggleable %}
         <div class="cog-actions">
             <form
+                id="cog-toggle-form"
                 hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/toggle"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
@@ -21,7 +22,7 @@
                     <input
                         type="checkbox"
                         {% if enabled %}checked{% endif %}
-                        onchange="this.form.requestSubmit()"
+                        onchange="handleCogToggle(this)"
                     >
                     <span class="toggle-slider"></span>
                     <span class="toggle-label">{{ 'Habilitado' if enabled else 'Deshabilitado' }}</span>
@@ -30,6 +31,7 @@
 
             <button
                 class="btn btn-secondary"
+                onclick="return handleResetClick(event)"
                 hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reset"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
@@ -51,7 +53,7 @@
 
     {# Macro para renderizar una opción #}
     {% macro render_option(option) %}
-    <div class="option-item">
+    <div class="option-item" data-option-key="{{ option.key }}">
         <div class="option-header">
             <label for="opt-{{ option.key }}">{{ option.name }}</label>
             {% if option.required %}
@@ -67,36 +69,35 @@
         </p>
         {% endif %}
 
-        <form
-            class="option-form"
-            hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/option/{{ option.key }}"
-            hx-target="#cog-settings"
-            hx-swap="innerHTML"
-        >
+        <div class="option-form">
             {% if option.type == 'string' %}
             <input
                 type="text"
                 name="value"
                 id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value if option.value is not none else '' }}"
                 value="{{ option.value if option.value is not none else '' }}"
                 placeholder="{{ option.default or 'Sin valor' }}"
                 {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
-                class="input"
+                class="input config-input"
+                oninput="trackChange(this)"
             >
-            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
 
             {% elif option.type == 'textarea' %}
             <div class="textarea-wrapper">
                 <textarea
                     name="value"
                     id="opt-{{ option.key }}"
+                    data-option-key="{{ option.key }}"
+                    data-original="{{ option.value if option.value is not none else '' }}"
                     placeholder="{{ option.default or 'Sin valor' }}"
                     {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
-                    class="textarea"
+                    class="textarea config-input"
                     rows="8"
+                    oninput="trackChange(this)"
                 >{{ option.value if option.value is not none else '' }}</textarea>
                 <div class="textarea-actions">
-                    <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
                     {% if option.max_length %}
                     <small class="char-count">
                         <span id="count-{{ option.key }}">{{ (option.value | length) if option.value else 0 }}</span> / {{ option.max_length }}
@@ -110,14 +111,10 @@
                         const textarea = document.getElementById('opt-{{ option.key }}');
                         const content = document.getElementById('preview-content-{{ option.key }}');
 
-                        // Channel and role mappings for Discord mention rendering
                         const channelMap = { {% for ch in channels %}'{{ ch.id }}': '{{ ch.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
                         const roleMap = { {% for r in roles %}'{{ r.id }}': '{{ r.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
-
-                        // Known placeholders that can be resolved
                         const guildName = '{{ guild_name | e }}';
 
-                        // Common Discord emoji shortcodes to Unicode
                         const emojiMap = {
                             'flag_es': '\u{1F1EA}\u{1F1F8}', 'flag_gb': '\u{1F1EC}\u{1F1E7}', 'flag_us': '\u{1F1FA}\u{1F1F8}',
                             'flag_fr': '\u{1F1EB}\u{1F1F7}', 'flag_de': '\u{1F1E9}\u{1F1EA}', 'flag_it': '\u{1F1EE}\u{1F1F9}',
@@ -134,70 +131,19 @@
                         };
 
                         function updatePreview() {
-                            // First, clean zero-width characters that Discord sometimes adds
                             let text = textarea.value.trim().replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
-
-                            // HTML escape
-                            text = text
-                                .replace(/&/g, '&amp;')
-                                .replace(/</g, '&lt;')
-                                .replace(/>/g, '&gt;');
-
-                            // Discord markdown
-                            text = text
-                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                                .replace(/~~(.+?)~~/g, '<del>$1</del>')
-                                .replace(/__(.+?)__/g, '<u>$1</u>');
-
-                            // Channel mentions: <#123456789>
-                            text = text.replace(/&lt;#(\d+)&gt;/g, (match, id) => {
-                                const name = channelMap[id] || 'canal-desconocido';
-                                return `<span class="discord-mention discord-channel">#${name}</span>`;
-                            });
-
-                            // Role mentions: <@&123456789>
-                            text = text.replace(/&lt;@&amp;(\d+)&gt;/g, (match, id) => {
-                                const name = roleMap[id] || 'rol-desconocido';
-                                return `<span class="discord-mention discord-role">@${name}</span>`;
-                            });
-
-                            // User mentions: <@123456789> or <@!123456789>
-                            text = text.replace(/&lt;@!?(\d+)&gt;/g, (match, id) => {
-                                return `<span class="discord-mention discord-user">@usuario</span>`;
-                            });
-
-                            // Custom server emojis: <:name:123456789> or <a:name:123456789>
-                            text = text.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (match, animated, name, id) => {
-                                const ext = animated ? 'gif' : 'png';
-                                return `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${id}.${ext}" alt=":${name}:" title=":${name}:">`;
-                            });
-
-                            // Discord emoji shortcodes :name:
-                            text = text.replace(/:([a-z0-9_]+):/gi, (match, name) => {
-                                const emoji = emojiMap[name.toLowerCase()];
-                                return emoji || match;
-                            });
-
-                            // Known placeholders
+                            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
+                            text = text.replace(/~~(.+?)~~/g, '<del>$1</del>').replace(/__(.+?)__/g, '<u>$1</u>');
+                            text = text.replace(/&lt;#(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-channel">#${channelMap[id] || 'canal'}</span>`);
+                            text = text.replace(/&lt;@&amp;(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-role">@${roleMap[id] || 'rol'}</span>`);
+                            text = text.replace(/&lt;@!?(\d+)&gt;/g, () => `<span class="discord-mention discord-user">@usuario</span>`);
+                            text = text.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (m, a, n, id) => `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${id}.${a?'gif':'png'}" alt=":${n}:">`);
+                            text = text.replace(/:([a-z0-9_]+):/gi, (m, n) => emojiMap[n.toLowerCase()] || m);
                             text = text.replace(/\{server_name\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
                             text = text.replace(/\{servidor\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
-
-                            // Image URLs (jpg, png, gif, webp)
-                            text = text.replace(/(https?:\/\/[^\s<]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<]*)?)/gi, (match, url) => {
-                                return `<br><img class="discord-embed-image" src="${url}" alt="Image"><br>`;
-                            });
-
-                            // Other URLs as links
-                            text = text.replace(/(https?:\/\/[^\s<]+)(?![^<]*>)/gi, (match, url) => {
-                                // Don't match if already inside a tag
-                                if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) return match;
-                                return `<a href="${url}" class="discord-link" target="_blank">${url}</a>`;
-                            });
-
-                            // Newlines
+                            text = text.replace(/(https?:\/\/[^\s<]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<]*)?)/gi, '<br><img class="discord-embed-image" src="$1" alt="Image"><br>');
                             text = text.replace(/\n/g, '<br>');
-
                             content.innerHTML = text;
                         }
                         textarea.addEventListener('input', function() {
@@ -216,40 +162,54 @@
                 type="number"
                 name="value"
                 id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value if option.value is not none else '' }}"
                 value="{{ option.value if option.value is not none else '' }}"
                 placeholder="{{ option.default or '0' }}"
                 {% if option.min_value is not none %}min="{{ option.min_value }}"{% endif %}
                 {% if option.max_value is not none %}max="{{ option.max_value }}"{% endif %}
-                class="input"
+                class="input config-input"
+                oninput="trackChange(this)"
             >
-            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
 
             {% elif option.type == 'boolean' %}
             <label class="toggle">
-                <input type="hidden" name="value" value="false">
                 <input
                     type="checkbox"
-                    name="value"
-                    value="true"
+                    id="opt-{{ option.key }}"
+                    data-option-key="{{ option.key }}"
+                    data-original="{{ 'true' if option.value else 'false' }}"
                     {% if option.value %}checked{% endif %}
-                    onchange="this.form.requestSubmit()"
+                    onchange="trackBooleanChange(this)"
                 >
                 <span class="toggle-slider"></span>
-                <span class="toggle-label">{{ 'Activado' if option.value else 'Desactivado' }}</span>
+                <span class="toggle-label" id="label-{{ option.key }}">{{ 'Activado' if option.value else 'Desactivado' }}</span>
             </label>
 
             {% elif option.type == 'text_choice' and option.choices %}
-            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+            <select
+                name="value"
+                id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value or '' }}"
+                class="select config-input"
+                onchange="trackChange(this)"
+            >
                 <option value="">-- Seleccionar --</option>
                 {% for label, val in option.choices %}
-                <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>
-                    {{ label }}
-                </option>
+                <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
 
             {% elif option.type == 'channel' %}
-            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+            <select
+                name="value"
+                id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value or '' }}"
+                class="select config-input"
+                onchange="trackChange(this)"
+            >
                 <option value="">-- Seleccionar canal --</option>
                 {% for ch in channels %}
                 <option value="{{ ch.id }}" {% if option.value == ch.id %}selected{% endif %}>
@@ -257,12 +217,16 @@
                 </option>
                 {% endfor %}
             </select>
-            {% if option.display_value and option.value %}
-            <span class="current-value">Actual: {{ option.display_value }}</span>
-            {% endif %}
 
             {% elif option.type == 'role' %}
-            <select name="value" id="opt-{{ option.key }}" class="select" onchange="this.form.requestSubmit()">
+            <select
+                name="value"
+                id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value or '' }}"
+                class="select config-input"
+                onchange="trackChange(this)"
+            >
                 <option value="">-- Seleccionar rol --</option>
                 {% for role in roles %}
                 <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
@@ -270,15 +234,12 @@
                 </option>
                 {% endfor %}
             </select>
-            {% if option.display_value and option.value %}
-            <span class="current-value">Actual: {{ option.display_value }}</span>
-            {% endif %}
 
             {% elif option.type == 'channel_list' %}
-            <div class="dual-listbox">
+            <div class="dual-listbox" data-option-key="{{ option.key }}" data-original="{{ option.value | join(',') if option.value else '' }}">
                 <div class="listbox-container">
                     <label class="listbox-label">Disponibles</label>
-                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}')">
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for ch in channels %}
                         {% if not option.value or ch.id not in option.value %}
                         <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
@@ -287,12 +248,12 @@
                     </select>
                 </div>
                 <div class="listbox-buttons">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Agregar">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Quitar">&lt;</button>
                 </div>
                 <div class="listbox-container">
                     <label class="listbox-label">Seleccionados</label>
-                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}')">
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for ch in channels %}
                         {% if option.value and ch.id in option.value %}
                         <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
@@ -300,20 +261,13 @@
                         {% endfor %}
                     </select>
                 </div>
-                <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
             </div>
-            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
-                const sel = document.getElementById('sel-{{ option.key }}');
-                const hidden = document.getElementById('val-{{ option.key }}');
-                hidden.value = Array.from(sel.options).map(o => o.value).join(',');
-                this.closest('form').requestSubmit();
-            ">Guardar</button>
 
             {% elif option.type == 'role_list' %}
-            <div class="dual-listbox">
+            <div class="dual-listbox" data-option-key="{{ option.key }}" data-original="{{ option.value | join(',') if option.value else '' }}">
                 <div class="listbox-container">
                     <label class="listbox-label">Disponibles</label>
-                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}')">
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for role in roles %}
                         {% if not option.value or role.id not in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
@@ -322,12 +276,12 @@
                     </select>
                 </div>
                 <div class="listbox-buttons">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}')" title="Agregar">&gt;</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}')" title="Quitar">&lt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Agregar">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Quitar">&lt;</button>
                 </div>
                 <div class="listbox-container">
                     <label class="listbox-label">Seleccionados</label>
-                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}')">
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for role in roles %}
                         {% if option.value and role.id in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
@@ -335,17 +289,10 @@
                         {% endfor %}
                     </select>
                 </div>
-                <input type="hidden" name="value" id="val-{{ option.key }}" value="{{ option.value | join(',') if option.value else '' }}">
             </div>
-            <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="
-                const sel = document.getElementById('sel-{{ option.key }}');
-                const hidden = document.getElementById('val-{{ option.key }}');
-                hidden.value = Array.from(sel.options).map(o => o.value).join(',');
-                this.closest('form').requestSubmit();
-            ">Guardar</button>
 
             {% elif option.type == 'table' %}
-            <div class="config-table-wrapper" id="table-{{ option.key }}">
+            <div class="config-table-wrapper" id="table-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "[]" }}'>
                 <table class="config-table">
                     <thead>
                         <tr>
@@ -361,38 +308,38 @@
                             {% for col in option.columns %}
                             <td>
                                 {% if col.type == 'role' %}
-                                <select class="select select-sm" data-col="{{ col.key }}">
+                                <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
                                     <option value="">-- Seleccionar --</option>
                                     {% for role in roles %}
                                     <option value="{{ role.id }}" {% if row[col.key]|string == role.id|string %}selected{% endif %}>@{{ role.name }}</option>
                                     {% endfor %}
                                 </select>
                                 {% elif col.type == 'channel' %}
-                                <select class="select select-sm" data-col="{{ col.key }}">
+                                <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
                                     <option value="">-- Seleccionar --</option>
                                     {% for ch in channels %}
                                     <option value="{{ ch.id }}" {% if row[col.key]|string == ch.id|string %}selected{% endif %}>#{{ ch.name }}</option>
                                     {% endfor %}
                                 </select>
                                 {% elif col.type == 'choice' %}
-                                <select class="select select-sm" data-col="{{ col.key }}">
+                                <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
                                     {% for label, val in col.choices %}
                                     <option value="{{ val }}" {% if row[col.key] == val %}selected{% endif %}>{{ label }}</option>
                                     {% endfor %}
                                 </select>
                                 {% elif col.type == 'boolean' %}
-                                <input type="checkbox" data-col="{{ col.key }}" {% if row[col.key] %}checked{% endif %}>
+                                <input type="checkbox" data-col="{{ col.key }}" {% if row[col.key] %}checked{% endif %} onchange="trackTableChange('{{ option.key }}')">
                                 {% elif col.type == 'integer' %}
-                                <input type="number" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.min_value is defined %}min="{{ col.min_value }}"{% endif %} {% if col.max_value is defined %}max="{{ col.max_value }}"{% endif %}>
+                                <input type="number" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.min_value is defined %}min="{{ col.min_value }}"{% endif %} {% if col.max_value is defined %}max="{{ col.max_value }}"{% endif %} oninput="trackTableChange('{{ option.key }}')">
                                 {% else %}
-                                <input type="text" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.max_length %}maxlength="{{ col.max_length }}"{% endif %} {% if col.placeholder %}placeholder="{{ col.placeholder }}"{% endif %}>
+                                <input type="text" class="input input-sm" data-col="{{ col.key }}" value="{{ row[col.key] or '' }}" {% if col.max_length %}maxlength="{{ col.max_length }}"{% endif %} {% if col.placeholder %}placeholder="{{ col.placeholder }}"{% endif %} oninput="trackTableChange('{{ option.key }}')">
                                 {% endif %}
                             </td>
                             {% endfor %}
                             <td class="actions-col">
-                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Subir">&#9650;</button>
-                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Bajar">&#9660;</button>
-                                <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Eliminar">&#10005;</button>
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('{{ option.key }}')" title="Subir">&#9650;</button>
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('{{ option.key }}')" title="Bajar">&#9660;</button>
+                                <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('{{ option.key }}')" title="Eliminar">&#10005;</button>
                             </td>
                         </tr>
                         {% endfor %}
@@ -400,9 +347,7 @@
                 </table>
                 <div class="config-table-actions">
                     <button type="button" class="btn btn-secondary btn-sm" onclick="addTableRow('{{ option.key }}')">+ Añadir fila</button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="saveTable('{{ option.key }}')">Guardar</button>
                 </div>
-                <input type="hidden" name="value" id="val-{{ option.key }}" value="">
                 <script>
                     window.tableColumns = window.tableColumns || {};
                     window.tableColumns['{{ option.key }}'] = {{ option.columns | tojson }};
@@ -416,12 +361,14 @@
                 type="text"
                 name="value"
                 id="opt-{{ option.key }}"
+                data-option-key="{{ option.key }}"
+                data-original="{{ option.value if option.value is not none else '' }}"
                 value="{{ option.value if option.value is not none else '' }}"
-                class="input"
+                class="input config-input"
+                oninput="trackChange(this)"
             >
-            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
             {% endif %}
-        </form>
+        </div>
     </div>
     {% endmacro %}
 
@@ -477,7 +424,210 @@
     </div>
 </div>
 
+<!-- Floating Save Bar -->
+<div class="save-bar" id="save-bar">
+    <div class="save-bar-message">
+        Cuidado - Tienes cambios sin guardar
+    </div>
+    <div class="save-bar-actions">
+        <button type="button" class="btn-reset" onclick="resetAllChanges()">Reiniciar</button>
+        <button type="button" class="btn-save" id="save-btn" onclick="saveAllChanges()">Guardar cambios</button>
+    </div>
+</div>
+
 <script>
+// Track changed options - use window to ensure single global instance
+window.changedOptions = new Map();
+window.rootPath = '{{ root_path }}';
+window.guildId = '{{ guild_id }}';
+window.cogName = '{{ cog_name }}';
+
+function trackChange(el) {
+    const key = el.dataset.optionKey;
+    const original = el.dataset.original || '';
+    const current = el.value;
+
+    if (current !== original) {
+        window.changedOptions.set(key, { type: 'simple', value: current });
+    } else {
+        window.changedOptions.delete(key);
+    }
+    updateSaveBar();
+}
+
+function trackBooleanChange(el) {
+    const key = el.dataset.optionKey;
+    const original = el.dataset.original === 'true';
+    const current = el.checked;
+
+    // Update label text
+    const label = document.getElementById('label-' + key);
+    if (label) {
+        label.textContent = current ? 'Activado' : 'Desactivado';
+    }
+
+    if (current !== original) {
+        window.changedOptions.set(key, { type: 'boolean', value: current ? 'true' : 'false' });
+    } else {
+        window.changedOptions.delete(key);
+    }
+    updateSaveBar();
+}
+
+function trackListChange(key) {
+    const container = document.querySelector(`.dual-listbox[data-option-key="${key}"]`);
+    const original = container.dataset.original || '';
+    const selList = document.getElementById('sel-' + key);
+    const current = Array.from(selList.options).map(o => o.value).join(',');
+
+    if (current !== original) {
+        window.changedOptions.set(key, { type: 'list', value: current });
+    } else {
+        window.changedOptions.delete(key);
+    }
+    updateSaveBar();
+}
+
+function trackTableChange(key) {
+    const container = document.getElementById('table-' + key);
+    const original = container.dataset.original || '[]';
+    const current = JSON.stringify(getTableData(key));
+
+    if (current !== original) {
+        window.changedOptions.set(key, { type: 'table', value: current });
+    } else {
+        window.changedOptions.delete(key);
+    }
+    updateSaveBar();
+}
+
+function getTableData(optionKey) {
+    const tbody = document.getElementById('tbody-' + optionKey);
+    const columns = window.tableColumns[optionKey] || [];
+    const rows = [];
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const rowData = {};
+        columns.forEach(col => {
+            const el = tr.querySelector(`[data-col="${col.key}"]`);
+            if (!el) return;
+            if (col.type === 'boolean') {
+                rowData[col.key] = el.checked;
+            } else if (col.type === 'integer') {
+                rowData[col.key] = el.value ? parseInt(el.value, 10) : null;
+            } else if (col.type === 'role' || col.type === 'channel') {
+                rowData[col.key] = el.value || null;
+            } else {
+                rowData[col.key] = el.value || '';
+            }
+        });
+        rows.push(rowData);
+    });
+    return rows;
+}
+
+function updateSaveBar() {
+    const saveBar = document.getElementById('save-bar');
+    if (window.changedOptions.size > 0) {
+        saveBar.classList.add('visible');
+    } else {
+        saveBar.classList.remove('visible');
+    }
+}
+
+function hasPendingChanges() {
+    return window.changedOptions.size > 0;
+}
+
+function shakeSaveBar() {
+    const saveBar = document.getElementById('save-bar');
+    if (saveBar) {
+        saveBar.classList.remove('shake');
+        void saveBar.offsetWidth;
+        saveBar.classList.add('shake');
+        setTimeout(() => saveBar.classList.remove('shake'), 400);
+    }
+}
+
+function handleCogToggle(el) {
+    if (hasPendingChanges()) {
+        // Revert the checkbox state
+        el.checked = !el.checked;
+        shakeSaveBar();
+        return;
+    }
+    // No pending changes, submit the form
+    el.form.requestSubmit();
+}
+
+function handleResetClick(event) {
+    if (hasPendingChanges()) {
+        event.preventDefault();
+        event.stopPropagation();
+        shakeSaveBar();
+        return false;
+    }
+    return true;
+}
+
+function resetAllChanges() {
+    // Reset simple inputs
+    document.querySelectorAll('.config-input').forEach(el => {
+        if (el.dataset.original !== undefined) {
+            el.value = el.dataset.original;
+        }
+    });
+
+    // Reset boolean checkboxes
+    document.querySelectorAll('input[type="checkbox"][data-option-key]').forEach(el => {
+        const original = el.dataset.original === 'true';
+        el.checked = original;
+        const label = document.getElementById('label-' + el.dataset.optionKey);
+        if (label) {
+            label.textContent = original ? 'Activado' : 'Desactivado';
+        }
+    });
+
+    window.changedOptions.clear();
+    updateSaveBar();
+
+    // Reload to fully reset complex components (lists, tables)
+    if (document.querySelector('.dual-listbox') || document.querySelector('.config-table-wrapper')) {
+        htmx.ajax('GET', `${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}`, '#cog-settings');
+    }
+}
+
+async function saveAllChanges() {
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando...';
+
+    try {
+        for (const [key, data] of window.changedOptions) {
+            const formData = new FormData();
+            formData.append('value', data.value);
+
+            const response = await fetch(`${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}/option/${key}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error saving ${key}`);
+            }
+        }
+
+        // Reload the panel to show updated values
+        htmx.ajax('GET', `${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}`, '#cog-settings');
+    } catch (error) {
+        console.error('Error saving:', error);
+        alert('Error al guardar los cambios. Por favor, inténtalo de nuevo.');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar cambios';
+    }
+}
+
+// Listbox functions
 function moveItems(fromId, toId) {
     const from = document.getElementById(fromId);
     const to = document.getElementById(toId);
@@ -488,7 +638,6 @@ function moveItems(fromId, toId) {
         option.selected = false;
     });
 
-    // Sort options alphabetically
     const options = Array.from(to.options);
     options.sort((a, b) => a.text.localeCompare(b.text));
     options.forEach(option => to.appendChild(option));
@@ -503,13 +652,12 @@ function moveSelectedItem(fromSelect, toId) {
         option.selected = false;
     });
 
-    // Sort options alphabetically
     const options = Array.from(to.options);
     options.sort((a, b) => a.text.localeCompare(b.text));
     options.forEach(option => to.appendChild(option));
 }
 
-// Table config functions
+// Table functions
 function addTableRow(optionKey) {
     const tbody = document.getElementById('tbody-' + optionKey);
     const columns = window.tableColumns[optionKey] || [];
@@ -525,6 +673,7 @@ function addTableRow(optionKey) {
             const select = document.createElement('select');
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
+            select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
             select.innerHTML = '<option value="">-- Seleccionar --</option>' +
                 roles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('');
             td.appendChild(select);
@@ -532,6 +681,7 @@ function addTableRow(optionKey) {
             const select = document.createElement('select');
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
+            select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
             select.innerHTML = '<option value="">-- Seleccionar --</option>' +
                 channels.map(c => `<option value="${c.id}">#${c.name}</option>`).join('');
             td.appendChild(select);
@@ -539,18 +689,21 @@ function addTableRow(optionKey) {
             const select = document.createElement('select');
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
+            select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
             select.innerHTML = col.choices.map(c => `<option value="${c[1]}">${c[0]}</option>`).join('');
             td.appendChild(select);
         } else if (col.type === 'boolean') {
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.setAttribute('data-col', col.key);
+            input.setAttribute('onchange', `trackTableChange('${optionKey}')`);
             td.appendChild(input);
         } else if (col.type === 'integer') {
             const input = document.createElement('input');
             input.type = 'number';
             input.className = 'input input-sm';
             input.setAttribute('data-col', col.key);
+            input.setAttribute('oninput', `trackTableChange('${optionKey}')`);
             if (col.min_value !== undefined) input.min = col.min_value;
             if (col.max_value !== undefined) input.max = col.max_value;
             td.appendChild(input);
@@ -559,6 +712,7 @@ function addTableRow(optionKey) {
             input.type = 'text';
             input.className = 'input input-sm';
             input.setAttribute('data-col', col.key);
+            input.setAttribute('oninput', `trackTableChange('${optionKey}')`);
             if (col.max_length) input.maxLength = col.max_length;
             if (col.placeholder) input.placeholder = col.placeholder;
             td.appendChild(input);
@@ -566,17 +720,17 @@ function addTableRow(optionKey) {
         tr.appendChild(td);
     });
 
-    // Actions column
     const actionsTd = document.createElement('td');
     actionsTd.className = 'actions-col';
     actionsTd.innerHTML = `
-        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Subir">&#9650;</button>
-        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Bajar">&#9660;</button>
-        <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Eliminar">&#10005;</button>
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('${optionKey}')" title="Subir">&#9650;</button>
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('${optionKey}')" title="Bajar">&#9660;</button>
+        <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('${optionKey}')" title="Eliminar">&#10005;</button>
     `;
     tr.appendChild(actionsTd);
 
     tbody.appendChild(tr);
+    trackTableChange(optionKey);
 }
 
 function deleteRow(btn) {
@@ -597,34 +751,5 @@ function moveRowDown(btn) {
     if (next) {
         row.parentNode.insertBefore(next, row);
     }
-}
-
-function saveTable(optionKey) {
-    const tbody = document.getElementById('tbody-' + optionKey);
-    const columns = window.tableColumns[optionKey] || [];
-    const rows = [];
-
-    tbody.querySelectorAll('tr').forEach(tr => {
-        const rowData = {};
-        columns.forEach(col => {
-            const el = tr.querySelector(`[data-col="${col.key}"]`);
-            if (!el) return;
-            if (col.type === 'boolean') {
-                rowData[col.key] = el.checked;
-            } else if (col.type === 'integer') {
-                rowData[col.key] = el.value ? parseInt(el.value, 10) : null;
-            } else if (col.type === 'role' || col.type === 'channel') {
-                // Keep as string to avoid JS precision loss with Discord snowflakes
-                rowData[col.key] = el.value || null;
-            } else {
-                rowData[col.key] = el.value || '';
-            }
-        });
-        rows.push(rowData);
-    });
-
-    const hidden = document.getElementById('val-' + optionKey);
-    hidden.value = JSON.stringify(rows);
-    hidden.closest('form').requestSubmit();
 }
 </script>
