@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
+from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
@@ -259,6 +260,7 @@ async def _render_cog_settings(
                 "display_value": display_value,
                 "default": opt.default,
                 "required": opt.required,
+                "section": opt.section,
                 "group": opt.group,
                 "choices": opt.choices,
                 "min_value": opt.min_value,
@@ -395,7 +397,7 @@ async def update_option(
     if not option:
         raise HTTPException(status_code=404, detail="Opción no encontrada")
 
-    converted_value = _convert_form_value(value, option.option_type)
+    converted_value = _convert_form_value(value, option.option_type, option=option)
 
     # Validar permisos del bot para canales
     if converted_value and option.option_type == ConfigOptionType.CHANNEL:
@@ -578,12 +580,17 @@ def _validate_channel_permissions(request: Request, guild_id: int, channel_id: i
     return None
 
 
-def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
+def _convert_form_value(
+    value: str,
+    option_type: ConfigOptionType,
+    option: ConfigOption | None = None,
+) -> Any:
     """Convertir un valor de formulario al tipo correcto.
 
     Args:
         value (str): Valor como string
         option_type (ConfigOptionType): Tipo de opción
+        option (ConfigOption | None): Opción completa (para TABLE con columns)
 
     Returns:
         Any: Valor convertido
@@ -607,6 +614,18 @@ def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
         case ConfigOptionType.TABLE:
             import json
 
-            return json.loads(value)
+            data = json.loads(value)
+
+            # Convert role/channel columns to integers
+            if option and option.columns:
+                int_columns = {
+                    col["key"] for col in option.columns if col.get("type") in ("role", "channel")
+                }
+                for row in data:
+                    for col_key in int_columns:
+                        if col_key in row and row[col_key]:
+                            row[col_key] = int(row[col_key])
+
+            return data
         case _:
             return value

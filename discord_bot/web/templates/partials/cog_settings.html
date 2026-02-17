@@ -372,6 +372,14 @@
     </div>
     {% endmacro %}
 
+    {# Collect unique sections maintaining order #}
+    {% set sections = [] %}
+    {% for option in options %}
+        {% if option.section and option.section not in sections %}
+            {% set _ = sections.append(option.section) %}
+        {% endif %}
+    {% endfor %}
+
     {# Collect unique groups maintaining order #}
     {% set groups = [] %}
     {% for option in options %}
@@ -380,12 +388,112 @@
         {% endif %}
     {% endfor %}
 
-    {# Check if any options have groups #}
+    {# Check if any options have sections or groups #}
+    {% set has_sections = sections | length > 0 %}
     {% set has_groups = groups | length > 0 %}
 
     <div class="options-list">
-        {% if has_groups %}
-            {# Render grouped options #}
+        {% if has_sections %}
+            {# Render sectioned options #}
+            {% for section_name in sections %}
+            <div class="option-section">
+                <h2 class="option-section-title">{{ section_name }}</h2>
+                <div class="option-section-content">
+                    {# Get groups within this section #}
+                    {% set section_groups = [] %}
+                    {% for option in options %}
+                        {% if option.section == section_name and option.group and option.group not in section_groups %}
+                            {% set _ = section_groups.append(option.group) %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if section_groups | length > 0 %}
+                        {# Render groups within section #}
+                        {% for group_name in section_groups %}
+                        <div class="option-group">
+                            <h3 class="option-group-title">{{ group_name }}</h3>
+                            <div class="option-group-content">
+                                {% for option in options %}
+                                    {% if option.section == section_name and option.group == group_name %}
+                                        {{ render_option(option) }}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                        {# Render ungrouped options within this section #}
+                        {% set section_ungrouped = [] %}
+                        {% for option in options %}
+                            {% if option.section == section_name and not option.group %}
+                                {% set _ = section_ungrouped.append(option) %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if section_ungrouped | length > 0 %}
+                        <div class="option-group">
+                            <div class="option-group-content">
+                                {% for option in section_ungrouped %}
+                                    {{ render_option(option) }}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        {# No groups in section, render options directly #}
+                        {% for option in options %}
+                            {% if option.section == section_name %}
+                                {{ render_option(option) }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {# Render options without section #}
+            {% set no_section_options = [] %}
+            {% for option in options %}
+                {% if not option.section %}
+                    {% set _ = no_section_options.append(option) %}
+                {% endif %}
+            {% endfor %}
+            {% if no_section_options | length > 0 %}
+                {# Check if these have groups #}
+                {% set no_section_groups = [] %}
+                {% for option in no_section_options %}
+                    {% if option.group and option.group not in no_section_groups %}
+                        {% set _ = no_section_groups.append(option.group) %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if no_section_groups | length > 0 %}
+                    {% for group_name in no_section_groups %}
+                    <div class="option-group">
+                        <h3 class="option-group-title">{{ group_name }}</h3>
+                        <div class="option-group-content">
+                            {% for option in no_section_options %}
+                                {% if option.group == group_name %}
+                                    {{ render_option(option) }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {# Ungrouped without section #}
+                    {% for option in no_section_options %}
+                        {% if not option.group %}
+                            {{ render_option(option) }}
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    {% for option in no_section_options %}
+                        {{ render_option(option) }}
+                    {% endfor %}
+                {% endif %}
+            {% endif %}
+
+        {% elif has_groups %}
+            {# No sections, but has groups - render grouped options #}
             {% for group_name in groups %}
             <div class="option-group">
                 <h3 class="option-group-title">{{ group_name }}</h3>
@@ -412,7 +520,7 @@
             </div>
             {% endif %}
         {% else %}
-            {# No groups, render all options flat #}
+            {# No sections or groups, render all options flat #}
             {% for option in options %}
                 {{ render_option(option) }}
             {% else %}

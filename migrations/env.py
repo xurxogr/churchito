@@ -12,6 +12,7 @@ from discord_bot.common.core import AppSettings
 # Importar todos los modelos para que Alembic los detecte
 from discord_bot.common.models import Guild, GuildCogEnabled, GuildConfig  # noqa: F401
 from discord_bot.common.models.base import Base
+from discord_bot.purga.models import PurgaRecord  # noqa: F401
 from discord_bot.verification.models import VerificationRequest  # noqa: F401
 
 # this is the Alembic Config object, which provides

@@ -118,6 +118,7 @@ class DiscordBot(commands.Bot):
         cogs_to_load = [
             "discord_bot.verification.cog",
             "discord_bot.autoname.cog",
+            "discord_bot.purga.cog",
         ]
 
         for cog in cogs_to_load:

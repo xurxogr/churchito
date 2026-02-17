@@ -20,9 +20,13 @@ class ConfigOption(BaseModel):
     option_type: ConfigOptionType = Field(description="Tipo de dato de la opción")
     default: Any = Field(default=None, description="Valor por defecto si no se configura")
     required: bool = Field(default=False, description="Si la opción es obligatoria")
+    section: str | None = Field(
+        default=None,
+        description="Sección de alto nivel para organizar grupos de opciones (título principal)",
+    )
     group: str | None = Field(
         default=None,
-        description="Grupo para organizar opciones relacionadas en la UI",
+        description="Grupo para organizar opciones relacionadas dentro de una sección",
     )
     choices: list[tuple[str, Any]] | None = Field(
         default=None,
