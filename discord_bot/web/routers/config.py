@@ -349,9 +349,9 @@ async def update_option(
     guild_id: int,
     cog_name: str,
     key: str,
-    value: Annotated[str, Form()],
     user: GuildAccess,
     session: DbSession,
+    value: Annotated[str, Form()] = "",
 ) -> HTMLResponse:
     """Actualizar una opción de configuración.
 
@@ -567,6 +567,10 @@ def _convert_form_value(value: str, option_type: ConfigOptionType) -> Any:
     Returns:
         Any: Valor convertido
     """
+    # Para STRING y TEXTAREA, preservar cadenas vacias (permite "limpiar" un valor)
+    if option_type in (ConfigOptionType.STRING, ConfigOptionType.TEXTAREA):
+        return value
+
     if not value:
         return None
 

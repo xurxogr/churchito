@@ -301,9 +301,9 @@ class TestUpdateOption:
                 111222333,
                 "test_cog",
                 "string_option",
-                "new_value",
                 test_user,
                 test_session,
+                value="new_value",
             )
 
             mock_config_service.set_value.assert_called_once()
@@ -329,9 +329,9 @@ class TestUpdateOption:
                 111222333,
                 "test_cog",
                 "nonexistent",
-                "value",
                 test_user,
                 test_session,
+                value="value",
             )
 
 
@@ -573,9 +573,9 @@ class TestUpdateOptionError:
                 111222333,
                 "test_cog",
                 "string_option",
-                "invalid_value",
                 test_user,
                 test_session,
+                value="invalid_value",
             )
 
             # Debe loguear el warning
@@ -826,9 +826,9 @@ class TestChannelPermissionValidation:
                 111222333,
                 "test_cog",
                 "channel_option",
-                "123456789",  # ID de canal
                 test_user,
                 test_session,
+                value="123456789",  # ID de canal
             )
 
             # Debe mostrar error

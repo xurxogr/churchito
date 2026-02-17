@@ -75,9 +75,19 @@ class TestGetGuildInfo:
 class TestConvertFormValue:
     """Tests para _convert_form_value."""
 
-    def test_convert_empty_returns_none(self) -> None:
-        """Probar que valor vacío retorna None."""
+    def test_convert_empty_string_preserved(self) -> None:
+        """Probar que STRING vacio se preserva (permite limpiar config)."""
         result = _convert_form_value("", ConfigOptionType.STRING)
+        assert result == ""
+
+    def test_convert_empty_textarea_preserved(self) -> None:
+        """Probar que TEXTAREA vacio se preserva."""
+        result = _convert_form_value("", ConfigOptionType.TEXTAREA)
+        assert result == ""
+
+    def test_convert_empty_integer_returns_none(self) -> None:
+        """Probar que INTEGER vacio retorna None."""
+        result = _convert_form_value("", ConfigOptionType.INTEGER)
         assert result is None
 
     def test_convert_integer(self) -> None:
