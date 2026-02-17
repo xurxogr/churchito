@@ -693,6 +693,7 @@ class VerificationCog(commands.Cog):
                 key=ConfigKey.PANEL_CHANNEL_ID,
                 value=None,
             )
+            await session.commit()
 
     @tasks.loop(minutes=1)
     async def health_check_loop(self) -> None:

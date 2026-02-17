@@ -348,6 +348,9 @@ async def toggle_cog(
     new_state = not current
     await config_service.set_cog_enabled(guild_id, cog_name, new_state)
 
+    # Commit para que el cog vea el cambio en su propia sesión
+    await session.commit()
+
     # Notificar al cog del cambio
     await _notify_cog_toggled(
         request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state

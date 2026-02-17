@@ -18,6 +18,7 @@
         <nav class="cog-tabs">
             {% for cog in cogs %}
             <button
+                id="cog-tab-{{ cog.name }}"
                 class="cog-tab"
                 data-cog-url="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog.name }}"
                 onclick="return handleCogTabClick(this, event)"

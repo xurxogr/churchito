@@ -435,6 +435,23 @@
     </div>
 </div>
 
+<!-- OOB swap to update sidebar tab status -->
+{% if schema.toggleable %}
+<button
+    id="cog-tab-{{ cog_name }}"
+    class="cog-tab active"
+    data-cog-url="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}"
+    onclick="return handleCogTabClick(this, event)"
+    hx-swap-oob="true"
+>
+    <span class="cog-icon">{{ schema.icon }}</span>
+    <span class="cog-name">{{ schema.display_name }}</span>
+    <span class="cog-status {% if enabled %}status-enabled{% else %}status-disabled{% endif %}">
+        {% if enabled %}✓{% else %}✗{% endif %}
+    </span>
+</button>
+{% endif %}
+
 <script>
 // Track changed options - use window to ensure single global instance
 window.changedOptions = new Map();
@@ -556,8 +573,9 @@ function handleCogToggle(el) {
         shakeSaveBar();
         return;
     }
-    // No pending changes, submit the form
-    el.form.requestSubmit();
+    // No pending changes, use htmx.ajax directly for reliable toggling
+    const url = el.form.getAttribute('hx-post');
+    htmx.ajax('POST', url, {target: '#cog-settings', swap: 'innerHTML'});
 }
 
 function handleResetClick(event) {
