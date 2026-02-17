@@ -271,7 +271,7 @@
             <div class="dual-listbox">
                 <div class="listbox-container">
                     <label class="listbox-label">Disponibles</label>
-                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}')">
                         {% for ch in channels %}
                         {% if not option.value or ch.id not in option.value %}
                         <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
@@ -285,7 +285,7 @@
                 </div>
                 <div class="listbox-container">
                     <label class="listbox-label">Seleccionados</label>
-                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}')">
                         {% for ch in channels %}
                         {% if option.value and ch.id in option.value %}
                         <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
@@ -306,7 +306,7 @@
             <div class="dual-listbox">
                 <div class="listbox-container">
                     <label class="listbox-label">Disponibles</label>
-                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8">
+                    <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}')">
                         {% for role in roles %}
                         {% if not option.value or role.id not in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
@@ -320,7 +320,7 @@
                 </div>
                 <div class="listbox-container">
                     <label class="listbox-label">Seleccionados</label>
-                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8">
+                    <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}')">
                         {% for role in roles %}
                         {% if option.value and role.id in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
@@ -475,6 +475,21 @@ function moveItems(fromId, toId) {
     const from = document.getElementById(fromId);
     const to = document.getElementById(toId);
     const selected = Array.from(from.selectedOptions);
+
+    selected.forEach(option => {
+        to.appendChild(option);
+        option.selected = false;
+    });
+
+    // Sort options alphabetically
+    const options = Array.from(to.options);
+    options.sort((a, b) => a.text.localeCompare(b.text));
+    options.forEach(option => to.appendChild(option));
+}
+
+function moveSelectedItem(fromSelect, toId) {
+    const to = document.getElementById(toId);
+    const selected = Array.from(fromSelect.selectedOptions);
 
     selected.forEach(option => {
         to.appendChild(option);
