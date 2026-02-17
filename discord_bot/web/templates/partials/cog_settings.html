@@ -109,16 +109,89 @@
                     (function() {
                         const textarea = document.getElementById('opt-{{ option.key }}');
                         const content = document.getElementById('preview-content-{{ option.key }}');
+
+                        // Channel and role mappings for Discord mention rendering
+                        const channelMap = { {% for ch in channels %}'{{ ch.id }}': '{{ ch.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
+                        const roleMap = { {% for r in roles %}'{{ r.id }}': '{{ r.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
+
+                        // Common Discord emoji shortcodes to Unicode
+                        const emojiMap = {
+                            'flag_es': '\u{1F1EA}\u{1F1F8}', 'flag_gb': '\u{1F1EC}\u{1F1E7}', 'flag_us': '\u{1F1FA}\u{1F1F8}',
+                            'flag_fr': '\u{1F1EB}\u{1F1F7}', 'flag_de': '\u{1F1E9}\u{1F1EA}', 'flag_it': '\u{1F1EE}\u{1F1F9}',
+                            'flag_pt': '\u{1F1F5}\u{1F1F9}', 'flag_br': '\u{1F1E7}\u{1F1F7}', 'flag_mx': '\u{1F1F2}\u{1F1FD}',
+                            'flag_ar': '\u{1F1E6}\u{1F1F7}', 'flag_jp': '\u{1F1EF}\u{1F1F5}', 'flag_kr': '\u{1F1F0}\u{1F1F7}',
+                            'flag_cn': '\u{1F1E8}\u{1F1F3}', 'flag_ru': '\u{1F1F7}\u{1F1FA}', 'flag_eu': '\u{1F1EA}\u{1F1FA}',
+                            'smile': '\u{1F604}', 'grinning': '\u{1F600}', 'joy': '\u{1F602}', 'heart': '\u{2764}\u{FE0F}',
+                            'thumbsup': '\u{1F44D}', 'thumbsdown': '\u{1F44E}', 'wave': '\u{1F44B}', 'clap': '\u{1F44F}',
+                            'fire': '\u{1F525}', 'star': '\u{2B50}', 'check': '\u{2705}', 'x': '\u{274C}',
+                            'warning': '\u{26A0}\u{FE0F}', 'info': '\u{2139}\u{FE0F}', 'question': '\u{2753}',
+                            'white_check_mark': '\u{2705}', 'heavy_check_mark': '\u{2714}\u{FE0F}',
+                            'arrow_right': '\u{27A1}\u{FE0F}', 'arrow_left': '\u{2B05}\u{FE0F}',
+                            'point_right': '\u{1F449}', 'point_left': '\u{1F448}', 'point_up': '\u{1F446}', 'point_down': '\u{1F447}',
+                        };
+
                         function updatePreview() {
-                            content.innerHTML = textarea.value.trim()
+                            // First, clean zero-width characters that Discord sometimes adds
+                            let text = textarea.value.trim().replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
+
+                            // HTML escape
+                            text = text
                                 .replace(/&/g, '&amp;')
                                 .replace(/</g, '&lt;')
-                                .replace(/>/g, '&gt;')
+                                .replace(/>/g, '&gt;');
+
+                            // Discord markdown
+                            text = text
                                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                                 .replace(/\*(.+?)\*/g, '<em>$1</em>')
                                 .replace(/~~(.+?)~~/g, '<del>$1</del>')
-                                .replace(/__(.+?)__/g, '<u>$1</u>')
-                                .replace(/\n/g, '<br>');
+                                .replace(/__(.+?)__/g, '<u>$1</u>');
+
+                            // Channel mentions: <#123456789>
+                            text = text.replace(/&lt;#(\d+)&gt;/g, (match, id) => {
+                                const name = channelMap[id] || 'canal-desconocido';
+                                return `<span class="discord-mention discord-channel">#${name}</span>`;
+                            });
+
+                            // Role mentions: <@&123456789>
+                            text = text.replace(/&lt;@&amp;(\d+)&gt;/g, (match, id) => {
+                                const name = roleMap[id] || 'rol-desconocido';
+                                return `<span class="discord-mention discord-role">@${name}</span>`;
+                            });
+
+                            // User mentions: <@123456789> or <@!123456789>
+                            text = text.replace(/&lt;@!?(\d+)&gt;/g, (match, id) => {
+                                return `<span class="discord-mention discord-user">@usuario</span>`;
+                            });
+
+                            // Custom server emojis: <:name:123456789> or <a:name:123456789>
+                            text = text.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (match, animated, name, id) => {
+                                const ext = animated ? 'gif' : 'png';
+                                return `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${id}.${ext}" alt=":${name}:" title=":${name}:">`;
+                            });
+
+                            // Discord emoji shortcodes :name:
+                            text = text.replace(/:([a-z0-9_]+):/gi, (match, name) => {
+                                const emoji = emojiMap[name.toLowerCase()];
+                                return emoji || match;
+                            });
+
+                            // Image URLs (jpg, png, gif, webp)
+                            text = text.replace(/(https?:\/\/[^\s<]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<]*)?)/gi, (match, url) => {
+                                return `<br><img class="discord-embed-image" src="${url}" alt="Image"><br>`;
+                            });
+
+                            // Other URLs as links
+                            text = text.replace(/(https?:\/\/[^\s<]+)(?![^<]*>)/gi, (match, url) => {
+                                // Don't match if already inside a tag
+                                if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) return match;
+                                return `<a href="${url}" class="discord-link" target="_blank">${url}</a>`;
+                            });
+
+                            // Newlines
+                            text = text.replace(/\n/g, '<br>');
+
+                            content.innerHTML = text;
                         }
                         textarea.addEventListener('input', function() {
                             {% if option.max_length %}

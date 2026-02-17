@@ -975,6 +975,71 @@ a:hover {
     text-decoration: underline;
 }
 
+/* Discord Mentions and Emojis in Preview */
+.discord-mention {
+    display: inline;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.discord-channel {
+    background-color: rgba(88, 101, 242, 0.3);
+    color: #c9cdfb;
+}
+
+.discord-channel:hover {
+    background-color: rgba(88, 101, 242, 0.5);
+    color: #dee0fc;
+}
+
+.discord-role {
+    background-color: rgba(88, 101, 242, 0.3);
+    color: #c9cdfb;
+}
+
+.discord-role:hover {
+    background-color: rgba(88, 101, 242, 0.5);
+    color: #dee0fc;
+}
+
+.discord-user {
+    background-color: rgba(88, 101, 242, 0.3);
+    color: #c9cdfb;
+}
+
+.discord-user:hover {
+    background-color: rgba(88, 101, 242, 0.5);
+    color: #dee0fc;
+}
+
+.discord-emoji {
+    width: 22px;
+    height: 22px;
+    vertical-align: middle;
+    object-fit: contain;
+    margin: 0 1px;
+}
+
+.discord-embed-image {
+    max-width: 400px;
+    max-height: 300px;
+    border-radius: var(--radius-sm);
+    margin: 8px 0;
+    display: block;
+}
+
+.discord-link {
+    color: #00a8fc;
+    text-decoration: none;
+}
+
+.discord-link:hover {
+    text-decoration: underline;
+}
+
 /* Config Table (TABLE type) - Discord Style */
 .config-table-wrapper {
     width: 100%;
