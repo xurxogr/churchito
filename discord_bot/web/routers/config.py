@@ -207,31 +207,39 @@ async def _render_cog_settings(
 
     options_data: list[dict[str, Any]] = []
     for opt in schema.options:
-        current_value = config_values.get(opt.key, opt.default)
+        raw_value = config_values.get(opt.key, opt.default)
 
-        # Resolve display name for channel/role values
-        display_value = current_value
-        if current_value and discord_guild:
+        # Resolve display name for channel/role values (using raw int IDs)
+        display_value = raw_value
+        if raw_value and discord_guild:
             if opt.option_type == ConfigOptionType.CHANNEL:
-                ch = discord_guild.get_channel(current_value)
-                display_value = f"#{ch.name}" if ch else f"ID: {current_value}"
+                ch = discord_guild.get_channel(raw_value)
+                display_value = f"#{ch.name}" if ch else f"ID: {raw_value}"
             elif opt.option_type == ConfigOptionType.ROLE:
-                role = discord_guild.get_role(current_value)
-                display_value = f"@{role.name}" if role else f"ID: {current_value}"
-            elif opt.option_type == ConfigOptionType.CHANNEL_LIST and isinstance(
-                current_value, list
-            ):
+                role = discord_guild.get_role(raw_value)
+                display_value = f"@{role.name}" if role else f"ID: {raw_value}"
+            elif opt.option_type == ConfigOptionType.CHANNEL_LIST and isinstance(raw_value, list):
                 names: list[str] = []
-                for ch_id in current_value:
+                for ch_id in raw_value:
                     ch = discord_guild.get_channel(ch_id)
                     names.append(f"#{ch.name}" if ch else f"ID: {ch_id}")
                 display_value = ", ".join(names) if names else None
-            elif opt.option_type == ConfigOptionType.ROLE_LIST and isinstance(current_value, list):
+            elif opt.option_type == ConfigOptionType.ROLE_LIST and isinstance(raw_value, list):
                 role_names: list[str] = []
-                for r_id in current_value:
+                for r_id in raw_value:
                     role = discord_guild.get_role(r_id)
                     role_names.append(f"@{role.name}" if role else f"ID: {r_id}")
                 display_value = ", ".join(role_names) if role_names else None
+
+        # Convert channel/role IDs to strings for template comparison
+        # (dropdown options use string IDs to avoid JS precision loss)
+        template_value = raw_value
+        if raw_value is not None:
+            if opt.option_type in (ConfigOptionType.CHANNEL, ConfigOptionType.ROLE):
+                template_value = str(raw_value)
+            elif opt.option_type in (ConfigOptionType.CHANNEL_LIST, ConfigOptionType.ROLE_LIST):
+                if isinstance(raw_value, list):
+                    template_value = [str(v) for v in raw_value]
 
         options_data.append(
             {
@@ -239,7 +247,7 @@ async def _render_cog_settings(
                 "name": opt.name,
                 "description": opt.description,
                 "type": opt.option_type.value,
-                "value": current_value,
+                "value": template_value,
                 "display_value": display_value,
                 "default": opt.default,
                 "required": opt.required,
