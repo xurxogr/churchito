@@ -114,6 +114,9 @@
                         const channelMap = { {% for ch in channels %}'{{ ch.id }}': '{{ ch.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
                         const roleMap = { {% for r in roles %}'{{ r.id }}': '{{ r.name }}'{% if not loop.last %}, {% endif %}{% endfor %} };
 
+                        // Known placeholders that can be resolved
+                        const guildName = '{{ guild_name | e }}';
+
                         // Common Discord emoji shortcodes to Unicode
                         const emojiMap = {
                             'flag_es': '\u{1F1EA}\u{1F1F8}', 'flag_gb': '\u{1F1EC}\u{1F1E7}', 'flag_us': '\u{1F1FA}\u{1F1F8}',
@@ -175,6 +178,10 @@
                                 const emoji = emojiMap[name.toLowerCase()];
                                 return emoji || match;
                             });
+
+                            // Known placeholders
+                            text = text.replace(/\{server_name\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
+                            text = text.replace(/\{servidor\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
 
                             // Image URLs (jpg, png, gif, webp)
                             text = text.replace(/(https?:\/\/[^\s<]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<]*)?)/gi, (match, url) => {

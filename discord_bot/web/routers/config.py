@@ -270,12 +270,14 @@ async def _render_cog_settings(
         )
 
     templates = get_templates(request)
+    guild_name = discord_guild.name if discord_guild else f"Servidor {guild_id}"
     return templates.TemplateResponse(
         request=request,
         name="partials/cog_settings.html",
         context={
             **base_context(request),
             "guild_id": guild_id,
+            "guild_name": guild_name,
             "cog_name": cog_name,
             "schema": {
                 "display_name": schema.display_name,

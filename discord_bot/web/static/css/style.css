@@ -1040,6 +1040,14 @@ a:hover {
     text-decoration: underline;
 }
 
+.discord-placeholder {
+    background-color: rgba(88, 101, 242, 0.15);
+    color: #c9cdfb;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
 /* Config Table (TABLE type) - Discord Style */
 .config-table-wrapper {
     width: 100%;
