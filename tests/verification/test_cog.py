@@ -993,7 +993,7 @@ class TestHealthCheck:
 
             # Solo guild 2 fue verificado
             assert mock_check.call_count == 1
-            mock_check.assert_called_once_with(mock_guild2)
+            mock_check.assert_called_once_with(guild=mock_guild2)
 
     async def test_run_health_check_respects_interval(
         self, verification_cog: VerificationCog
@@ -2888,7 +2888,7 @@ class TestCheckVerificationMessageRecreate:
 
         with (
             patch(
-                "discord_bot.verification.cog.delete_message", new_callable=AsyncMock
+                "discord_bot.verification.panel.delete_message", new_callable=AsyncMock
             ) as mock_delete,
             patch.object(
                 verification_cog, "_create_verification_message", new_callable=AsyncMock
