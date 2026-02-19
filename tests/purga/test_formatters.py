@@ -277,23 +277,6 @@ class TestGetModMessageContent:
 
         assert "fin de guerra" in result.lower()
 
-    def test_maintenance_purge_type(
-        self,
-        mock_guild: MagicMock,
-        mock_purga_record: MagicMock,
-    ) -> None:
-        """Probar que muestra tipo de purga de mantenimiento."""
-        mock_purga_record.purga_type = PurgaType.MAINTENANCE
-        config: dict[str, Any] = {
-            ConfigKey.MOD_MESSAGE_TEMPLATE: "{purge_type}",
-            ConfigKey.MOD_STATUS_PENDING: "Pendiente",
-            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
-        }
-
-        result = get_mod_message_content(guild=mock_guild, record=mock_purga_record, config=config)
-
-        assert "mantenimiento" in result.lower()
-
     def test_all_status_messages(
         self,
         mock_guild: MagicMock,
@@ -376,3 +359,56 @@ class TestGetModMessageContent:
         result = get_mod_message_content(guild=mock_guild, record=mock_purga_record, config=config)
 
         assert "No programada" in result
+
+    def test_war_purge_custom_display_name(
+        self,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar nombre personalizado para purga de guerra."""
+        mock_purga_record.purga_type = PurgaType.WAR_END
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "{purge_type}",
+            ConfigKey.MOD_STATUS_PENDING: "Pendiente",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+            ConfigKey.WAR_DISPLAY_NAME: "Fin de guerra",
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purga_record, config=config)
+
+        assert "Fin de guerra" in result
+
+    def test_global_purge_type(
+        self,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar tipo de purga global con nombre por defecto."""
+        mock_purga_record.purga_type = PurgaType.GLOBAL
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "{purge_type}",
+            ConfigKey.MOD_STATUS_PENDING: "Pendiente",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purga_record, config=config)
+
+        assert "global" in result.lower()
+
+    def test_global_purge_custom_display_name(
+        self,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar nombre personalizado para purga global."""
+        mock_purga_record.purga_type = PurgaType.GLOBAL
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "{purge_type}",
+            ConfigKey.MOD_STATUS_PENDING: "Pendiente",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+            ConfigKey.GLOBAL_DISPLAY_NAME: "Limpieza general",
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purga_record, config=config)
+
+        assert "Limpieza general" in result

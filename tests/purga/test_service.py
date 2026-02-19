@@ -383,7 +383,7 @@ class TestPurgaService:
         )
         await service.create_purga(
             guild_id=123,
-            purga_type=PurgaType.MAINTENANCE,
+            purga_type=PurgaType.GLOBAL,
             initiated_by=456,
             config_snapshot={},
             scheduled_for=datetime.now(UTC) + timedelta(days=5),
@@ -400,7 +400,7 @@ class TestPurgaService:
         history = await service.get_guild_purga_history(guild_id=123)
         assert len(history) == 2
         # Most recent first
-        assert history[0].purga_type == PurgaType.MAINTENANCE
+        assert history[0].purga_type == PurgaType.GLOBAL
         assert history[1].purga_type == PurgaType.WAR_END
 
     async def test_get_guild_purga_history_limit(self, test_session: AsyncSession) -> None:
@@ -472,7 +472,7 @@ class TestPurgaService:
         )
         await service.create_purga(
             guild_id=222,
-            purga_type=PurgaType.MAINTENANCE,
+            purga_type=PurgaType.GLOBAL,
             initiated_by=456,
             config_snapshot={},
             scheduled_for=datetime.now(UTC) + timedelta(days=3),
@@ -484,7 +484,7 @@ class TestPurgaService:
         assert active_111 is not None
         assert active_222 is not None
         assert active_111.purga_type == PurgaType.WAR_END
-        assert active_222.purga_type == PurgaType.MAINTENANCE
+        assert active_222.purga_type == PurgaType.GLOBAL
 
     async def test_get_expired_pending_purgas(self, test_session: AsyncSession) -> None:
         """Probar obtención de purgas pendientes expiradas."""

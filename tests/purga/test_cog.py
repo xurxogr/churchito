@@ -179,11 +179,11 @@ class TestGetConfig:
         assert result.get(ConfigKey.MOD_CHANNEL) == 123456
 
 
-class TestIsConfigComplete:
-    """Tests para _is_config_complete."""
+class TestGetAvailablePurgaTypes:
+    """Tests para _get_available_purga_types."""
 
-    def test_complete_config(self, purga_cog: PurgaCog) -> None:
-        """Probar configuracion completa."""
+    def test_war_complete_config(self, purga_cog: PurgaCog) -> None:
+        """Probar configuracion completa para purga de guerra."""
         config: dict[str, Any] = {
             ConfigKey.MOD_CHANNEL: 123,
             ConfigKey.USER_CHANNEL: 456,
@@ -191,10 +191,38 @@ class TestIsConfigComplete:
             ConfigKey.WAR_AFFECTED_ROLES: [200],
         }
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is True
-        assert missing == []
+        assert result["war"] is True
+        assert result["global"] is False
+
+    def test_global_complete_config(self, purga_cog: PurgaCog) -> None:
+        """Probar configuracion completa para purga global."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_CHANNEL: 123,
+            ConfigKey.USER_CHANNEL: 456,
+            ConfigKey.GLOBAL_ADMIN_ROLES: [100],
+        }
+
+        result = purga_cog._get_available_purga_types(config)
+
+        assert result["war"] is False
+        assert result["global"] is True
+
+    def test_both_complete_config(self, purga_cog: PurgaCog) -> None:
+        """Probar configuracion completa para ambos tipos."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_CHANNEL: 123,
+            ConfigKey.USER_CHANNEL: 456,
+            ConfigKey.WAR_ADMIN_ROLES: [100],
+            ConfigKey.WAR_AFFECTED_ROLES: [200],
+            ConfigKey.GLOBAL_ADMIN_ROLES: [300],
+        }
+
+        result = purga_cog._get_available_purga_types(config)
+
+        assert result["war"] is True
+        assert result["global"] is True
 
     def test_missing_mod_channel(self, purga_cog: PurgaCog) -> None:
         """Probar sin canal de moderacion."""
@@ -202,12 +230,13 @@ class TestIsConfigComplete:
             ConfigKey.USER_CHANNEL: 456,
             ConfigKey.WAR_ADMIN_ROLES: [100],
             ConfigKey.WAR_AFFECTED_ROLES: [200],
+            ConfigKey.GLOBAL_ADMIN_ROLES: [300],
         }
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is False
-        assert "Canal de moderación" in missing
+        assert result["war"] is False
+        assert result["global"] is False
 
     def test_missing_user_channel(self, purga_cog: PurgaCog) -> None:
         """Probar sin canal de usuarios."""
@@ -215,47 +244,48 @@ class TestIsConfigComplete:
             ConfigKey.MOD_CHANNEL: 123,
             ConfigKey.WAR_ADMIN_ROLES: [100],
             ConfigKey.WAR_AFFECTED_ROLES: [200],
+            ConfigKey.GLOBAL_ADMIN_ROLES: [300],
         }
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is False
-        assert "Canal de usuarios" in missing
+        assert result["war"] is False
+        assert result["global"] is False
 
-    def test_missing_admin_roles(self, purga_cog: PurgaCog) -> None:
-        """Probar sin roles administradores."""
+    def test_war_missing_admin_roles(self, purga_cog: PurgaCog) -> None:
+        """Probar guerra sin roles administradores."""
         config: dict[str, Any] = {
             ConfigKey.MOD_CHANNEL: 123,
             ConfigKey.USER_CHANNEL: 456,
             ConfigKey.WAR_AFFECTED_ROLES: [200],
         }
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is False
-        assert "Roles administradores" in missing
+        assert result["war"] is False
+        assert result["global"] is False
 
-    def test_missing_affected_roles(self, purga_cog: PurgaCog) -> None:
-        """Probar sin roles afectados."""
+    def test_war_missing_affected_roles(self, purga_cog: PurgaCog) -> None:
+        """Probar guerra sin roles afectados."""
         config: dict[str, Any] = {
             ConfigKey.MOD_CHANNEL: 123,
             ConfigKey.USER_CHANNEL: 456,
             ConfigKey.WAR_ADMIN_ROLES: [100],
         }
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is False
-        assert "Roles afectados" in missing
+        assert result["war"] is False
+        assert result["global"] is False
 
     def test_all_missing(self, purga_cog: PurgaCog) -> None:
         """Probar sin ninguna configuracion."""
         config: dict[str, Any] = {}
 
-        is_complete, missing = purga_cog._is_config_complete(config)
+        result = purga_cog._get_available_purga_types(config)
 
-        assert is_complete is False
-        assert len(missing) == 4
+        assert result["war"] is False
+        assert result["global"] is False
 
 
 class TestHandleWarPurge:
@@ -352,6 +382,352 @@ class TestHandleWarPurge:
         assert "Purga activa" in str(call_args)
 
 
+class TestHandleGlobalPurge:
+    """Tests para _handle_global_purge."""
+
+    async def test_no_guild(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+    ) -> None:
+        """Probar sin guild."""
+        mock_interaction.guild = None
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.response.defer.assert_not_called()
+
+    async def test_no_member(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+    ) -> None:
+        """Probar sin miembro (usuario no es Member)."""
+        mock_interaction.user = MagicMock(spec=discord.User)  # No es Member
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.response.defer.assert_not_called()
+
+    async def test_no_permission(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar sin permisos."""
+        guild_id = mock_interaction.guild.id
+
+        # Usuario sin roles de admin
+        mock_interaction.user.roles = []
+        mock_interaction.user.guild_permissions.manage_guild = False
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [999])
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.MOD_NO_PERMISSION_TEXT, "Sin permisos"
+            )
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.response.defer.assert_called_once()
+        mock_interaction.followup.send.assert_called()
+
+    async def test_active_purge_exists(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar cuando ya hay purga activa."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.MOD_ACTIVE_PURGE_TEXT, "Purga activa"
+            )
+
+            # Crear purga activa
+            purga_service = PurgaService(session)
+            await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.GLOBAL,
+                initiated_by=mock_member.id,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
+        assert "Purga activa" in str(call_args)
+
+    async def test_successful_purge_creation(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar creacion exitosa de purga global."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        # Configurar canal de moderacion
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 456
+        mock_mod_channel.mention = "#moderacion"
+        mock_mod_channel.send = AsyncMock(return_value=MagicMock(id=789))
+        mock_interaction.guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_CHANNEL, 789)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 2)
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_mod_channel.send.assert_called()
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
+        assert "global" in str(call_args).lower() or "iniciada" in str(call_args).lower()
+
+    async def test_mod_channel_not_configured(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar cuando no hay canal de moderacion configurado."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            # No configurar MOD_CHANNEL
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
+        assert "no configurado" in str(call_args).lower()
+
+    async def test_mod_channel_not_found(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar cuando canal de moderacion no existe."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+        mock_interaction.guild.get_channel = MagicMock(return_value=None)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
+        assert "no encontrado" in str(call_args).lower()
+
+    async def test_auto_authorize_in_test_mode(
+        self,
+        purga_cog: PurgaCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar auto-autorizacion en modo prueba."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        # Configurar canal de moderacion y usuarios
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 456
+        mock_mod_channel.mention = "#moderacion"
+        mock_mod_channel.send = AsyncMock(return_value=MagicMock(id=789))
+
+        mock_user_channel = MagicMock(spec=discord.TextChannel)
+        mock_user_channel.id = 789
+        mock_user_channel.send = AsyncMock(return_value=MagicMock(id=101112))
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            if channel_id == 456:
+                return mock_mod_channel
+            if channel_id == 789:
+                return mock_user_channel
+            return None
+
+        mock_interaction.guild.get_channel = MagicMock(side_effect=get_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_CHANNEL, 789)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+            await session.commit()
+
+        await purga_cog._handle_global_purge(mock_interaction, 3)
+
+        # Debe haber enviado mensaje a usuarios (auto-autorizada)
+        mock_user_channel.send.assert_called()
+
+
+class TestRegisterGlobalCommand:
+    """Tests para _register_global_command."""
+
+    async def test_registers_command_with_complete_config(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que registra comando con config completa."""
+        # Inicializar dict para el guild
+        purga_cog._registered_commands[mock_guild.id] = {}
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=mock_guild.id, cog_name=COG_NAME, enabled=True
+            )
+            await config_service.set_value(mock_guild.id, COG_NAME, ConfigKey.MOD_CHANNEL, 123)
+            await config_service.set_value(mock_guild.id, COG_NAME, ConfigKey.USER_CHANNEL, 456)
+            await config_service.set_value(
+                mock_guild.id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100]
+            )
+            await config_service.set_value(
+                mock_guild.id, COG_NAME, ConfigKey.GLOBAL_COMMAND_NAME, "purga_global"
+            )
+            await session.commit()
+
+        config = await purga_cog._get_config(mock_guild.id)
+        available = purga_cog._get_available_purga_types(config)
+
+        await purga_cog._register_global_command(mock_guild, config, available["global"])
+
+        mock_discord_bot.tree.add_command.assert_called()
+        assert purga_cog._registered_commands[mock_guild.id]["global"] == "purga_global"
+
+    async def test_skips_when_config_incomplete(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que no registra con config incompleta."""
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=mock_guild.id, cog_name=COG_NAME, enabled=True
+            )
+            # No configurar GLOBAL_ADMIN_ROLES
+            await session.commit()
+
+        config = await purga_cog._get_config(mock_guild.id)
+        available = purga_cog._get_available_purga_types(config)
+
+        await purga_cog._register_global_command(mock_guild, config, available["global"])
+
+        mock_discord_bot.tree.add_command.assert_not_called()
+
+    async def test_removes_old_command_when_name_changed(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que elimina comando viejo cuando cambia el nombre."""
+        # Registrar comando viejo
+        purga_cog._registered_commands[mock_guild.id] = {"global": "old_global_command"}
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=mock_guild.id, cog_name=COG_NAME, enabled=True
+            )
+            await config_service.set_value(mock_guild.id, COG_NAME, ConfigKey.MOD_CHANNEL, 123)
+            await config_service.set_value(mock_guild.id, COG_NAME, ConfigKey.USER_CHANNEL, 456)
+            await config_service.set_value(
+                mock_guild.id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100]
+            )
+            await config_service.set_value(
+                mock_guild.id, COG_NAME, ConfigKey.GLOBAL_COMMAND_NAME, "new_global_command"
+            )
+            await session.commit()
+
+        config = await purga_cog._get_config(mock_guild.id)
+        available = purga_cog._get_available_purga_types(config)
+
+        await purga_cog._register_global_command(mock_guild, config, available["global"])
+
+        # Verificar que se elimino el comando viejo
+        mock_discord_bot.tree.remove_command.assert_called_with(
+            "old_global_command", guild=mock_guild
+        )
+        # Verificar que se registro el nuevo
+        mock_discord_bot.tree.add_command.assert_called()
+
+    async def test_unregisters_when_config_becomes_incomplete(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que elimina comando cuando config se vuelve incompleta."""
+        # Registrar comando existente
+        purga_cog._registered_commands[mock_guild.id] = {"global": "purga_global"}
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=mock_guild.id, cog_name=COG_NAME, enabled=True
+            )
+            # No configurar GLOBAL_ADMIN_ROLES (config incompleta)
+            await session.commit()
+
+        config = await purga_cog._get_config(mock_guild.id)
+        available = purga_cog._get_available_purga_types(config)
+
+        await purga_cog._register_global_command(mock_guild, config, available["global"])
+
+        # Verificar que se elimino el comando
+        mock_discord_bot.tree.remove_command.assert_called_with("purga_global", guild=mock_guild)
+        assert "global" not in purga_cog._registered_commands.get(mock_guild.id, {})
+
+
 class TestHandleAuthorize:
     """Tests para _handle_authorize."""
 
@@ -389,10 +765,22 @@ class TestHandleAuthorize:
             )
             await session.commit()
 
-        await purga_cog._handle_authorize(mock_interaction, 1)
+            # Crear purga de guerra para probar permisos
+            purga_service = PurgaService(session)
+            purga = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            purga_id = purga.id
 
-        mock_interaction.response.send_message.assert_called()
-        call_args = mock_interaction.response.send_message.call_args
+        await purga_cog._handle_authorize(mock_interaction, purga_id)
+
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
         assert "Sin permisos" in str(call_args)
 
     async def test_purga_not_found(
@@ -489,10 +877,22 @@ class TestHandleCancel:
             )
             await session.commit()
 
-        await purga_cog._handle_cancel(mock_interaction, 1)
+            # Crear purga de guerra para probar permisos
+            purga_service = PurgaService(session)
+            purga = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            purga_id = purga.id
 
-        mock_interaction.response.send_message.assert_called()
-        call_args = mock_interaction.response.send_message.call_args
+        await purga_cog._handle_cancel(mock_interaction, purga_id)
+
+        mock_interaction.followup.send.assert_called()
+        call_args = mock_interaction.followup.send.call_args
         assert "Sin permisos" in str(call_args)
 
 
@@ -607,14 +1007,31 @@ class TestUnregisterGuildCommands:
         mock_guild: MagicMock,
         mock_discord_bot: MagicMock,
     ) -> None:
-        """Probar que elimina comando registrado."""
-        purga_cog._registered_commands[mock_guild.id] = "purga_guerra"
+        """Probar que elimina comandos registrados."""
+        purga_cog._registered_commands[mock_guild.id] = {"war": "purga_guerra"}
 
         await purga_cog._unregister_guild_commands(mock_guild)
 
         mock_discord_bot.tree.remove_command.assert_called_once_with(
             "purga_guerra", guild=mock_guild
         )
+        assert mock_guild.id not in purga_cog._registered_commands
+
+    async def test_removes_multiple_registered_commands(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Probar que elimina multiples comandos registrados."""
+        purga_cog._registered_commands[mock_guild.id] = {
+            "war": "purga_guerra",
+            "global": "purga_global",
+        }
+
+        await purga_cog._unregister_guild_commands(mock_guild)
+
+        assert mock_discord_bot.tree.remove_command.call_count == 2
         assert mock_guild.id not in purga_cog._registered_commands
 
     async def test_does_nothing_when_no_command(
@@ -1487,6 +1904,26 @@ class TestOnConfigChangedExtended:
         ) as mock_register:
             await purga_cog.on_config_changed(mock_guild, ConfigKey.PURGE_HOUR)
             mock_register.assert_not_called()
+
+    async def test_triggers_resync_on_global_command_name(
+        self, purga_cog: PurgaCog, mock_guild: MagicMock
+    ) -> None:
+        """Probar que dispara re-sincronizacion con GLOBAL_COMMAND_NAME."""
+        with patch.object(
+            purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
+        ) as mock_register:
+            await purga_cog.on_config_changed(mock_guild, ConfigKey.GLOBAL_COMMAND_NAME)
+            mock_register.assert_called_once_with(mock_guild)
+
+    async def test_triggers_resync_on_global_admin_roles(
+        self, purga_cog: PurgaCog, mock_guild: MagicMock
+    ) -> None:
+        """Probar que dispara re-sincronizacion con GLOBAL_ADMIN_ROLES."""
+        with patch.object(
+            purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
+        ) as mock_register:
+            await purga_cog.on_config_changed(mock_guild, ConfigKey.GLOBAL_ADMIN_ROLES)
+            mock_register.assert_called_once_with(mock_guild)
 
 
 class TestCheckPendingDeletionsExtended:
@@ -2572,7 +3009,7 @@ class TestRegisterGuildCommandsExtended:
     ) -> None:
         """Probar que elimina comando viejo cuando cambia el nombre."""
         # Registrar comando viejo
-        purga_cog._registered_commands[mock_guild.id] = "old_command"
+        purga_cog._registered_commands[mock_guild.id] = {"war": "old_command"}
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -2608,7 +3045,7 @@ class TestRegisterGuildCommandsExtended:
     ) -> None:
         """Probar que no re-registra si ya esta el mismo comando."""
         # Registrar comando con mismo nombre
-        purga_cog._registered_commands[mock_guild.id] = "purga_guerra"
+        purga_cog._registered_commands[mock_guild.id] = {"war": "purga_guerra"}
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -2646,7 +3083,7 @@ class TestRegisterWhenDisabled:
     ) -> None:
         """Probar que elimina comandos cuando cog esta deshabilitado."""
         # Registrar comando existente
-        purga_cog._registered_commands[mock_guild.id] = "purga_guerra"
+        purga_cog._registered_commands[mock_guild.id] = {"war": "purga_guerra"}
 
         # No habilitar el cog (por defecto esta deshabilitado)
         await purga_cog._register_guild_commands(mock_guild)
@@ -2664,7 +3101,7 @@ class TestRegisterWhenDisabled:
     ) -> None:
         """Probar que elimina comandos cuando config esta incompleta."""
         # Registrar comando existente
-        purga_cog._registered_commands[mock_guild.id] = "purga_guerra"
+        purga_cog._registered_commands[mock_guild.id] = {"war": "purga_guerra"}
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -3054,7 +3491,7 @@ class TestOnCogToggledSync:
     ) -> None:
         """Probar que sincroniza comandos cuando se habilita."""
         # Configurar para que se registre comando
-        purga_cog._registered_commands[mock_guild.id] = "purga_guerra"
+        purga_cog._registered_commands[mock_guild.id] = {"war": "purga_guerra"}
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -3087,7 +3524,10 @@ class TestTeardown:
         from discord_bot.purga.cog import teardown
 
         cog = PurgaCog(mock_discord_bot)
-        cog._registered_commands = {111: "cmd1", 222: "cmd2"}
+        cog._registered_commands = {
+            111: {"war": "cmd1"},
+            222: {"war": "cmd2", "global": "cmd3"},
+        }
 
         mock_guild1 = MagicMock(spec=discord.Guild)
         mock_guild1.id = 111
@@ -3105,8 +3545,8 @@ class TestTeardown:
 
         await teardown(mock_discord_bot)
 
-        # Verificar que se eliminaron los comandos
-        assert mock_discord_bot.tree.remove_command.call_count == 2
+        # Verificar que se eliminaron los comandos (1 de guild1 + 2 de guild2)
+        assert mock_discord_bot.tree.remove_command.call_count == 3
 
 
 class TestBeforeExpirationCheck:
@@ -3780,7 +4220,7 @@ class TestOnReadySyncsRegisteredGuilds:
         mock_discord_bot.guilds = [guild1, guild2]
 
         # Solo guild1 tiene comando registrado
-        purga_cog._registered_commands[111] = "purga_guerra"
+        purga_cog._registered_commands[111] = {"war": "purga_guerra"}
 
         with (
             patch.object(purga_cog, "_register_guild_commands", new_callable=AsyncMock),

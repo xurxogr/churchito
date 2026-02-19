@@ -41,6 +41,7 @@ class ConfigKey(StrEnum):
     # === COMMON - Mensajes de ejecución ===
     EXEC_MSG_SIMULATION = "exec_msg_simulation"
     EXEC_MSG_INIT = "exec_msg_init"
+    EXEC_MSG_CLEANING_START = "exec_msg_cleaning_start"
     EXEC_MSG_CLEANING_ROLE = "exec_msg_cleaning_role"
     EXEC_MSG_USER_CLEANED = "exec_msg_user_cleaned"
     EXEC_MSG_PROMOTIONS_START = "exec_msg_promotions_start"
@@ -50,10 +51,10 @@ class ConfigKey(StrEnum):
     EXEC_MSG_USER_PROMOTED_DEFAULT = "exec_msg_user_promoted_default"
     EXEC_MSG_GLOBAL_REMOVE_START = "exec_msg_global_remove_start"
     EXEC_MSG_GLOBAL_REMOVE_USER = "exec_msg_global_remove_user"
-    EXEC_MSG_FINISH = "exec_msg_finish"
 
     # === PURGA FIN DE GUERRA ===
     WAR_COMMAND_NAME = "war_command_name"
+    WAR_DISPLAY_NAME = "war_display_name"
     WAR_MESSAGE_TEMPLATE = "war_message_template"
     WAR_ADMIN_ROLES = "war_admin_roles"
     WAR_AFFECTED_ROLES = "war_affected_roles"
@@ -62,3 +63,14 @@ class ConfigKey(StrEnum):
     WAR_GLOBAL_ROLES_TO_REMOVE = "war_global_roles_to_remove"
     WAR_PROMOTIONS = "war_promotions"
     WAR_DEFAULT_PROMOTION = "war_default_promotion"
+    WAR_EXEC_MSG_FINISH = "war_exec_msg_finish"
+
+    # === PURGA GLOBAL ===
+    GLOBAL_COMMAND_NAME = "global_command_name"
+    GLOBAL_DISPLAY_NAME = "global_display_name"
+    GLOBAL_MESSAGE_TEMPLATE = "global_message_template"
+    GLOBAL_ADMIN_ROLES = "global_admin_roles"
+    GLOBAL_EXCLUDED_ROLES = "global_excluded_roles"
+    GLOBAL_ROLES_TO_REMOVE = "global_roles_to_remove"
+    GLOBAL_ROLES_TO_ADD = "global_roles_to_add"
+    GLOBAL_EXEC_MSG_FINISH = "global_exec_msg_finish"

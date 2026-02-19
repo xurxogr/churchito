@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import discord
 
 from discord_bot.common.utils import delete_message
-from discord_bot.purga.enums import ConfigKey, PurgaStatus
+from discord_bot.purga.enums import ConfigKey, PurgaStatus, PurgaType
 from discord_bot.purga.formatters import format_message
 from discord_bot.purga.models import PurgaRecord
 from discord_bot.purga.service import PurgaService
@@ -50,13 +50,25 @@ async def execute_purga(
             f"[{guild.name}] {'[MODO PRUEBA] ' if test_mode else ''}Ejecutando purga {purga_id}"
         )
 
-        # Config from snapshot
-        affected_roles = record.config_snapshot.get("affected_roles", [])
+        # Detectar tipo de purga
+        purga_type = PurgaType(record.purga_type)
+
+        # Config from snapshot (común)
         roles_to_remove = record.config_snapshot.get("roles_to_remove", [])
         roles_to_add = record.config_snapshot.get("roles_to_add", [])
-        promotions = record.config_snapshot.get("promotions", [])
-        default_promotion = record.config_snapshot.get("default_promotion")
         confirmed_users = set(record.confirmed_by)
+
+        # Config específica según tipo
+        if purga_type == PurgaType.GLOBAL:
+            excluded_roles: list[int] = record.config_snapshot.get("excluded_roles", [])
+            affected_roles: list[int] = []
+            promotions: list[dict[str, int]] = []
+            default_promotion = None
+        else:
+            excluded_roles = []
+            affected_roles = record.config_snapshot.get("affected_roles", [])
+            promotions = record.config_snapshot.get("promotions", [])
+            default_promotion = record.config_snapshot.get("default_promotion")
 
         # Stats
         cleaned_count = 0
@@ -78,43 +90,69 @@ async def execute_purga(
             execution_logs.append(msg)
 
         # === PHASE 1: CLEAN NON-CONFIRMED USERS ===
-        cleaned_count, processed_users = await _execute_cleaning_phase(
-            cog=cog,
-            guild=guild,
-            record=record,
-            config=config,
-            purga_service=purga_service,
-            purga_id=purga_id,
-            affected_roles=affected_roles,
-            roles_to_remove=roles_to_remove,
-            roles_to_add=roles_to_add,
-            confirmed_users=confirmed_users,
-            audit_level=audit_level,
-            execution_logs=execution_logs,
-        )
+        if purga_type == PurgaType.GLOBAL:
+            # Purga global: afecta a todos excepto roles excluidos
+            cleaned_count, processed_users = await _execute_global_cleaning_phase(
+                cog=cog,
+                guild=guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                excluded_roles=excluded_roles,
+                roles_to_remove=roles_to_remove,
+                roles_to_add=roles_to_add,
+                confirmed_users=confirmed_users,
+                audit_level=audit_level,
+                execution_logs=execution_logs,
+            )
+        else:
+            # Purga de guerra: afecta solo a roles específicos
+            cleaned_count, processed_users = await _execute_cleaning_phase(
+                cog=cog,
+                guild=guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=affected_roles,
+                roles_to_remove=roles_to_remove,
+                roles_to_add=roles_to_add,
+                confirmed_users=confirmed_users,
+                audit_level=audit_level,
+                execution_logs=execution_logs,
+            )
 
-        # === PHASE 2: APPLY PROMOTIONS ===
-        if audit_level >= 1:
-            msg = config.get(ConfigKey.EXEC_MSG_PROMOTIONS_START, "⬆️ **Aplicando promociones...**")
-            execution_logs.append(msg)
+        # === PHASE 2: APPLY PROMOTIONS (solo para purga de guerra) ===
+        promoted_users: set[int] = set()
+        if purga_type != PurgaType.GLOBAL:
+            if audit_level >= 1:
+                msg = config.get(
+                    ConfigKey.EXEC_MSG_PROMOTIONS_START, "⬆️ **Aplicando promociones...**"
+                )
+                execution_logs.append(msg)
 
-        promoted_in_group, promoted_not_in_group, promoted_users = await _execute_promotion_phase(
-            cog=cog,
-            guild=guild,
-            record=record,
-            config=config,
-            purga_service=purga_service,
-            purga_id=purga_id,
-            affected_roles=affected_roles,
-            promotions=promotions,
-            default_promotion=default_promotion,
-            confirmed_users=confirmed_users,
-            processed_users=processed_users,
-            audit_level=audit_level,
-            execution_logs=execution_logs,
-        )
+            (
+                promoted_in_group,
+                promoted_not_in_group,
+                promoted_users,
+            ) = await _execute_promotion_phase(
+                cog=cog,
+                guild=guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=affected_roles,
+                promotions=promotions,
+                default_promotion=default_promotion,
+                confirmed_users=confirmed_users,
+                processed_users=processed_users,
+                audit_level=audit_level,
+                execution_logs=execution_logs,
+            )
 
-        # === FASE 3: ELIMINAR ROLES GLOBALES DE TODOS ===
+        # === FASE 3: ELIMINAR ROLES GLOBALES DE TODOS (solo para purga de guerra) ===
         global_roles_to_remove = record.config_snapshot.get("global_roles_to_remove", [])
         if global_roles_to_remove:
             global_removed_count = await _execute_global_removal_phase(
@@ -146,20 +184,28 @@ async def execute_purga(
 
         # === LOG FINISH MESSAGE (level 1) ===
         if audit_level >= 1:
-            msg_template = config.get(
-                ConfigKey.EXEC_MSG_FINISH,
-                "✅ **Purga finalizada.** Purgados: {cleaned} | "
-                "Promocionados (grupo): {promoted_in_group} | "
-                "Promocionados (otros): {promoted_not_in_group} | "
-                "Roles globales eliminados: {global_removed}",
-            )
-            msg = format_message(
-                msg_template,
-                cleaned=str(cleaned_count),
-                promoted_in_group=str(promoted_in_group),
-                promoted_not_in_group=str(promoted_not_in_group),
-                global_removed=str(global_removed_count),
-            )
+            if purga_type == PurgaType.GLOBAL:
+                msg_template = config.get(
+                    ConfigKey.GLOBAL_EXEC_MSG_FINISH,
+                    "✅ **Purga global finalizada.**\n\n🧹 Usuarios purgados: {cleaned}",
+                )
+                msg = format_message(msg_template, cleaned=str(cleaned_count))
+            else:
+                msg_template = config.get(
+                    ConfigKey.WAR_EXEC_MSG_FINISH,
+                    "✅ **Purga finalizada.**\n\n"
+                    "🧹 Purgados: {cleaned}\n"
+                    "⬆️ Promocionados (grupo): {promoted_in_group}\n"
+                    "⬆️ Promocionados (otros): {promoted_not_in_group}\n"
+                    "🗑️ Roles globales eliminados: {global_removed}",
+                )
+                msg = format_message(
+                    msg_template,
+                    cleaned=str(cleaned_count),
+                    promoted_in_group=str(promoted_in_group),
+                    promoted_not_in_group=str(promoted_not_in_group),
+                    global_removed=str(global_removed_count),
+                )
             execution_logs.append(msg)
 
         # Update execution result
@@ -325,6 +371,133 @@ async def _execute_cleaning_phase(
                 config=config,
                 execution_logs=execution_logs,
             )
+
+    return cleaned_count, processed_users
+
+
+async def _execute_global_cleaning_phase(
+    cog: "PurgaCog",
+    guild: discord.Guild,
+    record: PurgaRecord,
+    config: dict[str, Any],
+    purga_service: PurgaService,
+    purga_id: int,
+    excluded_roles: list[int],
+    roles_to_remove: list[int],
+    roles_to_add: list[int],
+    confirmed_users: set[int],
+    audit_level: int,
+    execution_logs: list[str],
+) -> tuple[int, set[int]]:
+    """Ejecutar fase de limpieza global para usuarios no confirmados.
+
+    Afecta a TODOS los miembros excepto aquellos con roles excluidos.
+
+    Returns:
+        tuple[int, set[int]]: (cleaned_count, processed_users)
+    """
+    cleaned_count = 0
+    processed_users: set[int] = set()
+
+    # Obtener objetos de roles excluidos
+    excluded_role_objs: set[discord.Role] = {
+        role for rid in excluded_roles if (role := guild.get_role(rid))
+    }
+
+    # Log level 1 message
+    if audit_level >= 1:
+        msg_template = config.get(
+            ConfigKey.EXEC_MSG_CLEANING_START,
+            "🧹 **Aplicando purga global...**",
+        )
+        msg = format_message(msg_template)
+        execution_logs.append(msg)
+
+    # Iterar sobre todos los miembros del servidor
+    for member in guild.members:
+        # Saltar bots
+        if member.bot:
+            continue
+
+        # Saltar miembros que confirmaron
+        if member.id in confirmed_users:
+            continue
+
+        # Saltar miembros con roles excluidos
+        if any(role in excluded_role_objs for role in member.roles):
+            continue
+
+        # Ya procesado
+        if member.id in processed_users:
+            continue
+
+        roles_before = [r.id for r in member.roles if r != guild.default_role]
+
+        # Quitar roles especificados
+        if roles_to_remove:
+            roles_to_rm: list[discord.Role] = [
+                rm_role
+                for rid in roles_to_remove
+                if (rm_role := guild.get_role(rid)) and rm_role in member.roles
+            ]
+            if roles_to_rm:
+                try:
+                    await member.remove_roles(*roles_to_rm)
+                except discord.Forbidden:
+                    logger.warning(f"No se pudo quitar roles a {member.name}")
+        else:
+            # Si no hay roles específicos, quitar todos los roles
+            try:
+                await member.edit(roles=[])
+            except discord.Forbidden:
+                logger.warning(f"No se pudo quitar roles a {member.name}")
+
+        # Añadir roles de purga
+        if roles_to_add:
+            roles_to_give: list[discord.Role] = [
+                add_role for rid in roles_to_add if (add_role := guild.get_role(rid))
+            ]
+            if roles_to_give:
+                try:
+                    await member.add_roles(*roles_to_give)
+                except discord.Forbidden:
+                    logger.warning(f"No se pudo añadir roles a {member.name}")
+
+        # Refrescar miembro y obtener roles_after
+        refreshed = guild.get_member(member.id)
+        if refreshed:
+            member = refreshed
+        roles_after = [r.id for r in member.roles if r != guild.default_role]
+
+        # Guardar resultado
+        await purga_service.add_user_result(
+            purga_id=purga_id,
+            user_id=member.id,
+            action_type="cleaned",
+            roles_before=roles_before,
+            roles_after=roles_after,
+        )
+
+        # Nivel de auditoría 2: registrar cada usuario
+        if audit_level >= 2:
+            msg_template = config.get(
+                ConfigKey.EXEC_MSG_USER_CLEANED,
+                "  ↳ 🧹 Purgado: {user}",
+            )
+            msg = format_message(msg_template, user=member.display_name)
+            execution_logs.append(msg)
+
+        processed_users.add(member.id)
+        cleaned_count += 1
+
+    # Actualizar mensaje de moderación
+    if audit_level >= 1:
+        await cog._update_mod_message(
+            guild=guild,
+            record=record,
+            config=config,
+            execution_logs=execution_logs,
+        )
 
     return cleaned_count, processed_users
 

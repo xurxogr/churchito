@@ -29,11 +29,20 @@ Cancelaciones: {cancellations}
 
 Reacciona al botón para autorizar la purga."""
 
-# Plantilla por defecto para el mensaje de usuarios
+# Plantilla por defecto para el mensaje de usuarios (purga de guerra)
 DEFAULT_USER_MESSAGE = """**PURGA ACTIVA**
 
 Se ha iniciado una purga. Los siguientes roles están afectados:
 {roles}
+
+Fecha de ejecución: {dia}
+
+Reacciona al botón para confirmar tu permanencia y obtener el rol {reaction_rol}."""
+
+# Plantilla por defecto para el mensaje de usuarios (purga global)
+DEFAULT_GLOBAL_USER_MESSAGE = """**PURGA GLOBAL ACTIVA**
+
+Se ha iniciado una purga global que afecta a **todos los miembros**.
 
 Fecha de ejecución: {dia}
 
@@ -460,27 +469,6 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             max_length=200,
             placeholders=["user", "roles"],
         ),
-        ConfigOption(
-            key=ConfigKey.EXEC_MSG_FINISH,
-            name="Mensaje: Fin de purga",
-            description="Mensaje al finalizar (nivel 1+). "
-            "Placeholders: {cleaned}, {promoted_in_group}, {promoted_not_in_group}, "
-            "{global_removed}",
-            option_type=ConfigOptionType.STRING,
-            section="Común",
-            group="Mensajes de ejecución",
-            default="✅ **Purga finalizada.** "
-            "Purgados: {cleaned} | Promocionados (grupo): {promoted_in_group} | "
-            "Promocionados (otros): {promoted_not_in_group} | "
-            "Roles globales eliminados: {global_removed}",
-            max_length=500,
-            placeholders=[
-                "cleaned",
-                "promoted_in_group",
-                "promoted_not_in_group",
-                "global_removed",
-            ],
-        ),
         # ====================================================================
         # PURGA FIN DE GUERRA
         # ====================================================================
@@ -492,6 +480,15 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             section="Purga: Final de guerra",
             default="purga_guerra",
             max_length=32,
+        ),
+        ConfigOption(
+            key=ConfigKey.WAR_DISPLAY_NAME,
+            name="Nombre para mostrar",
+            description="Nombre que aparece en el mensaje de moderación (ej: 'Fin de guerra')",
+            option_type=ConfigOptionType.STRING,
+            section="Purga: Final de guerra",
+            default="Purga de fin de guerra",
+            max_length=50,
         ),
         ConfigOption(
             key=ConfigKey.WAR_MESSAGE_TEMPLATE,
@@ -578,6 +575,102 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.ROLE,
             section="Purga: Final de guerra",
             default=None,
+        ),
+        ConfigOption(
+            key=ConfigKey.WAR_EXEC_MSG_FINISH,
+            name="Mensaje: Fin de purga",
+            description="Mensaje de estadísticas al finalizar. "
+            "Placeholders: {cleaned}, {promoted_in_group}, {promoted_not_in_group}, "
+            "{global_removed}",
+            option_type=ConfigOptionType.TEXTAREA,
+            section="Purga: Final de guerra",
+            default="✅ **Purga finalizada.**\n\n"
+            "🧹 Purgados: {cleaned}\n"
+            "⬆️ Promocionados (grupo): {promoted_in_group}\n"
+            "⬆️ Promocionados (otros): {promoted_not_in_group}\n"
+            "🗑️ Roles globales eliminados: {global_removed}",
+            max_length=1000,
+            placeholders=[
+                "cleaned",
+                "promoted_in_group",
+                "promoted_not_in_group",
+                "global_removed",
+            ],
+        ),
+        # ====================================================================
+        # PURGA GLOBAL
+        # ====================================================================
+        ConfigOption(
+            key=ConfigKey.GLOBAL_COMMAND_NAME,
+            name="Nombre del comando",
+            description="Nombre del comando slash para iniciar la purga global",
+            option_type=ConfigOptionType.STRING,
+            section="Purga: Global",
+            default="purga_global",
+            max_length=32,
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_DISPLAY_NAME,
+            name="Nombre para mostrar",
+            description="Nombre que aparece en el mensaje de moderación (ej: 'Purga global')",
+            option_type=ConfigOptionType.STRING,
+            section="Purga: Global",
+            default="Purga global",
+            max_length=50,
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_MESSAGE_TEMPLATE,
+            name="Plantilla del mensaje de usuarios",
+            description="Mensaje que ven los usuarios cuando la purga global está activa",
+            option_type=ConfigOptionType.TEXTAREA,
+            section="Purga: Global",
+            default=DEFAULT_GLOBAL_USER_MESSAGE,
+            max_length=2000,
+            placeholders=["roles", "dia", "reaction_rol"],
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_ADMIN_ROLES,
+            name="Roles administradores",
+            description="Roles que pueden iniciar y autorizar purgas globales",
+            option_type=ConfigOptionType.ROLE_LIST,
+            section="Purga: Global",
+            default=[],
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_EXCLUDED_ROLES,
+            name="Roles excluidos",
+            description="Roles que NO serán afectados por la purga global "
+            "(ej: moderadores, bots, roles especiales)",
+            option_type=ConfigOptionType.ROLE_LIST,
+            section="Purga: Global",
+            default=[],
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_ROLES_TO_REMOVE,
+            name="Roles a eliminar",
+            description="Roles que se eliminan a los miembros que no confirmen",
+            option_type=ConfigOptionType.ROLE_LIST,
+            section="Purga: Global",
+            default=[],
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_ROLES_TO_ADD,
+            name="Roles a asignar",
+            description="Roles que se asignan a los miembros que no confirmen "
+            "(útil para marcarlos como inactivos)",
+            option_type=ConfigOptionType.ROLE_LIST,
+            section="Purga: Global",
+            default=[],
+        ),
+        ConfigOption(
+            key=ConfigKey.GLOBAL_EXEC_MSG_FINISH,
+            name="Mensaje: Fin de purga",
+            description="Mensaje de estadísticas al finalizar. Placeholders: {cleaned}",
+            option_type=ConfigOptionType.TEXTAREA,
+            section="Purga: Global",
+            default="✅ **Purga global finalizada.**\n\n🧹 Usuarios purgados: {cleaned}",
+            max_length=1000,
+            placeholders=["cleaned"],
         ),
     ],
 )

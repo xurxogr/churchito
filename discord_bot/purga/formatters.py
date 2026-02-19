@@ -117,9 +117,12 @@ def get_mod_message_content(
     authorized_by = format_authorized_by(guild=guild, user_ids=record.authorized_by)
     cancellations = format_authorized_by(guild=guild, user_ids=record.cancelled_by)
 
-    purge_type = "Purga de fin de guerra"
-    if record.purga_type == PurgaType.MAINTENANCE:
-        purge_type = "Purga de mantenimiento"
+    # Obtener nombre de tipo de purga desde config
+    if record.purga_type == PurgaType.GLOBAL:
+        purge_type = config.get(ConfigKey.GLOBAL_DISPLAY_NAME, "Purga global")
+    else:
+        # WAR_END
+        purge_type = config.get(ConfigKey.WAR_DISPLAY_NAME, "Purga de fin de guerra")
 
     execution_date = "No programada"
     if record.scheduled_for:
