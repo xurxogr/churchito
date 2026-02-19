@@ -90,7 +90,7 @@ class VerificationCog(commands.Cog):
             key (str): Clave de configuración que cambió
         """
         if key in self._PANEL_UPDATE_KEYS:
-            logger.info(f"Configuración '{key}' cambió, actualizando panel en {guild.name}")
+            logger.info(f"[{guild.name}] Configuración '{key}' cambió, actualizando panel")
             await self._check_verification_message(guild=guild, recreate=True)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
@@ -101,11 +101,11 @@ class VerificationCog(commands.Cog):
             enabled (bool): True si fue habilitado, False si fue deshabilitado
         """
         if enabled:
-            logger.info(f"Cog habilitado en {guild.name}, creando panel")
+            logger.info(f"[{guild.name}] Cog habilitado, creando panel")
             await self._check_verification_message(guild=guild, recreate=True)
             return
 
-        logger.info(f"Cog deshabilitado en {guild.name}, eliminando panel")
+        logger.info(f"[{guild.name}] Cog deshabilitado, eliminando panel")
 
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
@@ -183,7 +183,7 @@ class VerificationCog(commands.Cog):
                 self._last_health_check[guild.id] = now
 
             except Exception as e:
-                logger.error(f"Error en health check para guild {guild.id}: {e}")
+                logger.error(f"[{guild.name}] Error en health check: {e}")
 
     async def _get_health_check_interval(self, guild_id: int) -> int:
         """Obtener el intervalo de health check configurado para un guild.

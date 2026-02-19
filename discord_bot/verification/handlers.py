@@ -488,7 +488,7 @@ async def handle_accept(
             for role_id in roles_add or []:
                 role = interaction.guild.get_role(role_id)
                 if not role:
-                    logger.warning(f"Rol no encontrado: {role_id}")
+                    logger.warning(f"[{interaction.guild.name}] Rol no encontrado (ID: {role_id})")
                     continue
                 try:
                     await member.add_roles(role)
@@ -503,7 +503,7 @@ async def handle_accept(
             for role_id in roles_remove or []:
                 role = interaction.guild.get_role(role_id)
                 if not role:
-                    logger.warning(f"Rol no encontrado: {role_id}")
+                    logger.warning(f"[{interaction.guild.name}] Rol no encontrado (ID: {role_id})")
                     continue
                 try:
                     await member.remove_roles(role)

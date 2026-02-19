@@ -51,13 +51,13 @@ async def _apply_cleaning_to_member(
             try:
                 await member.remove_roles(*roles_to_rm)
             except discord.Forbidden:
-                logger.warning(f"No se pudo quitar roles a {member.name}")
+                logger.warning(f"[{guild.name}] No se pudo quitar roles a {member.name}")
     else:
         # Quitar todos los roles
         try:
             await member.edit(roles=[])
         except discord.Forbidden:
-            logger.warning(f"No se pudo quitar roles a {member.name}")
+            logger.warning(f"[{guild.name}] No se pudo quitar roles a {member.name}")
 
     # Añadir roles de purga
     if roles_to_add:
@@ -68,7 +68,7 @@ async def _apply_cleaning_to_member(
             try:
                 await member.add_roles(*roles_to_give)
             except discord.Forbidden:
-                logger.warning(f"No se pudo añadir roles a {member.name}")
+                logger.warning(f"[{guild.name}] No se pudo añadir roles a {member.name}")
 
     # Refrescar miembro
     refreshed = guild.get_member(member.id)
@@ -110,7 +110,7 @@ async def execute_purga(
         record = await purga_service.get_purga(purga_id)
 
         if not record or record.status != PurgaStatus.AUTHORIZED:
-            logger.warning(f"Purga {purga_id} no está en estado autorizado")
+            logger.warning(f"[{guild.name}] Purga (ID: {purga_id}) no está en estado autorizado")
             return
 
         config = await cog._get_config(guild_id)
@@ -250,7 +250,8 @@ async def execute_purga(
                             await reaction_member.remove_roles(reaction_role)
                         except discord.Forbidden:
                             logger.warning(
-                                f"No se pudo quitar rol de reacción a {reaction_member.name}"
+                                f"[{guild.name}] No se pudo quitar rol de reacción "
+                                f"a {reaction_member.name}"
                             )
 
         # === LOG FINISH MESSAGE (level 1) ===
@@ -556,7 +557,7 @@ async def _execute_promotion_phase(
                     await member.remove_roles(from_role)
                 await member.add_roles(to_role)
             except discord.Forbidden:
-                logger.warning(f"No se pudo promocionar a {member.name}")
+                logger.warning(f"[{guild.name}] No se pudo promocionar a {member.name}")
 
             # Refresh member and get roles_after
             refreshed = guild.get_member(member.id)
@@ -623,7 +624,8 @@ async def _execute_promotion_phase(
                     await default_member.add_roles(default_role)
                 except discord.Forbidden:
                     logger.warning(
-                        f"No se pudo aplicar rol a usuario no afectado: {default_member.name}"
+                        f"[{guild.name}] No se pudo aplicar rol a usuario no afectado: "
+                        f"{default_member.name}"
                     )
 
                 # Refresh member and get roles_after
@@ -733,7 +735,7 @@ async def _execute_global_removal_phase(
                 execution_logs.append(msg)
 
         except discord.Forbidden:
-            logger.warning(f"No se pudo quitar roles globales a {member.name}")
+            logger.warning(f"[{guild.name}] No se pudo quitar roles globales a {member.name}")
 
     # Actualizar mensaje de moderación después de la eliminación global
     if audit_level >= 1:

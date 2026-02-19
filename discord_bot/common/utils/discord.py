@@ -29,12 +29,12 @@ async def delete_message(
     try:
         message = await channel.fetch_message(message_id)
         await message.delete()
-        logger.info(f"Mensaje {message_id} eliminado de canal {channel.name} en guild {guild.id}")
+        logger.info(f"[{guild.name}] Mensaje eliminado de #{channel.name}")
         return True
     except discord.NotFound:
         return False
     except discord.Forbidden:
-        logger.warning(f"Sin permisos para eliminar mensaje {message_id} en guild {guild.id}")
+        logger.warning(f"[{guild.name}] Sin permisos para eliminar mensaje en #{channel.name}")
         return False
 
 

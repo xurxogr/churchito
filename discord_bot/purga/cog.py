@@ -156,7 +156,7 @@ class PurgaCog(commands.Cog):
         """
         # Check if cog is enabled
         if not await self._is_cog_enabled(guild.id):
-            logger.debug(f"Purga cog deshabilitado en {guild.name}, no se registran comandos")
+            logger.debug(f"[{guild.name}] Purga cog deshabilitado, no se registran comandos")
             # Unregister if there were commands registered
             if guild.id in self._registered_commands:
                 await self._unregister_guild_commands(guild)
@@ -169,7 +169,7 @@ class PurgaCog(commands.Cog):
 
         if not any(available_types.values()):
             logger.debug(
-                f"Ningún tipo de purga configurado en {guild.name}. No se registran comandos."
+                f"[{guild.name}] Ningún tipo de purga configurado, no se registran comandos"
             )
             if guild.id in self._registered_commands:
                 await self._unregister_guild_commands(guild)
@@ -234,13 +234,13 @@ class PurgaCog(commands.Cog):
             if old_command_name:
                 self.bot.tree.remove_command(old_command_name, guild=guild)
                 del self._registered_commands[guild.id][command_key]
-                logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
+                logger.info(f"[{guild.name}] Comando '/{old_command_name}' eliminado")
             return
 
         # Remove old command if name changed
         if old_command_name and old_command_name != command_name:
             self.bot.tree.remove_command(old_command_name, guild=guild)
-            logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
+            logger.info(f"[{guild.name}] Comando '/{old_command_name}' eliminado")
 
         # Check if command already registered with same name
         if old_command_name == command_name:
@@ -262,7 +262,7 @@ class PurgaCog(commands.Cog):
         # Add command to guild
         self.bot.tree.add_command(purge_command, guild=guild)
         self._registered_commands[guild.id][command_key] = command_name
-        logger.info(f"Comando '{command_name}' registrado en {guild.name}")
+        logger.info(f"[{guild.name}] Comando '/{command_name}' registrado")
 
     async def _unregister_guild_commands(self, guild: discord.Guild) -> None:
         """Eliminar comandos registrados de un guild.
@@ -273,7 +273,7 @@ class PurgaCog(commands.Cog):
         commands = self._registered_commands.get(guild.id, {})
         for _purga_type, command_name in list(commands.items()):
             self.bot.tree.remove_command(command_name, guild=guild)
-            logger.info(f"Comando '{command_name}' eliminado de {guild.name}")
+            logger.info(f"[{guild.name}] Comando '/{command_name}' eliminado")
         if guild.id in self._registered_commands:
             del self._registered_commands[guild.id]
 
@@ -285,9 +285,9 @@ class PurgaCog(commands.Cog):
         """
         try:
             await self.bot.tree.sync(guild=guild)
-            logger.info(f"Comandos sincronizados en {guild.name}")
+            logger.info(f"[{guild.name}] Comandos sincronizados")
         except Exception as e:
-            logger.error(f"Error sincronizando comandos en {guild.name}: {e}")
+            logger.error(f"[{guild.name}] Error sincronizando comandos: {e}")
 
     async def _debounced_register_and_sync(self, guild: discord.Guild) -> None:
         """Registrar y sincronizar comandos con debounce.
@@ -817,7 +817,9 @@ class PurgaCog(commands.Cog):
                         try:
                             await user.remove_roles(role)
                         except discord.Forbidden:
-                            logger.warning(f"No se pudo quitar rol {role.name} a {user.name}")
+                            logger.warning(
+                                f"[{guild.name}] No se pudo quitar rol @{role.name} a {user.name}"
+                            )
             else:
                 record = await purga_service.add_confirmation(purga_id=purga_id, user_id=user.id)
                 message = config.get(
@@ -832,7 +834,9 @@ class PurgaCog(commands.Cog):
                         try:
                             await user.add_roles(role)
                         except discord.Forbidden:
-                            logger.warning(f"No se pudo asignar rol {role.name} a {user.name}")
+                            logger.warning(
+                                f"[{guild.name}] No se pudo asignar rol @{role.name} a {user.name}"
+                            )
 
             await session.commit()
 
@@ -972,7 +976,7 @@ class PurgaCog(commands.Cog):
         try:
             message = await channel.fetch_message(record.mod_message_id)
         except discord.NotFound:
-            logger.warning(f"Mensaje de mod no encontrado: {record.mod_message_id}")
+            logger.warning(f"[{guild.name}] Mensaje de moderación de purga no encontrado")
             return
 
         content = get_mod_message_content(
@@ -1089,7 +1093,7 @@ class PurgaCog(commands.Cog):
             try:
                 await self._register_guild_commands(guild)
             except Exception as e:
-                logger.error(f"Error registrando comandos en {guild.name}: {e}")
+                logger.error(f"[{guild.name}] Error registrando comandos: {e}")
 
         # Sync commands for all guilds
         for guild in self.bot.guilds:
@@ -1175,7 +1179,7 @@ class PurgaCog(commands.Cog):
         if retention_minutes > 0:
             delete_at = datetime.now(UTC) + timedelta(minutes=retention_minutes)
             self._pending_deletions[(channel_id, message_id)] = delete_at
-            logger.debug(f"Mensaje {message_id} programado para eliminar a las {delete_at}")
+            logger.debug(f"Mensaje de mod (ID: {message_id}) programado para eliminar: {delete_at}")
 
     async def _check_pending_deletions(self) -> None:
         """Verificar y eliminar mensajes que han pasado su tiempo de retención."""
@@ -1191,14 +1195,18 @@ class PurgaCog(commands.Cog):
             try:
                 channel = self.bot.get_channel(channel_id)
                 if channel and isinstance(channel, discord.TextChannel):
+                    guild = channel.guild
                     try:
                         message = await channel.fetch_message(message_id)
                         await message.delete()
-                        logger.info(f"Mensaje {message_id} eliminado por retención")
+                        logger.info(
+                            f"[{guild.name}] Mensaje de moderación eliminado "
+                            f"por retención en #{channel.name}"
+                        )
                     except discord.NotFound:
                         pass  # Ya fue eliminado
             except Exception as e:
-                logger.error(f"Error eliminando mensaje {message_id}: {e}")
+                logger.error(f"Error eliminando mensaje de moderación (ID: {message_id}): {e}")
 
     async def _check_expired_purgas(self) -> None:
         """Verificar y expirar purgas pendientes que han pasado su tiempo límite."""
@@ -1335,7 +1343,7 @@ class PurgaCog(commands.Cog):
         Args:
             guild (discord.Guild): Guild al que se unió el bot.
         """
-        logger.info(f"PurgaCog: Bot unido a {guild.name}, registrando comandos...")
+        logger.info(f"[{guild.name}] PurgaCog: Bot unido, registrando comandos...")
         await self._register_guild_commands(guild)
         if guild.id in self._registered_commands:
             await self._sync_guild_commands(guild)
@@ -1395,12 +1403,12 @@ class PurgaCog(commands.Cog):
             enabled (bool): True si fue habilitado.
         """
         if enabled:
-            logger.info(f"PurgaCog habilitado en {guild.name}, registrando comandos...")
+            logger.info(f"[{guild.name}] PurgaCog habilitado, registrando comandos...")
             await self._register_guild_commands(guild)
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
         else:
-            logger.info(f"PurgaCog deshabilitado en {guild.name}, eliminando comandos...")
+            logger.info(f"[{guild.name}] PurgaCog deshabilitado, eliminando comandos...")
             await self._unregister_guild_commands(guild)
             await self._sync_guild_commands(guild)
 

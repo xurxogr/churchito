@@ -86,7 +86,7 @@ async def check_verification_message(
 
         channel = guild.get_channel(channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
-            logger.warning(f"Canal de verificacion {channel_id} no encontrado en guild {guild.id}")
+            logger.warning(f"[{guild.name}] Canal de verificación (ID: {channel_id}) no encontrado")
             return
 
         # Obtener panel actual
@@ -112,7 +112,7 @@ async def check_verification_message(
 
         # Caso 1: No hay panel, crear uno nuevo
         if not panel_message_id:
-            logger.info(f"Creando panel de verificacion en guild {guild.id}, canal {channel.name}")
+            logger.info(f"[{guild.name}] Creando panel de verificación en #{channel.name}")
             await cog._create_verification_message(
                 guild=guild,
                 channel=channel,
@@ -124,10 +124,9 @@ async def check_verification_message(
 
         # Caso 2: El canal cambio, eliminar panel viejo y crear nuevo
         if panel_channel_id and panel_channel_id != channel_id:
-            logger.info(
-                f"Canal de verificacion cambio en guild {guild.id}, "
-                f"moviendo panel de {panel_channel_id} a {channel_id}"
-            )
+            old_channel = guild.get_channel(panel_channel_id)
+            old_channel_name = f"#{old_channel.name}" if old_channel else f"ID:{panel_channel_id}"
+            logger.info(f"[{guild.name}] Moviendo panel de {old_channel_name} a #{channel.name}")
             await delete_message(
                 guild=guild,
                 channel_id=panel_channel_id,
@@ -147,7 +146,7 @@ async def check_verification_message(
             message = await channel.fetch_message(panel_message_id)
             # Verificar que tiene botones (view activa)
             if not message.components:
-                logger.info(f"Panel en guild {guild.id} sin botones, restaurando...")
+                logger.info(f"[{guild.name}] Panel sin botones, restaurando...")
                 await cog._create_verification_message(
                     guild=guild,
                     channel=channel,
@@ -156,7 +155,7 @@ async def check_verification_message(
                     session=session,
                 )
         except discord.NotFound:
-            logger.info(f"Panel no encontrado en guild {guild.id}, restaurando...")
+            logger.info(f"[{guild.name}] Panel no encontrado, restaurando...")
             await cog._create_verification_message(
                 guild=guild,
                 channel=channel,
@@ -165,7 +164,7 @@ async def check_verification_message(
                 session=session,
             )
         except discord.Forbidden:
-            logger.warning(f"Sin permisos para verificar panel en guild {guild.id}")
+            logger.warning(f"[{guild.name}] Sin permisos para verificar panel")
 
 
 async def create_verification_message(
@@ -189,14 +188,14 @@ async def create_verification_message(
     # Verificar si la verificacion esta habilitada
     verification_enabled = config.get(ConfigKey.VERIFICATION_ENABLED)
     if verification_enabled is False:
-        logger.info(f"Verificacion deshabilitada manualmente en guild {guild.id}")
+        logger.info(f"[{guild.name}] Verificación deshabilitada manualmente")
 
     # Verificar que el canal de moderacion esta configurado y accesible
     mod_channel = get_mod_channel(guild=guild, config=config, bot_user=cog.bot.user)
     if not mod_channel:
         logger.warning(
-            f"Verificacion deshabilitada en guild {guild.id}: "
-            f"canal de moderacion no configurado o sin permisos"
+            f"[{guild.name}] Verificación deshabilitada: "
+            f"canal de moderación no configurado o sin permisos"
         )
 
     is_configured = verification_enabled is not False and mod_channel is not None
@@ -244,6 +243,6 @@ async def create_verification_message(
             value=channel.id,
         )
         await session.commit()
-        logger.info(f"Panel de verificacion creado en guild {guild.id}, canal {channel.name}")
+        logger.info(f"[{guild.name}] Panel de verificación creado en #{channel.name}")
     except discord.Forbidden:
-        logger.error(f"Sin permisos para enviar panel en guild {guild.id}, canal {channel.name}")
+        logger.error(f"[{guild.name}] Sin permisos para enviar panel en #{channel.name}")

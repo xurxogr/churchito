@@ -261,7 +261,7 @@ class AutonameCog(commands.Cog):
                 self._last_sync[guild.id] = now
 
             except Exception as e:
-                logger.error("Error en sync para guild '%s' (%s): %s", guild.name, guild.id, e)
+                logger.error(f"[{guild.name}] Error en sync: {e}")
 
     async def _sync_guild(self, guild: discord.Guild) -> None:
         """Sincronizar nicknames de todos los miembros de un guild.
@@ -296,7 +296,7 @@ class AutonameCog(commands.Cog):
                 )
 
         if updated > 0:
-            logger.info(f"Autoname sync: {updated} nicknames actualizados en {guild.name}")
+            logger.info(f"[{guild.name}] Autoname sync: {updated} nicknames actualizados")
 
     async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
         """Callback cuando cambia la configuracion del cog.
@@ -308,7 +308,7 @@ class AutonameCog(commands.Cog):
         # Re-sincronizar si cambia la configuracion de roles, prefijos o formato
         resync_keys = (ConfigKey.ROLE_TAGS, ConfigKey.ROLE_PREFIXES, ConfigKey.TAG_FORMAT)
         if key in resync_keys:
-            logger.info(f"Configuracion '{key}' cambio en {guild.name}, re-sincronizando")
+            logger.info(f"[{guild.name}] Configuración '{key}' cambió, re-sincronizando")
             await self._sync_guild(guild)
 
 
