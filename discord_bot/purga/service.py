@@ -90,42 +90,6 @@ class PurgaService:
         )
         return result.scalar_one_or_none()
 
-    async def get_purga_by_mod_message(self, guild_id: int, message_id: int) -> PurgaRecord | None:
-        """Obtener una purga por el ID del mensaje de moderación.
-
-        Args:
-            guild_id (int): ID del guild.
-            message_id (int): ID del mensaje de moderación.
-
-        Returns:
-            PurgaRecord | None: Registro si existe.
-        """
-        result = await self._session.execute(
-            select(PurgaRecord).where(
-                PurgaRecord.guild_id == guild_id,
-                PurgaRecord.mod_message_id == message_id,
-            )
-        )
-        return result.scalar_one_or_none()
-
-    async def get_purga_by_user_message(self, guild_id: int, message_id: int) -> PurgaRecord | None:
-        """Obtener una purga por el ID del mensaje de usuarios.
-
-        Args:
-            guild_id (int): ID del guild.
-            message_id (int): ID del mensaje de usuarios.
-
-        Returns:
-            PurgaRecord | None: Registro si existe.
-        """
-        result = await self._session.execute(
-            select(PurgaRecord).where(
-                PurgaRecord.guild_id == guild_id,
-                PurgaRecord.user_message_id == message_id,
-            )
-        )
-        return result.scalar_one_or_none()
-
     async def update_mod_message(self, purga_id: int, channel_id: int, message_id: int) -> None:
         """Actualizar IDs del mensaje de moderación.
 
@@ -156,6 +120,44 @@ class PurgaService:
         )
         await self._session.flush()
 
+    async def _update_user_list(
+        self,
+        purga_id: int,
+        field_name: str,
+        user_id: int,
+        add: bool = True,
+    ) -> PurgaRecord | None:
+        """Actualizar una lista de usuarios en el registro de purga.
+
+        Args:
+            purga_id (int): ID de la purga.
+            field_name (str): Nombre del campo (authorized_by, cancelled_by, confirmed_by).
+            user_id (int): ID del usuario.
+            add (bool): True para añadir, False para eliminar.
+
+        Returns:
+            PurgaRecord | None: Registro actualizado.
+        """
+        record = await self.get_purga(purga_id)
+        if not record:
+            return None
+
+        current_list: list[int] = getattr(record, field_name)
+        user_in_list = user_id in current_list
+
+        if add and not user_in_list:
+            new_list = list(current_list)
+            new_list.append(user_id)
+            setattr(record, field_name, new_list)
+            await self._session.flush()
+        elif not add and user_in_list:
+            new_list = list(current_list)
+            new_list.remove(user_id)
+            setattr(record, field_name, new_list)
+            await self._session.flush()
+
+        return record
+
     async def add_authorization(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Añadir una autorización a la purga.
 
@@ -166,39 +168,7 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id not in record.authorized_by:
-            authorized_by = list(record.authorized_by)
-            authorized_by.append(user_id)
-            record.authorized_by = authorized_by
-            await self._session.flush()
-
-        return record
-
-    async def remove_authorization(self, purga_id: int, user_id: int) -> PurgaRecord | None:
-        """Eliminar una autorización de la purga.
-
-        Args:
-            purga_id (int): ID de la purga.
-            user_id (int): ID del usuario que retira autorización.
-
-        Returns:
-            PurgaRecord | None: Registro actualizado.
-        """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id in record.authorized_by:
-            authorized_by = list(record.authorized_by)
-            authorized_by.remove(user_id)
-            record.authorized_by = authorized_by
-            await self._session.flush()
-
-        return record
+        return await self._update_user_list(purga_id, "authorized_by", user_id, add=True)
 
     async def add_cancellation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Añadir un voto de cancelación a la purga.
@@ -210,39 +180,7 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id not in record.cancelled_by:
-            cancelled_by = list(record.cancelled_by)
-            cancelled_by.append(user_id)
-            record.cancelled_by = cancelled_by
-            await self._session.flush()
-
-        return record
-
-    async def remove_cancellation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
-        """Eliminar un voto de cancelación de la purga.
-
-        Args:
-            purga_id (int): ID de la purga.
-            user_id (int): ID del usuario que retira su voto.
-
-        Returns:
-            PurgaRecord | None: Registro actualizado.
-        """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id in record.cancelled_by:
-            cancelled_by = list(record.cancelled_by)
-            cancelled_by.remove(user_id)
-            record.cancelled_by = cancelled_by
-            await self._session.flush()
-
-        return record
+        return await self._update_user_list(purga_id, "cancelled_by", user_id, add=True)
 
     async def add_confirmation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Añadir una confirmación de usuario.
@@ -254,17 +192,7 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id not in record.confirmed_by:
-            confirmed_by = list(record.confirmed_by)
-            confirmed_by.append(user_id)
-            record.confirmed_by = confirmed_by
-            await self._session.flush()
-
-        return record
+        return await self._update_user_list(purga_id, "confirmed_by", user_id, add=True)
 
     async def remove_confirmation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Eliminar una confirmación de usuario.
@@ -276,17 +204,7 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        record = await self.get_purga(purga_id)
-        if not record:
-            return None
-
-        if user_id in record.confirmed_by:
-            confirmed_by = list(record.confirmed_by)
-            confirmed_by.remove(user_id)
-            record.confirmed_by = confirmed_by
-            await self._session.flush()
-
-        return record
+        return await self._update_user_list(purga_id, "confirmed_by", user_id, add=False)
 
     async def update_status(
         self,
@@ -344,56 +262,6 @@ class PurgaService:
         """
         result = await self._session.execute(
             select(PurgaRecord).where(PurgaRecord.status == PurgaStatus.AUTHORIZED)
-        )
-        return list(result.scalars().all())
-
-    async def get_ready_to_execute_purgas(self) -> list[PurgaRecord]:
-        """Obtener purgas autorizadas listas para ejecutar.
-
-        Returns:
-            list[PurgaRecord]: Lista de purgas cuyo scheduled_for ha pasado.
-        """
-        now = datetime.now(UTC)
-        result = await self._session.execute(
-            select(PurgaRecord).where(
-                PurgaRecord.status == PurgaStatus.AUTHORIZED,
-                PurgaRecord.scheduled_for.isnot(None),
-                PurgaRecord.scheduled_for <= now,
-            )
-        )
-        return list(result.scalars().all())
-
-    async def get_expired_pending_purgas(self) -> list[PurgaRecord]:
-        """Obtener purgas pendientes que han expirado.
-
-        Returns:
-            list[PurgaRecord]: Lista de purgas pendientes cuyo expires_at ha pasado.
-        """
-        now = datetime.now(UTC)
-        result = await self._session.execute(
-            select(PurgaRecord).where(
-                PurgaRecord.status == PurgaStatus.PENDING,
-                PurgaRecord.expires_at.isnot(None),
-                PurgaRecord.expires_at <= now,
-            )
-        )
-        return list(result.scalars().all())
-
-    async def get_guild_purga_history(self, guild_id: int, limit: int = 10) -> list[PurgaRecord]:
-        """Obtener historial de purgas de un guild.
-
-        Args:
-            guild_id (int): ID del guild.
-            limit (int): Número máximo de registros.
-
-        Returns:
-            list[PurgaRecord]: Lista de purgas ordenadas por fecha.
-        """
-        result = await self._session.execute(
-            select(PurgaRecord)
-            .where(PurgaRecord.guild_id == guild_id)
-            .order_by(PurgaRecord.created_at.desc())
-            .limit(limit)
         )
         return list(result.scalars().all())
 

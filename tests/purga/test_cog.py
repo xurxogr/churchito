@@ -289,7 +289,7 @@ class TestGetAvailablePurgaTypes:
 
 
 class TestHandleWarPurge:
-    """Tests para _handle_war_purge."""
+    """Tests para _handle_purge con PurgaType.WAR_END."""
 
     async def test_no_guild(
         self,
@@ -299,7 +299,7 @@ class TestHandleWarPurge:
         """Probar sin guild."""
         mock_interaction.guild = None
 
-        await purga_cog._handle_war_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.WAR_END)
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -311,7 +311,7 @@ class TestHandleWarPurge:
         """Probar sin miembro (usuario no es Member)."""
         mock_interaction.user = MagicMock(spec=discord.User)  # No es Member
 
-        await purga_cog._handle_war_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.WAR_END)
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -337,7 +337,7 @@ class TestHandleWarPurge:
             )
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.WAR_END)
 
         mock_interaction.response.defer.assert_called_once()
         mock_interaction.followup.send.assert_called()
@@ -375,7 +375,7 @@ class TestHandleWarPurge:
             )
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.WAR_END)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -383,7 +383,7 @@ class TestHandleWarPurge:
 
 
 class TestHandleGlobalPurge:
-    """Tests para _handle_global_purge."""
+    """Tests para _handle_purge con PurgaType.GLOBAL."""
 
     async def test_no_guild(
         self,
@@ -393,7 +393,7 @@ class TestHandleGlobalPurge:
         """Probar sin guild."""
         mock_interaction.guild = None
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -405,7 +405,7 @@ class TestHandleGlobalPurge:
         """Probar sin miembro (usuario no es Member)."""
         mock_interaction.user = MagicMock(spec=discord.User)  # No es Member
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -431,7 +431,7 @@ class TestHandleGlobalPurge:
             )
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.response.defer.assert_called_once()
         mock_interaction.followup.send.assert_called()
@@ -466,7 +466,7 @@ class TestHandleGlobalPurge:
             )
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -499,12 +499,12 @@ class TestHandleGlobalPurge:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 2)
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_mod_channel.send.assert_called()
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
-        assert "global" in str(call_args).lower() or "iniciada" in str(call_args).lower()
+        assert "iniciada" in str(call_args).lower()
 
     async def test_mod_channel_not_configured(
         self,
@@ -524,7 +524,7 @@ class TestHandleGlobalPurge:
             # No configurar MOD_CHANNEL
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -549,7 +549,7 @@ class TestHandleGlobalPurge:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -595,14 +595,14 @@ class TestHandleGlobalPurge:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
             await session.commit()
 
-        await purga_cog._handle_global_purge(mock_interaction, 3)
+        await purga_cog._handle_purge(mock_interaction, 3, PurgaType.GLOBAL)
 
         # Debe haber enviado mensaje a usuarios (auto-autorizada)
         mock_user_channel.send.assert_called()
 
 
 class TestRegisterGlobalCommand:
-    """Tests para _register_global_command."""
+    """Tests para _register_purga_command con PurgaType.GLOBAL."""
 
     async def test_registers_command_with_complete_config(
         self,
@@ -633,7 +633,9 @@ class TestRegisterGlobalCommand:
         config = await purga_cog._get_config(mock_guild.id)
         available = purga_cog._get_available_purga_types(config)
 
-        await purga_cog._register_global_command(mock_guild, config, available["global"])
+        await purga_cog._register_purga_command(
+            mock_guild, config, PurgaType.GLOBAL, available["global"]
+        )
 
         mock_discord_bot.tree.add_command.assert_called()
         assert purga_cog._registered_commands[mock_guild.id]["global"] == "purga_global"
@@ -657,7 +659,9 @@ class TestRegisterGlobalCommand:
         config = await purga_cog._get_config(mock_guild.id)
         available = purga_cog._get_available_purga_types(config)
 
-        await purga_cog._register_global_command(mock_guild, config, available["global"])
+        await purga_cog._register_purga_command(
+            mock_guild, config, PurgaType.GLOBAL, available["global"]
+        )
 
         mock_discord_bot.tree.add_command.assert_not_called()
 
@@ -690,7 +694,9 @@ class TestRegisterGlobalCommand:
         config = await purga_cog._get_config(mock_guild.id)
         available = purga_cog._get_available_purga_types(config)
 
-        await purga_cog._register_global_command(mock_guild, config, available["global"])
+        await purga_cog._register_purga_command(
+            mock_guild, config, PurgaType.GLOBAL, available["global"]
+        )
 
         # Verificar que se elimino el comando viejo
         mock_discord_bot.tree.remove_command.assert_called_with(
@@ -721,7 +727,9 @@ class TestRegisterGlobalCommand:
         config = await purga_cog._get_config(mock_guild.id)
         available = purga_cog._get_available_purga_types(config)
 
-        await purga_cog._register_global_command(mock_guild, config, available["global"])
+        await purga_cog._register_purga_command(
+            mock_guild, config, PurgaType.GLOBAL, available["global"]
+        )
 
         # Verificar que se elimino el comando
         mock_discord_bot.tree.remove_command.assert_called_with("purga_global", guild=mock_guild)
@@ -1094,31 +1102,6 @@ class TestSetupAndTeardown:
         # Luego teardown
         await teardown(mock_discord_bot)
         assert get_config_schema_service().get_schema("purga") is None
-
-
-class TestGetConfigValue:
-    """Tests para _get_config_value."""
-
-    async def test_returns_saved_value(
-        self, purga_cog: PurgaCog, test_database: DatabaseService
-    ) -> None:
-        """Probar que devuelve valor guardado."""
-        guild_id = 123
-
-        async with test_database.session() as session:
-            config_service = ConfigService(session)
-            await config_service.set_value(guild_id, COG_NAME, ConfigKey.PURGE_HOUR, 15)
-            await session.commit()
-
-        result = await purga_cog._get_config_value(guild_id, ConfigKey.PURGE_HOUR)
-        assert result == 15
-
-    async def test_returns_none_when_not_set(
-        self, purga_cog: PurgaCog, test_database: DatabaseService
-    ) -> None:
-        """Probar que devuelve None cuando no hay valor."""
-        result = await purga_cog._get_config_value(999, ConfigKey.PURGE_HOUR)
-        assert result is None
 
 
 class TestHandleCancelExtended:
@@ -2018,7 +2001,7 @@ class TestHandleAuthorizeExtended:
 
 
 class TestHandleWarPurgeSuccess:
-    """Tests para _handle_war_purge con creacion exitosa."""
+    """Tests para _handle_purge (WAR_END) con creacion exitosa."""
 
     async def test_successful_purge_creation(
         self,
@@ -2074,7 +2057,7 @@ class TestHandleWarPurgeSuccess:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 5)
+        await purga_cog._handle_purge(mock_interaction, 5, PurgaType.WAR_END)
 
         mock_channel.send.assert_called_once()
         mock_interaction.followup.send.assert_called()
@@ -2109,7 +2092,7 @@ class TestHandleWarPurgeSuccess:
             # No configuramos MOD_CHANNEL
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 5)
+        await purga_cog._handle_purge(mock_interaction, 5, PurgaType.WAR_END)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -2189,7 +2172,7 @@ class TestHandleWarPurgeSuccess:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 5)
+        await purga_cog._handle_purge(mock_interaction, 5, PurgaType.WAR_END)
 
         # Deberia estar auto-autorizada
         assert guild_id in purga_cog._authorized_purgas
@@ -3120,7 +3103,7 @@ class TestRegisterWhenDisabled:
 
 
 class TestHandleWarPurgeModChannelNotFound:
-    """Tests para _handle_war_purge cuando mod_channel no existe."""
+    """Tests para _handle_purge (WAR_END) cuando mod_channel no existe."""
 
     async def test_mod_channel_not_found(
         self,
@@ -3144,7 +3127,7 @@ class TestHandleWarPurgeModChannelNotFound:
             await config_service.set_value(mock_guild.id, COG_NAME, ConfigKey.MOD_CHANNEL, 999999)
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 5)
+        await purga_cog._handle_purge(mock_interaction, 5, PurgaType.WAR_END)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -4468,7 +4451,7 @@ class TestExecutePurgaPromotionForbidden:
 
 
 class TestHandleWarPurgeRequiredReactionsMinimum:
-    """Tests para _handle_war_purge con required_reactions < 2."""
+    """Tests para _handle_purge (WAR_END) con required_reactions < 2."""
 
     async def test_required_reactions_minimum_enforced(
         self,
@@ -4519,7 +4502,7 @@ class TestHandleWarPurgeRequiredReactionsMinimum:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, False)
             await session.commit()
 
-        await purga_cog._handle_war_purge(mock_interaction, 5)
+        await purga_cog._handle_purge(mock_interaction, 5, PurgaType.WAR_END)
 
         # Should have created purga but NOT auto-authorized (needs 2 not 1)
         mock_interaction.followup.send.assert_called()

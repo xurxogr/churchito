@@ -17,6 +17,77 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _apply_cleaning_to_member(
+    guild: discord.Guild,
+    member: discord.Member,
+    roles_to_remove: list[int],
+    roles_to_add: list[int],
+    purga_service: PurgaService,
+    purga_id: int,
+) -> tuple[discord.Member, list[int], list[int]]:
+    """Aplicar limpieza de roles a un miembro.
+
+    Args:
+        guild: Guild de Discord.
+        member: Miembro a limpiar.
+        roles_to_remove: IDs de roles a quitar.
+        roles_to_add: IDs de roles a añadir.
+        purga_service: Servicio de purga.
+        purga_id: ID de la purga.
+
+    Returns:
+        tuple: (member_actualizado, roles_before, roles_after)
+    """
+    roles_before = [r.id for r in member.roles if r != guild.default_role]
+
+    # Quitar roles
+    if roles_to_remove:
+        roles_to_rm: list[discord.Role] = [
+            rm_role
+            for rid in roles_to_remove
+            if (rm_role := guild.get_role(rid)) and rm_role in member.roles
+        ]
+        if roles_to_rm:
+            try:
+                await member.remove_roles(*roles_to_rm)
+            except discord.Forbidden:
+                logger.warning(f"No se pudo quitar roles a {member.name}")
+    else:
+        # Quitar todos los roles
+        try:
+            await member.edit(roles=[])
+        except discord.Forbidden:
+            logger.warning(f"No se pudo quitar roles a {member.name}")
+
+    # Añadir roles de purga
+    if roles_to_add:
+        roles_to_give: list[discord.Role] = [
+            add_role for rid in roles_to_add if (add_role := guild.get_role(rid))
+        ]
+        if roles_to_give:
+            try:
+                await member.add_roles(*roles_to_give)
+            except discord.Forbidden:
+                logger.warning(f"No se pudo añadir roles a {member.name}")
+
+    # Refrescar miembro
+    refreshed = guild.get_member(member.id)
+    if refreshed:
+        member = refreshed
+    roles_after = [r.id for r in member.roles if r != guild.default_role]
+
+    # Guardar resultado
+    await purga_service.add_user_result(
+        purga_id=purga_id,
+        user_id=member.id,
+        action_type="cleaned",
+        roles_before=roles_before,
+        roles_after=roles_after,
+    )
+
+    return member, roles_before, roles_after
+
+
 async def execute_purga(
     cog: "PurgaCog",
     guild_id: int,
@@ -243,13 +314,7 @@ async def execute_purga(
             )
 
             # Programar eliminación si hay retención configurada
-            retention = config.get(ConfigKey.MOD_MESSAGE_RETENTION, 0)
-            if retention > 0 and record.mod_channel_id and record.mod_message_id:
-                cog._schedule_message_deletion(
-                    channel_id=record.mod_channel_id,
-                    message_id=record.mod_message_id,
-                    retention_minutes=retention,
-                )
+            cog._maybe_schedule_mod_message_deletion(record=record, config=config)
 
             logger.info(
                 f"[{guild.name}] {'[MODO PRUEBA] ' if test_mode else ''}"
@@ -304,51 +369,13 @@ async def _execute_cleaning_phase(
             if member.id in processed_users:
                 continue
 
-            roles_before = [r.id for r in member.roles if r != guild.default_role]
-
-            # Remove roles
-            if roles_to_remove:
-                roles_to_rm: list[discord.Role] = [
-                    rm_role
-                    for rid in roles_to_remove
-                    if (rm_role := guild.get_role(rid)) and rm_role in member.roles
-                ]
-                if roles_to_rm:
-                    try:
-                        await member.remove_roles(*roles_to_rm)
-                    except discord.Forbidden:
-                        logger.warning(f"No se pudo quitar roles a {member.name}")
-            else:
-                # Remove all roles except default
-                try:
-                    await member.edit(roles=[])
-                except discord.Forbidden:
-                    logger.warning(f"No se pudo quitar roles a {member.name}")
-
-            # Add purge roles
-            if roles_to_add:
-                roles_to_give: list[discord.Role] = [
-                    add_role for rid in roles_to_add if (add_role := guild.get_role(rid))
-                ]
-                if roles_to_give:
-                    try:
-                        await member.add_roles(*roles_to_give)
-                    except discord.Forbidden:
-                        logger.warning(f"No se pudo añadir roles a {member.name}")
-
-            # Refresh member and get roles_after
-            refreshed = guild.get_member(member.id)
-            if refreshed:
-                member = refreshed
-            roles_after = [r.id for r in member.roles if r != guild.default_role]
-
-            # Store result
-            await purga_service.add_user_result(
+            member, _, _ = await _apply_cleaning_to_member(
+                guild=guild,
+                member=member,
+                roles_to_remove=roles_to_remove,
+                roles_to_add=roles_to_add,
+                purga_service=purga_service,
                 purga_id=purga_id,
-                user_id=member.id,
-                action_type="cleaned",
-                roles_before=roles_before,
-                roles_after=roles_after,
             )
 
             # Nivel de auditoría 2: registrar cada usuario
@@ -431,51 +458,13 @@ async def _execute_global_cleaning_phase(
         if member.id in processed_users:
             continue
 
-        roles_before = [r.id for r in member.roles if r != guild.default_role]
-
-        # Quitar roles especificados
-        if roles_to_remove:
-            roles_to_rm: list[discord.Role] = [
-                rm_role
-                for rid in roles_to_remove
-                if (rm_role := guild.get_role(rid)) and rm_role in member.roles
-            ]
-            if roles_to_rm:
-                try:
-                    await member.remove_roles(*roles_to_rm)
-                except discord.Forbidden:
-                    logger.warning(f"No se pudo quitar roles a {member.name}")
-        else:
-            # Si no hay roles específicos, quitar todos los roles
-            try:
-                await member.edit(roles=[])
-            except discord.Forbidden:
-                logger.warning(f"No se pudo quitar roles a {member.name}")
-
-        # Añadir roles de purga
-        if roles_to_add:
-            roles_to_give: list[discord.Role] = [
-                add_role for rid in roles_to_add if (add_role := guild.get_role(rid))
-            ]
-            if roles_to_give:
-                try:
-                    await member.add_roles(*roles_to_give)
-                except discord.Forbidden:
-                    logger.warning(f"No se pudo añadir roles a {member.name}")
-
-        # Refrescar miembro y obtener roles_after
-        refreshed = guild.get_member(member.id)
-        if refreshed:
-            member = refreshed
-        roles_after = [r.id for r in member.roles if r != guild.default_role]
-
-        # Guardar resultado
-        await purga_service.add_user_result(
+        member, _, _ = await _apply_cleaning_to_member(
+            guild=guild,
+            member=member,
+            roles_to_remove=roles_to_remove,
+            roles_to_add=roles_to_add,
+            purga_service=purga_service,
             purga_id=purga_id,
-            user_id=member.id,
-            action_type="cleaned",
-            roles_before=roles_before,
-            roles_after=roles_after,
         )
 
         # Nivel de auditoría 2: registrar cada usuario

@@ -17,7 +17,6 @@ from discord_bot.purga.config import COG_NAME, PURGA_CONFIG_SCHEMA
 from discord_bot.purga.enums import ConfigKey, PurgaStatus, PurgaType
 from discord_bot.purga.execution import execute_purga
 from discord_bot.purga.formatters import (
-    format_authorized_by,
     format_message,
     format_roles,
     get_button_style,
@@ -93,20 +92,6 @@ class PurgaCog(commands.Cog):
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
 
-    async def _get_config_value(self, guild_id: int, key: str) -> Any:
-        """Obtener un valor de configuración específico.
-
-        Args:
-            guild_id (int): ID del guild.
-            key (str): Clave de configuración.
-
-        Returns:
-            Any: Valor de configuración.
-        """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
-            return await config_service.get_value(guild_id=guild_id, cog_name=COG_NAME, key=key)
-
     def _get_available_purga_types(self, config: dict[str, Any]) -> dict[str, bool]:
         """Verificar qué tipos de purga tienen configuración completa.
 
@@ -136,37 +121,23 @@ class PurgaCog(commands.Cog):
 
         return result
 
-    # =========================================================================
-    # Message formatting helpers (delegated to formatters module)
-    # =========================================================================
+    def _get_required_reactions(self, config: dict[str, Any]) -> int:
+        """Obtener el número de reacciones requeridas.
 
-    def _format_message(self, template: str | None = None, **kwargs: str | None) -> str:
-        """Reemplazar placeholders en un mensaje."""
-        return format_message(template, **kwargs)
+        En modo prueba, se respeta el valor configurado.
+        En modo normal, el mínimo es 2.
 
-    def _get_button_style(self, color: str) -> discord.ButtonStyle:
-        """Obtener el estilo de botón a partir del nombre de color."""
-        return get_button_style(color)
+        Args:
+            config (dict[str, Any]): Configuración del cog.
 
-    def _format_authorized_by(self, guild: discord.Guild, user_ids: list[int]) -> str:
-        """Formatear la lista de usuarios que autorizaron."""
-        return format_authorized_by(guild=guild, user_ids=user_ids)
-
-    def _format_roles(self, guild: discord.Guild, role_ids: list[int]) -> str:
-        """Formatear la lista de roles."""
-        return format_roles(guild=guild, role_ids=role_ids)
-
-    def _get_mod_message_content(
-        self,
-        guild: discord.Guild,
-        record: PurgaRecord,
-        config: dict[str, Any],
-        execution_logs: list[str] | None = None,
-    ) -> str:
-        """Generar el contenido del mensaje de moderación."""
-        return get_mod_message_content(
-            guild=guild, record=record, config=config, execution_logs=execution_logs
-        )
+        Returns:
+            int: Número de reacciones requeridas.
+        """
+        test_mode = config.get(ConfigKey.TEST_MODE, False)
+        required: int = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
+        if not test_mode and required < 2:
+            required = 2
+        return required
 
     # =========================================================================
     # Dynamic command registration
@@ -206,109 +177,90 @@ class PurgaCog(commands.Cog):
         if guild.id not in self._registered_commands:
             self._registered_commands[guild.id] = {}
 
-        # Register/update war purge command
-        await self._register_war_command(
-            guild=guild, config=config, available=available_types["war"]
+        # Register/update purge commands
+        await self._register_purga_command(
+            guild=guild,
+            config=config,
+            purga_type=PurgaType.WAR_END,
+            available=available_types["war"],
+        )
+        await self._register_purga_command(
+            guild=guild,
+            config=config,
+            purga_type=PurgaType.GLOBAL,
+            available=available_types["global"],
         )
 
-        # Register/update global purge command
-        await self._register_global_command(
-            guild=guild, config=config, available=available_types["global"]
-        )
-
-    async def _register_war_command(
-        self, guild: discord.Guild, config: dict[str, Any], available: bool
+    async def _register_purga_command(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        purga_type: PurgaType,
+        available: bool,
     ) -> None:
-        """Registrar o actualizar el comando de purga de guerra.
+        """Registrar o actualizar un comando de purga.
 
         Args:
             guild: Guild de Discord.
             config: Configuración del cog.
+            purga_type: Tipo de purga (WAR_END o GLOBAL).
             available: Si la configuración está completa.
         """
-        war_command_name = config.get(ConfigKey.WAR_COMMAND_NAME, "purga_guerra")
-        old_command_name = self._registered_commands.get(guild.id, {}).get("war")
+        # Configuración según tipo de purga
+        type_config = {
+            PurgaType.WAR_END: {
+                "key": "war",
+                "name_config": ConfigKey.WAR_COMMAND_NAME,
+                "default_name": "purga_guerra",
+                "description": "Inicia una purga de fin de guerra",
+            },
+            PurgaType.GLOBAL: {
+                "key": "global",
+                "name_config": ConfigKey.GLOBAL_COMMAND_NAME,
+                "default_name": "purga_global",
+                "description": "Inicia una purga global",
+            },
+        }
+
+        cfg = type_config[purga_type]
+        command_key = cfg["key"]
+        command_name = config.get(cfg["name_config"], cfg["default_name"])
+        old_command_name = self._registered_commands.get(guild.id, {}).get(command_key)
 
         # Si no está disponible, eliminar comando existente
         if not available:
             if old_command_name:
                 self.bot.tree.remove_command(old_command_name, guild=guild)
-                del self._registered_commands[guild.id]["war"]
+                del self._registered_commands[guild.id][command_key]
                 logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
             return
 
         # Remove old command if name changed
-        if old_command_name and old_command_name != war_command_name:
+        if old_command_name and old_command_name != command_name:
             self.bot.tree.remove_command(old_command_name, guild=guild)
             logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
 
         # Check if command already registered with same name
-        if old_command_name == war_command_name:
+        if old_command_name == command_name:
             return
 
-        # Create and register the war purge command
+        # Create and register the purge command
         @app_commands.command(
-            name=war_command_name,
-            description="Inicia una purga de fin de guerra",
+            name=command_name,
+            description=cfg["description"],
         )
         @app_commands.describe(dias="Número de días hasta la ejecución de la purga")
-        async def war_purge_command(
+        async def purge_command(
             interaction: discord.Interaction,
             dias: app_commands.Range[int, 1, 30],
+            _purga_type: PurgaType = purga_type,
         ) -> None:
-            await self._handle_war_purge(interaction=interaction, dias=dias)
+            await self._handle_purge(interaction=interaction, dias=dias, purga_type=_purga_type)
 
         # Add command to guild
-        self.bot.tree.add_command(war_purge_command, guild=guild)
-        self._registered_commands[guild.id]["war"] = war_command_name
-        logger.info(f"Comando '{war_command_name}' registrado en {guild.name}")
-
-    async def _register_global_command(
-        self, guild: discord.Guild, config: dict[str, Any], available: bool
-    ) -> None:
-        """Registrar o actualizar el comando de purga global.
-
-        Args:
-            guild: Guild de Discord.
-            config: Configuración del cog.
-            available: Si la configuración está completa.
-        """
-        global_command_name = config.get(ConfigKey.GLOBAL_COMMAND_NAME, "purga_global")
-        old_command_name = self._registered_commands.get(guild.id, {}).get("global")
-
-        # Si no está disponible, eliminar comando existente
-        if not available:
-            if old_command_name:
-                self.bot.tree.remove_command(old_command_name, guild=guild)
-                del self._registered_commands[guild.id]["global"]
-                logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
-            return
-
-        # Remove old command if name changed
-        if old_command_name and old_command_name != global_command_name:
-            self.bot.tree.remove_command(old_command_name, guild=guild)
-            logger.info(f"Comando '{old_command_name}' eliminado de {guild.name}")
-
-        # Check if command already registered with same name
-        if old_command_name == global_command_name:
-            return
-
-        # Create and register the global purge command
-        @app_commands.command(
-            name=global_command_name,
-            description="Inicia una purga global",
-        )
-        @app_commands.describe(dias="Número de días hasta la ejecución de la purga")
-        async def global_purge_command(
-            interaction: discord.Interaction,
-            dias: app_commands.Range[int, 1, 30],
-        ) -> None:
-            await self._handle_global_purge(interaction=interaction, dias=dias)
-
-        # Add command to guild
-        self.bot.tree.add_command(global_purge_command, guild=guild)
-        self._registered_commands[guild.id]["global"] = global_command_name
-        logger.info(f"Comando '{global_command_name}' registrado en {guild.name}")
+        self.bot.tree.add_command(purge_command, guild=guild)
+        self._registered_commands[guild.id][command_key] = command_name
+        logger.info(f"Comando '{command_name}' registrado en {guild.name}")
 
     async def _unregister_guild_commands(self, guild: discord.Guild) -> None:
         """Eliminar comandos registrados de un guild.
@@ -364,12 +316,60 @@ class PurgaCog(commands.Cog):
     # Command handlers
     # =========================================================================
 
-    async def _handle_war_purge(self, interaction: discord.Interaction, dias: int) -> None:
-        """Manejar el comando de purga de fin de guerra.
+    def _build_config_snapshot(
+        self, config: dict[str, Any], purga_type: PurgaType
+    ) -> dict[str, Any]:
+        """Construir el snapshot de configuración según el tipo de purga.
+
+        Args:
+            config: Configuración del cog.
+            purga_type: Tipo de purga.
+
+        Returns:
+            dict[str, Any]: Snapshot de configuración.
+        """
+        # Campos comunes
+        snapshot: dict[str, Any] = {
+            "reaction_role": config.get(ConfigKey.USER_REACTION_ROLE),
+            "required_reactions": config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2),
+            "test_mode": config.get(ConfigKey.TEST_MODE, False),
+        }
+
+        if purga_type == PurgaType.GLOBAL:
+            snapshot.update(
+                {
+                    "excluded_roles": config.get(ConfigKey.GLOBAL_EXCLUDED_ROLES, []),
+                    "roles_to_remove": config.get(ConfigKey.GLOBAL_ROLES_TO_REMOVE, []),
+                    "roles_to_add": config.get(ConfigKey.GLOBAL_ROLES_TO_ADD, []),
+                }
+            )
+        else:
+            # WAR_END
+            snapshot.update(
+                {
+                    "affected_roles": config.get(ConfigKey.WAR_AFFECTED_ROLES, []),
+                    "roles_to_remove": config.get(ConfigKey.WAR_ROLES_TO_REMOVE, []),
+                    "roles_to_add": config.get(ConfigKey.WAR_ROLES_TO_ADD, []),
+                    "global_roles_to_remove": config.get(ConfigKey.WAR_GLOBAL_ROLES_TO_REMOVE, []),
+                    "promotions": config.get(ConfigKey.WAR_PROMOTIONS, []),
+                    "default_promotion": config.get(ConfigKey.WAR_DEFAULT_PROMOTION),
+                }
+            )
+
+        return snapshot
+
+    async def _handle_purge(
+        self,
+        interaction: discord.Interaction,
+        dias: int,
+        purga_type: PurgaType,
+    ) -> None:
+        """Manejar el comando de purga (unificado para todos los tipos).
 
         Args:
             interaction (discord.Interaction): Interacción de Discord.
             dias (int): Número de días hasta la ejecución.
+            purga_type (PurgaType): Tipo de purga a iniciar.
         """
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
@@ -381,8 +381,8 @@ class PurgaCog(commands.Cog):
 
         config = await self._get_config(guild.id)
 
-        # Verificar permisos
-        admin_roles = config.get(ConfigKey.WAR_ADMIN_ROLES, [])
+        # Verificar permisos según tipo de purga
+        admin_roles = self._get_admin_roles_for_purga(config=config, purga_type=purga_type)
         if not has_any_role(member=user, role_ids=admin_roles):
             await interaction.followup.send(
                 config.get(ConfigKey.MOD_NO_PERMISSION_TEXT, "Sin permisos."),
@@ -419,22 +419,12 @@ class PurgaCog(commands.Cog):
                 expires_at = now + timedelta(minutes=timeout_minutes)
 
             # Crear snapshot de config relevante
-            config_snapshot = {
-                "affected_roles": config.get(ConfigKey.WAR_AFFECTED_ROLES, []),
-                "roles_to_remove": config.get(ConfigKey.WAR_ROLES_TO_REMOVE, []),
-                "roles_to_add": config.get(ConfigKey.WAR_ROLES_TO_ADD, []),
-                "global_roles_to_remove": config.get(ConfigKey.WAR_GLOBAL_ROLES_TO_REMOVE, []),
-                "promotions": config.get(ConfigKey.WAR_PROMOTIONS, []),
-                "default_promotion": config.get(ConfigKey.WAR_DEFAULT_PROMOTION),
-                "reaction_role": config.get(ConfigKey.USER_REACTION_ROLE),
-                "required_reactions": config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2),
-                "test_mode": config.get(ConfigKey.TEST_MODE, False),
-            }
+            config_snapshot = self._build_config_snapshot(config=config, purga_type=purga_type)
 
             # Crear registro de purga
             record = await purga_service.create_purga(
                 guild_id=guild.id,
-                purga_type=PurgaType.WAR_END,
+                purga_type=purga_type,
                 initiated_by=user.id,
                 config_snapshot=config_snapshot,
                 scheduled_for=scheduled_for,
@@ -459,50 +449,26 @@ class PurgaCog(commands.Cog):
                 )
                 return
 
-            # Calcular autorizaciones requeridas (mínimo 2 si no es modo prueba)
-            test_mode = config.get(ConfigKey.TEST_MODE, False)
-            required = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
-            if not test_mode and required < 2:
-                required = 2
+            # Calcular autorizaciones requeridas
+            required = self._get_required_reactions(config)
 
             # Verificar si ya tenemos suficientes autorizaciones (el iniciador cuenta)
             authorized_count = len(record.authorized_by)
             if authorized_count >= required:
                 # Auto-autorizar
-                if test_mode:
-                    exec_scheduled_for = datetime.now(UTC) + timedelta(minutes=2)
-                else:
-                    exec_scheduled_for = scheduled_for
-
-                updated_record = await purga_service.update_status(
-                    purga_id=record.id,
-                    status=PurgaStatus.AUTHORIZED,
-                    scheduled_for=exec_scheduled_for,
+                updated_record = await self._authorize_purga(
+                    guild=guild,
+                    record=record,
+                    config=config,
+                    purga_service=purga_service,
+                    session=session,
                 )
                 if updated_record:
                     record = updated_record
-                    if exec_scheduled_for:
-                        self._authorized_purgas[guild.id] = (record.id, exec_scheduled_for)
-                    logger.info(
-                        f"[{guild.name}] Purga {record.id} auto-autorizada, "
-                        f"ejecución programada para {exec_scheduled_for}"
-                    )
 
             # Crear mensaje de moderación
-            content = self._get_mod_message_content(guild=guild, record=record, config=config)
-
-            # Crear vista con botones según estado
-            button_color = config.get(ConfigKey.MOD_BUTTON_COLOR, "green")
-            authorize_label = config.get(ConfigKey.MOD_BUTTON_TEXT, "🔑 Autorizar purga")
-            cancel_label = config.get(ConfigKey.MOD_STOP_BUTTON_TEXT, "🛑 Detener purga")
-
-            view = ModAuthorizationView(
-                purga_id=record.id,
-                status=PurgaStatus(record.status),
-                authorize_label=authorize_label,
-                cancel_label=cancel_label,
-                button_style=self._get_button_style(button_color),
-            )
+            content = get_mod_message_content(guild=guild, record=record, config=config)
+            view = self._create_mod_view(record=record, config=config)
 
             mod_message = await mod_channel.send(content=content, view=view)
 
@@ -526,168 +492,6 @@ class PurgaCog(commands.Cog):
 
             await interaction.followup.send(
                 f"Purga iniciada. Mensaje enviado a {mod_channel.mention}.",
-                ephemeral=True,
-            )
-
-    async def _handle_global_purge(self, interaction: discord.Interaction, dias: int) -> None:
-        """Manejar el comando de purga global.
-
-        Args:
-            interaction (discord.Interaction): Interacción de Discord.
-            dias (int): Número de días hasta la ejecución.
-        """
-        if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            return
-
-        guild = interaction.guild
-        user = interaction.user
-
-        await interaction.response.defer(ephemeral=True)
-
-        config = await self._get_config(guild.id)
-
-        # Verificar permisos
-        admin_roles = config.get(ConfigKey.GLOBAL_ADMIN_ROLES, [])
-        if not has_any_role(member=user, role_ids=admin_roles):
-            await interaction.followup.send(
-                config.get(ConfigKey.MOD_NO_PERMISSION_TEXT, "Sin permisos."),
-                ephemeral=True,
-            )
-            return
-
-        async with self.bot.database.session() as session:
-            purga_service = PurgaService(session)
-
-            # Verificar si hay una purga activa
-            active = await purga_service.get_active_purga(guild.id)
-            if active:
-                await interaction.followup.send(
-                    config.get(
-                        ConfigKey.MOD_ACTIVE_PURGE_TEXT,
-                        "Ya hay una purga activa.",
-                    ),
-                    ephemeral=True,
-                )
-                return
-
-            # Calcular fecha de ejecución
-            purge_hour = config.get(ConfigKey.PURGE_HOUR, 18)
-            now = datetime.now(UTC)
-            scheduled_for = (now + timedelta(days=dias)).replace(
-                hour=purge_hour, minute=0, second=0, microsecond=0
-            )
-
-            # Calcular fecha de expiración para autorizaciones
-            timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
-            expires_at = None
-            if timeout_minutes > 0:
-                expires_at = now + timedelta(minutes=timeout_minutes)
-
-            # Crear snapshot de config relevante para purga global
-            config_snapshot = {
-                "excluded_roles": config.get(ConfigKey.GLOBAL_EXCLUDED_ROLES, []),
-                "roles_to_remove": config.get(ConfigKey.GLOBAL_ROLES_TO_REMOVE, []),
-                "roles_to_add": config.get(ConfigKey.GLOBAL_ROLES_TO_ADD, []),
-                "reaction_role": config.get(ConfigKey.USER_REACTION_ROLE),
-                "required_reactions": config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2),
-                "test_mode": config.get(ConfigKey.TEST_MODE, False),
-            }
-
-            # Crear registro de purga
-            record = await purga_service.create_purga(
-                guild_id=guild.id,
-                purga_type=PurgaType.GLOBAL,
-                initiated_by=user.id,
-                config_snapshot=config_snapshot,
-                scheduled_for=scheduled_for,
-                expires_at=expires_at,
-            )
-
-            logger.info(f"[{guild.name}] Purga global {record.id} creada por {user.display_name}")
-
-            # Obtener canal de moderación
-            mod_channel_id = config.get(ConfigKey.MOD_CHANNEL)
-            if not mod_channel_id:
-                await interaction.followup.send(
-                    "Error: Canal de moderación no configurado.",
-                    ephemeral=True,
-                )
-                return
-            mod_channel = guild.get_channel(mod_channel_id)
-            if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
-                await interaction.followup.send(
-                    "Error: Canal de moderación no encontrado.",
-                    ephemeral=True,
-                )
-                return
-
-            # Calcular autorizaciones requeridas (mínimo 2 si no es modo prueba)
-            test_mode = config.get(ConfigKey.TEST_MODE, False)
-            required = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
-            if not test_mode and required < 2:
-                required = 2
-
-            # Verificar si ya tenemos suficientes autorizaciones (el iniciador cuenta)
-            authorized_count = len(record.authorized_by)
-            if authorized_count >= required:
-                # Auto-autorizar
-                if test_mode:
-                    exec_scheduled_for = datetime.now(UTC) + timedelta(minutes=2)
-                else:
-                    exec_scheduled_for = scheduled_for
-
-                updated_record = await purga_service.update_status(
-                    purga_id=record.id,
-                    status=PurgaStatus.AUTHORIZED,
-                    scheduled_for=exec_scheduled_for,
-                )
-                if updated_record:
-                    record = updated_record
-                    if exec_scheduled_for:
-                        self._authorized_purgas[guild.id] = (record.id, exec_scheduled_for)
-                    logger.info(
-                        f"[{guild.name}] Purga global {record.id} auto-autorizada, "
-                        f"ejecución programada para {exec_scheduled_for}"
-                    )
-
-            # Crear mensaje de moderación
-            content = self._get_mod_message_content(guild=guild, record=record, config=config)
-
-            # Crear vista con botones según estado
-            button_color = config.get(ConfigKey.MOD_BUTTON_COLOR, "green")
-            authorize_label = config.get(ConfigKey.MOD_BUTTON_TEXT, "🔑 Autorizar purga")
-            cancel_label = config.get(ConfigKey.MOD_STOP_BUTTON_TEXT, "🛑 Detener purga")
-
-            view = ModAuthorizationView(
-                purga_id=record.id,
-                status=PurgaStatus(record.status),
-                authorize_label=authorize_label,
-                cancel_label=cancel_label,
-                button_style=self._get_button_style(button_color),
-            )
-
-            mod_message = await mod_channel.send(content=content, view=view)
-
-            # Actualizar registro con ID del mensaje
-            await purga_service.update_mod_message(
-                purga_id=record.id,
-                channel_id=mod_channel.id,
-                message_id=mod_message.id,
-            )
-
-            # Enviar mensaje a usuarios si ya está autorizada
-            if record.status == PurgaStatus.AUTHORIZED:
-                await self._send_user_message(
-                    guild=guild, record=record, config=config, session=session
-                )
-            else:
-                # Registrar en memoria para control de expiración
-                self._active_purgas[guild.id] = (record.id, expires_at)
-
-            await session.commit()
-
-            await interaction.followup.send(
-                f"Purga global iniciada. Mensaje enviado a {mod_channel.mention}.",
                 ephemeral=True,
             )
 
@@ -776,44 +580,21 @@ class PurgaCog(commands.Cog):
                 f"[{guild.name}] Autorización añadida a purga {purga_id} por {user.display_name}"
             )
 
-            # Calcular autorizaciones requeridas (mínimo 2 si no es modo prueba)
-            test_mode = config.get(ConfigKey.TEST_MODE, False)
-            required = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
-            if not test_mode and required < 2:
-                required = 2
+            # Calcular autorizaciones requeridas
+            required = self._get_required_reactions(config)
             authorized_count = len(record.authorized_by)
 
             if authorized_count >= required and record.status == PurgaStatus.PENDING:
-                # Calcular tiempo de ejecución
-                exec_scheduled_for: datetime | None
-                if test_mode:
-                    # En modo prueba, ejecutar en 2 minutos
-                    exec_scheduled_for = datetime.now(UTC) + timedelta(minutes=2)
-                else:
-                    # Mantener el scheduled_for original
-                    exec_scheduled_for = record.scheduled_for
-
                 # Autorizar purga
-                updated_record = await purga_service.update_status(
-                    purga_id=purga_id,
-                    status=PurgaStatus.AUTHORIZED,
-                    scheduled_for=exec_scheduled_for,
+                updated_record = await self._authorize_purga(
+                    guild=guild,
+                    record=record,
+                    config=config,
+                    purga_service=purga_service,
+                    session=session,
                 )
                 if updated_record:
                     record = updated_record
-                    logger.info(
-                        f"[{guild.name}] Purga {purga_id} autorizada, "
-                        f"ejecución programada para {exec_scheduled_for}"
-                    )
-                    # Quitar de tracking de expiración
-                    self._active_purgas.pop(guild.id, None)
-                    # Añadir a tracking de ejecución
-                    if exec_scheduled_for:
-                        self._authorized_purgas[guild.id] = (record.id, exec_scheduled_for)
-                    # Enviar mensaje a canal de usuarios
-                    await self._send_user_message(
-                        guild=guild, record=record, config=config, session=session
-                    )
 
             # Actualizar mensaje de moderación
             await self._update_mod_message(guild=guild, record=record, config=config)
@@ -891,11 +672,8 @@ class PurgaCog(commands.Cog):
                 f"por {user.display_name}"
             )
 
-            # Calcular autorizaciones requeridas (mínimo 2 si no es modo prueba)
-            test_mode = config.get(ConfigKey.TEST_MODE, False)
-            required = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
-            if not test_mode and required < 2:
-                required = 2
+            # Calcular votos requeridos
+            required = self._get_required_reactions(config)
             cancel_count = len(record.cancelled_by)
 
             if cancel_count >= required:
@@ -942,13 +720,7 @@ class PurgaCog(commands.Cog):
                 )
 
                 # Programar eliminación del mensaje si hay retención configurada
-                retention = config.get(ConfigKey.MOD_MESSAGE_RETENTION, 0)
-                if retention > 0 and record.mod_channel_id and record.mod_message_id:
-                    self._schedule_message_deletion(
-                        channel_id=record.mod_channel_id,
-                        message_id=record.mod_message_id,
-                        retention_minutes=retention,
-                    )
+                self._maybe_schedule_mod_message_deletion(record=record, config=config)
 
                 await session.commit()
 
@@ -1046,6 +818,109 @@ class PurgaCog(commands.Cog):
     # Message update helpers
     # =========================================================================
 
+    def _create_mod_view(
+        self,
+        record: PurgaRecord,
+        config: dict[str, Any],
+    ) -> ModAuthorizationView:
+        """Crear vista de moderación con botones según el estado.
+
+        Args:
+            record: Registro de purga.
+            config: Configuración del cog.
+
+        Returns:
+            ModAuthorizationView: Vista con los botones apropiados.
+        """
+        button_color = config.get(ConfigKey.MOD_BUTTON_COLOR, "green")
+        authorize_label = config.get(ConfigKey.MOD_BUTTON_TEXT, "🔑 Autorizar purga")
+        cancel_label = config.get(ConfigKey.MOD_STOP_BUTTON_TEXT, "🛑 Detener purga")
+
+        return ModAuthorizationView(
+            purga_id=record.id,
+            status=PurgaStatus(record.status),
+            authorize_label=authorize_label,
+            cancel_label=cancel_label,
+            button_style=get_button_style(button_color),
+        )
+
+    def _maybe_schedule_mod_message_deletion(
+        self,
+        record: PurgaRecord,
+        config: dict[str, Any],
+    ) -> None:
+        """Programar eliminación del mensaje de moderación si hay retención configurada.
+
+        Args:
+            record: Registro de purga.
+            config: Configuración del cog.
+        """
+        retention = config.get(ConfigKey.MOD_MESSAGE_RETENTION, 0)
+        if retention > 0 and record.mod_channel_id and record.mod_message_id:
+            self._schedule_message_deletion(
+                channel_id=record.mod_channel_id,
+                message_id=record.mod_message_id,
+                retention_minutes=retention,
+            )
+
+    async def _authorize_purga(
+        self,
+        guild: discord.Guild,
+        record: PurgaRecord,
+        config: dict[str, Any],
+        purga_service: PurgaService,
+        session: Any,
+    ) -> PurgaRecord | None:
+        """Transicionar una purga a estado AUTHORIZED.
+
+        Args:
+            guild: Guild de Discord.
+            record: Registro de purga.
+            config: Configuración del cog.
+            purga_service: Servicio de purga.
+            session: Sesión de base de datos.
+
+        Returns:
+            PurgaRecord | None: Registro actualizado o None si falló.
+        """
+        test_mode = config.get(ConfigKey.TEST_MODE, False)
+
+        # Calcular tiempo de ejecución
+        exec_scheduled_for: datetime | None
+        if test_mode:
+            exec_scheduled_for = datetime.now(UTC) + timedelta(minutes=2)
+        else:
+            exec_scheduled_for = record.scheduled_for
+
+        # Actualizar estado
+        updated_record = await purga_service.update_status(
+            purga_id=record.id,
+            status=PurgaStatus.AUTHORIZED,
+            scheduled_for=exec_scheduled_for,
+        )
+
+        if not updated_record:
+            return None
+
+        logger.info(
+            f"[{guild.name}] Purga {record.id} autorizada, "
+            f"ejecución programada para {exec_scheduled_for}"
+        )
+
+        # Quitar de tracking de expiración
+        self._active_purgas.pop(guild.id, None)
+
+        # Añadir a tracking de ejecución
+        if exec_scheduled_for:
+            self._authorized_purgas[guild.id] = (updated_record.id, exec_scheduled_for)
+
+        # Enviar mensaje a canal de usuarios
+        await self._send_user_message(
+            guild=guild, record=updated_record, config=config, session=session
+        )
+
+        return updated_record
+
     async def _update_mod_message(
         self,
         guild: discord.Guild,
@@ -1076,7 +951,7 @@ class PurgaCog(commands.Cog):
             logger.warning(f"Mensaje de mod no encontrado: {record.mod_message_id}")
             return
 
-        content = self._get_mod_message_content(
+        content = get_mod_message_content(
             guild=guild, record=record, config=config, execution_logs=execution_logs
         )
 
@@ -1088,18 +963,7 @@ class PurgaCog(commands.Cog):
         ):
             await message.edit(content=content, view=None)
         elif record.status in (PurgaStatus.PENDING, PurgaStatus.AUTHORIZED):
-            # Crear vista con el botón apropiado según el estado
-            button_color = config.get(ConfigKey.MOD_BUTTON_COLOR, "green")
-            authorize_label = config.get(ConfigKey.MOD_BUTTON_TEXT, "🔑 Autorizar purga")
-            cancel_label = config.get(ConfigKey.MOD_STOP_BUTTON_TEXT, "🛑 Detener purga")
-
-            view = ModAuthorizationView(
-                purga_id=record.id,
-                status=PurgaStatus(record.status),
-                authorize_label=authorize_label,
-                cancel_label=cancel_label,
-                button_style=self._get_button_style(button_color),
-            )
+            view = self._create_mod_view(record=record, config=config)
             await message.edit(content=content, view=view)
         else:
             await message.edit(content=content)
@@ -1132,11 +996,11 @@ class PurgaCog(commands.Cog):
         if purga_type == PurgaType.GLOBAL:
             template = config.get(ConfigKey.GLOBAL_MESSAGE_TEMPLATE)
             excluded_roles = config.get(ConfigKey.GLOBAL_EXCLUDED_ROLES, [])
-            roles_text = self._format_roles(guild=guild, role_ids=excluded_roles)
+            roles_text = format_roles(guild=guild, role_ids=excluded_roles)
         else:
             template = config.get(ConfigKey.WAR_MESSAGE_TEMPLATE)
             affected_roles = config.get(ConfigKey.WAR_AFFECTED_ROLES, [])
-            roles_text = self._format_roles(guild=guild, role_ids=affected_roles)
+            roles_text = format_roles(guild=guild, role_ids=affected_roles)
 
         reaction_role_id = config.get(ConfigKey.USER_REACTION_ROLE)
         reaction_role = guild.get_role(reaction_role_id) if reaction_role_id else None
@@ -1147,15 +1011,13 @@ class PurgaCog(commands.Cog):
         scheduled_date = "No programada"
         scheduled_time = ""
         if record.scheduled_for:
-            from datetime import UTC
-
             now = datetime.now(UTC)
             delta = record.scheduled_for - now
             days_remaining = str(max(0, delta.days))
             scheduled_date = record.scheduled_for.strftime("%Y-%m-%d")
             scheduled_time = record.scheduled_for.strftime("%H:%M UTC")
 
-        content = self._format_message(
+        content = format_message(
             template=template,
             roles=roles_text,
             days=days_remaining,
@@ -1174,7 +1036,7 @@ class PurgaCog(commands.Cog):
         view = UserConfirmationView(
             purga_id=record.id,
             confirm_label=confirm_label,
-            button_style=self._get_button_style(button_color),
+            button_style=get_button_style(button_color),
         )
 
         user_message = await channel.send(content=content, view=view)
@@ -1328,13 +1190,7 @@ class PurgaCog(commands.Cog):
                             remove_view=True,
                         )
                         # Programar eliminación si hay retención configurada
-                        retention = config.get(ConfigKey.MOD_MESSAGE_RETENTION, 0)
-                        if retention > 0 and record.mod_channel_id and record.mod_message_id:
-                            self._schedule_message_deletion(
-                                channel_id=record.mod_channel_id,
-                                message_id=record.mod_message_id,
-                                retention_minutes=retention,
-                            )
+                        self._maybe_schedule_mod_message_deletion(record=record, config=config)
 
                     await session.commit()
             except Exception as e:

@@ -30,7 +30,6 @@ class ConfigKey(StrEnum):
     USER_BUTTON_TEXT = "user_button_text"
     USER_REACTION_ROLE = "user_reaction_role"
     USER_FIRST_REACTION_TEXT = "user_first_reaction_text"
-    USER_ALREADY_REACTED_TEXT = "user_already_reacted_text"
     USER_REMOVED_REACTION_TEXT = "user_removed_reaction_text"
 
     # === COMMON - General ===

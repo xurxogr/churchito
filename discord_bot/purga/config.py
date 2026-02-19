@@ -289,16 +289,6 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             max_length=200,
         ),
         ConfigOption(
-            key=ConfigKey.USER_ALREADY_REACTED_TEXT,
-            name="Mensaje: Ya confirmado",
-            description="Mensaje (efímero) cuando el usuario ya había confirmado",
-            option_type=ConfigOptionType.STRING,
-            section="Común",
-            group="Usuarios",
-            default="Ya habías confirmado tu permanencia anteriormente.",
-            max_length=200,
-        ),
-        ConfigOption(
             key=ConfigKey.USER_REMOVED_REACTION_TEXT,
             name="Mensaje: Confirmación retirada",
             description="Mensaje (efímero) cuando el usuario retira su confirmación",

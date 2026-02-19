@@ -190,39 +190,6 @@ class TestPurgaService:
         result = await service.add_authorization(purga_id=99999, user_id=789)
         assert result is None
 
-    async def test_remove_authorization(self, test_session: AsyncSession) -> None:
-        """Probar eliminar autorización."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.add_authorization(purga_id=record.id, user_id=789)
-
-        updated = await service.remove_authorization(purga_id=record.id, user_id=789)
-        assert updated is not None
-        assert 789 not in updated.authorized_by
-
-    async def test_remove_authorization_not_present(self, test_session: AsyncSession) -> None:
-        """Probar eliminar autorización que no existe."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        updated = await service.remove_authorization(purga_id=record.id, user_id=999)
-        assert updated is not None
-        assert 999 not in updated.authorized_by
-
     async def test_add_confirmation(self, test_session: AsyncSession) -> None:
         """Probar añadir confirmación."""
         service = PurgaService(test_session)
@@ -370,95 +337,6 @@ class TestPurgaService:
         assert len(authorized) == 1
         assert authorized[0].guild_id == 222
 
-    async def test_get_guild_purga_history(self, test_session: AsyncSession) -> None:
-        """Probar obtención de historial de purgas de un guild."""
-        service = PurgaService(test_session)
-
-        await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.GLOBAL,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=5),
-        )
-        # Purga de otro guild
-        await service.create_purga(
-            guild_id=999,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        history = await service.get_guild_purga_history(guild_id=123)
-        assert len(history) == 2
-        # Most recent first
-        assert history[0].purga_type == PurgaType.GLOBAL
-        assert history[1].purga_type == PurgaType.WAR_END
-
-    async def test_get_guild_purga_history_limit(self, test_session: AsyncSession) -> None:
-        """Probar límite de historial."""
-        service = PurgaService(test_session)
-
-        for i in range(5):
-            await service.create_purga(
-                guild_id=123,
-                purga_type=PurgaType.WAR_END,
-                initiated_by=456,
-                config_snapshot={"index": i},
-                scheduled_for=datetime.now(UTC) + timedelta(days=i + 1),
-            )
-
-        history = await service.get_guild_purga_history(guild_id=123, limit=3)
-        assert len(history) == 3
-
-    async def test_get_purga_by_mod_message(self, test_session: AsyncSession) -> None:
-        """Probar obtención de purga por mensaje de moderación."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.update_mod_message(purga_id=record.id, channel_id=111, message_id=222)
-
-        found = await service.get_purga_by_mod_message(guild_id=123, message_id=222)
-        assert found is not None
-        assert found.id == record.id
-
-    async def test_get_purga_by_mod_message_not_found(self, test_session: AsyncSession) -> None:
-        """Probar obtención de purga por mensaje inexistente."""
-        service = PurgaService(test_session)
-        found = await service.get_purga_by_mod_message(guild_id=123, message_id=999)
-        assert found is None
-
-    async def test_get_purga_by_user_message(self, test_session: AsyncSession) -> None:
-        """Probar obtención de purga por mensaje de usuarios."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.update_user_message(purga_id=record.id, channel_id=333, message_id=444)
-
-        found = await service.get_purga_by_user_message(guild_id=123, message_id=444)
-        assert found is not None
-        assert found.id == record.id
-
     async def test_different_guilds_isolated(self, test_session: AsyncSession) -> None:
         """Probar que diferentes guilds tienen datos aislados."""
         service = PurgaService(test_session)
@@ -485,63 +363,6 @@ class TestPurgaService:
         assert active_222 is not None
         assert active_111.purga_type == PurgaType.WAR_END
         assert active_222.purga_type == PurgaType.GLOBAL
-
-    async def test_get_expired_pending_purgas(self, test_session: AsyncSession) -> None:
-        """Probar obtención de purgas pendientes expiradas."""
-        service = PurgaService(test_session)
-
-        # Purga expirada (expires_at en el pasado)
-        await service.create_purga(
-            guild_id=111,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-            expires_at=datetime.now(UTC) - timedelta(seconds=10),
-        )
-
-        # Purga no expirada (expires_at en el futuro)
-        await service.create_purga(
-            guild_id=222,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-            expires_at=datetime.now(UTC) + timedelta(minutes=5),
-        )
-
-        # Purga sin expires_at
-        await service.create_purga(
-            guild_id=333,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        expired = await service.get_expired_pending_purgas()
-        assert len(expired) == 1
-        assert expired[0].guild_id == 111
-
-    async def test_get_expired_pending_purgas_ignores_non_pending(
-        self, test_session: AsyncSession
-    ) -> None:
-        """Probar que get_expired_pending_purgas ignora purgas no pendientes."""
-        service = PurgaService(test_session)
-
-        # Purga expirada pero ya autorizada
-        record = await service.create_purga(
-            guild_id=111,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-            expires_at=datetime.now(UTC) - timedelta(seconds=10),
-        )
-        await service.update_status(purga_id=record.id, status=PurgaStatus.AUTHORIZED)
-
-        expired = await service.get_expired_pending_purgas()
-        assert len(expired) == 0
 
     async def test_add_cancellation(self, test_session: AsyncSession) -> None:
         """Probar añadir voto de cancelación."""
@@ -583,45 +404,6 @@ class TestPurgaService:
         result = await service.add_cancellation(purga_id=99999, user_id=789)
         assert result is None
 
-    async def test_remove_cancellation(self, test_session: AsyncSession) -> None:
-        """Probar eliminar voto de cancelación."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.add_cancellation(purga_id=record.id, user_id=789)
-
-        updated = await service.remove_cancellation(purga_id=record.id, user_id=789)
-        assert updated is not None
-        assert 789 not in updated.cancelled_by
-
-    async def test_remove_cancellation_not_found(self, test_session: AsyncSession) -> None:
-        """Probar eliminar cancelación de purga inexistente."""
-        service = PurgaService(test_session)
-        result = await service.remove_cancellation(purga_id=99999, user_id=789)
-        assert result is None
-
-    async def test_remove_cancellation_not_present(self, test_session: AsyncSession) -> None:
-        """Probar eliminar cancelación que no existe."""
-        service = PurgaService(test_session)
-
-        record = await service.create_purga(
-            guild_id=123,
-            purga_type=PurgaType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        updated = await service.remove_cancellation(purga_id=record.id, user_id=999)
-        assert updated is not None
-        assert 999 not in updated.cancelled_by
-
     async def test_add_confirmation_not_found(self, test_session: AsyncSession) -> None:
         """Probar añadir confirmación a purga inexistente."""
         service = PurgaService(test_session)
@@ -649,12 +431,6 @@ class TestPurgaService:
         updated = await service.remove_confirmation(purga_id=record.id, user_id=999)
         assert updated is not None
         assert 999 not in updated.confirmed_by
-
-    async def test_remove_authorization_not_found(self, test_session: AsyncSession) -> None:
-        """Probar eliminar autorización de purga inexistente."""
-        service = PurgaService(test_session)
-        result = await service.remove_authorization(purga_id=99999, user_id=789)
-        assert result is None
 
     async def test_add_user_result(self, test_session: AsyncSession) -> None:
         """Probar añadir resultado de usuario."""
