@@ -365,8 +365,22 @@ class TestShowRejectionSelect:
 
         interaction.response.send_message.assert_not_called()
 
-    async def test_with_configured_reasons(self, verification_cog: VerificationCog) -> None:
+    async def test_with_configured_reasons(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
         """Probar con motivos configurados."""
+        # Crear solicitud en la base de datos
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
         # Mock del rol de moderador
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -395,15 +409,29 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, 1)
+            await verification_cog.show_rejection_select(interaction, request_id)
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args[1]
             assert call_kwargs["ephemeral"] is True
             assert call_kwargs["view"] is not None
 
-    async def test_with_no_configured_reasons(self, verification_cog: VerificationCog) -> None:
+    async def test_with_no_configured_reasons(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
         """Probar sin motivos configurados - usa defaults."""
+        # Crear solicitud en la base de datos
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
         # Mock del rol de moderador
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -427,7 +455,7 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, 1)
+            await verification_cog.show_rejection_select(interaction, request_id)
 
             interaction.response.send_message.assert_called_once()
 
@@ -462,6 +490,53 @@ class TestShowRejectionSelect:
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
             assert "No tienes permisos" in call_args[1]["content"]
+            assert call_args[1]["ephemeral"] is True
+
+    async def test_request_from_different_guild(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que rechaza solicitud de otro guild (seguridad cross-guild)."""
+        # Crear solicitud en guild 999 (diferente al guild del interaction)
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=999,  # Guild diferente
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Mock del rol de moderador
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+
+        # Mock del usuario como Member con rol de mod
+        mock_user = MagicMock(spec=discord.Member)
+        mock_user.roles = [mock_role]
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123  # Guild diferente al de la solicitud
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "mod_roles": [999],
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.show_rejection_select(interaction, request_id)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            # Debe rechazar como si no encontrara la solicitud
+            assert "no encontrada" in call_args[1]["content"].lower()
             assert call_args[1]["ephemeral"] is True
 
 

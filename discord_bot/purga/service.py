@@ -168,7 +168,9 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        return await self._update_user_list(purga_id, "authorized_by", user_id, add=True)
+        return await self._update_user_list(
+            purga_id=purga_id, field_name="authorized_by", user_id=user_id, add=True
+        )
 
     async def add_cancellation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Añadir un voto de cancelación a la purga.
@@ -180,7 +182,9 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        return await self._update_user_list(purga_id, "cancelled_by", user_id, add=True)
+        return await self._update_user_list(
+            purga_id=purga_id, field_name="cancelled_by", user_id=user_id, add=True
+        )
 
     async def add_confirmation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Añadir una confirmación de usuario.
@@ -192,7 +196,9 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        return await self._update_user_list(purga_id, "confirmed_by", user_id, add=True)
+        return await self._update_user_list(
+            purga_id=purga_id, field_name="confirmed_by", user_id=user_id, add=True
+        )
 
     async def remove_confirmation(self, purga_id: int, user_id: int) -> PurgaRecord | None:
         """Eliminar una confirmación de usuario.
@@ -204,7 +210,9 @@ class PurgaService:
         Returns:
             PurgaRecord | None: Registro actualizado.
         """
-        return await self._update_user_list(purga_id, "confirmed_by", user_id, add=False)
+        return await self._update_user_list(
+            purga_id=purga_id, field_name="confirmed_by", user_id=user_id, add=False
+        )
 
     async def clear_cancellations(self, purga_id: int) -> PurgaRecord | None:
         """Limpiar todos los votos de cancelación de una purga.

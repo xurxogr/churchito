@@ -74,7 +74,7 @@ async def validate_mod_action(
     verification_service = VerificationService(session=session)
     request = await verification_service.get_request(request_id=request_id)
 
-    if not request:
+    if not request or request.guild_id != interaction.guild.id:
         await interaction.followup.send(
             content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Solicitud no encontrada.",
             ephemeral=True,
@@ -530,6 +530,18 @@ async def show_rejection_select(
             ephemeral=True,
         )
         return
+
+    # Verificar que la solicitud existe y pertenece a este guild
+    async with cog.bot.database.session() as session:
+        verification_service = VerificationService(session=session)
+        request = await verification_service.get_request(request_id=request_id)
+
+        if not request or request.guild_id != guild_id:
+            not_found_msg = (
+                config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Solicitud no encontrada."
+            )
+            await interaction.response.send_message(content=not_found_msg, ephemeral=True)
+            return
 
     # Obtener motivos predefinidos configurados
     reasons: list[str] = []
