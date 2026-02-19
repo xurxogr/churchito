@@ -439,18 +439,47 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=["user", "role"],
         ),
         ConfigOption(
+            key=ConfigKey.EXEC_MSG_GLOBAL_REMOVE_START,
+            name="Mensaje: Inicio limpieza global",
+            description="Mensaje al iniciar la eliminación de roles globales (nivel 1+)",
+            option_type=ConfigOptionType.STRING,
+            section="Común",
+            group="Mensajes de ejecución",
+            default="🧹 **Eliminando roles globales...**",
+            max_length=200,
+        ),
+        ConfigOption(
+            key=ConfigKey.EXEC_MSG_GLOBAL_REMOVE_USER,
+            name="Mensaje: Usuario limpieza global",
+            description="Mensaje por cada usuario al que se le quitan roles globales (nivel 2). "
+            "Placeholders: {user}, {roles}",
+            option_type=ConfigOptionType.STRING,
+            section="Común",
+            group="Mensajes de ejecución",
+            default="  ↳ 🧹 Roles eliminados: {user} ({roles})",
+            max_length=200,
+            placeholders=["user", "roles"],
+        ),
+        ConfigOption(
             key=ConfigKey.EXEC_MSG_FINISH,
             name="Mensaje: Fin de purga",
             description="Mensaje al finalizar (nivel 1+). "
-            "Placeholders: {cleaned}, {promoted_in_group}, {promoted_not_in_group}",
+            "Placeholders: {cleaned}, {promoted_in_group}, {promoted_not_in_group}, "
+            "{global_removed}",
             option_type=ConfigOptionType.STRING,
             section="Común",
             group="Mensajes de ejecución",
             default="✅ **Purga finalizada.** "
             "Purgados: {cleaned} | Promocionados (grupo): {promoted_in_group} | "
-            "Promocionados (otros): {promoted_not_in_group}",
+            "Promocionados (otros): {promoted_not_in_group} | "
+            "Roles globales eliminados: {global_removed}",
             max_length=500,
-            placeholders=["cleaned", "promoted_in_group", "promoted_not_in_group"],
+            placeholders=[
+                "cleaned",
+                "promoted_in_group",
+                "promoted_not_in_group",
+                "global_removed",
+            ],
         ),
         # ====================================================================
         # PURGA FIN DE GUERRA
@@ -503,6 +532,15 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             key=ConfigKey.WAR_ROLES_TO_ADD,
             name="Roles a asignar (purgados)",
             description="Roles que se asignan a los miembros purgados después de eliminar roles",
+            option_type=ConfigOptionType.ROLE_LIST,
+            section="Purga: Final de guerra",
+            default=[],
+        ),
+        ConfigOption(
+            key=ConfigKey.WAR_GLOBAL_ROLES_TO_REMOVE,
+            name="Roles a eliminar (todos)",
+            description="Roles que se eliminan a TODOS los miembros del servidor, "
+            "independientemente de si reaccionaron o están en roles afectados",
             option_type=ConfigOptionType.ROLE_LIST,
             section="Purga: Final de guerra",
             default=[],

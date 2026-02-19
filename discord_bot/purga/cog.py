@@ -341,6 +341,7 @@ class PurgaCog(commands.Cog):
                 "affected_roles": config.get(ConfigKey.WAR_AFFECTED_ROLES, []),
                 "roles_to_remove": config.get(ConfigKey.WAR_ROLES_TO_REMOVE, []),
                 "roles_to_add": config.get(ConfigKey.WAR_ROLES_TO_ADD, []),
+                "global_roles_to_remove": config.get(ConfigKey.WAR_GLOBAL_ROLES_TO_REMOVE, []),
                 "promotions": config.get(ConfigKey.WAR_PROMOTIONS, []),
                 "default_promotion": config.get(ConfigKey.WAR_DEFAULT_PROMOTION),
                 "reaction_role": config.get(ConfigKey.USER_REACTION_ROLE),

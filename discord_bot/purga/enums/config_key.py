@@ -48,6 +48,8 @@ class ConfigKey(StrEnum):
     EXEC_MSG_USER_PROMOTED = "exec_msg_user_promoted"
     EXEC_MSG_PROMOTION_DEFAULT = "exec_msg_promotion_default"
     EXEC_MSG_USER_PROMOTED_DEFAULT = "exec_msg_user_promoted_default"
+    EXEC_MSG_GLOBAL_REMOVE_START = "exec_msg_global_remove_start"
+    EXEC_MSG_GLOBAL_REMOVE_USER = "exec_msg_global_remove_user"
     EXEC_MSG_FINISH = "exec_msg_finish"
 
     # === PURGA FIN DE GUERRA ===
@@ -57,5 +59,6 @@ class ConfigKey(StrEnum):
     WAR_AFFECTED_ROLES = "war_affected_roles"
     WAR_ROLES_TO_REMOVE = "war_roles_to_remove"
     WAR_ROLES_TO_ADD = "war_roles_to_add"
+    WAR_GLOBAL_ROLES_TO_REMOVE = "war_global_roles_to_remove"
     WAR_PROMOTIONS = "war_promotions"
     WAR_DEFAULT_PROMOTION = "war_default_promotion"

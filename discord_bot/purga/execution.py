@@ -114,6 +114,21 @@ async def execute_purga(
             execution_logs=execution_logs,
         )
 
+        # === FASE 3: ELIMINAR ROLES GLOBALES DE TODOS ===
+        global_roles_to_remove = record.config_snapshot.get("global_roles_to_remove", [])
+        if global_roles_to_remove:
+            global_removed_count = await _execute_global_removal_phase(
+                cog=cog,
+                guild=guild,
+                record=record,
+                config=config,
+                global_roles_to_remove=global_roles_to_remove,
+                audit_level=audit_level,
+                execution_logs=execution_logs,
+            )
+        else:
+            global_removed_count = 0
+
         # === REMOVE REACTION ROLE FROM ALL CONFIRMED ===
         reaction_role_id = record.config_snapshot.get("reaction_role")
         if reaction_role_id:
@@ -135,13 +150,15 @@ async def execute_purga(
                 ConfigKey.EXEC_MSG_FINISH,
                 "✅ **Purga finalizada.** Purgados: {cleaned} | "
                 "Promocionados (grupo): {promoted_in_group} | "
-                "Promocionados (otros): {promoted_not_in_group}",
+                "Promocionados (otros): {promoted_not_in_group} | "
+                "Roles globales eliminados: {global_removed}",
             )
             msg = format_message(
                 msg_template,
                 cleaned=str(cleaned_count),
                 promoted_in_group=str(promoted_in_group),
                 promoted_not_in_group=str(promoted_not_in_group),
+                global_removed=str(global_removed_count),
             )
             execution_logs.append(msg)
 
@@ -152,6 +169,7 @@ async def execute_purga(
             "cleaned_count": cleaned_count,
             "promoted_in_group": promoted_in_group,
             "promoted_not_in_group": promoted_not_in_group,
+            "global_removed_count": global_removed_count,
         }
 
         record = await purga_service.update_status(
@@ -190,7 +208,8 @@ async def execute_purga(
             logger.info(
                 f"[{guild.name}] {'[MODO PRUEBA] ' if test_mode else ''}"
                 f"Purga {purga_id} ejecutada: cleaned={cleaned_count}, "
-                f"promoted_in={promoted_in_group}, promoted_out={promoted_not_in_group}"
+                f"promoted_in={promoted_in_group}, promoted_out={promoted_not_in_group}, "
+                f"global_removed={global_removed_count}"
             )
 
         await session.commit()
@@ -286,7 +305,7 @@ async def _execute_cleaning_phase(
                 roles_after=roles_after,
             )
 
-            # Audit level 2: log each user
+            # Nivel de auditoría 2: registrar cada usuario
             if audit_level >= 2:
                 msg_template = config.get(
                     ConfigKey.EXEC_MSG_USER_CLEANED,
@@ -393,7 +412,7 @@ async def _execute_promotion_phase(
                 in_affected_group=in_affected,
             )
 
-            # Audit level 2: log each user
+            # Nivel de auditoría 2: registrar cada usuario
             if audit_level >= 2:
                 msg_template = config.get(
                     ConfigKey.EXEC_MSG_USER_PROMOTED,
@@ -461,7 +480,7 @@ async def _execute_promotion_phase(
                     in_affected_group=False,
                 )
 
-                # Audit level 2: log each user
+                # Nivel de auditoría 2: registrar cada usuario
                 if audit_level >= 2:
                     msg_template = config.get(
                         ConfigKey.EXEC_MSG_USER_PROMOTED_DEFAULT,
@@ -487,3 +506,80 @@ async def _execute_promotion_phase(
                 )
 
     return promoted_in_group, promoted_not_in_group, promoted_users
+
+
+async def _execute_global_removal_phase(
+    cog: "PurgaCog",
+    guild: discord.Guild,
+    record: PurgaRecord,
+    config: dict[str, Any],
+    global_roles_to_remove: list[int],
+    audit_level: int,
+    execution_logs: list[str],
+) -> int:
+    """Ejecutar fase de eliminación de roles globales.
+
+    Elimina los roles especificados de TODOS los miembros del servidor,
+    independientemente de si reaccionaron o están en roles afectados.
+
+    Returns:
+        int: Número de usuarios a los que se les quitaron roles.
+    """
+    # Obtener objetos de rol
+    roles_to_remove: list[discord.Role] = [
+        role for rid in global_roles_to_remove if (role := guild.get_role(rid))
+    ]
+
+    if not roles_to_remove:
+        return 0
+
+    # Mensaje de nivel 1
+    if audit_level >= 1:
+        msg = config.get(
+            ConfigKey.EXEC_MSG_GLOBAL_REMOVE_START,
+            "🧹 **Eliminando roles globales...**",
+        )
+        execution_logs.append(msg)
+
+    removed_count = 0
+
+    for member in guild.members:
+        if member.bot:
+            continue
+
+        # Buscar qué roles globales tiene este miembro
+        member_roles_to_remove = [r for r in roles_to_remove if r in member.roles]
+        if not member_roles_to_remove:
+            continue
+
+        try:
+            await member.remove_roles(*member_roles_to_remove)
+            removed_count += 1
+
+            # Nivel de auditoría 2: registrar cada usuario
+            if audit_level >= 2:
+                role_names = ", ".join(r.name for r in member_roles_to_remove)
+                msg_template = config.get(
+                    ConfigKey.EXEC_MSG_GLOBAL_REMOVE_USER,
+                    "  ↳ 🧹 Roles eliminados: {user} ({roles})",
+                )
+                msg = format_message(
+                    msg_template,
+                    user=member.display_name,
+                    roles=role_names,
+                )
+                execution_logs.append(msg)
+
+        except discord.Forbidden:
+            logger.warning(f"No se pudo quitar roles globales a {member.name}")
+
+    # Actualizar mensaje de moderación después de la eliminación global
+    if audit_level >= 1:
+        await cog._update_mod_message(
+            guild=guild,
+            record=record,
+            config=config,
+            execution_logs=execution_logs,
+        )
+
+    return removed_count
