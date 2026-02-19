@@ -42,6 +42,14 @@ class WebSettings(BaseModel):
         description="IDs de usuarios con acceso de administrador al dashboard",
         default_factory=list,
     )
+    https_only: bool = Field(
+        description="Solo enviar cookie de sesión sobre HTTPS (usar True en producción)",
+        default=True,
+    )
+    session_max_age: int = Field(
+        description="Duración máxima de la sesión en segundos (default: 2 horas)",
+        default=7200,
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -56,6 +64,8 @@ class WebSettings(BaseModel):
                 "client_secret": "tu-client-secret-de-discord",
                 "redirect_uri": "http://localhost:8000/auth/callback",
                 "owner_ids": [123456789012345678],
+                "https_only": True,
+                "session_max_age": 7200,
             }
         },
     )

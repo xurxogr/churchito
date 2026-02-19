@@ -56,9 +56,9 @@ def create_app(
         SessionMiddleware,
         secret_key=secret_key,
         session_cookie="bot_session",
-        max_age=86400 * 7,
+        max_age=settings.web.session_max_age,
         same_site="lax",
-        https_only=False,
+        https_only=settings.web.https_only,
     )
 
     # CSRF middleware (debe estar después de SessionMiddleware)
