@@ -19,6 +19,40 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Dominios válidos para URLs de Discord
+DISCORD_CDN_DOMAINS = frozenset(
+    {
+        "cdn.discordapp.com",
+        "media.discordapp.net",
+    }
+)
+
+
+def _is_valid_discord_url(url: str) -> bool:
+    """Verificar que una URL es de Discord CDN.
+
+    Args:
+        url: URL a verificar
+
+    Returns:
+        bool: True si es una URL válida de Discord CDN
+    """
+    if not url:
+        return False
+
+    # Verificar que empieza con https://
+    if not url.startswith("https://"):
+        return False
+
+    # Extraer dominio
+    try:
+        # URL format: https://domain/path
+        domain_part = url[8:]  # Remove "https://"
+        domain = domain_part.split("/")[0]
+        return domain in DISCORD_CDN_DOMAINS
+    except (IndexError, ValueError):
+        return False
+
 
 class ModActionContext(NamedTuple):
     """Contexto validado para acciones de moderacion."""
@@ -247,14 +281,27 @@ async def handle_dm_screenshots(
             await message.channel.send(content=formatted)
             return
 
+        # Validar que las URLs son de Discord CDN
+        url1 = image_attachments[0].url
+        url2 = image_attachments[1].url
+
+        if not _is_valid_discord_url(url1) or not _is_valid_discord_url(url2):
+            logger.warning(f"URLs de captura inválidas: {url1[:50]}..., {url2[:50]}...")
+            formatted = format_message(
+                template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
+                username=message.author.name,
+            )
+            await message.channel.send(content=formatted)
+            return
+
         del cog._pending_dm_verifications[message.author.id]
 
         verification_service = VerificationService(session=session)
 
         request = await verification_service.update_screenshots(
             request_id=request_id,
-            url1=image_attachments[0].url,
-            url2=image_attachments[1].url,
+            url1=url1,
+            url2=url2,
         )
 
         if not request:

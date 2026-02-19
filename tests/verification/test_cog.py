@@ -724,10 +724,10 @@ class TestOnMessage:
         # 2 imagenes validas
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
-        attachment1.url = "http://example.com/1.png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
-        attachment2.url = "http://example.com/2.jpg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
         config_values = {
@@ -751,8 +751,12 @@ class TestOnMessage:
             updated = await service.get_request(request_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
-            assert updated.screenshot_1_url == "http://example.com/1.png"
-            assert updated.screenshot_2_url == "http://example.com/2.jpg"
+            assert (
+                updated.screenshot_1_url == "https://cdn.discordapp.com/attachments/123/456/1.png"
+            )
+            assert (
+                updated.screenshot_2_url == "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+            )
 
 
 class TestHandleAcceptHappyPath:
@@ -772,7 +776,9 @@ class TestHandleAcceptHappyPath:
                 verification_type=VerificationType.REGULAR,
             )
             await service.update_screenshots(
-                request.id, "http://example.com/1.png", "http://example.com/2.png"
+                request.id,
+                "https://cdn.discordapp.com/attachments/123/456/1.png",
+                "https://cdn.discordapp.com/attachments/123/456/2.png",
             )
             await session.commit()
             request_id = request.id
@@ -2326,10 +2332,10 @@ class TestOnMessageScreenshots:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
-        attachment1.url = "http://example.com/1.png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
-        attachment2.url = "http://example.com/2.jpg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
         config_values = {
@@ -2894,10 +2900,10 @@ class TestOnMessageUpdateModMessage:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
-        attachment1.url = "http://example.com/1.png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
-        attachment2.url = "http://example.com/2.jpg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, object] = {
