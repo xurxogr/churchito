@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Dashboard{% endblock %} - Bot Discord</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="{{ root_path }}/static/css/style.css">
@@ -29,6 +30,13 @@
         <p>Bot Dashboard &copy; 2024</p>
     </footer>
 
+    <script>
+        // Configurar HTMX para enviar token CSRF con cada request
+        document.addEventListener('htmx:configRequest', function(event) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+            event.detail.headers['X-CSRF-Token'] = csrfToken;
+        });
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

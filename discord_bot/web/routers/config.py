@@ -12,6 +12,7 @@ from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
+from discord_bot.web.middleware import get_csrf_token
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def base_context(request: Request) -> dict[str, Any]:
     """
     return {
         "root_path": request.scope.get("root_path", ""),
+        "csrf_token": get_csrf_token(request),
     }
 
 

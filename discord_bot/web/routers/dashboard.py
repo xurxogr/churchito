@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from discord_bot.web.dependencies import CurrentUser, RequireAuth
+from discord_bot.web.middleware import get_csrf_token
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ def base_context(request: Request) -> dict[str, Any]:
     """
     return {
         "root_path": request.scope.get("root_path", ""),
+        "csrf_token": get_csrf_token(request),
     }
 
 
