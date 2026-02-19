@@ -88,5 +88,5 @@ class ModAuthorizationView(discord.ui.View):
             self.add_item(
                 AuthorizeButton(purga_id=purga_id, label=authorize_label, style=button_style)
             )
-        elif status == PurgaStatus.AUTHORIZED:
+        elif status in (PurgaStatus.AUTHORIZED, PurgaStatus.CANCEL_PENDING):
             self.add_item(CancelButton(purga_id=purga_id, label=cancel_label))

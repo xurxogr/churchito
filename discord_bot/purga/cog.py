@@ -49,6 +49,8 @@ class PurgaCog(commands.Cog):
         self._active_purgas: dict[int, tuple[int, datetime | None]] = {}
         # Track authorized purgas for execution: {guild_id: (purga_id, scheduled_for)}
         self._authorized_purgas: dict[int, tuple[int, datetime]] = {}
+        # Track cancel_pending purgas: {guild_id: (purga_id, expires_at)}
+        self._cancel_pending_purgas: dict[int, tuple[int, datetime]] = {}
         # Track messages scheduled for deletion: {(channel_id, message_id): delete_at}
         self._pending_deletions: dict[tuple[int, int], datetime] = {}
         logger.info("PurgaCog inicializado")
@@ -647,7 +649,11 @@ class PurgaCog(commands.Cog):
                 )
                 return
 
-            if record.status not in (PurgaStatus.PENDING, PurgaStatus.AUTHORIZED):
+            if record.status not in (
+                PurgaStatus.PENDING,
+                PurgaStatus.AUTHORIZED,
+                PurgaStatus.CANCEL_PENDING,
+            ):
                 await interaction.followup.send(
                     "Esta purga no puede ser cancelada.",
                     ephemeral=True,
@@ -676,6 +682,23 @@ class PurgaCog(commands.Cog):
             required = self._get_required_reactions(config)
             cancel_count = len(record.cancelled_by)
 
+            # Si está AUTHORIZED y es el primer voto, transicionar a CANCEL_PENDING
+            # (excepto en modo prueba con required=1, que va directo a CANCELLED)
+            if record.status == PurgaStatus.AUTHORIZED and cancel_count < required:
+                record = await purga_service.update_status(
+                    purga_id=purga_id, status=PurgaStatus.CANCEL_PENDING
+                )
+                if not record:
+                    return
+
+                # Calcular expiración para CANCEL_PENDING
+                timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
+                if timeout_minutes > 0:
+                    cancel_expires_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
+                    self._cancel_pending_purgas[guild.id] = (purga_id, cancel_expires_at)
+
+                logger.info(f"[{guild.name}] Purga {purga_id} en estado CANCEL_PENDING")
+
             if cancel_count >= required:
                 # Cancelar la purga
                 record = await purga_service.update_status(
@@ -690,6 +713,7 @@ class PurgaCog(commands.Cog):
                 # Quitar de tracking
                 self._active_purgas.pop(guild.id, None)
                 self._authorized_purgas.pop(guild.id, None)
+                self._cancel_pending_purgas.pop(guild.id, None)
 
                 # Quitar rol de reacción a todos los que confirmaron
                 reaction_role_id = config.get(ConfigKey.USER_REACTION_ROLE)
@@ -962,7 +986,11 @@ class PurgaCog(commands.Cog):
             PurgaStatus.FAILED,
         ):
             await message.edit(content=content, view=None)
-        elif record.status in (PurgaStatus.PENDING, PurgaStatus.AUTHORIZED):
+        elif record.status in (
+            PurgaStatus.PENDING,
+            PurgaStatus.AUTHORIZED,
+            PurgaStatus.CANCEL_PENDING,
+        ):
             view = self._create_mod_view(record=record, config=config)
             await message.edit(content=content, view=view)
         else:
@@ -1107,7 +1135,24 @@ class PurgaCog(commands.Cog):
                             f"Purga autorizada {record.id} restaurada para guild {record.guild_id}"
                         )
 
-                total = len(pending_purgas) + len(authorized_purgas)
+                # Restaurar purgas con cancelación pendiente
+                cancel_pending_purgas = await purga_service.get_cancel_pending_purgas()
+                for record in cancel_pending_purgas:
+                    # Usar timeout fresco desde la config al restaurar
+                    config = await self._get_config(record.guild_id)
+                    timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
+                    if timeout_minutes > 0:
+                        cancel_expires_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
+                        self._cancel_pending_purgas[record.guild_id] = (
+                            record.id,
+                            cancel_expires_at,
+                        )
+                        logger.info(
+                            f"Purga CANCEL_PENDING {record.id} restaurada para "
+                            f"guild {record.guild_id}"
+                        )
+
+                total = len(pending_purgas) + len(authorized_purgas) + len(cancel_pending_purgas)
                 if total:
                     logger.info(f"PurgaCog: {total} purgas restauradas")
         except Exception as e:
@@ -1196,6 +1241,49 @@ class PurgaCog(commands.Cog):
             except Exception as e:
                 logger.error(f"Error expirando purga {purga_id}: {e}")
 
+    async def _check_cancel_pending_expired(self) -> None:
+        """Verificar y revertir purgas CANCEL_PENDING que han expirado a AUTHORIZED."""
+        now = datetime.now(UTC)
+        expired_guilds: list[int] = []
+
+        # Identificar purgas CANCEL_PENDING expiradas
+        for guild_id, (_purga_id, expires_at) in self._cancel_pending_purgas.items():
+            if expires_at <= now:
+                expired_guilds.append(guild_id)
+
+        # Procesar purgas expiradas
+        for guild_id in expired_guilds:
+            purga_id, _ = self._cancel_pending_purgas.pop(guild_id)
+            guild = self.bot.get_guild(guild_id)
+            guild_name = guild.name if guild else str(guild_id)
+            logger.info(
+                f"[{guild_name}] Cancelación de purga {purga_id} expirada, revirtiendo a AUTHORIZED"
+            )
+
+            try:
+                async with self.bot.database.session() as session:
+                    purga_service = PurgaService(session)
+
+                    # Limpiar votos de cancelación
+                    await purga_service.clear_cancellations(purga_id)
+
+                    # Revertir estado a AUTHORIZED
+                    record = await purga_service.update_status(
+                        purga_id=purga_id, status=PurgaStatus.AUTHORIZED
+                    )
+
+                    if record and guild:
+                        config = await self._get_config(guild_id)
+                        await self._update_mod_message(
+                            guild=guild,
+                            record=record,
+                            config=config,
+                        )
+
+                    await session.commit()
+            except Exception as e:
+                logger.error(f"Error revirtiendo cancelación de purga {purga_id}: {e}")
+
     async def _check_ready_purgas(self) -> None:
         """Verificar y ejecutar purgas autorizadas que han alcanzado su tiempo de ejecución."""
         now = datetime.now(UTC)
@@ -1231,6 +1319,7 @@ class PurgaCog(commands.Cog):
     async def expiration_check_loop(self) -> None:
         """Loop que verifica purgas expiradas, ejecuciones y mensajes pendientes."""
         await self._check_expired_purgas()
+        await self._check_cancel_pending_expired()
         await self._check_ready_purgas()
         await self._check_pending_deletions()
 

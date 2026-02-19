@@ -5317,3 +5317,274 @@ class TestUpdateModMessageCancelPendingBranch:
 
         # Should call edit without view (line 1488)
         mock_message.edit.assert_called()
+
+
+class TestHandleCancelToCancelPending:
+    """Tests para transición a CANCEL_PENDING en _handle_cancel."""
+
+    async def test_transitions_to_cancel_pending(
+        self,
+        purga_cog: PurgaCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que el primer voto de cancelación transiciona a CANCEL_PENDING."""
+        guild_id = 999888777
+
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_guild.get_member = MagicMock(return_value=None)
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_interaction.response = MagicMock()
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup = MagicMock()
+        mock_interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REACTION_TIMEOUT, 5)
+
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
+            await session.commit()
+            purga_id = record.id
+
+        await purga_cog._handle_cancel(mock_interaction, purga_id)
+
+        # Verificar que se transicionó a CANCEL_PENDING
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            updated = await purga_service.get_purga(purga_id)
+            assert updated is not None
+            assert updated.status == PurgaStatus.CANCEL_PENDING
+            assert mock_member.id in updated.cancelled_by
+
+        # Verificar que se trackea la expiración
+        assert guild_id in purga_cog._cancel_pending_purgas
+
+    async def test_cancel_pending_allows_more_votes(
+        self,
+        purga_cog: PurgaCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que se pueden añadir más votos en CANCEL_PENDING."""
+        guild_id = 888777666
+
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_guild.get_member = MagicMock(return_value=None)
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_interaction.response = MagicMock()
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup = MagicMock()
+        mock_interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            # Ya está en CANCEL_PENDING con un voto
+            await purga_service.update_status(record.id, PurgaStatus.CANCEL_PENDING)
+            await purga_service.add_cancellation(record.id, 888)
+            await session.commit()
+            purga_id = record.id
+
+        await purga_cog._handle_cancel(mock_interaction, purga_id)
+
+        # Verificar que se añadió el voto y sigue en CANCEL_PENDING
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            updated = await purga_service.get_purga(purga_id)
+            assert updated is not None
+            assert updated.status == PurgaStatus.CANCEL_PENDING
+            assert len(updated.cancelled_by) == 2
+
+
+class TestCheckCancelPendingExpired:
+    """Tests para _check_cancel_pending_expired."""
+
+    async def test_reverts_expired_cancel_pending(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Probar que revierte CANCEL_PENDING expirado a AUTHORIZED."""
+        guild_id = mock_guild.id
+        mock_discord_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_message.edit = AsyncMock()
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            record.mod_message_id = 12345
+            record.mod_channel_id = 67890
+            await purga_service.update_status(record.id, PurgaStatus.CANCEL_PENDING)
+            await purga_service.add_cancellation(record.id, 111)
+            await purga_service.add_cancellation(record.id, 222)
+            await session.commit()
+            purga_id = record.id
+
+        # Añadir a tracking con tiempo expirado
+        purga_cog._cancel_pending_purgas[guild_id] = (
+            purga_id,
+            datetime.now(UTC) - timedelta(minutes=1),
+        )
+
+        await purga_cog._check_cancel_pending_expired()
+
+        # Verificar que se quitó del tracking
+        assert guild_id not in purga_cog._cancel_pending_purgas
+
+        # Verificar que revirtió a AUTHORIZED y limpió votos
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            updated = await purga_service.get_purga(purga_id)
+            assert updated is not None
+            assert updated.status == PurgaStatus.AUTHORIZED
+            assert updated.cancelled_by == []
+
+    async def test_does_not_revert_non_expired(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que no revierte CANCEL_PENDING no expirado."""
+        guild_id = mock_guild.id
+
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purga_service.update_status(record.id, PurgaStatus.CANCEL_PENDING)
+            await purga_service.add_cancellation(record.id, 111)
+            await session.commit()
+            purga_id = record.id
+
+        # Añadir a tracking con tiempo futuro
+        future_expiry = datetime.now(UTC) + timedelta(minutes=5)
+        purga_cog._cancel_pending_purgas[guild_id] = (purga_id, future_expiry)
+
+        await purga_cog._check_cancel_pending_expired()
+
+        # Verificar que sigue en tracking
+        assert guild_id in purga_cog._cancel_pending_purgas
+
+        # Verificar que sigue en CANCEL_PENDING
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            updated = await purga_service.get_purga(purga_id)
+            assert updated is not None
+            assert updated.status == PurgaStatus.CANCEL_PENDING
+
+
+class TestRestoreCancelPendingPurgas:
+    """Tests para restauración de purgas CANCEL_PENDING."""
+
+    async def test_restores_cancel_pending_purgas(
+        self,
+        purga_cog: PurgaCog,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que restaura purgas CANCEL_PENDING al iniciar."""
+        guild_id = 111222333
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REACTION_TIMEOUT, 10)
+
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=guild_id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purga_service.update_status(record.id, PurgaStatus.CANCEL_PENDING)
+            await session.commit()
+            purga_id = record.id
+
+        await purga_cog._restore_active_purgas()
+
+        # Verificar que se restauró
+        assert guild_id in purga_cog._cancel_pending_purgas
+        restored_id, expires_at = purga_cog._cancel_pending_purgas[guild_id]
+        assert restored_id == purga_id
+        # La expiración debe ser en el futuro (timeout de 10 minutos)
+        assert expires_at > datetime.now(UTC)
+
+
+class TestModAuthorizationViewCancelPending:
+    """Tests para ModAuthorizationView con CANCEL_PENDING."""
+
+    async def test_view_creation_cancel_pending(self) -> None:
+        """Probar que CANCEL_PENDING muestra botón de cancelar."""
+        from discord_bot.purga.views import ModAuthorizationView
+
+        view = ModAuthorizationView(
+            purga_id=123,
+            status=PurgaStatus.CANCEL_PENDING,
+            authorize_label="Autorizar",
+            cancel_label="Cancelar",
+        )
+
+        # Debe tener exactamente un botón (el de cancelar)
+        assert len(view.children) == 1
+        button = view.children[0]
+        assert isinstance(button, discord.ui.Button)
+        assert button.label == "Cancelar"
+        assert button.style == discord.ButtonStyle.danger

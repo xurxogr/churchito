@@ -206,6 +206,25 @@ class PurgaService:
         """
         return await self._update_user_list(purga_id, "confirmed_by", user_id, add=False)
 
+    async def clear_cancellations(self, purga_id: int) -> PurgaRecord | None:
+        """Limpiar todos los votos de cancelación de una purga.
+
+        Args:
+            purga_id (int): ID de la purga.
+
+        Returns:
+            PurgaRecord | None: Registro actualizado.
+        """
+        record = await self.get_purga(purga_id)
+        if not record:
+            return None
+
+        if record.cancelled_by:
+            record.cancelled_by = []
+            await self._session.flush()
+
+        return record
+
     async def update_status(
         self,
         purga_id: int,
@@ -262,6 +281,17 @@ class PurgaService:
         """
         result = await self._session.execute(
             select(PurgaRecord).where(PurgaRecord.status == PurgaStatus.AUTHORIZED)
+        )
+        return list(result.scalars().all())
+
+    async def get_cancel_pending_purgas(self) -> list[PurgaRecord]:
+        """Obtener todas las purgas con cancelación pendiente.
+
+        Returns:
+            list[PurgaRecord]: Lista de purgas con cancelación pendiente.
+        """
+        result = await self._session.execute(
+            select(PurgaRecord).where(PurgaRecord.status == PurgaStatus.CANCEL_PENDING)
         )
         return list(result.scalars().all())
 

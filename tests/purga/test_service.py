@@ -505,3 +505,90 @@ class TestPurgaService:
 
         assert updated is not None
         assert updated.scheduled_for == new_scheduled
+
+    async def test_clear_cancellations(self, test_session: AsyncSession) -> None:
+        """Probar limpiar votos de cancelación."""
+        service = PurgaService(test_session)
+
+        record = await service.create_purga(
+            guild_id=123,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+
+        # Añadir algunos votos de cancelación
+        await service.add_cancellation(purga_id=record.id, user_id=111)
+        await service.add_cancellation(purga_id=record.id, user_id=222)
+
+        # Verificar que se añadieron
+        updated = await service.get_purga(record.id)
+        assert updated is not None
+        assert len(updated.cancelled_by) == 2
+
+        # Limpiar votos
+        cleared = await service.clear_cancellations(purga_id=record.id)
+        assert cleared is not None
+        assert cleared.cancelled_by == []
+
+    async def test_clear_cancellations_empty(self, test_session: AsyncSession) -> None:
+        """Probar limpiar votos cuando no hay ninguno."""
+        service = PurgaService(test_session)
+
+        record = await service.create_purga(
+            guild_id=123,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+
+        # Limpiar sin votos existentes
+        cleared = await service.clear_cancellations(purga_id=record.id)
+        assert cleared is not None
+        assert cleared.cancelled_by == []
+
+    async def test_clear_cancellations_not_found(self, test_session: AsyncSession) -> None:
+        """Probar limpiar votos de purga inexistente."""
+        service = PurgaService(test_session)
+        result = await service.clear_cancellations(purga_id=99999)
+        assert result is None
+
+    async def test_get_cancel_pending_purgas(self, test_session: AsyncSession) -> None:
+        """Probar obtención de purgas con cancelación pendiente."""
+        service = PurgaService(test_session)
+
+        # Crear una purga PENDING
+        await service.create_purga(
+            guild_id=111,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+
+        # Crear una purga y ponerla en CANCEL_PENDING
+        record2 = await service.create_purga(
+            guild_id=222,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+        await service.update_status(purga_id=record2.id, status=PurgaStatus.CANCEL_PENDING)
+
+        # Crear otra purga AUTHORIZED
+        record3 = await service.create_purga(
+            guild_id=333,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+        await service.update_status(purga_id=record3.id, status=PurgaStatus.AUTHORIZED)
+
+        cancel_pending = await service.get_cancel_pending_purgas()
+        assert len(cancel_pending) == 1
+        assert cancel_pending[0].guild_id == 222
+        assert cancel_pending[0].status == PurgaStatus.CANCEL_PENDING
