@@ -119,9 +119,9 @@ class AutonameCog(commands.Cog):
                 message = message_template.format(**placeholders)
                 await channel.send(message)
         except (ValueError, TypeError, KeyError) as e:
-            logger.warning("Autoname: Error formateando mensaje de log: %s", e)
+            logger.warning(f"[{guild.name}] Error formateando mensaje de log: {e}")
         except discord.HTTPException as e:
-            logger.warning("Autoname: Error enviando log al canal: %s", e)
+            logger.warning(f"[{guild.name}] Error enviando log al canal: {e}")
 
     async def apply_nickname(self, member: discord.Member) -> bool:
         """Aplicar nickname formateado a un miembro.
@@ -168,11 +168,7 @@ class AutonameCog(commands.Cog):
 
         try:
             await member.edit(nick=new_nickname)
-            logger.info(
-                "Autoname: '%s' -> '%s'",
-                original_name,
-                new_nickname,
-            )
+            logger.info(f"[{member.guild.name}] '{original_name}' -> '{new_nickname}'")
             await self._send_log(
                 guild=member.guild,
                 config=config,
@@ -182,10 +178,7 @@ class AutonameCog(commands.Cog):
             )
             return True
         except discord.Forbidden:
-            logger.warning(
-                "Autoname: Sin permisos para '%s'",
-                original_name,
-            )
+            logger.warning(f"[{member.guild.name}] Sin permisos para '{original_name}'")
             await self._send_log(
                 guild=member.guild,
                 config=config,
@@ -194,11 +187,7 @@ class AutonameCog(commands.Cog):
             )
             return False
         except discord.HTTPException as e:
-            logger.error(
-                "Autoname: Error con '%s': %s",
-                original_name,
-                e,
-            )
+            logger.error(f"[{member.guild.name}] Error con '{original_name}': {e}")
             return False
 
     @commands.Cog.listener()
