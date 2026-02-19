@@ -54,6 +54,34 @@ def _is_valid_discord_url(url: str) -> bool:
         return False
 
 
+def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discord.Embed]:
+    """Crear embeds para mostrar las capturas de pantalla.
+
+    Crea embeds vacíos con las imágenes para que se muestren
+    como miniaturas en una fila en lugar de imágenes grandes apiladas.
+
+    Args:
+        url1: URL de la primera captura
+        url2: URL de la segunda captura
+
+    Returns:
+        list[discord.Embed]: Lista de embeds con las imágenes
+    """
+    embeds = []
+
+    if url1:
+        embed1 = discord.Embed()
+        embed1.set_image(url=url1)
+        embeds.append(embed1)
+
+    if url2:
+        embed2 = discord.Embed()
+        embed2.set_image(url=url2)
+        embeds.append(embed2)
+
+    return embeds
+
+
 class ModActionContext(NamedTuple):
     """Contexto validado para acciones de moderacion."""
 
@@ -370,8 +398,8 @@ async def update_mod_message_for_review(
         status=status_text,
     )
 
-    # Agregar capturas
-    formatted += f"\n{request.screenshot_1_url} {request.screenshot_2_url}"
+    # Crear embeds para las capturas (se muestran en una fila)
+    embeds = _create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
 
     # Agregar historial
     history = await verification_service.get_user_history(
@@ -404,7 +432,7 @@ async def update_mod_message_for_review(
         request_id=request.id, accept_label=accept_label, reject_label=reject_label
     )
 
-    await mod_message.edit(content=formatted, view=view)
+    await mod_message.edit(content=formatted, embeds=embeds, view=view)
 
 
 async def handle_accept(
