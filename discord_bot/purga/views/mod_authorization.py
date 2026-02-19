@@ -81,8 +81,6 @@ class ModAuthorizationView(discord.ui.View):
             button_style (discord.ButtonStyle): Estilo del botón de autorizar.
         """
         super().__init__(timeout=None)
-        self.purga_id = purga_id
-        self.status = status
 
         if status == PurgaStatus.PENDING:
             self.add_item(

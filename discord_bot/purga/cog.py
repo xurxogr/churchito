@@ -541,7 +541,7 @@ class PurgaCog(commands.Cog):
             purga_service = PurgaService(session)
 
             record = await purga_service.get_purga(purga_id)
-            if not record:
+            if not record or record.guild_id != guild.id:
                 await interaction.followup.send(
                     "Purga no encontrada.",
                     ephemeral=True,
@@ -631,7 +631,7 @@ class PurgaCog(commands.Cog):
             purga_service = PurgaService(session)
 
             record = await purga_service.get_purga(purga_id)
-            if not record:
+            if not record or record.guild_id != guild.id:
                 await interaction.followup.send(
                     "Purga no encontrada.",
                     ephemeral=True,
@@ -787,7 +787,7 @@ class PurgaCog(commands.Cog):
             purga_service = PurgaService(session)
 
             record = await purga_service.get_purga(purga_id)
-            if not record:
+            if not record or record.guild_id != guild.id:
                 await interaction.response.send_message(
                     "Purga no encontrada.",
                     ephemeral=True,

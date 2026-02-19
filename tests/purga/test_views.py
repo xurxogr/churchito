@@ -15,8 +15,6 @@ class TestModAuthorizationView:
         """Probar creación de vista con estado PENDING."""
         view = ModAuthorizationView(purga_id=123, status=PurgaStatus.PENDING)
 
-        assert view.purga_id == 123
-        assert view.status == PurgaStatus.PENDING
         assert view.timeout is None
         assert len(view.children) == 1
         assert isinstance(view.children[0], AuthorizeButton)
@@ -25,8 +23,6 @@ class TestModAuthorizationView:
         """Probar creación de vista con estado AUTHORIZED."""
         view = ModAuthorizationView(purga_id=123, status=PurgaStatus.AUTHORIZED)
 
-        assert view.purga_id == 123
-        assert view.status == PurgaStatus.AUTHORIZED
         assert view.timeout is None
         assert len(view.children) == 1
         assert isinstance(view.children[0], CancelButton)
@@ -97,7 +93,6 @@ class TestUserConfirmationView:
         """Probar creación de vista."""
         view = UserConfirmationView(purga_id=123)
 
-        assert view.purga_id == 123
         assert view.timeout is None
         assert len(view.children) == 1
 

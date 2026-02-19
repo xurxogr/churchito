@@ -52,6 +52,5 @@ class UserConfirmationView(discord.ui.View):
             button_style (discord.ButtonStyle): Estilo del botón.
         """
         super().__init__(timeout=None)
-        self.purga_id = purga_id
 
         self.add_item(ConfirmButton(purga_id=purga_id, label=confirm_label, style=button_style))
