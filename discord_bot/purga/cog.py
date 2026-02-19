@@ -395,8 +395,8 @@ class PurgaCog(commands.Cog):
         async with self.bot.database.session() as session:
             purga_service = PurgaService(session)
 
-            # Verificar si hay una purga activa
-            active = await purga_service.get_active_purga(guild.id)
+            # Verificar si hay una purga activa (con bloqueo para prevenir race condition)
+            active = await purga_service.get_active_purga_for_update(guild.id)
             if active:
                 await interaction.followup.send(
                     config.get(

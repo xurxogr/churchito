@@ -74,7 +74,7 @@ class PurgaService:
     async def get_active_purga(self, guild_id: int) -> PurgaRecord | None:
         """Obtener la purga activa de un guild.
 
-        Una purga está activa si su estado es PENDING o AUTHORIZED.
+        Una purga está activa si su estado es PENDING, AUTHORIZED o CANCEL_PENDING.
 
         Args:
             guild_id (int): ID del guild.
@@ -85,8 +85,34 @@ class PurgaService:
         result = await self._session.execute(
             select(PurgaRecord).where(
                 PurgaRecord.guild_id == guild_id,
-                PurgaRecord.status.in_([PurgaStatus.PENDING, PurgaStatus.AUTHORIZED]),
+                PurgaRecord.status.in_(
+                    [PurgaStatus.PENDING, PurgaStatus.AUTHORIZED, PurgaStatus.CANCEL_PENDING]
+                ),
             )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_active_purga_for_update(self, guild_id: int) -> PurgaRecord | None:
+        """Obtener la purga activa de un guild con bloqueo para escritura.
+
+        Usa SELECT FOR UPDATE para prevenir condiciones de carrera al crear
+        una nueva purga. Debe usarse dentro de una transacción.
+
+        Args:
+            guild_id (int): ID del guild.
+
+        Returns:
+            PurgaRecord | None: Purga activa si existe (bloqueada para actualización).
+        """
+        result = await self._session.execute(
+            select(PurgaRecord)
+            .where(
+                PurgaRecord.guild_id == guild_id,
+                PurgaRecord.status.in_(
+                    [PurgaStatus.PENDING, PurgaStatus.AUTHORIZED, PurgaStatus.CANCEL_PENDING]
+                ),
+            )
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 

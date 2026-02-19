@@ -112,6 +112,42 @@ class TestPurgaService:
         active = await service.get_active_purga(123)
         assert active is None
 
+    async def test_get_active_purga_for_update(self, test_session: AsyncSession) -> None:
+        """Probar obtención de purga activa con bloqueo."""
+        service = PurgaService(test_session)
+
+        await service.create_purga(
+            guild_id=123,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+
+        # Debe funcionar igual que get_active_purga pero con bloqueo
+        active = await service.get_active_purga_for_update(123)
+        assert active is not None
+        assert active.status == PurgaStatus.PENDING
+
+    async def test_get_active_purga_for_update_includes_cancel_pending(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Probar que get_active_purga_for_update incluye CANCEL_PENDING."""
+        service = PurgaService(test_session)
+
+        record = await service.create_purga(
+            guild_id=123,
+            purga_type=PurgaType.WAR_END,
+            initiated_by=456,
+            config_snapshot={},
+            scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        )
+        await service.update_status(purga_id=record.id, status=PurgaStatus.CANCEL_PENDING)
+
+        active = await service.get_active_purga_for_update(123)
+        assert active is not None
+        assert active.status == PurgaStatus.CANCEL_PENDING
+
     async def test_update_mod_message(self, test_session: AsyncSession) -> None:
         """Probar actualización de IDs de mensaje de moderación."""
         service = PurgaService(test_session)
