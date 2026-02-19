@@ -347,6 +347,11 @@ async def toggle_cog(
     Returns:
         HTMLResponse: Partial actualizado
     """
+    # Validar que el cog existe antes de cualquier operación DB
+    schema_service = get_config_schema_service()
+    if not schema_service.get_schema(cog_name):
+        raise HTTPException(status_code=404, detail="Cog no encontrado")
+
     config_service = ConfigService(session)
     current = await config_service.is_cog_enabled(guild_id, cog_name)
     new_state = not current
@@ -463,6 +468,11 @@ async def reset_cog_config(
     Returns:
         HTMLResponse: Partial actualizado
     """
+    # Validar que el cog existe antes de cualquier operación DB
+    schema_service = get_config_schema_service()
+    if not schema_service.get_schema(cog_name):
+        raise HTTPException(status_code=404, detail="Cog no encontrado")
+
     config_service = ConfigService(session)
     await config_service.reset_config(guild_id, cog_name)
 
