@@ -626,17 +626,54 @@ def _convert_form_value(
         case ConfigOptionType.TABLE:
             import json
 
-            data = json.loads(value)
+            # Limitar tamaño del JSON para prevenir DoS
+            max_json_size = 100_000  # 100KB
+            if len(value) > max_json_size:
+                logger.warning(f"JSON demasiado grande: {len(value)} bytes")
+                return None
 
-            # Convert role/channel columns to integers
+            try:
+                data = json.loads(value)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON inválido en TABLE config: {e}")
+                return None
+
+            # Validar que data es una lista
+            if not isinstance(data, list):
+                logger.warning("TABLE config debe ser una lista")
+                return None
+
+            # Procesar filas
             if option and option.columns:
+                valid_keys = {col["key"] for col in option.columns}
                 int_columns = {
                     col["key"] for col in option.columns if col.get("type") in ("role", "channel")
                 }
+
+                cleaned_data = []
                 for row in data:
+                    if not isinstance(row, dict):
+                        continue
+
+                    # Filtrar solo claves válidas
+                    cleaned_row = {k: v for k, v in row.items() if k in valid_keys}
+
+                    # Convertir columnas de role/channel a enteros
                     for col_key in int_columns:
-                        if col_key in row and row[col_key]:
-                            row[col_key] = int(row[col_key])
+                        if col_key in cleaned_row and cleaned_row[col_key]:
+                            col_value = cleaned_row[col_key]
+                            # Validar tipo antes de convertir
+                            if isinstance(col_value, int):
+                                pass  # Ya es int
+                            elif isinstance(col_value, str) and col_value.isdigit():
+                                cleaned_row[col_key] = int(col_value)
+                            else:
+                                # Valor inválido, eliminar la clave
+                                cleaned_row.pop(col_key, None)
+
+                    cleaned_data.append(cleaned_row)
+
+                return cleaned_data
 
             return data
         case _:
