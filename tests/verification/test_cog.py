@@ -889,11 +889,19 @@ class TestHealthCheck:
     async def test_check_verification_message_no_channel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check sin canal configurado."""
+        """Probar health check sin canal configurado (cog habilitado)."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
-        # No deberia fallar
+        # Habilitar cog pero NO configurar canal
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        # No deberia fallar - retorna temprano en linea 85
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_disabled(
@@ -1138,10 +1146,12 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await session.commit()
 
+        # Debe retornar temprano con warning (lineas 89-90)
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_message_not_found_restores(
@@ -1177,7 +1187,7 @@ class TestHealthCheck:
     async def test_check_verification_message_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check con permisos denegados."""
+        """Probar health check con permisos denegados (lineas 167-168)."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(
             side_effect=discord.Forbidden(MagicMock(), "Forbidden")
@@ -1191,12 +1201,13 @@ class TestHealthCheck:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
             await session.commit()
 
-        # No deberia fallar
+        # No deberia fallar - maneja Forbidden con warning (lineas 167-168)
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_no_components_restores(
@@ -1532,6 +1543,119 @@ class TestCreateVerificationMessage:
                 config_service=config_service,
                 session=session,
             )
+
+    async def test_create_verification_message_with_embed_and_view(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar creacion de panel con embed e imagen (linea 227)."""
+        mock_new_message = MagicMock()
+        mock_new_message.id = 12345
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 111
+        mock_channel.name = "verification"
+        mock_channel.send = AsyncMock(return_value=mock_new_message)
+
+        # Mock del canal de moderacion
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 222
+
+        # Mock de permisos del bot en el canal de moderacion
+        mock_permissions = MagicMock()
+        mock_permissions.send_messages = True
+        mock_mod_channel.permissions_for = MagicMock(return_value=mock_permissions)
+
+        # Mock del miembro del bot
+        mock_bot_member = MagicMock(spec=discord.Member)
+        mock_bot_member.id = 999
+
+        # Configurar bot.user.id
+        mock_user = MagicMock()
+        mock_user.id = 999
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+        mock_guild.get_member = MagicMock(return_value=mock_bot_member)
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+
+            # Configurar con URL de imagen para crear embed
+            await config_service.set_value(123, "verification", "mod_notification_channel", 222)
+            await config_service.set_value(123, "verification", "verify_button_text", "Verificar")
+            await config_service.set_value(123, "verification", "verify_ally_button_text", "Aliado")
+            await config_service.set_value(
+                123,
+                "verification",
+                "verification_panel_message",
+                "Bienvenido\nhttps://example.com/image.png",
+            )
+
+            config = await config_service.get_all_config(guild_id=123, cog_name="verification")
+            await verification_cog._create_verification_message(
+                guild=mock_guild,
+                channel=mock_channel,
+                config=config,
+                config_service=config_service,
+                session=session,
+            )
+
+            mock_channel.send.assert_called_once()
+            # Verificar que se envio con embed y view
+            call_kwargs = mock_channel.send.call_args.kwargs
+            assert "embed" in call_kwargs
+            assert call_kwargs["view"] is not None
+
+    async def test_create_verification_message_with_embed_only(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar creacion de panel con embed sin botones (linea 229)."""
+        mock_new_message = MagicMock()
+        mock_new_message.id = 12345
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 111
+        mock_channel.name = "verification"
+        mock_channel.send = AsyncMock(return_value=mock_new_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        # Sin canal de moderacion configurado
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+
+            # NO configurar mod_notification_channel (deshabilitado)
+            # Pero SI poner URL de imagen para crear embed
+            await config_service.set_value(
+                123,
+                "verification",
+                "verification_disabled_message",
+                "Verificacion deshabilitada\nhttps://example.com/image.png",
+            )
+
+            config = await config_service.get_all_config(guild_id=123, cog_name="verification")
+            await verification_cog._create_verification_message(
+                guild=mock_guild,
+                channel=mock_channel,
+                config=config,
+                config_service=config_service,
+                session=session,
+            )
+
+            mock_channel.send.assert_called_once()
+            # Verificar que se envio solo con embed (sin view)
+            call_kwargs = mock_channel.send.call_args.kwargs
+            assert "embed" in call_kwargs
+            assert "view" not in call_kwargs or call_kwargs.get("view") is None
 
 
 class TestHandleVerificationStartHappyPath:
