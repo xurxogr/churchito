@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.web.auth.oauth import router as auth_router
-from discord_bot.web.middleware import CSRFMiddleware
+from discord_bot.web.middleware import CSRFMiddleware, RateLimitMiddleware
 from discord_bot.web.routers.config import router as config_router
 from discord_bot.web.routers.dashboard import router as dashboard_router
 
@@ -63,6 +63,9 @@ def create_app(
 
     # CSRF middleware (debe estar después de SessionMiddleware)
     app.add_middleware(CSRFMiddleware)
+
+    # Rate limiting middleware
+    app.add_middleware(RateLimitMiddleware)
 
     app.state.settings = settings
     app.state.db_service = db_service
