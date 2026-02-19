@@ -114,10 +114,10 @@ async def dashboard(
     user_id = int(user.get("id", 0))
     is_owner = user_id in owner_ids
 
-    logger.info(f"User ID: {user_id}, Owner IDs: {owner_ids}, Is Owner: {is_owner}")
+    logger.debug(f"User ID: {user_id}, Is Owner: {is_owner}")
 
     user_guilds = user.get("guilds", [])
-    logger.info(f"User has {len(user_guilds)} guilds from Discord")
+    logger.debug(f"User has {len(user_guilds)} guilds from Discord")
 
     manageable_guilds = []
 

@@ -68,7 +68,9 @@ async def callback(
     root_path = request.scope.get("root_path", "")
 
     if error:
-        logger.warning(f"Error en OAuth callback: {error}")
+        # Sanitizar error para prevenir log injection (limitar longitud, eliminar newlines)
+        safe_error = str(error)[:100].replace("\n", " ").replace("\r", " ")
+        logger.warning(f"Error en OAuth callback: {safe_error}")
         return RedirectResponse(url=f"{root_path}/login?error=oauth_denied")
 
     if not code:
