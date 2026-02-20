@@ -38,8 +38,8 @@ async def get_current_user(request: Request) -> dict[str, Any] | None:
         dict[str, Any] | None: Datos del usuario o None si no está autenticado
     """
     user = request.session.get("user")
-    logger.debug(f"Session keys: {list(request.session.keys())}")
-    logger.debug(f"User from session: {user.get('username') if user else None}")
+    logger.debug(f"Claves de sesión: {list(request.session.keys())}")
+    logger.debug(f"Usuario en sesión: {user.get('username') if user else None}")
     return user
 
 

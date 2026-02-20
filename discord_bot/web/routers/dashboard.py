@@ -114,10 +114,10 @@ async def dashboard(
     user_id = int(user.get("id", 0))
     is_owner = user_id in owner_ids
 
-    logger.debug(f"User ID: {user_id}, Is Owner: {is_owner}")
+    logger.debug(f"Usuario ID: {user_id}, Es owner: {is_owner}")
 
     user_guilds = user.get("guilds", [])
-    logger.debug(f"User has {len(user_guilds)} guilds from Discord")
+    logger.debug(f"Usuario tiene {len(user_guilds)} guilds en Discord")
 
     manageable_guilds = []
 
@@ -147,7 +147,7 @@ async def dashboard(
 
     manageable_guilds.sort(key=lambda g: (not g["bot_present"], g["name"].lower()))
 
-    logger.info(f"Manageable guilds: {len(manageable_guilds)}")
+    logger.debug(f"Guilds gestionables: {len(manageable_guilds)}")
 
     # Bot info
     bot_info = None

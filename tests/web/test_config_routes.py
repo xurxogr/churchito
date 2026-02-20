@@ -13,6 +13,7 @@ from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import ConfigSchemaService
 from discord_bot.web.routers.config import (
+    _convert_form_value,
     cog_settings,
     guild_config,
     reset_cog_config,
@@ -836,3 +837,188 @@ class TestChannelPermissionValidation:
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
             assert context.get("error") == "El bot no puede enviar mensajes en ese canal"
+
+
+class TestToggleCogInvalidCog:
+    """Tests para toggle_cog con cog inválido."""
+
+    async def test_toggle_cog_invalid_cog_raises_404(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que toggle_cog lanza 404 para cog inexistente."""
+        empty_service = ConfigSchemaService()
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=empty_service,
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await toggle_cog(
+                mock_config_request, 111222333, "nonexistent_cog", test_user, test_session
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Cog no encontrado"
+
+
+class TestResetCogConfigInvalidCog:
+    """Tests para reset_cog_config con cog inválido."""
+
+    async def test_reset_cog_config_invalid_cog_raises_404(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que reset_cog_config lanza 404 para cog inexistente."""
+        empty_service = ConfigSchemaService()
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=empty_service,
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            await reset_cog_config(
+                mock_config_request, 111222333, "nonexistent_cog", test_user, test_session
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Cog no encontrado"
+
+
+class TestConvertFormValueTable:
+    """Tests para _convert_form_value con tipo TABLE."""
+
+    def test_table_valid_json_list(self) -> None:
+        """Probar conversión de JSON válido como lista."""
+        value = '[{"key": "value"}]'
+        result = _convert_form_value(value, ConfigOptionType.TABLE)
+        assert result == [{"key": "value"}]
+
+    def test_table_json_too_large(self) -> None:
+        """Probar que JSON demasiado grande retorna None."""
+        # Crear JSON de más de 100KB
+        large_value = "[" + ",".join(['{"x": "y"}'] * 20000) + "]"
+        assert len(large_value) > 100_000
+
+        result = _convert_form_value(large_value, ConfigOptionType.TABLE)
+        assert result is None
+
+    def test_table_invalid_json(self) -> None:
+        """Probar que JSON inválido retorna None."""
+        value = "not valid json {"
+        result = _convert_form_value(value, ConfigOptionType.TABLE)
+        assert result is None
+
+    def test_table_not_a_list(self) -> None:
+        """Probar que JSON que no es lista retorna None."""
+        value = '{"key": "value"}'
+        result = _convert_form_value(value, ConfigOptionType.TABLE)
+        assert result is None
+
+    def test_table_with_columns_filters_keys(self) -> None:
+        """Probar que se filtran claves inválidas según columns."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "valid_key", "name": "Valid"},
+                {"key": "another_key", "name": "Another"},
+            ],
+        )
+        value = '[{"valid_key": "v1", "invalid_key": "v2", "another_key": "v3"}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"valid_key": "v1", "another_key": "v3"}]
+
+    def test_table_with_role_column_converts_to_int(self) -> None:
+        """Probar que columnas de tipo role se convierten a int."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role"},
+                {"key": "name", "name": "Name"},
+            ],
+        )
+        value = '[{"role_id": "123456", "name": "Test"}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"role_id": 123456, "name": "Test"}]
+
+    def test_table_with_channel_column_converts_to_int(self) -> None:
+        """Probar que columnas de tipo channel se convierten a int."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "channel_id", "name": "Channel", "type": "channel"},
+            ],
+        )
+        value = '[{"channel_id": "789012"}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"channel_id": 789012}]
+
+    def test_table_with_invalid_role_value_removes_key(self) -> None:
+        """Probar que valores inválidos en columnas role se eliminan."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role"},
+                {"key": "name", "name": "Name"},
+            ],
+        )
+        value = '[{"role_id": "not_a_number", "name": "Test"}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"name": "Test"}]
+
+    def test_table_with_already_int_value(self) -> None:
+        """Probar que valores ya int se mantienen."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role"},
+            ],
+        )
+        # JSON con número ya como int
+        value = '[{"role_id": 123456}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"role_id": 123456}]
+
+    def test_table_skips_non_dict_rows(self) -> None:
+        """Probar que filas que no son dict se ignoran."""
+        option = ConfigOption(
+            key="test_table",
+            name="Test Table",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "name", "name": "Name"},
+            ],
+        )
+        value = '[{"name": "valid"}, "invalid_row", {"name": "also_valid"}]'
+
+        result = _convert_form_value(value, ConfigOptionType.TABLE, option)
+
+        assert result == [{"name": "valid"}, {"name": "also_valid"}]

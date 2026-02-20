@@ -144,7 +144,7 @@ async def callback(
         }
 
         logger.info(f"Usuario autenticado: {user_data['username']} (ID: {user_data['id']})")
-        logger.info(f"Guilds con permisos: {len(manageable_guilds)} de {len(guilds_data)}")
+        logger.debug(f"Guilds con permisos: {len(manageable_guilds)} de {len(guilds_data)}")
 
         # Use status_code=303 (See Other) to ensure proper redirect after POST-like operation
         return RedirectResponse(url=f"{root_path}/dashboard", status_code=303)
