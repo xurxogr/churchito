@@ -52,6 +52,10 @@ def create_app(
             "Las sesiones no persistirán entre reinicios."
         )
 
+    # Middleware se procesa en orden inverso al que se añade
+    # (el último añadido procesa primero)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=secret_key,
@@ -60,12 +64,6 @@ def create_app(
         same_site="lax",
         https_only=settings.web.https_only,
     )
-
-    # CSRF middleware (debe estar después de SessionMiddleware)
-    app.add_middleware(CSRFMiddleware)
-
-    # Rate limiting middleware
-    app.add_middleware(RateLimitMiddleware)
 
     app.state.settings = settings
     app.state.db_service = db_service
