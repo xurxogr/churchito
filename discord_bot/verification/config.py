@@ -303,39 +303,58 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REJECTION_REASON_1,
-            name="Motivo de rechazo 1",
-            description="Primer motivo predefinido para rechazar verificaciones",
+            key=ConfigKey.REJECT_WRONG_CAPTURES,
+            name="Rechazo: Capturas incorrectas",
+            description="Motivo cuando las capturas son incorrectas o ilegibles (error API 422)",
             option_type=ConfigOptionType.STRING,
             default="Capturas incorrectas o ilegibles",
-            max_length=100,
+            max_length=200,
             group="Panel de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REJECTION_REASON_2,
-            name="Motivo de rechazo 2",
-            description="Segundo motivo predefinido para rechazar verificaciones",
+            key=ConfigKey.REJECT_NAME_MISMATCH,
+            name="Rechazo: Nombre no coincide",
+            description="Motivo cuando el nombre del juego no coincide con Discord",
             option_type=ConfigOptionType.STRING,
             default="Nombre de usuario no coincide",
-            max_length=100,
+            max_length=200,
             group="Panel de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REJECTION_REASON_3,
-            name="Motivo de rechazo 3",
-            description="Tercer motivo predefinido para rechazar verificaciones",
+            key=ConfigKey.REJECT_HAS_REGIMENT,
+            name="Rechazo: Tiene regimiento",
+            description="Motivo cuando el usuario ya pertenece a un regimiento",
             option_type=ConfigOptionType.STRING,
-            default="Informacion insuficiente",
-            max_length=100,
+            default="El usuario ya pertenece a un regimiento",
+            max_length=200,
             group="Panel de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.REJECTION_REASON_4,
-            name="Motivo de rechazo 4",
-            description="Cuarto motivo predefinido (dejar vacio para ocultar)",
+            key=ConfigKey.REJECT_TIME_DIFF,
+            name="Rechazo: Captura antigua",
+            description="Motivo cuando la captura es demasiado antigua",
             option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=100,
+            default="Captura demasiado antigua",
+            max_length=200,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECT_WRONG_SHARD,
+            name="Rechazo: Shard incorrecto",
+            description="Motivo cuando el shard es incorrecto. Usa {shard} para el esperado",
+            option_type=ConfigOptionType.STRING,
+            default="Shard incorrecto, debe ser {shard}",
+            max_length=200,
+            placeholders=["shard"],
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECT_WRONG_FACTION,
+            name="Rechazo: Facción incorrecta",
+            description="Motivo cuando la facción es incorrecta",
+            option_type=ConfigOptionType.STRING,
+            default="Facción incorrecta",
+            max_length=200,
             group="Panel de moderación",
         ),
         ConfigOption(
@@ -551,6 +570,91 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default="No tienes permisos para rechazar verificaciones.",
             max_length=500,
             group="Mensajes de moderación",
+        ),
+        # ===== 7. API DE VERIFICACIÓN =====
+        # Note: API URL and Key are in global settings (verification.api_url, api_key)
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_FACTION,
+            name="Facción requerida",
+            description="Facción que deben tener los usuarios para aprobar verificación",
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("Colonial", "colonial"),
+                ("Warden", "wardens"),
+            ],
+            default="",
+            group="API de Verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_SHARD,
+            name="Shard requerido",
+            description="Shard que deben tener los usuarios para aprobar verificación",
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("ABLE", "ABLE"),
+                ("CHARLIE", "CHARLIE"),
+            ],
+            default="",
+            group="API de Verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_TIME_DIFF,
+            name="Diferencia de tiempo máxima (días)",
+            description=(
+                "Máxima diferencia entre tiempo de juego y tiempo actual (0 para desactivar)"
+            ),
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=999,
+            group="API de Verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_AUTOMATIC,
+            name="Procesamiento automático",
+            description="Aprobar/rechazar automáticamente según las reglas configuradas",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="API de Verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.VERIFICATION_MATCH_NAME,
+            name="Verificar nombre",
+            description="Requerir que el nombre del juego coincida con el nombre de Discord",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="API de Verificación",
+        ),
+        ConfigOption(
+            key=ConfigKey.PLAYER_INFO_TEMPLATE,
+            name="Plantilla de información del jugador",
+            description=(
+                "Plantilla para mostrar la información del jugador en el mensaje de moderación"
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "**Información del jugador:**\n"
+                "Nombre: {name}\n"
+                "Regimiento: {regiment}\n"
+                "Nivel: {level}\n"
+                "Facción: {faction}\n"
+                "Shard: {shard}\n"
+                "Tiempo de juego: {time}\n"
+                "Guerra: {war}\n"
+                "Tiempo actual: {war_time}"
+            ),
+            max_length=2000,
+            placeholders=[
+                "name",
+                "regiment",
+                "level",
+                "faction",
+                "shard",
+                "time",
+                "war",
+                "war_time",
+            ],
+            group="API de Verificación",
         ),
     ],
 )

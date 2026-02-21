@@ -190,8 +190,8 @@ class DiscordBot(commands.Bot):
         """Guardar o actualizar un servidor en la base de datos.
 
         Args:
-            guild: El servidor de Discord
-            invited_by_id: ID del usuario que invitó al bot
+            guild (discord.Guild): El servidor de Discord
+            invited_by_id (int | None): ID del usuario que invitó al bot
         """
         async with self.database.session() as session:
             result = await session.execute(select(GuildModel).where(GuildModel.id == guild.id))

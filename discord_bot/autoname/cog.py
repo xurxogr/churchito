@@ -99,10 +99,10 @@ class AutonameCog(commands.Cog):
         """Enviar mensaje al canal de logs si esta configurado.
 
         Args:
-            guild: Guild donde enviar el log
-            config: Configuracion del cog
-            message_key: Clave del mensaje en la config
-            **placeholders: Valores para reemplazar en el mensaje
+            guild (discord.Guild): Guild donde enviar el log
+            config (dict[str, Any]): Configuracion del cog
+            message_key (str): Clave del mensaje en la config
+            **placeholders (str): Valores para reemplazar en el mensaje
         """
         channel_id = config.get(ConfigKey.LOG_CHANNEL)
         if not channel_id:

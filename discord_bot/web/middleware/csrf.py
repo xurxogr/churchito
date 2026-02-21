@@ -27,7 +27,7 @@ def get_csrf_token(request: Request) -> str:
     """Obtener o generar el token CSRF de la sesión.
 
     Args:
-        request: Request de Starlette
+        request (Request): Request de Starlette
 
     Returns:
         str: Token CSRF
@@ -42,7 +42,7 @@ def _is_exempt(path: str) -> bool:
     """Verificar si una ruta está exenta de CSRF.
 
     Args:
-        path: Ruta de la request
+        path (str): Ruta de la request
 
     Returns:
         bool: True si está exenta
@@ -67,8 +67,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         """Procesar la request verificando CSRF si es necesario.
 
         Args:
-            request: Request entrante
-            call_next: Siguiente handler en la cadena
+            request (Request): Request entrante
+            call_next (Callable[[Request], Awaitable[Response]]): Siguiente handler
 
         Returns:
             Response: Respuesta del handler o error 403

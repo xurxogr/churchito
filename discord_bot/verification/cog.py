@@ -318,7 +318,7 @@ class VerificationCog(commands.Cog):
 
         Args:
             channel (discord.TextChannel): Canal de moderacion
-            request: Solicitud de verificacion
+            request (VerificationRequest): Solicitud de verificacion
             verification_service (VerificationService): Servicio de verificacion
             config (dict[str, Any]): Configuracion del cog
         """
@@ -345,7 +345,7 @@ class VerificationCog(commands.Cog):
         Args:
             interaction (discord.Interaction): Interaccion del moderador
             request_id (int): ID de la solicitud
-            session: Sesion de base de datos
+            session (AsyncSession): Sesion de base de datos
             permission_error_key (ConfigKey): Clave del mensaje de error
             permission_error_default (str): Mensaje por defecto
 

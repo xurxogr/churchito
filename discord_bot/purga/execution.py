@@ -28,15 +28,15 @@ async def _apply_cleaning_to_member(
     """Aplicar limpieza de roles a un miembro.
 
     Args:
-        guild: Guild de Discord.
-        member: Miembro a limpiar.
-        roles_to_remove: IDs de roles a quitar.
-        roles_to_add: IDs de roles a añadir.
-        purga_service: Servicio de purga.
-        purga_id: ID de la purga.
+        guild (discord.Guild): Guild de Discord.
+        member (discord.Member): Miembro a limpiar.
+        roles_to_remove (list[int]): IDs de roles a quitar.
+        roles_to_add (list[int]): IDs de roles a añadir.
+        purga_service (PurgaService): Servicio de purga.
+        purga_id (int): ID de la purga.
 
     Returns:
-        tuple: (member_actualizado, roles_before, roles_after)
+        tuple[discord.Member, list[int], list[int]]: Miembro, roles antes, roles después
     """
     roles_before = [r.id for r in member.roles if r != guild.default_role]
 
@@ -343,6 +343,20 @@ async def _execute_cleaning_phase(
 ) -> tuple[int, set[int]]:
     """Ejecutar fase de limpieza de usuarios no confirmados.
 
+    Args:
+        cog (PurgaCog): Instancia del cog.
+        guild (discord.Guild): Guild de Discord.
+        record (PurgaRecord): Registro de purga.
+        config (dict[str, Any]): Configuración del cog.
+        purga_service (PurgaService): Servicio de purga.
+        purga_id (int): ID de la purga.
+        affected_roles (list[int]): IDs de roles afectados.
+        roles_to_remove (list[int]): IDs de roles a quitar.
+        roles_to_add (list[int]): IDs de roles a añadir.
+        confirmed_users (set[int]): IDs de usuarios confirmados.
+        audit_level (int): Nivel de auditoría.
+        execution_logs (list[str]): Lista de logs de ejecución.
+
     Returns:
         tuple[int, set[int]]: (cleaned_count, processed_users)
     """
@@ -420,6 +434,20 @@ async def _execute_global_cleaning_phase(
     """Ejecutar fase de limpieza global para usuarios no confirmados.
 
     Afecta a TODOS los miembros excepto aquellos con roles excluidos.
+
+    Args:
+        cog (PurgaCog): Instancia del cog.
+        guild (discord.Guild): Guild de Discord.
+        record (PurgaRecord): Registro de purga.
+        config (dict[str, Any]): Configuración del cog.
+        purga_service (PurgaService): Servicio de purga.
+        purga_id (int): ID de la purga.
+        excluded_roles (list[int]): IDs de roles excluidos.
+        roles_to_remove (list[int]): IDs de roles a quitar.
+        roles_to_add (list[int]): IDs de roles a añadir.
+        confirmed_users (set[int]): IDs de usuarios confirmados.
+        audit_level (int): Nivel de auditoría.
+        execution_logs (list[str]): Lista de logs de ejecución.
 
     Returns:
         tuple[int, set[int]]: (cleaned_count, processed_users)
@@ -508,6 +536,21 @@ async def _execute_promotion_phase(
     execution_logs: list[str],
 ) -> tuple[int, int, set[int]]:
     """Ejecutar fase de promociones.
+
+    Args:
+        cog (PurgaCog): Instancia del cog.
+        guild (discord.Guild): Guild de Discord.
+        record (PurgaRecord): Registro de purga.
+        config (dict[str, Any]): Configuración del cog.
+        purga_service (PurgaService): Servicio de purga.
+        purga_id (int): ID de la purga.
+        affected_roles (list[int]): IDs de roles afectados.
+        promotions (list[dict[str, Any]]): Lista de promociones.
+        default_promotion (int | None): Rol de promoción por defecto.
+        confirmed_users (set[int]): IDs de usuarios confirmados.
+        processed_users (set[int]): IDs de usuarios ya procesados.
+        audit_level (int): Nivel de auditoría.
+        execution_logs (list[str]): Lista de logs de ejecución.
 
     Returns:
         tuple[int, int, set[int]]: (promoted_in_group, promoted_not_in_group, promoted_users)
@@ -685,6 +728,15 @@ async def _execute_global_removal_phase(
 
     Elimina los roles especificados de TODOS los miembros del servidor,
     independientemente de si reaccionaron o están en roles afectados.
+
+    Args:
+        cog (PurgaCog): Instancia del cog.
+        guild (discord.Guild): Guild de Discord.
+        record (PurgaRecord): Registro de purga.
+        config (dict[str, Any]): Configuración del cog.
+        global_roles_to_remove (list[int]): IDs de roles a eliminar globalmente.
+        audit_level (int): Nivel de auditoría.
+        execution_logs (list[str]): Lista de logs de ejecución.
 
     Returns:
         int: Número de usuarios a los que se les quitaron roles.

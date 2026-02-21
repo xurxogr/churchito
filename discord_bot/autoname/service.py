@@ -12,10 +12,10 @@ def build_tag_pattern(tag_format: str) -> re.Pattern[str]:
     Convierte "[ABC | {tag}]" en un patron que coincide con "[ABC | CAP]", etc.
 
     Args:
-        tag_format: Formato del tag (ej: "[ABC | {tag}]")
+        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
 
     Returns:
-        Patron regex compilado
+        re.Pattern[str]: Patron regex compilado
     """
     # Escapar caracteres especiales de regex
     escaped = re.escape(tag_format)
@@ -44,12 +44,12 @@ def extract_base_name(
     Finalmente, intenta quitar prefijos conocidos si no hay tag.
 
     Args:
-        display_name: Nombre actual a mostrar
-        tag_format: Formato del tag (ej: "[ABC | {tag}]")
-        known_prefixes: Lista de prefijos conocidos a quitar
+        display_name (str): Nombre actual a mostrar
+        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
+        known_prefixes (list[str] | None): Lista de prefijos conocidos a quitar
 
     Returns:
-        Nombre base sin tags ni prefijos
+        str: Nombre base sin tags ni prefijos
     """
     name = display_name.strip()
 
@@ -86,12 +86,12 @@ def find_matching_value(
     La lista roles_config esta ordenada por prioridad (primer match gana).
 
     Args:
-        member_role_ids: IDs de roles del miembro
-        roles_config: Lista de {"role_id": int|str, value_key: str}
-        value_key: Clave del valor a extraer (ej: "tag" o "prefix")
+        member_role_ids (list[int]): IDs de roles del miembro
+        roles_config (list[dict[str, Any]]): Lista de {"role_id": int|str, value_key: str}
+        value_key (str): Clave del valor a extraer (ej: "tag" o "prefix")
 
     Returns:
-        Valor del primer rol coincidente o None
+        str | None: Valor del primer rol coincidente o None
     """
     member_role_set = set(member_role_ids)
     for role_config in roles_config:
@@ -117,13 +117,13 @@ def build_nickname(
     """Construir el nickname completo con prefix, tag y nombre.
 
     Args:
-        base_name: Nombre base del usuario
-        tag: Tag a insertar (ej: "CAP")
-        prefix: Prefijo unicode (ej: "★")
-        tag_format: Formato del tag (ej: "[ABC | {tag}]")
+        base_name (str): Nombre base del usuario
+        tag (str): Tag a insertar (ej: "CAP")
+        prefix (str): Prefijo unicode (ej: "★")
+        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
 
     Returns:
-        Nickname completo, truncado a 32 caracteres si es necesario
+        str: Nickname completo, truncado a 32 caracteres si es necesario
     """
     # Si hay prefix o tag, siempre aplicar el formato (tag puede estar vacio)
     # Ej: prefix="★ ", tag="" → "★ [ABC | ] Xurxo" (espacio incluido en prefix)
@@ -171,15 +171,15 @@ def compute_nickname(
     """Calcular el nuevo nickname para un miembro.
 
     Args:
-        display_name: Nombre a mostrar actual (nick o username)
-        current_nick: Nick actual del miembro (puede ser None)
-        member_role_ids: IDs de roles del miembro
-        tags_config: Lista de {"role_id": int, "tag": str}
-        prefixes_config: Lista de {"role_id": int, "prefix": str}
-        tag_format: Formato del tag (ej: "[ABC | {tag}]")
+        display_name (str): Nombre a mostrar actual (nick o username)
+        current_nick (str | None): Nick actual del miembro (puede ser None)
+        member_role_ids (list[int]): IDs de roles del miembro
+        tags_config (list[dict[str, Any]]): Lista de {"role_id": int, "tag": str}
+        prefixes_config (list[dict[str, Any]]): Lista de {"role_id": int, "prefix": str}
+        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
 
     Returns:
-        Nuevo nickname o None si no hay cambio necesario
+        str | None: Nuevo nickname o None si no hay cambio necesario
     """
     # Extraer prefijos conocidos de la config
     known_prefixes = [cfg.get("prefix", "") for cfg in prefixes_config if cfg.get("prefix")]

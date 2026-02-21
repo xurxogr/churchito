@@ -88,7 +88,10 @@ class ConfigOption(BaseModel):
             case ConfigOptionType.TEXT_CHOICE:
                 if self.choices:
                     valid_values = [choice[1] for choice in self.choices]
-                    if value not in valid_values:
+                    # Allow empty string for non-required fields (means "no selection")
+                    if value == "" and not self.required:
+                        pass
+                    elif value not in valid_values:
                         return False, f"'{self.name}' debe ser una de las opciones válidas"
 
             case ConfigOptionType.TABLE:

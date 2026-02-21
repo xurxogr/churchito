@@ -728,14 +728,23 @@ async function saveAllChanges() {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando...';
 
+    // Get CSRF token from meta tag
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
     try {
         for (const [key, data] of window.changedOptions) {
             const formData = new FormData();
             formData.append('value', data.value);
 
+            const headers = {};
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+
             const response = await fetch(`${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}/option/${key}`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: headers
             });
 
             if (!response.ok) {

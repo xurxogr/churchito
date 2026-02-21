@@ -1,6 +1,10 @@
 """Tests para handlers de verificación."""
 
-from discord_bot.verification.handlers import _create_screenshot_embeds, _is_valid_discord_url
+from discord_bot.verification.handlers import (
+    _create_screenshot_embeds,
+    _get_api_error_message,
+    _is_valid_discord_url,
+)
 
 
 class TestIsValidDiscordUrl:
@@ -83,3 +87,37 @@ class TestCreateScreenshotEmbeds:
 
         assert len(embeds) == 1
         assert embeds[0].image.url == url2
+
+
+class TestGetApiErrorMessage:
+    """Tests para _get_api_error_message."""
+
+    def test_401_unauthorized(self) -> None:
+        """Probar mensaje para 401."""
+        result = _get_api_error_message(401)
+        assert result == "API key required or invalid"
+
+    def test_413_too_large(self) -> None:
+        """Probar mensaje para 413."""
+        result = _get_api_error_message(413)
+        assert result == "Image exceeds maximum upload size"
+
+    def test_422_validation_error(self) -> None:
+        """Probar mensaje para 422."""
+        result = _get_api_error_message(422)
+        assert result == "Validation error"
+
+    def test_429_rate_limit(self) -> None:
+        """Probar mensaje para 429."""
+        result = _get_api_error_message(429)
+        assert result == "Rate limit exceeded"
+
+    def test_500_internal_error(self) -> None:
+        """Probar mensaje para 500."""
+        result = _get_api_error_message(500)
+        assert result == "Internal processing error"
+
+    def test_unknown_status_code(self) -> None:
+        """Probar mensaje para código desconocido."""
+        result = _get_api_error_message(418)
+        assert result == "API Error (code: 418)"

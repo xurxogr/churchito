@@ -56,11 +56,13 @@ class ConfigKey(StrEnum):
     ALLY_ROLES_REMOVE = "ally_roles_remove"
     MOD_ROLES = "mod_roles"
 
-    # Motivos de rechazo predefinidos
-    REJECTION_REASON_1 = "rejection_reason_1"
-    REJECTION_REASON_2 = "rejection_reason_2"
-    REJECTION_REASON_3 = "rejection_reason_3"
-    REJECTION_REASON_4 = "rejection_reason_4"
+    # Motivos de rechazo (usados tanto en rechazo automático como manual)
+    REJECT_WRONG_CAPTURES = "reject_wrong_captures"
+    REJECT_NAME_MISMATCH = "reject_name_mismatch"
+    REJECT_HAS_REGIMENT = "reject_has_regiment"
+    REJECT_TIME_DIFF = "reject_time_diff"
+    REJECT_WRONG_SHARD = "reject_wrong_shard"
+    REJECT_WRONG_FACTION = "reject_wrong_faction"
 
     # Selector de rechazo
     REJECTION_SELECT_MESSAGE = "rejection_select_message"
@@ -74,6 +76,14 @@ class ConfigKey(StrEnum):
     # Opciones
     DELETE_PROCESSED_MESSAGES = "delete_processed_messages"
     BLOCK_ALREADY_VERIFIED = "block_already_verified"
+
+    # API Verification Settings (API URL and Key are in global settings)
+    VERIFICATION_FACTION = "verification_faction"
+    VERIFICATION_SHARD = "verification_shard"
+    VERIFICATION_TIME_DIFF = "verification_time_diff"
+    VERIFICATION_AUTOMATIC = "verification_automatic"
+    VERIFICATION_MATCH_NAME = "verification_match_name"
+    PLAYER_INFO_TEMPLATE = "player_info_template"
 
     # Claves internas (prefijo _ indica que no son configurables por usuario)
     PANEL_MESSAGE_ID = "_panel_message_id"

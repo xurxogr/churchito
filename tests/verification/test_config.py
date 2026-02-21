@@ -69,10 +69,12 @@ class TestVerificationConfigSchema:
     def test_schema_has_rejection_reason_options(self) -> None:
         """Probar que existen las opciones de motivos de rechazo."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
-        assert "rejection_reason_1" in keys
-        assert "rejection_reason_2" in keys
-        assert "rejection_reason_3" in keys
-        assert "rejection_reason_4" in keys
+        assert "reject_wrong_captures" in keys
+        assert "reject_name_mismatch" in keys
+        assert "reject_has_regiment" in keys
+        assert "reject_time_diff" in keys
+        assert "reject_wrong_shard" in keys
+        assert "reject_wrong_faction" in keys
 
     def test_schema_has_status_options(self) -> None:
         """Probar que existen las opciones de estados."""
@@ -89,3 +91,14 @@ class TestVerificationConfigSchema:
         assert "dm_instructions_message" in keys
         assert "dm_instructions_ally_message" in keys
         assert "mod_message_template" in keys
+
+    def test_schema_has_api_verification_options(self) -> None:
+        """Probar que existen las opciones de API de verificación."""
+        # Note: api_url and api_key are in global settings, not per-guild config
+        keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
+        assert "verification_faction" in keys
+        assert "verification_shard" in keys
+        assert "verification_time_diff" in keys
+        assert "verification_automatic" in keys
+        assert "verification_match_name" in keys
+        assert "player_info_template" in keys

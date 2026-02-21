@@ -607,8 +607,14 @@ def _convert_form_value(
     Returns:
         Any: Valor convertido
     """
-    # Para STRING y TEXTAREA, preservar cadenas vacias (permite "limpiar" un valor)
-    if option_type in (ConfigOptionType.STRING, ConfigOptionType.TEXTAREA):
+    # Para STRING, TEXTAREA y TEXT_CHOICE, preservar cadenas vacias
+    # (permite "limpiar" un valor o seleccionar opción vacía)
+    preserve_empty_types = (
+        ConfigOptionType.STRING,
+        ConfigOptionType.TEXTAREA,
+        ConfigOptionType.TEXT_CHOICE,
+    )
+    if option_type in preserve_empty_types:
         return value
 
     if not value:

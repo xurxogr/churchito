@@ -1,10 +1,13 @@
 """Funciones de formateo para el cog de verificacion."""
 
+from __future__ import annotations
+
 import re
 from typing import Any
 
 import discord
 
+from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.enums import ConfigKey, VerificationType
 
 
@@ -71,3 +74,32 @@ def get_verification_type_display(
     if verification_type == VerificationType.REGULAR:
         return config.get(ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY) or "Normal"
     return config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Aliado"
+
+
+def format_player_info(
+    template: str | None,
+    api_response: VerificationAPIResponse,
+) -> str:
+    """Format player info using template and API response.
+
+    Args:
+        template: Template with placeholders
+        api_response: API response with player data
+
+    Returns:
+        Formatted string
+    """
+    if not template:
+        return ""
+
+    return format_message(
+        template=template,
+        name=api_response.name,
+        regiment=api_response.regiment or "N/A",
+        level=str(api_response.level),
+        faction=api_response.faction,
+        shard=api_response.shard,
+        time=api_response.ingame_time,
+        war=str(api_response.war),
+        war_time=api_response.current_ingame_time,
+    )

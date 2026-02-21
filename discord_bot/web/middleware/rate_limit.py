@@ -52,7 +52,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Inicializar el middleware.
 
         Args:
-            app: Aplicación ASGI
+            app (object): Aplicación ASGI
         """
         super().__init__(app)  # type: ignore[arg-type]
         # Estado por (ip, path_pattern)

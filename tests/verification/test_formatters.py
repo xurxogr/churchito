@@ -4,10 +4,12 @@ from typing import Any
 
 import discord
 
+from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import (
     create_panel_embed,
     format_message,
+    format_player_info,
     get_verification_type_display,
 )
 
@@ -213,3 +215,88 @@ class TestGetVerificationTypeDisplay:
 
         # Empty string is falsy, so it should return default
         assert result == "Aliado"
+
+
+class TestFormatPlayerInfo:
+    """Tests para format_player_info."""
+
+    def test_format_all_fields(self) -> None:
+        """Probar formateo con todos los campos."""
+        template = "Name: {name}, Level: {level}, Faction: {faction}"
+        api_response = VerificationAPIResponse(
+            name="TestPlayer",
+            level=25,
+            regiment="TestRegiment",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="268, 07:41",
+            war=100,
+            current_ingame_time="278, 08:34",
+        )
+
+        result = format_player_info(template, api_response)
+
+        assert "TestPlayer" in result
+        assert "25" in result
+        assert "colonial" in result
+
+    def test_format_with_empty_regiment(self) -> None:
+        """Probar formateo cuando regiment está vacío."""
+        template = "Regiment: {regiment}"
+        api_response = VerificationAPIResponse(
+            name="TestPlayer",
+            level=25,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="268, 07:41",
+            war=100,
+            current_ingame_time="278, 08:34",
+        )
+
+        result = format_player_info(template, api_response)
+
+        assert "N/A" in result
+
+    def test_format_with_none_template(self) -> None:
+        """Probar con template None."""
+        api_response = VerificationAPIResponse(
+            name="TestPlayer",
+            level=25,
+            regiment="TestRegiment",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="268, 07:41",
+            war=100,
+            current_ingame_time="278, 08:34",
+        )
+
+        result = format_player_info(None, api_response)
+
+        assert result == ""
+
+    def test_format_with_all_placeholders(self) -> None:
+        """Probar formateo con todos los placeholders disponibles."""
+        template = (
+            "{name} - {regiment} - {level} - {faction} - {shard} - {time} - {war} - {war_time}"
+        )
+        api_response = VerificationAPIResponse(
+            name="Player",
+            level=50,
+            regiment="Regiment",
+            faction="wardens",
+            shard="CHARLIE",
+            ingame_time="100, 12:00",
+            war=50,
+            current_ingame_time="110, 14:00",
+        )
+
+        result = format_player_info(template, api_response)
+
+        assert "Player" in result
+        assert "Regiment" in result
+        assert "50" in result
+        assert "wardens" in result
+        assert "CHARLIE" in result
+        assert "100, 12:00" in result
+        assert "110, 14:00" in result

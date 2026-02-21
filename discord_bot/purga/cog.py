@@ -203,10 +203,10 @@ class PurgaCog(commands.Cog):
         """Registrar o actualizar un comando de purga.
 
         Args:
-            guild: Guild de Discord.
-            config: Configuración del cog.
-            purga_type: Tipo de purga (WAR_END o GLOBAL).
-            available: Si la configuración está completa.
+            guild (discord.Guild): Guild de Discord.
+            config (dict[str, Any]): Configuración del cog.
+            purga_type (PurgaType): Tipo de purga (WAR_END o GLOBAL).
+            available (bool): Si la configuración está completa.
         """
         # Configuración según tipo de purga
         type_config = {
@@ -324,8 +324,8 @@ class PurgaCog(commands.Cog):
         """Construir el snapshot de configuración según el tipo de purga.
 
         Args:
-            config: Configuración del cog.
-            purga_type: Tipo de purga.
+            config (dict[str, Any]): Configuración del cog.
+            purga_type (PurgaType): Tipo de purga.
 
         Returns:
             dict[str, Any]: Snapshot de configuración.
@@ -507,11 +507,11 @@ class PurgaCog(commands.Cog):
         """Obtener los roles de admin según el tipo de purga.
 
         Args:
-            config: Configuración del cog.
-            purga_type: Tipo de purga.
+            config (dict[str, Any]): Configuración del cog.
+            purga_type (PurgaType): Tipo de purga.
 
         Returns:
-            Lista de IDs de roles admin.
+            list[int]: Lista de IDs de roles admin.
         """
         if purga_type == PurgaType.GLOBAL:
             roles: list[int] = config.get(ConfigKey.GLOBAL_ADMIN_ROLES, [])
@@ -854,8 +854,8 @@ class PurgaCog(commands.Cog):
         """Crear vista de moderación con botones según el estado.
 
         Args:
-            record: Registro de purga.
-            config: Configuración del cog.
+            record (PurgaRecord): Registro de purga.
+            config (dict[str, Any]): Configuración del cog.
 
         Returns:
             ModAuthorizationView: Vista con los botones apropiados.
@@ -880,8 +880,8 @@ class PurgaCog(commands.Cog):
         """Programar eliminación del mensaje de moderación si hay retención configurada.
 
         Args:
-            record: Registro de purga.
-            config: Configuración del cog.
+            record (PurgaRecord): Registro de purga.
+            config (dict[str, Any]): Configuración del cog.
         """
         retention = config.get(ConfigKey.MOD_MESSAGE_RETENTION, 0)
         if retention > 0 and record.mod_channel_id and record.mod_message_id:
@@ -902,11 +902,11 @@ class PurgaCog(commands.Cog):
         """Transicionar una purga a estado AUTHORIZED.
 
         Args:
-            guild: Guild de Discord.
-            record: Registro de purga.
-            config: Configuración del cog.
-            purga_service: Servicio de purga.
-            session: Sesión de base de datos.
+            guild (discord.Guild): Guild de Discord.
+            record (PurgaRecord): Registro de purga.
+            config (dict[str, Any]): Configuración del cog.
+            purga_service (PurgaService): Servicio de purga.
+            session (AsyncSession): Sesión de base de datos.
 
         Returns:
             PurgaRecord | None: Registro actualizado o None si falló.
@@ -1013,7 +1013,7 @@ class PurgaCog(commands.Cog):
             guild (discord.Guild): Guild.
             record (PurgaRecord): Registro de purga.
             config (dict[str, Any]): Configuración.
-            session: Sesión de base de datos.
+            session (AsyncSession): Sesión de base de datos.
         """
         user_channel_id = config.get(ConfigKey.USER_CHANNEL)
         if not user_channel_id:

@@ -8,8 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import has_any_role
+from discord_bot.verification.api_client import (
+    VerificationAPIResult,
+    call_verification_api,
+)
+from discord_bot.verification.auto_processor import process_verification
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
-from discord_bot.verification.formatters import format_message, get_verification_type_display
+from discord_bot.verification.formatters import (
+    format_message,
+    format_player_info,
+    get_verification_type_display,
+)
 from discord_bot.verification.models import VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import ModReviewView, RejectionReasonView
@@ -27,12 +36,20 @@ DISCORD_CDN_DOMAINS = frozenset(
     }
 )
 
+# API error messages based on status code (422 is handled separately as invalid images)
+API_ERROR_MESSAGES: dict[int, str] = {
+    401: "API key required or invalid",
+    413: "Image exceeds maximum upload size",
+    429: "Rate limit exceeded",
+    500: "Internal processing error",
+}
+
 
 def _is_valid_discord_url(url: str) -> bool:
     """Verificar que una URL es de Discord CDN.
 
     Args:
-        url: URL a verificar
+        url (str): URL a verificar
 
     Returns:
         bool: True si es una URL válida de Discord CDN
@@ -54,6 +71,20 @@ def _is_valid_discord_url(url: str) -> bool:
         return False
 
 
+def _get_api_error_message(status_code: int) -> str:
+    """Get human-readable error message for API status code.
+
+    Args:
+        status_code: HTTP status code from API
+
+    Returns:
+        Error message string
+    """
+    if status_code in API_ERROR_MESSAGES:
+        return API_ERROR_MESSAGES[status_code]
+    return f"API Error (code: {status_code})"
+
+
 def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discord.Embed]:
     """Crear embeds para mostrar las capturas de pantalla.
 
@@ -61,8 +92,8 @@ def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discor
     como miniaturas en una fila en lugar de imágenes grandes apiladas.
 
     Args:
-        url1: URL de la primera captura
-        url2: URL de la segunda captura
+        url1 (str | None): URL de la primera captura
+        url2 (str | None): URL de la segunda captura
 
     Returns:
         list[discord.Embed]: Lista de embeds con las imágenes
@@ -345,6 +376,32 @@ async def handle_dm_screenshots(
         )
         await message.channel.send(content=formatted_received)
 
+        # Call verification API if configured (URL and key from global settings)
+        api_result: VerificationAPIResult | None = None
+        verification_settings = cog.bot.settings.verification
+        if verification_settings.api_url:
+            api_result = await call_verification_api(
+                url=verification_settings.api_url,
+                api_key=verification_settings.api_key or None,
+                image1_url=url1,
+                image2_url=url2,
+                timeout_seconds=verification_settings.api_timeout,
+                guild_name=guild.name if guild else "Unknown",
+            )
+            if not api_result.success:
+                guild_prefix = f"[{guild.name}] " if guild else ""
+                # 422 is a valid response (invalid images), not an API failure
+                if api_result.status_code == 422:
+                    logger.info(
+                        f"{guild_prefix}Verification API returned invalid images: "
+                        f"{api_result.error_message}"
+                    )
+                else:
+                    logger.warning(
+                        f"{guild_prefix}Verification API call failed: "
+                        f"status={api_result.status_code}, error={api_result.error_message}"
+                    )
+
         if guild and request.mod_message_id:
             mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
             if mod_channel_id:
@@ -356,6 +413,7 @@ async def handle_dm_screenshots(
                         request=request,
                         verification_service=verification_service,
                         config=config,
+                        api_result=api_result,
                     )
 
         await session.commit()
@@ -367,6 +425,7 @@ async def update_mod_message_for_review(
     request: VerificationRequest,
     verification_service: VerificationService,
     config: dict[str, Any],
+    api_result: VerificationAPIResult | None = None,
 ) -> None:
     """Actualizar mensaje de moderacion cuando se reciben las capturas.
 
@@ -376,6 +435,7 @@ async def update_mod_message_for_review(
         request (VerificationRequest): Solicitud de verificacion.
         verification_service (VerificationService): Servicio de verificacion.
         config (dict[str, Any]): Configuracion del cog.
+        api_result (VerificationAPIResult | None): Resultado de la API de verificación.
     """
     if not request.mod_message_id:
         return
@@ -397,6 +457,23 @@ async def update_mod_message_for_review(
         verification_type=type_display,
         status=status_text,
     )
+
+    # Add API result info if available
+    if api_result:
+        if api_result.success and api_result.response:
+            # Format player info using template
+            player_info_template = config.get(ConfigKey.PLAYER_INFO_TEMPLATE)
+            if player_info_template:
+                player_info = format_player_info(player_info_template, api_result.response)
+                formatted += f"\n\n{player_info}"
+        elif api_result.status_code == 422:
+            # 422 means images are invalid/unreadable - show configured message
+            reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
+            formatted += f"\n\n⚠️ **{reject_msg}**"
+        else:
+            # Show API error for other status codes
+            error_msg = _get_api_error_message(api_result.status_code)
+            formatted += f"\n\n❌ **API Error:** {error_msg}"
 
     # Crear embeds para las capturas (se muestran en una fila)
     embeds = _create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
@@ -426,6 +503,69 @@ async def update_mod_message_for_review(
             if past.rejection_reason:
                 formatted += f" - {past.rejection_reason}"
 
+    # Check if we should auto-process
+    auto_process = config.get(ConfigKey.VERIFICATION_AUTOMATIC, False)
+    if auto_process and api_result:
+        guild = channel.guild
+
+        # Handle 422 (invalid images) - auto-reject
+        if api_result.status_code == 422:
+            reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
+            await _handle_auto_rejection(
+                cog=cog,
+                guild=guild,
+                request=request,
+                verification_service=verification_service,
+                config=config,
+                mod_message=mod_message,
+                formatted=formatted,
+                embeds=embeds,
+                reason=reject_reason,
+            )
+            return
+
+        # Handle successful API response (200)
+        if api_result.success and api_result.response:
+            # Get member display name for name matching
+            member = guild.get_member(request.user_id)
+            member_display_name = member.display_name if member else request.username
+
+            # Process verification rules
+            should_approve, rejection_reason = process_verification(
+                request=request,
+                api_response=api_result.response,
+                config=config,
+                member_display_name=member_display_name,
+            )
+
+            if should_approve:
+                # Auto-approve
+                await _handle_auto_approval(
+                    cog=cog,
+                    guild=guild,
+                    request=request,
+                    verification_service=verification_service,
+                    config=config,
+                    mod_message=mod_message,
+                    formatted=formatted,
+                    embeds=embeds,
+                )
+            else:
+                # Auto-reject
+                await _handle_auto_rejection(
+                    cog=cog,
+                    guild=guild,
+                    request=request,
+                    verification_service=verification_service,
+                    config=config,
+                    mod_message=mod_message,
+                    formatted=formatted,
+                    embeds=embeds,
+                    reason=rejection_reason or "Auto-rejected",
+                )
+            return
+
+    # Manual review - show buttons
     accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
     view = ModReviewView(
@@ -433,6 +573,159 @@ async def update_mod_message_for_review(
     )
 
     await mod_message.edit(content=formatted, embeds=embeds, view=view)
+
+
+async def _handle_auto_approval(
+    cog: "VerificationCog",
+    guild: discord.Guild,
+    request: VerificationRequest,
+    verification_service: VerificationService,
+    config: dict[str, Any],
+    mod_message: discord.Message,
+    formatted: str,
+    embeds: list[discord.Embed],
+) -> None:
+    """Handle automatic approval of verification.
+
+    Args:
+        cog: Verification cog instance
+        guild: Discord guild
+        request: Verification request
+        verification_service: Verification service
+        config: Cog configuration
+        mod_message: Moderation message to update
+        formatted: Formatted message content
+        embeds: Screenshot embeds
+    """
+    # Approve in database
+    await verification_service.approve(
+        request_id=request.id,
+        reviewer_id=cog.bot.user.id if cog.bot.user else 0,
+        reviewer_username="Auto",
+    )
+
+    # Update member roles
+    member = guild.get_member(request.user_id)
+    if member:
+        if request.verification_type == VerificationType.REGULAR:
+            roles_add = config.get(ConfigKey.REGULAR_ROLES_ADD)
+            roles_remove = config.get(ConfigKey.REGULAR_ROLES_REMOVE)
+            approval_msg_key = ConfigKey.APPROVAL_MESSAGE_REGULAR
+        else:
+            roles_add = config.get(ConfigKey.ALLY_ROLES_ADD)
+            roles_remove = config.get(ConfigKey.ALLY_ROLES_REMOVE)
+            approval_msg_key = ConfigKey.APPROVAL_MESSAGE_ALLY
+
+        for role_id in roles_add or []:
+            role = guild.get_role(role_id)
+            if role:
+                try:
+                    await member.add_roles(role)
+                except discord.Forbidden:
+                    logger.warning(f"Could not add role {role.name} to {member.name}")
+
+        for role_id in roles_remove or []:
+            role = guild.get_role(role_id)
+            if role:
+                try:
+                    await member.remove_roles(role)
+                except discord.Forbidden:
+                    logger.warning(f"Could not remove role {role.name} from {member.name}")
+
+        # Send approval DM
+        approval_msg = format_message(
+            template=config.get(approval_msg_key),
+            username=request.username,
+            server_name=guild.name,
+        )
+        try:
+            await member.send(content=approval_msg)
+        except discord.Forbidden:
+            pass
+
+    # Update or delete mod message
+    delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
+    if delete_messages:
+        await mod_message.delete()
+    else:
+        pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+        approved_status = format_message(
+            template=config.get(ConfigKey.STATUS_APPROVED),
+            moderator="Auto",
+        )
+        if pending_status and pending_status in formatted:
+            new_content = formatted.replace(pending_status, approved_status)
+        else:
+            new_content = formatted + f"\n\n{approved_status}"
+        await mod_message.edit(content=new_content, embeds=embeds, view=None)
+
+
+async def _handle_auto_rejection(
+    cog: "VerificationCog",
+    guild: discord.Guild,
+    request: VerificationRequest,
+    verification_service: VerificationService,
+    config: dict[str, Any],
+    mod_message: discord.Message,
+    formatted: str,
+    embeds: list[discord.Embed],
+    reason: str,
+) -> None:
+    """Handle automatic rejection of verification.
+
+    Args:
+        cog: Verification cog instance
+        guild: Discord guild
+        request: Verification request
+        verification_service: Verification service
+        config: Cog configuration
+        mod_message: Moderation message to update
+        formatted: Formatted message content
+        embeds: Screenshot embeds
+        reason: Rejection reason
+    """
+    # Reject in database
+    await verification_service.reject(
+        request_id=request.id,
+        reviewer_id=cog.bot.user.id if cog.bot.user else 0,
+        reviewer_username="Auto",
+        reason=reason,
+    )
+
+    # Send rejection DM
+    member = guild.get_member(request.user_id)
+    if member:
+        type_display = get_verification_type_display(
+            verification_type=VerificationType(request.verification_type), config=config
+        )
+        rejection_msg = format_message(
+            template=config.get(ConfigKey.REJECTION_MESSAGE),
+            username=request.username,
+            server_name=guild.name,
+            verification_type=type_display,
+            reason=reason,
+        )
+        try:
+            await member.send(content=rejection_msg)
+        except discord.Forbidden:
+            pass
+
+    # Update or delete mod message
+    delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
+    if delete_messages:
+        await mod_message.delete()
+    else:
+        pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+        rejected_status = format_message(
+            template=config.get(ConfigKey.STATUS_REJECTED),
+            moderator="Auto",
+            reason=reason,
+        )
+        if pending_status and pending_status in formatted:
+            new_content = formatted.replace(pending_status, rejected_status)
+        else:
+            new_content = formatted + f"\n\n{rejected_status}"
+        await mod_message.edit(content=new_content, embeds=embeds, view=None)
 
 
 async def handle_accept(
@@ -621,23 +914,24 @@ async def show_rejection_select(
     # Obtener motivos predefinidos configurados
     reasons: list[str] = []
     rejection_reason_keys = [
-        ConfigKey.REJECTION_REASON_1,
-        ConfigKey.REJECTION_REASON_2,
-        ConfigKey.REJECTION_REASON_3,
-        ConfigKey.REJECTION_REASON_4,
+        ConfigKey.REJECT_WRONG_CAPTURES,
+        ConfigKey.REJECT_NAME_MISMATCH,
+        ConfigKey.REJECT_HAS_REGIMENT,
+        ConfigKey.REJECT_TIME_DIFF,
+        ConfigKey.REJECT_WRONG_SHARD,
+        ConfigKey.REJECT_WRONG_FACTION,
     ]
     for key in rejection_reason_keys:
         reason = config.get(key) or ""
         if reason and reason.strip():
+            # For REJECT_WRONG_SHARD, replace {shard} placeholder with configured shard
+            if key == ConfigKey.REJECT_WRONG_SHARD:
+                expected_shard = config.get(ConfigKey.VERIFICATION_SHARD) or ""
+                if expected_shard:
+                    reason = reason.replace("{shard}", expected_shard)
+                else:
+                    continue  # Skip if no shard configured
             reasons.append(reason)
-
-    # Si no hay motivos configurados, usar por defecto
-    if not reasons:
-        reasons = [
-            "Capturas incorrectas o ilegibles",
-            "Nombre de usuario no coincide",
-            "Informacion insuficiente",
-        ]
 
     # Obtener textos configurables
     select_message = (

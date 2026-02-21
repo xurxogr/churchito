@@ -24,6 +24,12 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
     bot.add_view = MagicMock()
     bot.get_guild = MagicMock(return_value=None)
     bot.wait_until_ready = AsyncMock()
+    # Mock settings for verification API
+    bot.settings = MagicMock()
+    bot.settings.verification = MagicMock()
+    bot.settings.verification.api_url = ""
+    bot.settings.verification.api_key = ""
+    bot.settings.verification.api_timeout = 30
     return bot
 
 
