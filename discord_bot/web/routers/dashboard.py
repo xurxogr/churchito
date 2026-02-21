@@ -6,8 +6,10 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 
-from discord_bot.web.dependencies import CurrentUser, RequireAuth
+from discord_bot.common.models import Guild, GuildConfig
+from discord_bot.web.dependencies import CurrentUser, DbSession, RequireAuth
 from discord_bot.web.middleware import get_csrf_token
 
 logger = logging.getLogger(__name__)
@@ -37,9 +39,12 @@ def base_context(request: Request) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Contexto con variables comunes
     """
+    bot = request.app.state.bot
+    bot_name = bot.user.name if bot and bot.user else None
     return {
         "root_path": request.scope.get("root_path", ""),
         "csrf_token": get_csrf_token(request),
+        "bot_name": bot_name,
     }
 
 
@@ -95,16 +100,78 @@ async def login_page(
     )
 
 
+async def _check_guild_access(
+    session: Any,
+    bot: Any,
+    guild_id: int,
+    user_id: int,
+    is_bot_owner: bool,
+    is_guild_owner: bool,
+    user: dict[str, Any],
+) -> bool:
+    """Check if user has access to configure a guild.
+
+    Args:
+        session: Database session
+        bot: Bot instance
+        guild_id: Guild ID to check
+        user_id: User ID
+        is_bot_owner: Whether user is bot owner
+        is_guild_owner: Whether user is guild owner
+        user: User data from OAuth
+
+    Returns:
+        bool: True if user has access
+    """
+    # Bot owners always have access
+    if is_bot_owner:
+        return True
+
+    # Guild owners always have access
+    if is_guild_owner:
+        return True
+
+    # Check if user invited the bot
+    result = await session.execute(select(Guild).where(Guild.id == guild_id))
+    db_guild = result.scalar_one_or_none()
+    if db_guild and db_guild.invited_by_id == user_id:
+        return True
+
+    # Check if user has one of the configured admin roles
+    result = await session.execute(
+        select(GuildConfig.value).where(
+            GuildConfig.guild_id == guild_id,
+            GuildConfig.cog_name == "bot",
+            GuildConfig.key == "admin_roles",
+        )
+    )
+    admin_roles_config = result.scalar_one_or_none()
+
+    if admin_roles_config:
+        admin_role_ids = set(admin_roles_config)
+        discord_guild = bot.get_guild(guild_id)
+        if discord_guild:
+            member = discord_guild.get_member(user_id)
+            if member:
+                user_role_ids = {role.id for role in member.roles}
+                if user_role_ids & admin_role_ids:
+                    return True
+
+    return False
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
     user: RequireAuth,
+    session: DbSession,
 ) -> HTMLResponse:
     """Página principal del dashboard con lista de servidores.
 
     Args:
         request (Request): Request de FastAPI
         user (RequireAuth): Usuario autenticado
+        session (DbSession): Sesión de base de datos
 
     Returns:
         HTMLResponse: Página del dashboard
@@ -141,16 +208,36 @@ async def dashboard(
                 f"bot_guilds={[g.id for g in bot.guilds] if bot else 'no bot'}"
             )
 
-            manageable_guilds.append(
-                {
-                    "id": guild["id"],
-                    "name": guild["name"],
-                    "icon": guild.get("icon"),
-                    "bot_present": bot_in_guild,
-                }
-            )
+            # Check actual access if bot is in guild
+            has_access = False
+            if bot_in_guild:
+                has_access = await _check_guild_access(
+                    session=session,
+                    bot=bot,
+                    guild_id=guild_id,
+                    user_id=user_id,
+                    is_bot_owner=is_owner,
+                    is_guild_owner=is_guild_owner,
+                    user=user,
+                )
 
-    manageable_guilds.sort(key=lambda g: (not g["bot_present"], g["name"].lower()))
+            # Only show guilds where:
+            # - Bot is present AND user has access
+            # - OR user is bot owner (show all)
+            if is_owner or (bot_in_guild and has_access):
+                manageable_guilds.append(
+                    {
+                        "id": guild["id"],
+                        "name": guild["name"],
+                        "icon": guild.get("icon"),
+                        "bot_present": bot_in_guild,
+                        "has_access": has_access,
+                    }
+                )
+
+    manageable_guilds.sort(
+        key=lambda g: (not g["bot_present"], not g["has_access"], g["name"].lower())
+    )
 
     logger.debug(f"Guilds gestionables: {len(manageable_guilds)}")
 

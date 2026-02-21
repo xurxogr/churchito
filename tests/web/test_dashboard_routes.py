@@ -1,7 +1,7 @@
 """Tests para las rutas del dashboard."""
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI, Request
@@ -12,6 +12,16 @@ from discord_bot.web.routers.dashboard import dashboard, index, login_page
 
 class TestDashboardRoutes:
     """Tests para rutas del dashboard."""
+
+    @pytest.fixture
+    def mock_session(self) -> AsyncMock:
+        """Create mock database session."""
+        session = AsyncMock()
+        # Mock execute to return empty results by default
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        session.execute = AsyncMock(return_value=mock_result)
+        return session
 
     @pytest.fixture
     def mock_request_with_user(self, simple_app: FastAPI, test_user: dict[str, Any]) -> MagicMock:
@@ -92,7 +102,10 @@ class TestDashboardRoutes:
         assert response == mock_response
 
     async def test_dashboard_shows_guilds(
-        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+        self,
+        mock_request_with_user: MagicMock,
+        test_user: dict[str, Any],
+        mock_session: AsyncMock,
     ) -> None:
         """Probar que dashboard muestra los guilds del usuario."""
         # Setup mock templates
@@ -107,7 +120,7 @@ class TestDashboardRoutes:
         mock_request_with_user.app.state.bot.user.name = "TestBot"
         mock_request_with_user.app.state.bot.user.avatar = None
 
-        await dashboard(mock_request_with_user, test_user)
+        await dashboard(request=mock_request_with_user, user=test_user, session=mock_session)
 
         # Verificar que se llamó a TemplateResponse
         mock_request_with_user.app.state.templates.TemplateResponse.assert_called_once()
@@ -120,7 +133,10 @@ class TestDashboardRoutes:
         assert "bot" in context
 
     async def test_dashboard_for_owner(
-        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+        self,
+        mock_request_with_user: MagicMock,
+        test_user: dict[str, Any],
+        mock_session: AsyncMock,
     ) -> None:
         """Probar dashboard para owner del bot."""
         # Setup owner
@@ -136,14 +152,17 @@ class TestDashboardRoutes:
         mock_request_with_user.app.state.bot.guilds = []
         mock_request_with_user.app.state.bot.user = None
 
-        await dashboard(mock_request_with_user, test_user)
+        await dashboard(request=mock_request_with_user, user=test_user, session=mock_session)
 
         call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
         context = call_kwargs["context"]
         assert context["is_owner"] is True
 
     async def test_dashboard_with_bot_in_guild(
-        self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
+        self,
+        mock_request_with_user: MagicMock,
+        test_user: dict[str, Any],
+        mock_session: AsyncMock,
     ) -> None:
         """Probar dashboard cuando el bot está en el guild del usuario."""
         # Setup mock templates
@@ -161,7 +180,7 @@ class TestDashboardRoutes:
         mock_request_with_user.app.state.bot.user.avatar = MagicMock()
         mock_request_with_user.app.state.bot.user.avatar.url = "http://example.com/avatar.png"
 
-        await dashboard(mock_request_with_user, test_user)
+        await dashboard(request=mock_request_with_user, user=test_user, session=mock_session)
 
         call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
         context = call_kwargs["context"]

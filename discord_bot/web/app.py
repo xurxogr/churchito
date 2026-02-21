@@ -5,7 +5,8 @@ import secrets
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -79,6 +80,22 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(dashboard_router)
     app.include_router(config_router)
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
+        """Handle HTTP exceptions with HTML error page."""
+        templates: Jinja2Templates = app.state.templates
+        root_path = request.scope.get("root_path", "")
+        return templates.TemplateResponse(
+            request=request,
+            name="error.html",
+            context={
+                "root_path": root_path,
+                "status_code": exc.status_code,
+                "detail": exc.detail,
+            },
+            status_code=exc.status_code,
+        )
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:

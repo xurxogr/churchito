@@ -41,9 +41,12 @@ def base_context(request: Request) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Contexto con variables comunes
     """
+    bot = request.app.state.bot
+    bot_name = bot.user.name if bot and bot.user else None
     return {
         "root_path": request.scope.get("root_path", ""),
         "csrf_token": get_csrf_token(request),
+        "bot_name": bot_name,
     }
 
 
