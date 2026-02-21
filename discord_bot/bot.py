@@ -133,6 +133,8 @@ class DiscordBot(commands.Bot):
         if self.user:
             logger.info(f"Bot conectado como {self.user.name} (ID: {self.user.id})")
             logger.info(f"Conectado a {len(self.guilds)} servidor(s)")
+            for guild in self.guilds:
+                logger.info(f"  - {guild.name} (ID: {guild.id})")
 
             # Sincronizar comandos de aplicación con Discord
             try:
@@ -185,6 +187,11 @@ class DiscordBot(commands.Bot):
 
         # Guardar en la base de datos
         await self._save_guild(guild, invited_by_id)
+
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Manejador de evento cuando el bot es removido de un servidor."""
+        logger.info(f"Bot removido del servidor: {guild.name} (ID: {guild.id})")
+        logger.info(f"Ahora conectado a {len(self.guilds)} servidor(s)")
 
     async def _save_guild(self, guild: discord.Guild, invited_by_id: int | None) -> None:
         """Guardar o actualizar un servidor en la base de datos.
