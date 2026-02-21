@@ -91,9 +91,11 @@ def mock_config_request(simple_app: FastAPI, test_user: dict[str, Any]) -> Magic
     mock_response = MagicMock()
     request.app.state.templates.TemplateResponse.return_value = mock_response
 
-    # Mock bot
+    # Mock bot with a guild
+    mock_guild = MagicMock()
+    mock_guild.id = 111222333
     request.app.state.bot = MagicMock()
-    request.app.state.bot.get_guild.return_value = None
+    request.app.state.bot.get_guild.return_value = mock_guild
 
     return request
 

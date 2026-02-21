@@ -102,10 +102,11 @@ class TestGetApiErrorMessage:
         result = _get_api_error_message(413)
         assert result == "Image exceeds maximum upload size"
 
-    def test_422_validation_error(self) -> None:
-        """Probar mensaje para 422."""
+    def test_422_not_in_error_messages(self) -> None:
+        """Probar que 422 no está en API_ERROR_MESSAGES (se maneja por separado)."""
+        # 422 is handled separately as "invalid images", not as an API error
         result = _get_api_error_message(422)
-        assert result == "Validation error"
+        assert result == "API Error (code: 422)"
 
     def test_429_rate_limit(self) -> None:
         """Probar mensaje para 429."""
