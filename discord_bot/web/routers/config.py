@@ -103,6 +103,14 @@ async def guild_config(
     Returns:
         HTMLResponse: Página de configuración
     """
+    # Verify bot is in this guild
+    bot = request.app.state.bot
+    if not bot or not bot.get_guild(guild_id):
+        raise HTTPException(
+            status_code=404,
+            detail="El bot no está en este servidor",
+        )
+
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
 

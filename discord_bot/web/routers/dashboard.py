@@ -136,6 +136,11 @@ async def dashboard(
             guild_id = int(guild.get("id", 0))
             bot_in_guild = bot and any(g.id == guild_id for g in bot.guilds)
 
+            logger.debug(
+                f"Guild {guild['name']} (ID: {guild_id}): bot_in_guild={bot_in_guild}, "
+                f"bot_guilds={[g.id for g in bot.guilds] if bot else 'no bot'}"
+            )
+
             manageable_guilds.append(
                 {
                     "id": guild["id"],
