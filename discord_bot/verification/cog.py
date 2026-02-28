@@ -239,14 +239,14 @@ class VerificationCog(commands.Cog):
         """
         return format_message(template, **kwargs)
 
-    def _create_panel_embed(self, text: str) -> tuple[discord.Embed | None, str]:
-        """Crear un embed para el panel de verificacion si hay una imagen.
+    def _create_panel_embed(self, text: str) -> discord.Embed:
+        """Crear un embed para el panel de verificación.
 
         Args:
             text (str): Texto del mensaje que puede contener URLs de imagen
 
         Returns:
-            tuple[discord.Embed | None, str]: Embed (o None) y texto limpio
+            discord.Embed: Embed con el mensaje formateado
         """
         return create_panel_embed(text)
 

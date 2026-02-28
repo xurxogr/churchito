@@ -27,36 +27,72 @@ def format_message(template: str | None = None, **kwargs: str | None) -> str:
     return result
 
 
-def create_panel_embed(text: str) -> tuple[discord.Embed | None, str]:
-    """Crear un embed para el panel de verificacion si hay una imagen.
+def create_panel_embed(text: str) -> discord.Embed:
+    """Crear un embed para el panel de verificación.
 
-    Busca URLs de imagen en el texto y las usa para crear un embed.
+    Busca URLs de imagen en el texto y las usa para el embed.
     La URL de imagen se elimina del texto mostrado.
 
     Args:
         text (str): Texto del mensaje que puede contener URLs de imagen.
 
     Returns:
-        tuple[discord.Embed | None, str]: Embed (o None) y texto limpio.
+        discord.Embed: Embed con el mensaje formateado.
     """
     # Buscar URLs de imagen
     image_pattern = r"(https?://[^\s]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s]*)?)"
     match = re.search(pattern=image_pattern, string=text, flags=re.IGNORECASE)
 
-    if not match:
-        return None, text
+    image_url = None
+    clean_text = text
 
-    image_url = match.group(1)
-    # Eliminar la URL del texto (y lineas vacias extra)
-    clean_text = re.sub(pattern=image_pattern, repl="", string=text, count=1, flags=re.IGNORECASE)
-    clean_text = re.sub(pattern=r"\n{3,}", repl="\n\n", string=clean_text).strip()
+    if match:
+        image_url = match.group(1)
+        # Eliminar la URL del texto (y lineas vacías extra)
+        clean_text = re.sub(
+            pattern=image_pattern, repl="", string=text, count=1, flags=re.IGNORECASE
+        )
+        clean_text = re.sub(pattern=r"\n{3,}", repl="\n\n", string=clean_text).strip()
 
     embed = discord.Embed(
         description=clean_text,
         color=discord.Color.blurple(),
     )
-    embed.set_image(url=image_url)
-    return embed, clean_text
+
+    if image_url:
+        embed.set_image(url=image_url)
+
+    return embed
+
+
+def create_mod_embed(
+    text: str,
+    username: str | None = None,
+    user_id: int | None = None,
+) -> discord.Embed:
+    """Crear un embed para el mensaje de moderación.
+
+    Args:
+        text: Texto del mensaje de moderación.
+        username: Nombre del usuario (para el footer).
+        user_id: ID del usuario (para el thumbnail).
+
+    Returns:
+        discord.Embed: Embed con el mensaje formateado.
+    """
+    embed = discord.Embed(
+        description=text,
+        color=discord.Color.orange(),
+    )
+
+    if username:
+        embed.set_footer(text=f"Usuario: {username}")
+
+    if user_id:
+        # Usar el avatar del usuario como thumbnail si está disponible
+        embed.set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")
+
+    return embed
 
 
 def get_verification_type_display(

@@ -218,18 +218,14 @@ async def create_verification_message(
         )
         view = None
 
-    # Crear embed si hay imagen en el mensaje
-    embed, clean_text = create_panel_embed(formatted_message)
+    # Crear embed para el mensaje
+    embed = create_panel_embed(formatted_message)
 
     try:
-        if embed and view:
+        if view:
             new_message = await channel.send(embed=embed, view=view)
-        elif embed:
-            new_message = await channel.send(embed=embed)
-        elif view:
-            new_message = await channel.send(content=clean_text, view=view)
         else:
-            new_message = await channel.send(content=clean_text)
+            new_message = await channel.send(embed=embed)
         await config_service.set_value(
             guild_id=guild.id,
             cog_name=COG_NAME,

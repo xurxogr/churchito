@@ -20,6 +20,7 @@ from discord_bot.verification.enums import (
     VerificationType,
 )
 from discord_bot.verification.formatters import (
+    create_mod_embed,
     format_message,
     format_player_info,
     get_verification_type_display,
@@ -305,8 +306,9 @@ async def handle_verification_start(
             status=status_text,
             created_at=created_at_str,
         )
+        mod_embed = create_mod_embed(formatted_mod, username=user.name, user_id=user.id)
 
-        mod_message = await mod_channel.send(content=formatted_mod)
+        mod_message = await mod_channel.send(embed=mod_embed)
         await verification_service.set_mod_message_id(
             request_id=request.id, message_id=mod_message.id
         )
@@ -591,7 +593,10 @@ async def update_mod_message_for_review(
         request_id=request.id, accept_label=accept_label, reject_label=reject_label
     )
 
-    await mod_message.edit(content=formatted, embeds=embeds, view=view)
+    # Crear embed principal y combinarlo con los embeds de capturas
+    main_embed = create_mod_embed(formatted, username=request.username, user_id=request.user_id)
+    all_embeds = [main_embed, *embeds]
+    await mod_message.edit(embeds=all_embeds, view=view)
 
 
 async def _handle_auto_approval(
@@ -676,7 +681,12 @@ async def _handle_auto_approval(
             new_content = formatted.replace(pending_status, approved_status)
         else:
             new_content = formatted + f"\n\n{approved_status}"
-        await mod_message.edit(content=new_content, embeds=embeds, view=None)
+        main_embed = create_mod_embed(
+            new_content, username=request.username, user_id=request.user_id
+        )
+        main_embed.color = discord.Color.green()
+        all_embeds = [main_embed, *embeds]
+        await mod_message.edit(embeds=all_embeds, view=None)
 
 
 async def _handle_auto_rejection(
@@ -729,7 +739,7 @@ async def _handle_auto_rejection(
         except discord.Forbidden:
             pass
 
-    # Update or delete mod message
+    # Actualizar o eliminar mensaje de moderación
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:
         await mod_message.delete()
@@ -744,7 +754,12 @@ async def _handle_auto_rejection(
             new_content = formatted.replace(pending_status, rejected_status)
         else:
             new_content = formatted + f"\n\n{rejected_status}"
-        await mod_message.edit(content=new_content, embeds=embeds, view=None)
+        main_embed = create_mod_embed(
+            new_content, username=request.username, user_id=request.user_id
+        )
+        main_embed.color = discord.Color.red()
+        all_embeds = [main_embed, *embeds]
+        await mod_message.edit(embeds=all_embeds, view=None)
 
 
 async def handle_accept(
@@ -837,7 +852,7 @@ async def handle_accept(
             except discord.Forbidden:
                 pass
 
-        # Actualizar o eliminar mensaje de moderacion
+        # Actualizar o eliminar mensaje de moderación
         if request.mod_message_id:
             mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
             delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
@@ -849,7 +864,10 @@ async def handle_accept(
                         if delete_messages:
                             await mod_message.delete()
                         else:
-                            current_content = mod_message.content
+                            # Obtener contenido del embed principal
+                            current_content = ""
+                            if mod_message.embeds:
+                                current_content = mod_message.embeds[0].description or ""
                             pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
                             approved_status = format_message(
                                 template=config.get(ConfigKey.STATUS_APPROVED),
@@ -861,7 +879,17 @@ async def handle_accept(
                                 )
                             else:
                                 new_content = current_content + f"\n\n{approved_status}"
-                            await mod_message.edit(content=new_content, view=None)
+                            # Crear nuevo embed y mantener los embeds de capturas
+                            main_embed = create_mod_embed(
+                                new_content,
+                                username=request.username,
+                                user_id=request.user_id,
+                            )
+                            main_embed.color = discord.Color.green()
+                            # Mantener embeds de capturas (todos excepto el primero)
+                            screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
+                            all_embeds = [main_embed, *screenshot_embeds]
+                            await mod_message.edit(embeds=all_embeds, view=None)
                     except discord.NotFound:
                         logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
 
@@ -1045,7 +1073,7 @@ async def handle_reject(
             except discord.Forbidden:
                 pass
 
-        # Actualizar o eliminar mensaje de moderacion
+        # Actualizar o eliminar mensaje de moderación
         if request.mod_message_id:
             mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
             delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
@@ -1057,7 +1085,10 @@ async def handle_reject(
                         if delete_messages:
                             await mod_message.delete()
                         else:
-                            current_content = mod_message.content
+                            # Obtener contenido del embed principal
+                            current_content = ""
+                            if mod_message.embeds:
+                                current_content = mod_message.embeds[0].description or ""
                             pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
                             rejected_status = format_message(
                                 template=config.get(ConfigKey.STATUS_REJECTED),
@@ -1070,7 +1101,17 @@ async def handle_reject(
                                 )
                             else:
                                 new_content = current_content + f"\n\n{rejected_status}"
-                            await mod_message.edit(content=new_content, view=None)
+                            # Crear nuevo embed y mantener los embeds de capturas
+                            main_embed = create_mod_embed(
+                                new_content,
+                                username=request.username,
+                                user_id=request.user_id,
+                            )
+                            main_embed.color = discord.Color.red()
+                            # Mantener embeds de capturas (todos excepto el primero)
+                            screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
+                            all_embeds = [main_embed, *screenshot_embeds]
+                            await mod_message.edit(embeds=all_embeds, view=None)
                     except discord.NotFound:
                         logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
 
@@ -1078,7 +1119,7 @@ async def handle_reject(
 
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_REJECTED_CONFIRMATION)
-            or "Verificacion rechazada para {username}.",
+            or "Verificación rechazada para {username}.",
             username=request.username,
         )
         await interaction.followup.send(content=confirmation, ephemeral=True)

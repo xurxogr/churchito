@@ -1574,7 +1574,9 @@ class TestCreateVerificationMessage:
             # Verificar que se envio sin view (botones deshabilitados)
             call_kwargs = mock_channel.send.call_args.kwargs
             assert "view" not in call_kwargs
-            assert "deshabilitada" in call_kwargs["content"]
+            # El contenido ahora está en el embed
+            assert "embed" in call_kwargs
+            assert "deshabilitada" in call_kwargs["embed"].description
 
     async def test_create_verification_message_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -2020,8 +2022,12 @@ class TestModMessageEditing:
 
         pending_status = "🔍 **Estado:** Pendiente de revision"
 
+        # Crear mock del embed existente
+        mock_embed = MagicMock()
+        mock_embed.description = f"Solicitud\n\n{pending_status}"
+
         mock_mod_message = MagicMock()
-        mock_mod_message.content = f"Solicitud\n\n{pending_status}"
+        mock_mod_message.embeds = [mock_embed]
         mock_mod_message.edit = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -2071,7 +2077,10 @@ class TestModMessageEditing:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
-            assert "Aprobado" in edit_kwargs["content"]
+            # El contenido ahora está en el primer embed
+            assert "embeds" in edit_kwargs
+            main_embed = edit_kwargs["embeds"][0]
+            assert "Aprobado" in (main_embed.description or "")
             assert edit_kwargs["view"] is None
 
     async def test_accept_mod_message_not_found(
@@ -2158,8 +2167,12 @@ class TestModMessageEditing:
 
         pending_status = "🔍 **Estado:** Pendiente de revision"
 
+        # Crear mock del embed existente
+        mock_embed = MagicMock()
+        mock_embed.description = f"Solicitud\n\n{pending_status}"
+
         mock_mod_message = MagicMock()
-        mock_mod_message.content = f"Solicitud\n\n{pending_status}"
+        mock_mod_message.embeds = [mock_embed]
         mock_mod_message.edit = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -2208,8 +2221,11 @@ class TestModMessageEditing:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
-            assert "Rechazado" in edit_kwargs["content"]
-            assert "Capturas invalidas" in edit_kwargs["content"]
+            # El contenido ahora está en el primer embed
+            assert "embeds" in edit_kwargs
+            main_embed = edit_kwargs["embeds"][0]
+            assert "Rechazado" in (main_embed.description or "")
+            assert "Capturas invalidas" in (main_embed.description or "")
 
 
 class TestUpdateModMessageForReview:
@@ -2271,8 +2287,11 @@ class TestUpdateModMessageForReview:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
+            # El contenido ahora está en el primer embed
+            assert "embeds" in edit_kwargs
+            main_embed = edit_kwargs["embeds"][0]
             # Debe incluir historial
-            assert "Historial" in edit_kwargs["content"]
+            assert "Historial" in (main_embed.description or "")
 
     async def test_update_message_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -2538,9 +2557,11 @@ class TestModMessageEditFallback:
             await session.commit()
             request_id = request.id
 
-        # Mensaje sin "Pendiente de revision"
+        # Mensaje sin "Pendiente de revision" - ahora como embed
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Solicitud de verificacion"
         mock_mod_message = MagicMock()
-        mock_mod_message.content = "Solicitud de verificacion"
+        mock_mod_message.embeds = [mock_embed]
         mock_mod_message.edit = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -2590,9 +2611,12 @@ class TestModMessageEditFallback:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
+            # El contenido ahora está en el primer embed
+            assert "embeds" in edit_kwargs
+            main_embed = edit_kwargs["embeds"][0]
             # Debe añadir al final
-            assert "Solicitud de verificacion" in edit_kwargs["content"]
-            assert "Aprobado" in edit_kwargs["content"]
+            assert "Solicitud de verificacion" in (main_embed.description or "")
+            assert "Aprobado" in (main_embed.description or "")
 
     async def test_reject_appends_status_when_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -2611,9 +2635,11 @@ class TestModMessageEditFallback:
             await session.commit()
             request_id = request.id
 
-        # Mensaje sin "Pendiente de revision"
+        # Mensaje sin "Pendiente de revision" - ahora como embed
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Solicitud de verificacion"
         mock_mod_message = MagicMock()
-        mock_mod_message.content = "Solicitud de verificacion"
+        mock_mod_message.embeds = [mock_embed]
         mock_mod_message.edit = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -2662,10 +2688,13 @@ class TestModMessageEditFallback:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
+            # El contenido ahora está en el primer embed
+            assert "embeds" in edit_kwargs
+            main_embed = edit_kwargs["embeds"][0]
             # Debe añadir al final
-            assert "Solicitud de verificacion" in edit_kwargs["content"]
-            assert "Rechazado" in edit_kwargs["content"]
-            assert "Motivo test" in edit_kwargs["content"]
+            assert "Solicitud de verificacion" in (main_embed.description or "")
+            assert "Rechazado" in (main_embed.description or "")
+            assert "Motivo test" in (main_embed.description or "")
 
 
 class TestHandleRejectEdgeCases:
@@ -3146,7 +3175,9 @@ class TestCreateVerificationMessagePermissions:
 
             mock_channel.send.assert_called_once()
             call_kwargs = mock_channel.send.call_args.kwargs
-            assert "Deshabilitado" in call_kwargs["content"]
+            # El mensaje ahora es un embed
+            assert "embed" in call_kwargs
+            assert "Deshabilitado" in (call_kwargs["embed"].description or "")
 
     async def test_mod_channel_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -3765,8 +3796,10 @@ class TestUpdateModMessageWithRejectionReason:
 
             # Verificar que el mensaje editado contiene el motivo de rechazo
             call_args = mod_message.edit.call_args
-            content = call_args.kwargs["content"]
-            assert "Capturas incorrectas" in content
+            # El contenido ahora está en el primer embed
+            assert "embeds" in call_args.kwargs
+            main_embed = call_args.kwargs["embeds"][0]
+            assert "Capturas incorrectas" in (main_embed.description or "")
 
 
 class TestHandleAcceptCogDisabled:

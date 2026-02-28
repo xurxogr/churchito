@@ -69,73 +69,80 @@ class TestCreatePanelEmbed:
     """Tests para create_panel_embed."""
 
     def test_no_image_url(self) -> None:
-        """Probar texto sin URL de imagen."""
+        """Probar texto sin URL de imagen devuelve embed con descripción."""
         text = "Mensaje simple sin imagen"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
-        assert embed is None
-        assert clean_text == text
+        assert embed is not None
+        assert isinstance(embed, discord.Embed)
+        assert embed.description == text
 
     def test_with_png_image(self) -> None:
         """Probar texto con URL de imagen PNG."""
         text = "Bienvenido al servidor\nhttps://example.com/image.png"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
         assert isinstance(embed, discord.Embed)
-        assert "image.png" not in clean_text
-        assert "Bienvenido" in clean_text
+        assert "image.png" not in (embed.description or "")
+        assert "Bienvenido" in (embed.description or "")
+        assert embed.image is not None
 
     def test_with_jpg_image(self) -> None:
         """Probar texto con URL de imagen JPG."""
         text = "Texto con imagen https://example.com/photo.jpg aqui"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
-        assert "photo.jpg" not in clean_text
+        assert "photo.jpg" not in (embed.description or "")
+        assert embed.image is not None
 
     def test_with_jpeg_image(self) -> None:
         """Probar texto con URL de imagen JPEG."""
         text = "https://example.com/photo.jpeg"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
+        assert embed.image is not None
 
     def test_with_gif_image(self) -> None:
         """Probar texto con URL de imagen GIF."""
         text = "Animacion: https://example.com/animation.gif"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
+        assert embed.image is not None
 
     def test_with_webp_image(self) -> None:
         """Probar texto con URL de imagen WEBP."""
         text = "Imagen moderna: https://example.com/image.webp"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
+        assert embed.image is not None
 
     def test_with_query_params(self) -> None:
         """Probar URL de imagen con parametros de query."""
         text = "Imagen: https://example.com/image.png?width=100&height=200"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
-        assert "width=100" not in clean_text
+        assert "width=100" not in (embed.description or "")
+        assert embed.image is not None
 
     def test_removes_extra_newlines(self) -> None:
         """Probar que elimina lineas vacias extra."""
         text = "Primera linea\n\n\nhttps://example.com/image.png\n\n\nUltima linea"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
         # No debe haber mas de 2 saltos de linea consecutivos
-        assert "\n\n\n" not in clean_text
+        assert "\n\n\n" not in (embed.description or "")
 
     def test_embed_has_blurple_color(self) -> None:
         """Probar que el embed tiene color blurple."""
         text = "Texto https://example.com/image.png"
-        embed, _ = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
         assert embed.color == discord.Color.blurple()
@@ -143,7 +150,7 @@ class TestCreatePanelEmbed:
     def test_embed_description_contains_text(self) -> None:
         """Probar que el embed contiene el texto en la descripcion."""
         text = "Contenido del mensaje https://example.com/image.png"
-        embed, _ = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
         assert "Contenido del mensaje" in (embed.description or "")
@@ -151,9 +158,10 @@ class TestCreatePanelEmbed:
     def test_case_insensitive_extension(self) -> None:
         """Probar que la extension es case insensitive."""
         text = "Imagen: https://example.com/image.PNG"
-        embed, clean_text = create_panel_embed(text)
+        embed = create_panel_embed(text)
 
         assert embed is not None
+        assert embed.image is not None
 
 
 class TestGetVerificationTypeDisplay:
