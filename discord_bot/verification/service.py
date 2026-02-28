@@ -100,6 +100,44 @@ class VerificationService:
         )
         return result.scalar_one_or_none()
 
+    async def get_any_pending_by_user(self, user_id: int) -> VerificationRequest | None:
+        """Obtener cualquier solicitud pendiente de un usuario en cualquier guild.
+
+        Busca solicitudes con estado PENDING_SCREENSHOTS (esperando capturas).
+        Util para recuperar verificaciones cuando el bot reinicia.
+
+        Args:
+            user_id (int): ID del usuario
+
+        Returns:
+            VerificationRequest | None: Solicitud pendiente o None
+        """
+        result = await self._session.execute(
+            select(VerificationRequest)
+            .where(
+                VerificationRequest.user_id == user_id,
+                VerificationRequest.status == VerificationStatus.PENDING_SCREENSHOTS,
+            )
+            .order_by(VerificationRequest.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_all_pending_screenshots(self) -> list[VerificationRequest]:
+        """Obtener todas las solicitudes esperando capturas.
+
+        Util para restaurar el estado en memoria cuando el bot reinicia.
+
+        Returns:
+            list[VerificationRequest]: Lista de solicitudes pendientes
+        """
+        result = await self._session.execute(
+            select(VerificationRequest).where(
+                VerificationRequest.status == VerificationStatus.PENDING_SCREENSHOTS,
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_user_history(self, guild_id: int, user_id: int) -> list[VerificationRequest]:
         """Obtener historial de verificaciones de un usuario.
 

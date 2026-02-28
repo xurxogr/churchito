@@ -98,6 +98,139 @@ class TestVerificationService:
         pending = await service.get_pending_by_user(123, 456)
         assert pending is None
 
+    async def test_get_any_pending_by_user(self, test_session: AsyncSession) -> None:
+        """Probar obtencion de cualquier solicitud pendiente de un usuario."""
+        service = VerificationService(test_session)
+
+        # Crear solicitud en un guild
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        # Buscar sin especificar guild
+        pending = await service.get_any_pending_by_user(456)
+        assert pending is not None
+        assert pending.id == request.id
+        assert pending.guild_id == 123
+
+    async def test_get_any_pending_by_user_no_pending(self, test_session: AsyncSession) -> None:
+        """Probar get_any_pending_by_user cuando no hay solicitudes pendientes."""
+        service = VerificationService(test_session)
+        pending = await service.get_any_pending_by_user(456)
+        assert pending is None
+
+    async def test_get_any_pending_by_user_ignores_pending_review(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Probar que get_any_pending_by_user solo devuelve PENDING_SCREENSHOTS."""
+        service = VerificationService(test_session)
+
+        # Crear solicitud y actualizar a PENDING_REVIEW
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+        await service.update_screenshots(request.id, "url1", "url2")
+
+        # No debe encontrar porque ya tiene capturas (PENDING_REVIEW)
+        pending = await service.get_any_pending_by_user(456)
+        assert pending is None
+
+    async def test_get_any_pending_by_user_returns_most_recent(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Probar que get_any_pending_by_user devuelve la mas reciente."""
+        service = VerificationService(test_session)
+
+        # Crear solicitud en guild 111
+        await service.create_request(
+            guild_id=111,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        # Crear solicitud en guild 222 (mas reciente)
+        request2 = await service.create_request(
+            guild_id=222,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.ALLY,
+        )
+
+        pending = await service.get_any_pending_by_user(456)
+        assert pending is not None
+        assert pending.id == request2.id
+        assert pending.guild_id == 222
+
+    async def test_get_all_pending_screenshots(self, test_session: AsyncSession) -> None:
+        """Probar obtencion de todas las solicitudes esperando capturas."""
+        service = VerificationService(test_session)
+
+        # Crear varias solicitudes
+        await service.create_request(
+            guild_id=111,
+            user_id=456,
+            username="User1",
+            verification_type=VerificationType.REGULAR,
+        )
+        await service.create_request(
+            guild_id=222,
+            user_id=789,
+            username="User2",
+            verification_type=VerificationType.ALLY,
+        )
+
+        pending = await service.get_all_pending_screenshots()
+        assert len(pending) == 2
+
+    async def test_get_all_pending_screenshots_empty(self, test_session: AsyncSession) -> None:
+        """Probar get_all_pending_screenshots cuando no hay solicitudes."""
+        service = VerificationService(test_session)
+        pending = await service.get_all_pending_screenshots()
+        assert pending == []
+
+    async def test_get_all_pending_screenshots_ignores_other_statuses(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Probar que get_all_pending_screenshots ignora otros estados."""
+        service = VerificationService(test_session)
+
+        # Crear solicitud y aprobarla
+        request1 = await service.create_request(
+            guild_id=111,
+            user_id=456,
+            username="User1",
+            verification_type=VerificationType.REGULAR,
+        )
+        await service.approve(request1.id, 999, "Mod")
+
+        # Crear solicitud y actualizarla a PENDING_REVIEW
+        request2 = await service.create_request(
+            guild_id=222,
+            user_id=789,
+            username="User2",
+            verification_type=VerificationType.ALLY,
+        )
+        await service.update_screenshots(request2.id, "url1", "url2")
+
+        # Crear solicitud pendiente de capturas
+        await service.create_request(
+            guild_id=333,
+            user_id=101,
+            username="User3",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        pending = await service.get_all_pending_screenshots()
+        assert len(pending) == 1
+        assert pending[0].user_id == 101
+
     async def test_get_user_history(self, test_session: AsyncSession) -> None:
         """Probar obtencion de historial de usuario."""
         service = VerificationService(test_session)

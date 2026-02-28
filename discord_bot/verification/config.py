@@ -530,6 +530,18 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             max_length=500,
             group="Mensajes al usuario",
         ),
+        ConfigOption(
+            key=ConfigKey.NO_PENDING_VERIFICATION_MESSAGE,
+            name="Error: sin verificación activa",
+            description="Mensaje cuando el usuario envía un DM sin tener verificación en curso",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "No tienes ninguna verificación en curso. "
+                "Si deseas verificarte, usa el panel de verificación en el servidor."
+            ),
+            max_length=1000,
+            group="Mensajes al usuario",
+        ),
         # ===== 6. MENSAJES DE MODERACIÓN =====
         ConfigOption(
             key=ConfigKey.MOD_APPROVED_CONFIRMATION,

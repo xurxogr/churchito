@@ -599,6 +599,67 @@ class TestOnMemberRemove:
         await verification_cog.on_member_remove(member)
 
 
+class TestRestorePendingVerifications:
+    """Tests para restauracion de verificaciones pendientes."""
+
+    async def test_restore_pending_verifications(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que restaura verificaciones pendientes desde la DB."""
+        # Crear verificaciones pendientes en la base de datos
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request1 = await service.create_request(
+                guild_id=111,
+                user_id=456,
+                username="User1",
+                verification_type=VerificationType.REGULAR,
+            )
+            request2 = await service.create_request(
+                guild_id=222,
+                user_id=789,
+                username="User2",
+                verification_type=VerificationType.ALLY,
+            )
+            await session.commit()
+            request1_id = request1.id
+            request2_id = request2.id
+
+        # Limpiar estado en memoria
+        verification_cog._pending_dm_verifications.clear()
+
+        # Restaurar
+        await verification_cog._restore_pending_verifications()
+
+        # Verificar que se restauraron
+        assert 456 in verification_cog._pending_dm_verifications
+        assert 789 in verification_cog._pending_dm_verifications
+        assert verification_cog._pending_dm_verifications[456] == (111, request1_id)
+        assert verification_cog._pending_dm_verifications[789] == (222, request2_id)
+
+    async def test_restore_ignores_pending_review(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no restaura verificaciones en estado PENDING_REVIEW."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=111,
+                user_id=456,
+                username="User1",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Actualizar a PENDING_REVIEW
+            await service.update_screenshots(request.id, "url1", "url2")
+            await session.commit()
+
+        verification_cog._pending_dm_verifications.clear()
+        await verification_cog._restore_pending_verifications()
+
+        # No debe restaurar porque ya tiene capturas
+        assert 456 not in verification_cog._pending_dm_verifications
+
+
 class TestOnMessage:
     """Tests para on_message (DM screenshots)."""
 
@@ -620,15 +681,131 @@ class TestOnMessage:
 
         await verification_cog.on_message(message)
 
-    async def test_ignores_user_without_pending(self, verification_cog: VerificationCog) -> None:
-        """Probar que ignora usuarios sin verificacion pendiente."""
+    async def test_responds_to_user_without_pending(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que responde a usuarios sin verificacion pendiente."""
         message = MagicMock(spec=discord.Message)
         message.guild = None
         message.author = MagicMock()
         message.author.bot = False
         message.author.id = 999
+        message.reply = AsyncMock()
 
-        await verification_cog.on_message(message)
+        # Configurar mock del bot para que no encuentre servidor comun
+        verification_cog.bot.guilds = []  # type: ignore[misc]
+
+        # Mock para que no encuentre en base de datos
+        with patch.object(
+            verification_cog, "_get_pending_verification", new_callable=AsyncMock
+        ) as mock_get_pending:
+            mock_get_pending.return_value = None
+
+            await verification_cog.on_message(message)
+
+            # Debe responder con el mensaje por defecto
+            message.reply.assert_called_once()
+            args = message.reply.call_args[0]
+            assert "No tienes ninguna verificación en curso" in args[0]
+
+    async def test_responds_to_user_without_pending_with_config(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que responde con config de servidor comun."""
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 999
+        message.reply = AsyncMock()
+
+        # Mock de servidor comun
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_member = MagicMock(return_value=MagicMock())
+        verification_cog.bot.guilds = [mock_guild]  # type: ignore[misc]
+
+        config_values = {
+            "no_pending_verification_message": "Mensaje personalizado sin verificación",
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_pending_verification", new_callable=AsyncMock
+            ) as mock_get_pending,
+            patch.object(
+                verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+            ) as mock_enabled,
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+        ):
+            mock_get_pending.return_value = None
+            mock_enabled.return_value = True
+            mock_config.return_value = config_values
+
+            await verification_cog.on_message(message)
+
+            message.reply.assert_called_once()
+            args = message.reply.call_args[0]
+            assert "Mensaje personalizado sin verificación" in args[0]
+
+    async def test_no_response_when_forbidden(self, verification_cog: VerificationCog) -> None:
+        """Probar que no falla si no puede responder al usuario."""
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 999
+        message.reply = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
+
+        verification_cog.bot.guilds = []  # type: ignore[misc]
+
+        with patch.object(
+            verification_cog, "_get_pending_verification", new_callable=AsyncMock
+        ) as mock_get_pending:
+            mock_get_pending.return_value = None
+
+            # No deberia lanzar excepcion
+            await verification_cog.on_message(message)
+
+    async def test_restores_pending_from_database(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que restaura verificacion pendiente desde la base de datos."""
+        # Crear verificacion pendiente en DB
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # El usuario NO esta en _pending_dm_verifications
+        assert 456 not in verification_cog._pending_dm_verifications
+
+        # Buscar verificacion pendiente
+        result = await verification_cog._get_pending_verification(456)
+
+        # Debe encontrarla en la DB y restaurarla en memoria
+        assert result is not None
+        assert result == (123, request_id)
+        assert 456 in verification_cog._pending_dm_verifications
+        assert verification_cog._pending_dm_verifications[456] == (123, request_id)
+
+    async def test_returns_memory_before_database(self, verification_cog: VerificationCog) -> None:
+        """Probar que busca primero en memoria antes de ir a la DB."""
+        # Agregar a memoria
+        verification_cog._pending_dm_verifications[456] = (123, 999)
+
+        # Buscar verificacion pendiente (no debe ir a la DB)
+        result = await verification_cog._get_pending_verification(456)
+
+        assert result == (123, 999)
 
     async def test_wrong_image_count(self, verification_cog: VerificationCog) -> None:
         """Probar con numero incorrecto de imagenes."""

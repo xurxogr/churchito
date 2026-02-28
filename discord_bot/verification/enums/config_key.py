@@ -43,6 +43,7 @@ class ConfigKey(StrEnum):
     VERIFICATION_DISABLED_MESSAGE = "verification_disabled_message"
     ALREADY_VERIFIED_MESSAGE = "already_verified_message"
     REQUEST_NOT_FOUND_MESSAGE = "request_not_found_message"
+    NO_PENDING_VERIFICATION_MESSAGE = "no_pending_verification_message"
     REQUEST_ALREADY_PROCESSED_MESSAGE = "request_already_processed_message"
     NO_PERMISSION_APPROVE_MESSAGE = "no_permission_approve_message"
     NO_PERMISSION_REJECT_MESSAGE = "no_permission_reject_message"

@@ -43,12 +43,31 @@ class VerificationCog(commands.Cog):
         self._health_check_started = False
 
     async def cog_load(self) -> None:
-        """Registrar vistas persistentes al cargar el cog."""
+        """Registrar vistas persistentes y restaurar estado al cargar el cog."""
         self.bot.add_view(VerificationPanelView())
+
+        # Restaurar verificaciones pendientes desde la base de datos
+        await self._restore_pending_verifications()
+
         # El health check se inicia despues de que el bot este listo
         if not self._health_check_started:
             self.health_check_loop.start()
             self._health_check_started = True
+
+    async def _restore_pending_verifications(self) -> None:
+        """Restaurar verificaciones pendientes desde la base de datos."""
+        async with self.bot.database.session() as session:
+            service = VerificationService(session=session)
+            pending_requests = await service.get_all_pending_screenshots()
+
+            for request in pending_requests:
+                self._pending_dm_verifications[request.user_id] = (
+                    request.guild_id,
+                    request.id,
+                )
+
+            if pending_requests:
+                logger.info(f"Restauradas {len(pending_requests)} verificaciones pendientes")
 
     async def cog_unload(self) -> None:
         """Detener tareas al descargar el cog."""
@@ -387,10 +406,15 @@ class VerificationCog(commands.Cog):
             return
         if message.author.bot:
             return
-        if message.author.id not in self._pending_dm_verifications:
+
+        # Buscar verificacion pendiente en memoria o en base de datos
+        verification_info = await self._get_pending_verification(message.author.id)
+
+        if verification_info is None:
+            await self._respond_no_pending_verification(message)
             return
 
-        guild_id, request_id = self._pending_dm_verifications[message.author.id]
+        guild_id, request_id = verification_info
 
         # Verificar si el cog esta habilitado
         if not await self._is_cog_enabled(guild_id):
@@ -399,6 +423,66 @@ class VerificationCog(commands.Cog):
         await handle_dm_screenshots(
             cog=self, message=message, guild_id=guild_id, request_id=request_id
         )
+
+    async def _get_pending_verification(self, user_id: int) -> tuple[int, int] | None:
+        """Obtener verificacion pendiente de un usuario.
+
+        Busca primero en memoria, luego en base de datos.
+        Si encuentra en DB, restaura el estado en memoria.
+
+        Args:
+            user_id (int): ID del usuario
+
+        Returns:
+            tuple[int, int] | None: (guild_id, request_id) o None si no hay pendiente
+        """
+        # Primero buscar en memoria (mas rapido)
+        if user_id in self._pending_dm_verifications:
+            return self._pending_dm_verifications[user_id]
+
+        # Buscar en base de datos (por si el bot reinicio)
+        async with self.bot.database.session() as session:
+            service = VerificationService(session=session)
+            pending = await service.get_any_pending_by_user(user_id)
+
+            if pending:
+                # Restaurar en memoria para futuras consultas
+                self._pending_dm_verifications[user_id] = (pending.guild_id, pending.id)
+                return (pending.guild_id, pending.id)
+
+        return None
+
+    async def _respond_no_pending_verification(self, message: discord.Message) -> None:
+        """Responder cuando el usuario envia un DM sin verificacion activa.
+
+        Args:
+            message (discord.Message): Mensaje recibido
+        """
+        # Buscar un servidor comun para obtener la configuracion
+        guild_id = None
+        for guild in self.bot.guilds:
+            if guild.get_member(message.author.id):
+                # Verificar si el cog esta habilitado en este servidor
+                if await self._is_cog_enabled(guild.id):
+                    guild_id = guild.id
+                    break
+
+        # Obtener mensaje de configuracion o usar default
+        default_message = (
+            "No tienes ninguna verificación en curso. "
+            "Si deseas verificarte, usa el panel de verificación en el servidor."
+        )
+
+        if guild_id:
+            config = await self._get_all_config(guild_id)
+            response = config.get(ConfigKey.NO_PENDING_VERIFICATION_MESSAGE) or default_message
+        else:
+            response = default_message
+
+        try:
+            await message.reply(response)
+        except discord.Forbidden:
+            pass  # No se pudo responder
 
     async def handle_accept(self, interaction: discord.Interaction, request_id: int) -> None:
         """Manejar aprobacion de verificacion.
