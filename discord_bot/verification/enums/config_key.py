@@ -33,6 +33,7 @@ class ConfigKey(StrEnum):
     MOD_MESSAGE_TEMPLATE = "mod_message_template"
     STATUS_AWAITING_SCREENSHOTS = "status_awaiting_screenshots"
     STATUS_PENDING_REVIEW = "status_pending_review"
+    STATUS_READY_FOR_APPROVAL = "status_ready_for_approval"
     STATUS_APPROVED = "status_approved"
     STATUS_REJECTED = "status_rejected"
     APPROVAL_MESSAGE_REGULAR = "approval_message_regular"

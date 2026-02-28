@@ -290,6 +290,19 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.STATUS_READY_FOR_APPROVAL,
+            name="Estado: Listo para aprobar",
+            description=(
+                "Texto cuando las comprobaciones automáticas pasan pero requiere "
+                "aprobación manual. Usa {roles} para mencionar los roles que pueden aprobar."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="✅ **Estado:** Listo para aprobar - {roles}",
+            max_length=300,
+            placeholders=["roles"],
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.STATUS_APPROVED,
             name="Estado: Aprobado",
             description="Texto del estado cuando la verificación fue aprobada",

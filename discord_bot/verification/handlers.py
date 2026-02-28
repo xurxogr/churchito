@@ -119,6 +119,44 @@ def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discor
     return embeds
 
 
+def _update_status_ready_for_approval(
+    formatted: str,
+    config: dict[str, Any],
+    guild: discord.Guild,
+) -> str:
+    """Actualizar el mensaje con estado 'listo para aprobar' incluyendo roles.
+
+    Args:
+        formatted: Mensaje formateado actual
+        config: Configuración del cog
+        guild: Guild para obtener los roles
+
+    Returns:
+        Mensaje actualizado con el nuevo estado
+    """
+    # Obtener roles de moderador
+    mod_role_ids = config.get(ConfigKey.MOD_ROLES) or []
+    role_mentions = []
+
+    for role_id in mod_role_ids:
+        role = guild.get_role(role_id)
+        if role:
+            role_mentions.append(role.mention)
+
+    roles_text = ", ".join(role_mentions) if role_mentions else "moderadores"
+
+    # Obtener el estado actual y el nuevo
+    current_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+    new_status_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
+    new_status = format_message(new_status_template, roles=roles_text)
+
+    # Reemplazar el estado en el mensaje
+    if current_status and new_status:
+        return formatted.replace(current_status, new_status)
+
+    return formatted
+
+
 class ModActionContext(NamedTuple):
     """Contexto validado para acciones de moderacion."""
 
@@ -594,6 +632,13 @@ async def update_mod_message_for_review(
                     reason=rejection_reason or "Auto-rejected",
                 )
                 return
+            elif should_approve and not auto_approve:
+                # Listo para aprobar manualmente - actualizar estado con roles
+                formatted = _update_status_ready_for_approval(
+                    formatted=formatted,
+                    config=config,
+                    guild=guild,
+                )
 
     # Manual review - show buttons
     accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"

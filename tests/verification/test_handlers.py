@@ -1,9 +1,14 @@
 """Tests para handlers de verificación."""
 
+from unittest.mock import MagicMock
+
+import discord
+
 from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
     _is_valid_discord_url,
+    _update_status_ready_for_approval,
 )
 
 
@@ -122,3 +127,101 @@ class TestGetApiErrorMessage:
         """Probar mensaje para código desconocido."""
         result = _get_api_error_message(418)
         assert result == "API Error (code: 418)"
+
+
+class TestUpdateStatusReadyForApproval:
+    """Tests para _update_status_ready_for_approval."""
+
+    def test_replaces_status_with_roles(self) -> None:
+        """Probar que reemplaza el estado con los roles de moderador."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.mention = "<@&123>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        config = {
+            "mod_roles": [123],
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        formatted = "Mensaje\n\n🔍 Pendiente\n\nMás info"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        assert "✅ Listo - <@&123>" in result
+        assert "🔍 Pendiente" not in result
+
+    def test_multiple_roles(self) -> None:
+        """Probar con múltiples roles de moderador."""
+        mock_role1 = MagicMock(spec=discord.Role)
+        mock_role1.mention = "<@&111>"
+        mock_role2 = MagicMock(spec=discord.Role)
+        mock_role2.mention = "<@&222>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(side_effect=[mock_role1, mock_role2])
+
+        config = {
+            "mod_roles": [111, 222],
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        formatted = "Mensaje\n\n🔍 Pendiente"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        assert "<@&111>" in result
+        assert "<@&222>" in result
+
+    def test_no_mod_roles_uses_default(self) -> None:
+        """Probar que usa 'moderadores' si no hay roles configurados."""
+        mock_guild = MagicMock(spec=discord.Guild)
+
+        config = {
+            "mod_roles": [],
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        formatted = "Mensaje\n\n🔍 Pendiente"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        assert "✅ Listo - moderadores" in result
+
+    def test_role_not_found_skipped(self) -> None:
+        """Probar que roles no encontrados se saltan."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=None)
+
+        config = {
+            "mod_roles": [999],
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        formatted = "Mensaje\n\n🔍 Pendiente"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        # Sin roles válidos, usa "moderadores"
+        assert "✅ Listo - moderadores" in result
