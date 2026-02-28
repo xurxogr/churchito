@@ -296,12 +296,14 @@ async def handle_verification_start(
 
         # Enviar notificacion al canal de moderacion
         status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
+        created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         formatted_mod = format_message(
             template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
             username=user.name,
             user_mention=user.mention,
             verification_type=type_display,
             status=status_text,
+            created_at=created_at_str,
         )
 
         mod_message = await mod_channel.send(content=formatted_mod)
@@ -455,12 +457,14 @@ async def update_mod_message_for_review(
         verification_type=VerificationType(request.verification_type), config=config
     )
     status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+    created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
     formatted = format_message(
         template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
         username=request.username,
         user_mention=f"<@{request.user_id}>",
         verification_type=type_display,
         status=status_text,
+        created_at=created_at_str,
     )
 
     # Add API result info if available

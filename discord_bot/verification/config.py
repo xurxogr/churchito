@@ -222,11 +222,18 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default=(
                 "**Solicitud de verificación**\n\n"
                 "**Usuario:** {user_mention} ({username})\n"
-                "**Tipo:** {verification_type}\n\n"
+                "**Tipo:** {verification_type}\n"
+                "**Fecha:** {created_at}\n\n"
                 "{status}"
             ),
             max_length=2000,
-            placeholders=["username", "user_mention", "verification_type", "status"],
+            placeholders=[
+                "username",
+                "user_mention",
+                "verification_type",
+                "status",
+                "created_at",
+            ],
             group="Panel de moderación",
         ),
         ConfigOption(
