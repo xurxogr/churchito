@@ -3296,7 +3296,7 @@ class TestHandleVerificationStartExtended:
             assert "deshabilitada" in args[0][0]
 
     async def test_already_verified_regular(self, verification_cog: VerificationCog) -> None:
-        """Probar inicio cuando usuario ya esta verificado (regular)."""
+        """Probar inicio cuando usuario ya tiene rol de verificacion regular."""
         mock_role = MagicMock()
         mock_role.id = 100
 
@@ -3316,6 +3316,7 @@ class TestHandleVerificationStartExtended:
             "verification_enabled": True,
             "block_already_verified": True,
             "regular_roles_add": [100],
+            "ally_roles_add": [200],
             "already_verified_message": "Ya estas verificado",
         }
 
@@ -3338,7 +3339,7 @@ class TestHandleVerificationStartExtended:
             assert "Ya estas verificado" in args[0][0]
 
     async def test_already_verified_ally(self, verification_cog: VerificationCog) -> None:
-        """Probar inicio cuando usuario ya esta verificado (aliado)."""
+        """Probar inicio cuando usuario ya tiene rol de verificacion aliado."""
         mock_role = MagicMock()
         mock_role.id = 200
 
@@ -3357,6 +3358,7 @@ class TestHandleVerificationStartExtended:
         config_values: dict[str, object] = {
             "verification_enabled": True,
             "block_already_verified": True,
+            "regular_roles_add": [100],
             "ally_roles_add": [200],
             "already_verified_message": "Ya estas verificado como aliado",
         }
@@ -3373,6 +3375,98 @@ class TestHandleVerificationStartExtended:
 
             await verification_cog.handle_verification_start(
                 interaction=interaction, verification_type=VerificationType.ALLY
+            )
+
+            interaction.followup.send.assert_called_once()
+            args = interaction.followup.send.call_args
+            assert "Ya estas verificado" in args[0][0]
+
+    async def test_already_verified_cross_regular_to_ally(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que usuario con rol regular no puede verificarse como aliado."""
+        mock_role = MagicMock()
+        mock_role.id = 100  # Rol de miembro regular
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 456
+        interaction.user.name = "TestUser"
+        interaction.user.roles = [mock_role]
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "verification_enabled": True,
+            "block_already_verified": True,
+            "regular_roles_add": [100],
+            "ally_roles_add": [200],
+            "already_verified_message": "Ya estas verificado",
+        }
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
+        ):
+            mock_config.return_value = config_values
+
+            # Intentar verificar como aliado teniendo rol de miembro
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.ALLY
+            )
+
+            interaction.followup.send.assert_called_once()
+            args = interaction.followup.send.call_args
+            assert "Ya estas verificado" in args[0][0]
+
+    async def test_already_verified_cross_ally_to_regular(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que usuario con rol aliado no puede verificarse como regular."""
+        mock_role = MagicMock()
+        mock_role.id = 200  # Rol de aliado
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 456
+        interaction.user.name = "TestUser"
+        interaction.user.roles = [mock_role]
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "verification_enabled": True,
+            "block_already_verified": True,
+            "regular_roles_add": [100],
+            "ally_roles_add": [200],
+            "already_verified_message": "Ya estas verificado",
+        }
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
+        ):
+            mock_config.return_value = config_values
+
+            # Intentar verificar como regular teniendo rol de aliado
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
             )
 
             interaction.followup.send.assert_called_once()

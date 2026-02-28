@@ -236,18 +236,16 @@ async def handle_verification_start(
     # Obtener nombre del tipo de verificacion para mensajes
     type_display = get_verification_type_display(verification_type=verification_type, config=config)
 
-    # Verificar si el usuario ya tiene los roles de verificacion
+    # Verificar si el usuario ya tiene alguno de los roles de verificacion (miembro o aliado)
     if config.get(ConfigKey.BLOCK_ALREADY_VERIFIED) and isinstance(user, discord.Member):
-        roles_to_add = (
-            config.get(ConfigKey.REGULAR_ROLES_ADD)
-            if verification_type == VerificationType.REGULAR
-            else config.get(ConfigKey.ALLY_ROLES_ADD)
-        )
+        regular_roles = config.get(ConfigKey.REGULAR_ROLES_ADD) or []
+        ally_roles = config.get(ConfigKey.ALLY_ROLES_ADD) or []
+        all_verification_roles = set(regular_roles) | set(ally_roles)
 
-        if roles_to_add:
+        if all_verification_roles:
             user_role_ids = {role.id for role in user.roles}
-            has_all_roles = all(role_id in user_role_ids for role_id in roles_to_add)
-            if has_all_roles:
+            has_any_verification_role = bool(user_role_ids & all_verification_roles)
+            if has_any_verification_role:
                 await interaction.followup.send(
                     config.get(ConfigKey.ALREADY_VERIFIED_MESSAGE) or "", ephemeral=True
                 )
