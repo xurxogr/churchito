@@ -3,7 +3,7 @@
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
-from discord_bot.verification.enums import ConfigKey
+from discord_bot.verification.enums import AutoProcessMode, ConfigKey
 
 COG_NAME = "verification"
 
@@ -613,8 +613,14 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             key=ConfigKey.VERIFICATION_AUTOMATIC,
             name="Procesamiento automático",
             description="Aprobar/rechazar automáticamente según las reglas configuradas",
-            option_type=ConfigOptionType.BOOLEAN,
-            default=False,
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("Ninguno", AutoProcessMode.NONE),
+                ("Sólo rechazos", AutoProcessMode.REJECT_ONLY),
+                ("Sólo aceptaciones", AutoProcessMode.APPROVE_ONLY),
+                ("Ambos", AutoProcessMode.BOTH),
+            ],
+            default=AutoProcessMode.NONE,
             group="API de Verificación",
         ),
         ConfigOption(

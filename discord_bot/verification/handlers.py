@@ -13,7 +13,12 @@ from discord_bot.verification.api_client import (
     call_verification_api,
 )
 from discord_bot.verification.auto_processor import process_verification
-from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
+from discord_bot.verification.enums import (
+    AutoProcessMode,
+    ConfigKey,
+    VerificationStatus,
+    VerificationType,
+)
 from discord_bot.verification.formatters import (
     format_message,
     format_player_info,
@@ -504,12 +509,21 @@ async def update_mod_message_for_review(
                 formatted += f" - {past.rejection_reason}"
 
     # Check if we should auto-process
-    auto_process = config.get(ConfigKey.VERIFICATION_AUTOMATIC, False)
-    if auto_process and api_result:
+    auto_mode = config.get(ConfigKey.VERIFICATION_AUTOMATIC, AutoProcessMode.NONE)
+    # Handle legacy boolean values for backwards compatibility
+    if auto_mode is True:
+        auto_mode = AutoProcessMode.BOTH
+    elif auto_mode is False or not auto_mode:
+        auto_mode = AutoProcessMode.NONE
+
+    auto_reject = auto_mode in (AutoProcessMode.REJECT_ONLY, AutoProcessMode.BOTH)
+    auto_approve = auto_mode in (AutoProcessMode.APPROVE_ONLY, AutoProcessMode.BOTH)
+
+    if (auto_reject or auto_approve) and api_result:
         guild = channel.guild
 
         # Handle 422 (invalid images) - auto-reject
-        if api_result.status_code == 422:
+        if api_result.status_code == 422 and auto_reject:
             reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
             await _handle_auto_rejection(
                 cog=cog,
@@ -538,7 +552,7 @@ async def update_mod_message_for_review(
                 member_display_name=member_display_name,
             )
 
-            if should_approve:
+            if should_approve and auto_approve:
                 # Auto-approve
                 await _handle_auto_approval(
                     cog=cog,
@@ -550,7 +564,8 @@ async def update_mod_message_for_review(
                     formatted=formatted,
                     embeds=embeds,
                 )
-            else:
+                return
+            elif not should_approve and auto_reject:
                 # Auto-reject
                 await _handle_auto_rejection(
                     cog=cog,
@@ -563,7 +578,7 @@ async def update_mod_message_for_review(
                     embeds=embeds,
                     reason=rejection_reason or "Auto-rejected",
                 )
-            return
+                return
 
     # Manual review - show buttons
     accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"
