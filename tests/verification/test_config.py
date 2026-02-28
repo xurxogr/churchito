@@ -23,7 +23,7 @@ class TestVerificationConfigSchema:
 
     def test_schema_display_name(self) -> None:
         """Probar nombre de display."""
-        assert VERIFICATION_CONFIG_SCHEMA.display_name == "Verificacion"
+        assert VERIFICATION_CONFIG_SCHEMA.display_name == "Verificación"
 
     def test_schema_has_icon(self) -> None:
         """Probar que el schema tiene un icono."""
