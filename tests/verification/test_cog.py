@@ -212,6 +212,56 @@ class TestHandleVerificationStart:
             call_args = interaction.followup.send.call_args
             assert "pendiente" in call_args[0][0].lower()
 
+    async def test_pending_in_other_server(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar con verificacion pendiente en otro servidor."""
+        # Crear solicitud pendiente en guild 111
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=111,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        # Intentar verificar en guild 222
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 222  # Diferente guild
+        interaction.guild.name = "Other Guild"
+        interaction.user = MagicMock(spec=discord.User)
+        interaction.user.id = 456  # Mismo usuario
+        interaction.user.name = "TestUser"
+        interaction.user.mention = "<@456>"
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
+        ):
+            mock_config.return_value = {
+                "pending_in_other_server_message": "Tienes verificación en otro servidor.",
+                "verification_type_regular_display": "Normal",
+            }
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
+            assert "otro servidor" in call_args[0][0].lower()
+
     async def test_dm_disabled(self, verification_cog: VerificationCog) -> None:
         """Probar con DMs deshabilitados."""
         interaction = MagicMock(spec=discord.Interaction)

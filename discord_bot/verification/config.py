@@ -542,6 +542,18 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             max_length=1000,
             group="Mensajes al usuario",
         ),
+        ConfigOption(
+            key=ConfigKey.PENDING_IN_OTHER_SERVER_MESSAGE,
+            name="Error: verificación en otro servidor",
+            description="Mensaje cuando el usuario tiene verificación pendiente en otro servidor",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "Ya tienes una verificación en curso en otro servidor. "
+                "Debes completarla o esperar a que sea procesada antes de iniciar otra."
+            ),
+            max_length=1000,
+            group="Mensajes al usuario",
+        ),
         # ===== 6. MENSAJES DE MODERACIÓN =====
         ConfigOption(
             key=ConfigKey.MOD_APPROVED_CONFIRMATION,

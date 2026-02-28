@@ -254,10 +254,21 @@ async def handle_verification_start(
     async with cog.bot.database.session() as session:
         verification_service = VerificationService(session=session)
 
+        # Verificar si tiene verificacion pendiente en este servidor
         pending = await verification_service.get_pending_by_user(guild_id=guild.id, user_id=user.id)
         if pending:
             await interaction.followup.send(
                 config.get(ConfigKey.ALREADY_PENDING_MESSAGE) or "", ephemeral=True
+            )
+            return
+
+        # Verificar si tiene verificacion pendiente en otro servidor
+        pending_any = await verification_service.get_any_pending_by_user(user_id=user.id)
+        if pending_any:
+            await interaction.followup.send(
+                config.get(ConfigKey.PENDING_IN_OTHER_SERVER_MESSAGE)
+                or "Ya tienes una verificación en curso en otro servidor.",
+                ephemeral=True,
             )
             return
 
