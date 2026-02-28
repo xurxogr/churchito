@@ -459,15 +459,15 @@ async def update_option(
     )
 
 
-@router.post("/{guild_id}/cog/{cog_name}/reset", response_class=HTMLResponse)
-async def reset_cog_config(
+@router.post("/{guild_id}/cog/{cog_name}/reload", response_class=HTMLResponse)
+async def reload_cog(
     request: Request,
     guild_id: int,
     cog_name: str,
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Reiniciar la configuración de un cog a valores por defecto.
+    """Recargar un cog (reload de la extensión).
 
     Args:
         request (Request): Request de FastAPI
@@ -479,13 +479,44 @@ async def reset_cog_config(
     Returns:
         HTMLResponse: Partial actualizado
     """
-    # Validar que el cog existe antes de cualquier operación DB
+    # Validar que el cog existe antes de cualquier operación
     schema_service = get_config_schema_service()
     if not schema_service.get_schema(cog_name):
         raise HTTPException(status_code=404, detail="Cog no encontrado")
 
-    config_service = ConfigService(session)
-    await config_service.reset_config(guild_id, cog_name)
+    # El cog "bot" no se puede recargar
+    if cog_name == "bot":
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            error="El módulo 'bot' no se puede recargar",
+        )
+
+    bot = request.app.state.bot
+    if not bot:
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            error="Bot no disponible",
+        )
+
+    extension_name = f"discord_bot.{cog_name}.cog"
+    try:
+        await bot.reload_extension(extension_name)
+        logger.info(f"Cog {cog_name} recargado por usuario {user.get('id')}")
+    except Exception as e:
+        logger.error(f"Error al recargar cog {cog_name}: {e}")
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            error=f"Error al recargar: {e}",
+        )
 
     return await _render_cog_settings(
         request=request,

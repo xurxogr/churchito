@@ -31,13 +31,11 @@
 
             <button
                 class="btn btn-secondary"
-                onclick="return handleResetClick(event)"
-                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reset"
+                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reload"
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
-                hx-confirm="¿Estás seguro de que quieres reiniciar la configuración a valores por defecto?"
             >
-                Reiniciar
+                Recargar
             </button>
         </div>
         {% endif %}
@@ -684,16 +682,6 @@ function handleCogToggle(el) {
     // No pending changes, use htmx.ajax directly for reliable toggling
     const url = el.form.getAttribute('hx-post');
     htmx.ajax('POST', url, {target: '#cog-settings', swap: 'innerHTML'});
-}
-
-function handleResetClick(event) {
-    if (hasPendingChanges()) {
-        event.preventDefault();
-        event.stopPropagation();
-        shakeSaveBar();
-        return false;
-    }
-    return true;
 }
 
 function resetAllChanges() {

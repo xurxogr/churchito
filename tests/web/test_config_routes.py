@@ -16,7 +16,7 @@ from discord_bot.web.routers.config import (
     _convert_form_value,
     cog_settings,
     guild_config,
-    reset_cog_config,
+    reload_cog,
     toggle_cog,
     update_option,
 )
@@ -338,17 +338,21 @@ class TestUpdateOption:
             )
 
 
-class TestResetCogConfig:
-    """Tests para reset_cog_config."""
+class TestReloadCog:
+    """Tests para reload_cog."""
 
-    async def test_reset_config_success(
+    async def test_reload_cog_success(
         self,
         mock_config_request: MagicMock,
         mock_schema_service: ConfigSchemaService,
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar reset de configuración exitoso."""
+        """Probar reload de cog exitoso."""
+        mock_bot = MagicMock()
+        mock_bot.reload_extension = AsyncMock()
+        mock_config_request.app.state.bot = mock_bot
+
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -357,16 +361,13 @@ class TestResetCogConfig:
             patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
         ):
             mock_config_service = MagicMock()
-            mock_config_service.reset_config = AsyncMock(return_value=3)
             mock_config_service.get_all_config = AsyncMock(return_value={})
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service
 
-            await reset_cog_config(
-                mock_config_request, 111222333, "test_cog", test_user, test_session
-            )
+            await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
 
-            mock_config_service.reset_config.assert_called_once_with(111222333, "test_cog")
+            mock_bot.reload_extension.assert_called_once_with("discord_bot.test_cog.cog")
 
 
 class TestCogSettingsDisplayValues:
@@ -868,16 +869,16 @@ class TestToggleCogInvalidCog:
         assert exc_info.value.detail == "Cog no encontrado"
 
 
-class TestResetCogConfigInvalidCog:
-    """Tests para reset_cog_config con cog inválido."""
+class TestReloadCogInvalidCog:
+    """Tests para reload_cog con cog inválido."""
 
-    async def test_reset_cog_config_invalid_cog_raises_404(
+    async def test_reload_cog_invalid_cog_raises_404(
         self,
         mock_config_request: MagicMock,
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que reset_cog_config lanza 404 para cog inexistente."""
+        """Probar que reload_cog lanza 404 para cog inexistente."""
         empty_service = ConfigSchemaService()
 
         with (
@@ -887,7 +888,7 @@ class TestResetCogConfigInvalidCog:
             ),
             pytest.raises(HTTPException) as exc_info,
         ):
-            await reset_cog_config(
+            await reload_cog(
                 mock_config_request, 111222333, "nonexistent_cog", test_user, test_session
             )
 
