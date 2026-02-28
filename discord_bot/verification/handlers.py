@@ -512,9 +512,9 @@ async def update_mod_message_for_review(
             if past.rejection_reason:
                 formatted += f" - {past.rejection_reason}"
 
-    # Check if we should auto-process
+    # Comprobar si debemos auto-procesar
     auto_mode = config.get(ConfigKey.VERIFICATION_AUTOMATIC, AutoProcessMode.NONE)
-    # Handle legacy boolean values for backwards compatibility
+    # Manejar valores booleanos legacy para compatibilidad
     if auto_mode is True:
         auto_mode = AutoProcessMode.BOTH
     elif auto_mode is False or not auto_mode:
@@ -526,7 +526,7 @@ async def update_mod_message_for_review(
     if (auto_reject or auto_approve) and api_result:
         guild = channel.guild
 
-        # Handle 422 (invalid images) - auto-reject
+        # Manejar 422 (imágenes inválidas) - auto-rechazar
         if api_result.status_code == 422 and auto_reject:
             reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
             await _handle_auto_rejection(
@@ -542,13 +542,13 @@ async def update_mod_message_for_review(
             )
             return
 
-        # Handle successful API response (200)
+        # Manejar respuesta exitosa de API (200)
         if api_result.success and api_result.response:
-            # Get member display name for name matching
+            # Obtener nombre de display del miembro para comparación
             member = guild.get_member(request.user_id)
             member_display_name = member.display_name if member else request.username
 
-            # Process verification rules
+            # Procesar reglas de verificación
             should_approve, rejection_reason = process_verification(
                 request=request,
                 api_response=api_result.response,
@@ -557,7 +557,7 @@ async def update_mod_message_for_review(
             )
 
             if should_approve and auto_approve:
-                # Auto-approve
+                # Auto-aprobar
                 await _handle_auto_approval(
                     cog=cog,
                     guild=guild,
@@ -570,7 +570,7 @@ async def update_mod_message_for_review(
                 )
                 return
             elif not should_approve and auto_reject:
-                # Auto-reject
+                # Auto-rechazar
                 await _handle_auto_rejection(
                     cog=cog,
                     guild=guild,

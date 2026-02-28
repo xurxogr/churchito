@@ -9,7 +9,7 @@ from discord_bot.verification.auto_processor import (
     names_match,
     process_verification,
 )
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.enums import ConfigKey, NameMatchMode, VerificationType
 
 
 class TestCalculateTimeDiffDays:
@@ -46,20 +46,40 @@ class TestNamesMatch:
 
     def test_exact_match(self) -> None:
         """Probar match exacto."""
-        assert names_match("Player", "Player") is True
+        assert names_match("Player", "Player", NameMatchMode.EXACT) is True
 
-    def test_case_insensitive(self) -> None:
-        """Probar que es case insensitive."""
-        assert names_match("PLAYER", "player") is True
-        assert names_match("Player", "PLAYER") is True
+    def test_exact_case_insensitive(self) -> None:
+        """Probar que es case insensitive en modo exacto."""
+        assert names_match("PLAYER", "player", NameMatchMode.EXACT) is True
+        assert names_match("Player", "PLAYER", NameMatchMode.EXACT) is True
 
-    def test_with_whitespace(self) -> None:
-        """Probar que maneja espacios."""
-        assert names_match("  Player  ", "Player") is True
+    def test_exact_with_whitespace(self) -> None:
+        """Probar que maneja espacios en modo exacto."""
+        assert names_match("  Player  ", "Player", NameMatchMode.EXACT) is True
 
-    def test_different_names(self) -> None:
-        """Probar nombres diferentes."""
-        assert names_match("Player1", "Player2") is False
+    def test_exact_different_names(self) -> None:
+        """Probar nombres diferentes en modo exacto."""
+        assert names_match("Player1", "Player2", NameMatchMode.EXACT) is False
+
+    def test_contains_discord_in_game(self) -> None:
+        """Probar que nombre de Discord está contenido en nombre del juego."""
+        assert names_match("Player", "Player [TAG]", NameMatchMode.CONTAINS) is True
+
+    def test_contains_game_in_discord(self) -> None:
+        """Probar que nombre del juego está contenido en nombre de Discord."""
+        assert names_match("[TAG] Player", "Player", NameMatchMode.CONTAINS) is True
+
+    def test_contains_case_insensitive(self) -> None:
+        """Probar que contains es case insensitive."""
+        assert names_match("PLAYER", "player [tag]", NameMatchMode.CONTAINS) is True
+
+    def test_contains_no_match(self) -> None:
+        """Probar que contains falla cuando no hay coincidencia."""
+        assert names_match("Player1", "Player2", NameMatchMode.CONTAINS) is False
+
+    def test_none_mode_always_true(self) -> None:
+        """Probar que modo NONE siempre retorna True."""
+        assert names_match("Player1", "Player2", NameMatchMode.NONE) is True
 
 
 class TestProcessVerification:
@@ -99,7 +119,7 @@ class TestProcessVerification:
         request = self._create_request()
         api_response = self._create_api_response()
         config: dict[str, Any] = {
-            ConfigKey.VERIFICATION_MATCH_NAME: False,
+            ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.NONE,
             ConfigKey.VERIFICATION_TIME_DIFF: 0,
         }
 
@@ -113,12 +133,49 @@ class TestProcessVerification:
         assert should_approve is True
         assert reason is None
 
-    def test_name_mismatch_rejected(self) -> None:
-        """Probar rechazo por nombre diferente."""
+    def test_name_mismatch_exact_rejected(self) -> None:
+        """Probar rechazo por nombre diferente en modo exacto."""
         request = self._create_request()
         api_response = self._create_api_response(name="DifferentName")
         config: dict[str, Any] = {
-            ConfigKey.VERIFICATION_MATCH_NAME: True,
+            ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.EXACT,
+            ConfigKey.REJECT_NAME_MISMATCH: "Nombre no coincide",
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is False
+        assert reason == "Nombre no coincide"
+
+    def test_name_match_contains_approved(self) -> None:
+        """Probar aprobación cuando nombre está contenido."""
+        request = self._create_request()
+        api_response = self._create_api_response(name="TestPlayer [TAG]")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.CONTAINS,
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is True
+        assert reason is None
+
+    def test_name_match_contains_rejected(self) -> None:
+        """Probar rechazo cuando nombre no está contenido."""
+        request = self._create_request()
+        api_response = self._create_api_response(name="CompletelyDifferent")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.CONTAINS,
             ConfigKey.REJECT_NAME_MISMATCH: "Nombre no coincide",
         }
 

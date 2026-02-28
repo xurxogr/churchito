@@ -3,7 +3,7 @@
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
-from discord_bot.verification.enums import AutoProcessMode, ConfigKey
+from discord_bot.verification.enums import AutoProcessMode, ConfigKey, NameMatchMode
 
 COG_NAME = "verification"
 
@@ -633,9 +633,14 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.VERIFICATION_MATCH_NAME,
             name="Verificar nombre",
-            description="Requerir que el nombre del juego coincida con el nombre de Discord",
-            option_type=ConfigOptionType.BOOLEAN,
-            default=False,
+            description="Modo de comparación entre el nombre de Discord y el nombre del juego",
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("No comprobar", NameMatchMode.NONE),
+                ("Exacto", NameMatchMode.EXACT),
+                ("Debe contener", NameMatchMode.CONTAINS),
+            ],
+            default=NameMatchMode.NONE,
             group="API de Verificación",
         ),
         ConfigOption(
