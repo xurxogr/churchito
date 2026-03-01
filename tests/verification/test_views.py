@@ -313,3 +313,77 @@ class TestRejectionReasonModal:
         await modal.on_submit(interaction)
 
         bot.get_cog.assert_called_once_with("VerificationCog")
+
+
+class TestAutoRejectReviewView:
+    """Tests para AutoRejectReviewView."""
+
+    async def test_init_default_label(self) -> None:
+        """Probar inicializacion con label por defecto."""
+        from discord_bot.verification.views.auto_reject_review import (
+            AutoRejectReviewView,
+            ReviewButton,
+        )
+
+        view = AutoRejectReviewView(request_id=123)
+
+        assert len(view.children) == 1
+        button = next(c for c in view.children if isinstance(c, ReviewButton))
+        assert button.label == "Revisar"
+
+    async def test_init_custom_label(self) -> None:
+        """Probar inicializacion con label personalizado."""
+        from discord_bot.verification.views.auto_reject_review import (
+            AutoRejectReviewView,
+            ReviewButton,
+        )
+
+        view = AutoRejectReviewView(request_id=123, review_label="Review Now")
+
+        button = next(c for c in view.children if isinstance(c, ReviewButton))
+        assert button.label == "Review Now"
+
+    async def test_button_custom_id(self) -> None:
+        """Probar que el boton tiene custom_id correcto."""
+        from discord_bot.verification.views.auto_reject_review import (
+            AutoRejectReviewView,
+            ReviewButton,
+        )
+
+        view = AutoRejectReviewView(request_id=456)
+
+        button = next(c for c in view.children if isinstance(c, ReviewButton))
+        assert button.custom_id == "verification:review:456"
+
+    async def test_timeout_default(self) -> None:
+        """Probar timeout por defecto (30 minutos)."""
+        from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
+
+        view = AutoRejectReviewView(request_id=123)
+        assert view.timeout == 30 * 60  # 30 minutos en segundos
+
+    async def test_timeout_custom(self) -> None:
+        """Probar timeout personalizado."""
+        from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
+
+        view = AutoRejectReviewView(request_id=123, timeout_minutes=60)
+        assert view.timeout == 60 * 60  # 60 minutos en segundos
+
+    async def test_timeout_disabled(self) -> None:
+        """Probar timeout desactivado (0 minutos)."""
+        from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
+
+        view = AutoRejectReviewView(request_id=123, timeout_minutes=0)
+        assert view.timeout is None
+
+    async def test_button_style(self) -> None:
+        """Probar estilo del boton."""
+        from discord_bot.verification.views.auto_reject_review import (
+            AutoRejectReviewView,
+            ReviewButton,
+        )
+
+        view = AutoRejectReviewView(request_id=123)
+
+        button = next(c for c in view.children if isinstance(c, ReviewButton))
+        assert button.style == discord.ButtonStyle.secondary

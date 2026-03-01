@@ -30,6 +30,19 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             default=True,
             group="Opciones",
         ),
+        ConfigOption(
+            key=ConfigKey.AUTO_REJECT_REVIEW_WINDOW,
+            name="Ventana de revisión (minutos)",
+            description=(
+                "Minutos durante los cuales un moderador puede revisar un auto-rechazo. "
+                "0 para desactivar."
+            ),
+            option_type=ConfigOptionType.INTEGER,
+            default=30,
+            min_value=0,
+            max_value=1440,
+            group="Opciones",
+        ),
         # ===== 2. PANEL DE VERIFICACIÓN =====
         ConfigOption(
             key=ConfigKey.VERIFICATION_CHANNEL,
@@ -259,6 +272,15 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             description="Texto del botón de rechazar para moderadores",
             option_type=ConfigOptionType.STRING,
             default="Rechazar",
+            max_length=80,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REVIEW_BUTTON_TEXT,
+            name="Texto botón revisar",
+            description="Texto del botón para revisar auto-rechazos",
+            option_type=ConfigOptionType.STRING,
+            default="Revisar",
             max_length=80,
             group="Panel de moderación",
         ),

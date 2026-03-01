@@ -4461,3 +4461,271 @@ class TestHandleRejectDeleteModMessage:
 
             # Deberia eliminar el mensaje
             mock_mod_message.delete.assert_called_once()
+
+
+class TestHandleReview:
+    """Tests para handle_review (revisión de auto-rechazos)."""
+
+    async def test_review_no_guild(self, verification_cog: VerificationCog) -> None:
+        """Probar que revisa que hay guild."""
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = None
+
+        await verification_cog.handle_review(interaction, request_id=1)
+
+    async def test_review_not_mod(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que requiere permisos de moderador."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = False
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        # Habilitar cog
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values = {
+            "mod_roles": [999],  # Usuario no tiene este rol
+            "no_permission_reject_message": "No tienes permisos",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_review(interaction, request_id=1)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert call_args.kwargs["ephemeral"] is True
+
+    async def test_review_not_auto_rejected(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que solo permite revisar auto-rechazos."""
+        # Crear solicitud rechazada manualmente (no Auto)
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.reject(request.id, 789, "ModUser", "Motivo manual")
+            await session.commit()
+            request_id = request.id
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.name = "ModUser"
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values: dict[str, Any] = {"mod_roles": []}
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_review(interaction, request_id)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert "no fue auto-rechazada" in call_args.kwargs["content"]
+            assert call_args.kwargs["ephemeral"] is True
+
+    async def test_review_not_latest(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que solo permite revisar la última verificación."""
+        # Crear dos solicitudes, rechazar ambas
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request1 = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.reject(request1.id, 0, "Auto", "Razon auto")
+
+            request2 = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.ALLY,
+            )
+            await service.reject(request2.id, 0, "Auto", "Otra razon auto")
+            await session.commit()
+            old_request_id = request1.id
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.name = "ModUser"
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values: dict[str, Any] = {"mod_roles": []}
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            # Intentar revisar la solicitud antigua
+            await verification_cog.handle_review(interaction, old_request_id)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert "última verificación" in call_args.kwargs["content"]
+            assert call_args.kwargs["ephemeral"] is True
+
+    async def test_review_success(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar revisión exitosa de auto-rechazo."""
+        # Crear solicitud auto-rechazada
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Rechazar con Auto
+            await service.reject(request.id, 0, "Auto", "Razon automatica")
+            await session.commit()
+            request_id = request.id
+
+        # Mock del mensaje de moderación
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Solicitud de TestUser\n❌ Auto-rechazado"
+        mock_mod_message.embeds = [mock_embed]
+        mock_mod_message.edit = AsyncMock()
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.name = "ModUser"
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values = {
+            "mod_roles": [],
+            "mod_notification_channel": 888,
+            "status_pending_review": "⏳ Pendiente",
+            "status_rejected": "❌ Auto-rechazado",
+            "accept_button_text": "Aceptar",
+            "reject_button_text": "Rechazar",
+        }
+
+        # Guardar mod_message_id en la solicitud
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.set_mod_message_id(request_id, 999)
+            await session.commit()
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_review(interaction, request_id)
+
+            # Verificar respuesta exitosa
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert "revisión manual" in call_args.kwargs["content"]
+            assert call_args.kwargs["ephemeral"] is True
+
+            # Verificar que se editó el mensaje de moderación
+            mock_mod_message.edit.assert_called_once()
+            edit_kwargs = mock_mod_message.edit.call_args.kwargs
+            assert edit_kwargs["view"] is not None  # Tiene botones
+
+        # Verificar estado en DB
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated_request = await service.get_request(request_id)
+            assert updated_request is not None
+            assert updated_request.status == VerificationStatus.PENDING_REVIEW
+            assert updated_request.reviewed_by_id is None
+            assert updated_request.reviewed_by_username is None

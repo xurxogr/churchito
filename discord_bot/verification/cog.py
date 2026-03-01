@@ -18,6 +18,7 @@ from discord_bot.verification.handlers import (
     handle_accept,
     handle_dm_screenshots,
     handle_reject,
+    handle_review,
     handle_verification_start,
     show_rejection_select,
 )
@@ -516,6 +517,15 @@ class VerificationCog(commands.Cog):
         """
         await handle_reject(cog=self, interaction=interaction, request_id=request_id, reason=reason)
 
+    async def handle_review(self, interaction: discord.Interaction, request_id: int) -> None:
+        """Manejar revisión de verificación auto-rechazada.
+
+        Args:
+            interaction (discord.Interaction): Interaccion del moderador
+            request_id (int): ID de la solicitud
+        """
+        await handle_review(cog=self, interaction=interaction, request_id=request_id)
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
         """Cancelar verificaciones pendientes cuando un usuario sale.
@@ -572,6 +582,15 @@ class VerificationCog(commands.Cog):
                 await self.show_rejection_select(interaction=interaction, request_id=request_id)
             except (ValueError, IndexError):
                 logger.error(f"Custom ID invalido para reject: {custom_id}")
+            return
+
+        # Manejar boton de revisar auto-rechazo: verification:review:{request_id}
+        if custom_id.startswith("verification:review:"):
+            try:
+                request_id = int(custom_id.split(":")[2])
+                await self.handle_review(interaction=interaction, request_id=request_id)
+            except (ValueError, IndexError):
+                logger.error(f"Custom ID invalido para review: {custom_id}")
             return
 
 

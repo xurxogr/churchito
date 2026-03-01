@@ -278,3 +278,52 @@ class VerificationService:
 
         logger.info(f"Solicitud {request_id} cancelada")
         return request
+
+    async def revert_to_pending_review(self, request_id: int) -> VerificationRequest | None:
+        """Revertir una solicitud rechazada a pendiente de revisión.
+
+        Usado para permitir revisión manual de auto-rechazos.
+
+        Args:
+            request_id (int): ID de la solicitud
+
+        Returns:
+            VerificationRequest | None: Solicitud actualizada o None
+        """
+        request = await self.get_request(request_id)
+        if not request:
+            return None
+
+        if request.status != VerificationStatus.REJECTED:
+            return None
+
+        request.status = VerificationStatus.PENDING_REVIEW
+        request.reviewed_by_id = None
+        request.reviewed_by_username = None
+        request.rejection_reason = None
+        request.reviewed_at = None
+        await self._session.flush()
+
+        logger.info(f"Solicitud {request_id} revertida a revisión pendiente")
+        return request
+
+    async def get_latest_by_user(self, guild_id: int, user_id: int) -> VerificationRequest | None:
+        """Obtener la última solicitud de un usuario.
+
+        Args:
+            guild_id (int): ID del guild
+            user_id (int): ID del usuario
+
+        Returns:
+            VerificationRequest | None: Última solicitud o None
+        """
+        result = await self._session.execute(
+            select(VerificationRequest)
+            .where(
+                VerificationRequest.guild_id == guild_id,
+                VerificationRequest.user_id == user_id,
+            )
+            .order_by(VerificationRequest.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()

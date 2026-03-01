@@ -411,3 +411,82 @@ class TestVerificationService:
         assert pending_222 is not None
         assert pending_111.verification_type == VerificationType.REGULAR
         assert pending_222.verification_type == VerificationType.ALLY
+
+    async def test_revert_to_pending_review(self, test_session: AsyncSession) -> None:
+        """Probar reversion de solicitud rechazada a pendiente de revision."""
+        service = VerificationService(test_session)
+
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        # Rechazar primero
+        await service.reject(request.id, 789, "Auto", "Razon automatica")
+
+        # Revertir a pendiente de revision
+        reverted = await service.revert_to_pending_review(request.id)
+
+        assert reverted is not None
+        assert reverted.status == VerificationStatus.PENDING_REVIEW
+        assert reverted.reviewed_by_id is None
+        assert reverted.reviewed_by_username is None
+        assert reverted.rejection_reason is None
+        assert reverted.reviewed_at is None
+
+    async def test_revert_to_pending_review_not_rejected(self, test_session: AsyncSession) -> None:
+        """Probar que no se puede revertir solicitud que no esta rechazada."""
+        service = VerificationService(test_session)
+
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        # Intentar revertir sin rechazar primero
+        result = await service.revert_to_pending_review(request.id)
+
+        assert result is None
+
+    async def test_revert_to_pending_review_not_found(self, test_session: AsyncSession) -> None:
+        """Probar reversion de solicitud inexistente."""
+        service = VerificationService(test_session)
+        result = await service.revert_to_pending_review(99999)
+        assert result is None
+
+    async def test_get_latest_by_user(self, test_session: AsyncSession) -> None:
+        """Probar obtener ultima solicitud de un usuario."""
+        service = VerificationService(test_session)
+
+        # Crear primera solicitud
+        request1 = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.REGULAR,
+        )
+        await service.cancel(request1.id)
+
+        # Crear segunda solicitud
+        request2 = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            verification_type=VerificationType.ALLY,
+        )
+
+        latest = await service.get_latest_by_user(guild_id=123, user_id=456)
+
+        assert latest is not None
+        assert latest.id == request2.id
+        assert latest.verification_type == VerificationType.ALLY
+
+    async def test_get_latest_by_user_not_found(self, test_session: AsyncSession) -> None:
+        """Probar obtener ultima solicitud de usuario sin solicitudes."""
+        service = VerificationService(test_session)
+        result = await service.get_latest_by_user(guild_id=123, user_id=456)
+        assert result is None

@@ -27,7 +27,11 @@ from discord_bot.verification.formatters import (
 )
 from discord_bot.verification.models import VerificationRequest
 from discord_bot.verification.service import VerificationService
-from discord_bot.verification.views import ModReviewView, RejectionReasonView
+from discord_bot.verification.views import (
+    AutoRejectReviewView,
+    ModReviewView,
+    RejectionReasonView,
+)
 
 if TYPE_CHECKING:
     from discord_bot.verification.cog import VerificationCog
@@ -813,7 +817,20 @@ async def _handle_auto_rejection(
         )
         main_embed.color = discord.Color.red()
         all_embeds = [main_embed, *embeds]
-        await mod_message.edit(embeds=all_embeds, view=None)
+
+        # Añadir botón de revisión si está configurado
+        review_window = config.get(ConfigKey.AUTO_REJECT_REVIEW_WINDOW, 0)
+        if review_window and review_window > 0:
+            review_label = config.get(ConfigKey.REVIEW_BUTTON_TEXT) or "Revisar"
+            view: discord.ui.View | None = AutoRejectReviewView(
+                request_id=request.id,
+                review_label=review_label,
+                timeout_minutes=review_window,
+            )
+        else:
+            view = None
+
+        await mod_message.edit(embeds=all_embeds, view=view)
 
 
 async def handle_accept(
@@ -1177,3 +1194,168 @@ async def handle_reject(
             username=request.username,
         )
         await interaction.followup.send(content=confirmation, ephemeral=True)
+
+
+async def handle_review(
+    cog: "VerificationCog",
+    interaction: discord.Interaction,
+    request_id: int,
+) -> None:
+    """Manejar revisión de una verificación auto-rechazada.
+
+    Permite a los moderadores revisar manualmente una verificación
+    que fue auto-rechazada, poniéndola de nuevo en estado pendiente.
+
+    Args:
+        cog (VerificationCog): Instancia del cog.
+        interaction (discord.Interaction): Interacción del moderador.
+        request_id (int): ID de la solicitud.
+    """
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return
+
+    if not await cog._is_cog_enabled(interaction.guild.id):
+        return
+
+    async with cog.bot.database.session() as session:
+        # Validación personalizada para handle_review (permite estado REJECTED)
+        config_service = ConfigService(session=session)
+        config = await cog._get_all_config(
+            guild_id=interaction.guild.id, config_service=config_service
+        )
+
+        # Verificar permisos de moderador
+        if not has_any_role(
+            member=interaction.user, role_ids=config.get(ConfigKey.MOD_ROLES) or []
+        ):
+            await interaction.response.send_message(
+                content=config.get(ConfigKey.NO_PERMISSION_REJECT_MESSAGE)
+                or "No tienes permisos para revisar verificaciones.",
+                ephemeral=True,
+            )
+            return
+
+        verification_service = VerificationService(session=session)
+        request = await verification_service.get_request(request_id=request_id)
+
+        if not request or request.guild_id != interaction.guild.id:
+            await interaction.response.send_message(
+                content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE)
+                or "Solicitud no encontrada.",
+                ephemeral=True,
+            )
+            return
+
+        # Verificar que fue auto-rechazada (status debe ser REJECTED y reviewer "Auto")
+        if request.status != VerificationStatus.REJECTED or request.reviewed_by_username != "Auto":
+            await interaction.response.send_message(
+                content="Esta verificación no fue auto-rechazada.",
+                ephemeral=True,
+            )
+            return
+
+        # Verificar que es la última verificación del usuario
+        latest = await verification_service.get_latest_by_user(
+            guild_id=interaction.guild.id,
+            user_id=request.user_id,
+        )
+        if not latest or latest.id != request_id:
+            await interaction.response.send_message(
+                content="Solo se puede revisar la última verificación del usuario.",
+                ephemeral=True,
+            )
+            return
+
+        # Revertir a estado pendiente de revisión
+        reverted = await verification_service.revert_to_pending_review(request_id)
+        if not reverted:
+            await interaction.response.send_message(
+                content="No se pudo revertir la verificación.",
+                ephemeral=True,
+            )
+            return
+
+        # Actualizar mensaje de moderación con botones de aceptar/rechazar
+        await _update_mod_message_for_review(interaction.guild, request, config, request_id)
+
+        await session.commit()
+
+        await interaction.response.send_message(
+            content=f"Verificación de {request.username} puesta en revisión manual.",
+            ephemeral=True,
+        )
+
+
+async def _update_mod_message_for_review(
+    guild: discord.Guild,
+    request: VerificationRequest,
+    config: dict[str, Any],
+    request_id: int,
+) -> None:
+    """Actualizar mensaje de moderación para revisión manual.
+
+    Args:
+        guild: Guild donde está el mensaje
+        request: Solicitud de verificación
+        config: Configuración del cog
+        request_id: ID de la solicitud
+    """
+    if not request.mod_message_id:
+        return
+
+    mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
+    if not mod_channel_id:
+        return
+
+    mod_channel = guild.get_channel(mod_channel_id)
+    if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
+        return
+
+    try:
+        mod_message = await mod_channel.fetch_message(request.mod_message_id)
+    except discord.NotFound:
+        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        return
+
+    # Obtener contenido actual y actualizar estado
+    current_content = ""
+    if mod_message.embeds:
+        current_content = mod_message.embeds[0].description or ""
+
+    # Reemplazar estado de auto-rechazo por pendiente
+    pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pendiente de revisión"
+    rejected_status = config.get(ConfigKey.STATUS_REJECTED) or ""
+
+    if rejected_status and rejected_status in current_content:
+        new_content = current_content.replace(rejected_status, pending_status)
+    else:
+        # Si no encuentra el estado, buscar el patrón común
+        import re
+
+        pattern = r"❌[^\n]*(?:Auto|rechazo)[^\n]*"
+        new_content = re.sub(pattern, pending_status, current_content)
+        if new_content == current_content:
+            new_content = current_content + f"\n\n{pending_status}"
+
+    # Crear nuevo embed
+    main_embed = create_mod_embed(
+        new_content,
+        username=request.username,
+        user_id=request.user_id,
+    )
+    main_embed.color = discord.Color.orange()
+
+    # Mantener embeds de capturas
+    screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
+    all_embeds = [main_embed, *screenshot_embeds]
+
+    # Crear vista con botones de aceptar/rechazar
+    accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"
+    reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+    view = ModReviewView(
+        request_id=request_id,
+        accept_label=accept_label,
+        reject_label=reject_label,
+    )
+
+    await mod_message.edit(embeds=all_embeds, view=view)

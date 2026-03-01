@@ -79,6 +79,10 @@ class ConfigKey(StrEnum):
     # Opciones
     DELETE_PROCESSED_MESSAGES = "delete_processed_messages"
     BLOCK_ALREADY_VERIFIED = "block_already_verified"
+    AUTO_REJECT_REVIEW_WINDOW = "auto_reject_review_window"
+
+    # Botón de revisión
+    REVIEW_BUTTON_TEXT = "review_button_text"
 
     # API Verification Settings (API URL and Key are in global settings)
     VERIFICATION_FACTION = "verification_faction"
