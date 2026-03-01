@@ -317,3 +317,39 @@ class TestProcessVerification:
         )
 
         assert should_approve is True
+
+    def test_legacy_boolean_true_match_name(self) -> None:
+        """Probar compatibilidad con legacy boolean True para match_name."""
+        request = self._create_request()
+        api_response = self._create_api_response()
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_MATCH_NAME: True,  # Legacy boolean
+        }
+
+        # Nombre coincide exactamente
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is True
+
+    def test_legacy_boolean_false_match_name(self) -> None:
+        """Probar compatibilidad con legacy boolean False para match_name."""
+        request = self._create_request()
+        api_response = self._create_api_response()
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_MATCH_NAME: False,  # Legacy boolean
+        }
+
+        # Nombre no coincide pero no importa porque está deshabilitado
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="DifferentName",
+        )
+
+        assert should_approve is True

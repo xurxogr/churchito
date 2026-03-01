@@ -1,13 +1,16 @@
 """Tests para handlers de verificación."""
 
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pytest
 
 from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
     _is_valid_discord_url,
+    _update_mod_message_for_review,
     _update_status_ready_for_approval,
 )
 
@@ -52,6 +55,17 @@ class TestIsValidDiscordUrl:
     def test_url_with_query_params(self) -> None:
         """Probar URL válida con query params."""
         url = "https://cdn.discordapp.com/attachments/123/456/image.png?size=128"
+        assert _is_valid_discord_url(url) is True
+
+    def test_url_too_short_for_parsing(self) -> None:
+        """Probar URL demasiado corta que podría causar IndexError."""
+        # URL que empieza con https:// pero no tiene dominio
+        url = "https://"
+        assert _is_valid_discord_url(url) is False
+
+    def test_url_with_only_domain(self) -> None:
+        """Probar URL con solo dominio sin path."""
+        url = "https://cdn.discordapp.com"
         assert _is_valid_discord_url(url) is True
 
 
@@ -225,3 +239,129 @@ class TestUpdateStatusReadyForApproval:
 
         # Sin roles válidos, usa "moderadores"
         assert "✅ Listo - moderadores" in result
+
+    def test_returns_unchanged_when_no_pending_status(self) -> None:
+        """Probar que retorna sin cambios si no hay estado pendiente configurado."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=None)
+
+        config = {
+            "mod_roles": [],
+            "status_pending_review": "",  # Vacío
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        formatted = "Mensaje original"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        # Retorna sin cambios
+        assert result == formatted
+
+    def test_returns_unchanged_when_no_ready_status(self) -> None:
+        """Probar que retorna sin cambios si no hay estado listo configurado."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=None)
+
+        config = {
+            "mod_roles": [],
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "",  # Vacío
+        }
+
+        formatted = "Mensaje\n\n🔍 Pendiente"
+
+        result = _update_status_ready_for_approval(
+            formatted=formatted,
+            config=config,
+            guild=mock_guild,
+        )
+
+        # Retorna sin cambios
+        assert result == formatted
+
+
+class TestUpdateModMessageForReview:
+    """Tests para _update_mod_message_for_review."""
+
+    @pytest.mark.asyncio
+    async def test_returns_early_when_no_mod_message_id(self) -> None:
+        """Probar que retorna si no hay mod_message_id."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_request = MagicMock()
+        mock_request.mod_message_id = None
+
+        config: dict[str, Any] = {}
+
+        # No debería fallar, solo retornar
+        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+
+    @pytest.mark.asyncio
+    async def test_returns_early_when_no_mod_channel_id(self) -> None:
+        """Probar que retorna si no hay canal de moderación configurado."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 999
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": None,
+        }
+
+        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+
+    @pytest.mark.asyncio
+    async def test_returns_early_when_channel_not_found(self) -> None:
+        """Probar que retorna si el canal no existe."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=None)
+
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 999
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": 888,
+        }
+
+        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+
+    @pytest.mark.asyncio
+    async def test_returns_early_when_channel_wrong_type(self) -> None:
+        """Probar que retorna si el canal no es TextChannel."""
+        mock_channel = MagicMock(spec=discord.VoiceChannel)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 999
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": 888,
+        }
+
+        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+
+    @pytest.mark.asyncio
+    async def test_handles_message_not_found(self) -> None:
+        """Probar que maneja NotFound al buscar el mensaje."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "Not found")
+        )
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 999
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": 888,
+        }
+
+        # No debería fallar
+        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)

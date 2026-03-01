@@ -515,6 +515,99 @@ class TestShowRejectionSelect:
 
             interaction.response.send_message.assert_called_once()
 
+    async def test_shard_placeholder_replaced(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que el placeholder {shard} se reemplaza en REJECT_WRONG_SHARD."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(request.id, "url1", "url2")
+            await session.commit()
+            request_id = request.id
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+
+        mock_user = MagicMock(spec=discord.Member)
+        mock_user.roles = [mock_role]
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        config_values: dict[str, Any] = {
+            "mod_roles": [999],
+            "reject_wrong_shard": "Usuario en shard incorrecto (esperado: {shard})",
+            "verification_shard": "ABLE",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.show_rejection_select(interaction, request_id)
+
+            interaction.response.send_message.assert_called_once()
+            call_kwargs = interaction.response.send_message.call_args[1]
+            # Verificar que el view tiene las opciones con shard reemplazado
+            view = call_kwargs["view"]
+            assert view is not None
+
+    async def test_shard_placeholder_skipped_when_no_shard_configured(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que REJECT_WRONG_SHARD se omite si no hay shard configurado."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(request.id, "url1", "url2")
+            await session.commit()
+            request_id = request.id
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+
+        mock_user = MagicMock(spec=discord.Member)
+        mock_user.roles = [mock_role]
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        config_values: dict[str, Any] = {
+            "mod_roles": [999],
+            "reject_wrong_shard": "Usuario en shard incorrecto (esperado: {shard})",
+            # No verification_shard configurado
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.show_rejection_select(interaction, request_id)
+
+            # Debe funcionar sin error (el motivo se omite)
+            interaction.response.send_message.assert_called_once()
+
     async def test_not_mod(self, verification_cog: VerificationCog) -> None:
         """Probar que usuario sin rol de mod no puede ver el selector."""
         # Mock del usuario sin rol de mod
@@ -990,6 +1083,439 @@ class TestOnMessage:
             assert (
                 updated.screenshot_2_url == "https://cdn.discordapp.com/attachments/123/456/2.jpg"
             )
+
+    async def test_invalid_discord_url_rejected(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que URLs no de Discord CDN son rechazadas."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        # URLs de un dominio externo (no Discord CDN)
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://example.com/image1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://example.com/image2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "wrong_images_message": "URLs inválidas",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.on_message(message)
+
+            # Se envió mensaje de error
+            message.channel.send.assert_called_once()
+            # Usuario sigue en pending (no se procesó)
+            assert 456 in verification_cog._pending_dm_verifications
+
+    async def test_auto_reject_on_api_422(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar auto-rechazo cuando la API devuelve 422 (imágenes inválidas)."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Añadir mod_message_id para que se procese el auto-rechazo
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # Mock mod message
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        # Mock member
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        # Mock guild
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        # Mock mod channel (after guild so we can link them)
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        # Mock bot user
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        # Mock settings con API configurada
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Tu verificación fue rechazada: {reason}",
+            "delete_processed_messages": True,
+        }
+
+        # Mock API devuelve 422
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar estado en DB - debe estar rechazado
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
+            assert updated.reviewed_by_username == "Auto"
+
+    async def test_auto_approve_when_checks_pass(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar auto-aprobación cuando todas las verificaciones pasan."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # Mock mod message
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        # Mock role
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        # Mock member
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        # Mock guild
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        # Mock mod channel (after guild so we can link them)
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        # Mock bot user
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        # Mock settings
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Verificación aprobada",
+            "delete_processed_messages": True,
+        }
+
+        # Mock API devuelve respuesta exitosa que pasa todas las verificaciones
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",  # Sin regimiento
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar estado en DB - debe estar aprobado
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+            assert updated.reviewed_by_username == "Auto"
+
+    async def test_auto_reject_when_checks_fail(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar auto-rechazo cuando las verificaciones fallan (ej: tiene regimiento)."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # Mock mod message
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        # Mock member
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+
+        # Mock guild
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        # Mock mod channel (after guild so we can link them)
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        # Mock bot user
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        # Mock settings
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "reject_has_regiment": "Ya perteneces a un regimiento",
+            "rejection_message": "Tu verificación fue rechazada: {reason}",
+            "delete_processed_messages": True,
+        }
+
+        # Mock API devuelve respuesta con regimiento (falla verificación para REGULAR)
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="82DK",  # Tiene regimiento - debe rechazarse para REGULAR
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar estado en DB - debe estar rechazado
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
+            assert updated.reviewed_by_username == "Auto"
 
 
 class TestHandleAcceptHappyPath:
@@ -4729,3 +5255,2366 @@ class TestHandleReview:
             assert updated_request.status == VerificationStatus.PENDING_REVIEW
             assert updated_request.reviewed_by_id is None
             assert updated_request.reviewed_by_username is None
+
+    async def test_review_cog_disabled(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que handle_review retorna si el cog está deshabilitado."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        # Mockear cog deshabilitado
+        with patch.object(
+            verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+        ) as mock_enabled:
+            mock_enabled.return_value = False
+
+            await verification_cog.handle_review(interaction, request_id=1)
+
+            # No debería llamar a send_message
+            interaction.response.send_message.assert_not_called()
+
+    async def test_review_request_not_found(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que handle_review maneja solicitud no encontrada."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        # Habilitar cog
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values: dict[str, Any] = {
+            "mod_roles": [],
+            "request_not_found_message": "Solicitud no existe",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_review(interaction, request_id=99999)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert "no existe" in call_args.kwargs["content"]
+            assert call_args.kwargs["ephemeral"] is True
+
+
+class TestAutoProcessingEdgeCases:
+    """Tests para casos edge de auto-procesamiento."""
+
+    async def test_api_error_non_422_shows_error(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que errores API no-422 muestran mensaje de error."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.NONE,  # No auto-process
+        }
+
+        # Mock API devuelve 500 (error interno)
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=500,
+            error_message="Internal server error",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud quedó en PENDING_REVIEW
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
+    async def test_player_info_template_formatted(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que player_info_template se formatea correctamente."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.NONE,
+            "player_info_template": "Nombre: {name}, Nivel: {level}",
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestPlayer",
+            level=15,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud quedó en PENDING_REVIEW
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
+    async def test_legacy_boolean_true_auto_mode(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar compatibilidad con valor booleano True para verification_automatic."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": True,  # Legacy boolean
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": True,
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se auto-aprobó (True = BOTH)
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+    async def test_auto_approve_ally_uses_ally_roles(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-aprobación de aliado usa los roles de aliado."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.ALLY,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_ally_role = MagicMock(spec=discord.Role)
+        mock_ally_role.id = 888
+        mock_ally_role.name = "Ally"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_ally_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "ally_roles_add": [888],
+            "ally_roles_remove": [],
+            "approval_message_ally": "Bienvenido aliado",
+            "delete_processed_messages": True,
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="82DK",  # Tiene regimiento - OK para aliado
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se auto-aprobó
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+        # Verificar que se añadió el rol de aliado
+        mock_member.add_roles.assert_called_once_with(mock_ally_role)
+
+    async def test_auto_approve_forbidden_on_add_roles(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que Forbidden en add_roles no rompe el flujo."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "Missing permissions")
+        )
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": True,
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            # No debería lanzar excepción
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud fue aprobada de todos modos
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+    async def test_auto_approve_forbidden_on_send_dm(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que Forbidden en send DM no rompe el flujo."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send DM"))
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": True,
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud fue aprobada
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+    async def test_auto_approve_no_delete_edits_message(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-aprobación sin delete_processed_messages edita el mensaje."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": False,  # No borrar, editar
+            "status_pending_review": "⏳ Pendiente",
+            "status_approved": "✅ Aprobado por {moderator}",
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó en lugar de borrar
+        mock_mod_message.delete.assert_not_called()
+        mock_mod_message.edit.assert_called_once()
+
+    async def test_auto_reject_no_delete_edits_with_review_button(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-rechazo sin delete añade botón de revisión."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Rechazado: {reason}",
+            "delete_processed_messages": False,  # No borrar
+            "status_pending_review": "⏳ Pendiente",
+            "status_rejected": "❌ Rechazado: {reason}",
+            "auto_reject_review_window": 30,  # 30 minutos para revisión
+            "review_button_text": "Revisar",
+        }
+
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó con view
+        mock_mod_message.delete.assert_not_called()
+        mock_mod_message.edit.assert_called_once()
+        edit_kwargs = mock_mod_message.edit.call_args.kwargs
+        assert edit_kwargs["view"] is not None
+
+    async def test_auto_reject_forbidden_on_send_dm(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que Forbidden en DM de rechazo no rompe el flujo."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send DM"))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Rechazado: {reason}",
+            "delete_processed_messages": True,
+        }
+
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud fue rechazada
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
+
+    async def test_ready_for_manual_approval_reject_only_mode(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar listo para aprobación manual cuando modo es REJECT_ONLY."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_mod_role = MagicMock(spec=discord.Role)
+        mock_mod_role.mention = "<@&999>"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_mod_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,  # Solo rechaza, no aprueba
+            "mod_roles": [999],
+            "status_pending_review": "⏳ Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+
+        # API devuelve respuesta exitosa que pasa todas las verificaciones
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud quedó en PENDING_REVIEW (no auto-aprobada)
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
+    async def test_auto_approve_forbidden_on_remove_roles(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que Forbidden en remove_roles no rompe el flujo."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role_add = MagicMock(spec=discord.Role)
+        mock_role_add.id = 999
+        mock_role_add.name = "Verified"
+
+        mock_role_remove = MagicMock(spec=discord.Role)
+        mock_role_remove.id = 888
+        mock_role_remove.name = "Unverified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "Missing permissions")
+        )
+
+        def get_role_side_effect(role_id: int) -> MagicMock | None:
+            if role_id == 999:
+                return mock_role_add
+            elif role_id == 888:
+                return mock_role_remove
+            return None
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(side_effect=get_role_side_effect)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [888],  # Tiene roles a remover
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": True,
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            # No debería lanzar excepción
+            await verification_cog.on_message(message)
+
+        # Verificar que la solicitud fue aprobada
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+    async def test_auto_approve_no_pending_status_appends(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que sin status_pending_review se añade al final."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": False,
+            "status_pending_review": "",  # Sin status pendiente
+            "status_approved": "✅ Aprobado por {moderator}",
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó
+        mock_mod_message.edit.assert_called_once()
+
+    async def test_auto_reject_no_review_window(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar auto-rechazo sin ventana de revisión (view=None)."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Rechazado: {reason}",
+            "delete_processed_messages": False,
+            "status_pending_review": "⏳ Pendiente",
+            "status_rejected": "❌ Rechazado: {reason}",
+            "auto_reject_review_window": 0,  # Sin ventana de revisión
+        }
+
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó sin view
+        mock_mod_message.edit.assert_called_once()
+        edit_kwargs = mock_mod_message.edit.call_args.kwargs
+        assert edit_kwargs["view"] is None
+
+    async def test_auto_reject_no_pending_status_appends(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que sin status_pending_review se añade al final para rechazo."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Rechazado: {reason}",
+            "delete_processed_messages": False,
+            "status_pending_review": "",  # Sin status pendiente
+            "status_rejected": "❌ Rechazado: {reason}",
+            "auto_reject_review_window": 0,
+        }
+
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó
+        mock_mod_message.edit.assert_called_once()
+
+
+class TestOnInteractionReview:
+    """Tests para on_interaction con botón de revisión."""
+
+    async def test_review_button_invalid_id(self, verification_cog: VerificationCog) -> None:
+        """Probar manejo de ID inválido en botón de revisión."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": "verification:review:invalid"}
+
+        # Habilitar cog
+        with patch.object(
+            verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+        ) as mock_enabled:
+            mock_enabled.return_value = True
+
+            # No debería lanzar excepción
+            await verification_cog.on_interaction(interaction)
+
+    async def test_review_button_missing_parts(self, verification_cog: VerificationCog) -> None:
+        """Probar manejo de custom_id con partes faltantes."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": "verification:review"}  # Sin request_id
+
+        with patch.object(
+            verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+        ) as mock_enabled:
+            mock_enabled.return_value = True
+
+            # No debería lanzar excepción
+            await verification_cog.on_interaction(interaction)
+
+    async def test_review_button_valid_id(self, verification_cog: VerificationCog) -> None:
+        """Probar manejo de ID válido en botón de revisión."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": "verification:review:42"}
+
+        with (
+            patch.object(
+                verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+            ) as mock_enabled,
+            patch.object(
+                verification_cog, "handle_review", new_callable=AsyncMock
+            ) as mock_handle_review,
+        ):
+            mock_enabled.return_value = True
+
+            await verification_cog.on_interaction(interaction)
+
+            mock_handle_review.assert_called_once_with(interaction=interaction, request_id=42)
+
+
+class TestGetPendingVerification:
+    """Tests para _get_pending_verification."""
+
+    async def test_returns_none_when_no_pending(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que retorna None cuando no hay verificación pendiente."""
+        result = await verification_cog._get_pending_verification(user_id=99999)
+        assert result is None
+
+
+class TestHandleReviewRevertFails:
+    """Tests para handle_review cuando revert falla."""
+
+    async def test_revert_fails(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar manejo cuando revert_to_pending_review falla."""
+        # Crear solicitud auto-rechazada
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.reject(request.id, 0, "Auto", "Razon auto")
+            await session.commit()
+            request_id = request.id
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await session.commit()
+
+        config_values: dict[str, Any] = {"mod_roles": []}
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.VerificationService.revert_to_pending_review",
+                new_callable=AsyncMock,
+            ) as mock_revert,
+        ):
+            mock_config.return_value = config_values
+            mock_revert.return_value = False  # Revert falla
+
+            await verification_cog.handle_review(interaction, request_id)
+
+            interaction.response.send_message.assert_called_once()
+            call_args = interaction.response.send_message.call_args
+            assert "No se pudo revertir" in call_args.kwargs["content"]
+
+
+class TestLegacyBooleanAutoMode:
+    """Tests para compatibilidad con legacy boolean verification_automatic."""
+
+    async def test_legacy_false_disables_auto(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que False legacy desactiva auto-procesamiento."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": False,  # Legacy boolean False
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # No debería auto-aprobar, queda en PENDING_REVIEW
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
+
+class TestStatusReplacementInFormatted:
+    """Tests para reemplazo de status cuando SÍ está en formatted."""
+
+    async def test_auto_approve_replaces_pending_status(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-aprobación reemplaza el status pendiente."""
+        from discord_bot.verification.api_client import (
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # El mensaje ya tiene el status pendiente
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Solicitud de TestUser\n\n⏳ Pendiente de revisión"
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = [mock_embed]
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_role.name = "Verified"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Aprobado",
+            "delete_processed_messages": False,
+            "mod_message_template": "Solicitud de {username}\n\n{status}",  # Template con status
+            "status_pending_review": "⏳ Pendiente de revisión",
+            "status_approved": "✅ Aprobado por {moderator}",
+        }
+
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(
+            success=True,
+            status_code=200,
+            response=api_response,
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó
+        mock_mod_message.edit.assert_called_once()
+
+    async def test_auto_reject_replaces_pending_status(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-rechazo reemplaza el status pendiente."""
+        from discord_bot.verification.api_client import VerificationAPIResult
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request.id, 999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # El mensaje ya tiene el status pendiente
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Solicitud de TestUser\n\n⏳ Pendiente"
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = [mock_embed]
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, Any] = {
+            "screenshots_received_message": "Capturas recibidas",
+            "mod_notification_channel": 888,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "reject_wrong_captures": "Capturas inválidas",
+            "rejection_message": "Rechazado: {reason}",
+            "delete_processed_messages": False,
+            "mod_message_template": "Solicitud de {username}\n\n{status}",  # Template con status
+            "status_pending_review": "⏳ Pendiente",
+            "status_rejected": "❌ Rechazado: {reason}",
+            "auto_reject_review_window": 0,
+        }
+
+        api_result = VerificationAPIResult(
+            success=False,
+            status_code=422,
+            error_message="Invalid images",
+        )
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+
+            await verification_cog.on_message(message)
+
+        # Verificar que se editó
+        mock_mod_message.edit.assert_called_once()
+
+
+class TestHandleReviewRegexFallback:
+    """Tests para regex fallback en _update_mod_message_for_review."""
+
+    @pytest.mark.asyncio
+    async def test_regex_fallback_finds_auto_reject_pattern(
+        self, mock_discord_guild: MagicMock
+    ) -> None:
+        """Probar que regex encuentra patrón de auto-rechazo."""
+        request = MagicMock()
+        request.mod_message_id = 999
+        request.username = "TestUser"
+        request.user_id = 456
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.guild = mock_discord_guild
+
+        mock_mod_message = MagicMock(spec=discord.Message)
+        mock_mod_message.content = "Info\n\n❌ Auto-rechazado: razón\n\nMás info"
+        mock_mod_message.embeds = []
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_message.edit = AsyncMock()
+
+        mock_discord_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": 888,
+            "status_pending_review": "⏳ Pendiente de revisión",
+            "status_rejected": "ESTADO DIFERENTE",
+        }
+
+        from discord_bot.verification.handlers import _update_mod_message_for_review
+
+        await _update_mod_message_for_review(
+            guild=mock_discord_guild,
+            request=request,
+            config=config,
+            request_id=1,
+        )
+
+        mock_mod_message.edit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_regex_fallback_appends_when_no_match(
+        self, mock_discord_guild: MagicMock
+    ) -> None:
+        """Probar que añade estado pendiente si no hay match."""
+        request = MagicMock()
+        request.mod_message_id = 999
+        request.username = "TestUser"
+        request.user_id = 456
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.guild = mock_discord_guild
+
+        mock_mod_message = MagicMock(spec=discord.Message)
+        mock_mod_message.content = "Info sin estado de rechazo"
+        mock_mod_message.embeds = []
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_message.edit = AsyncMock()
+
+        mock_discord_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        config: dict[str, Any] = {
+            "mod_notification_channel": 888,
+            "status_pending_review": "⏳ Pendiente de revisión",
+            "status_rejected": "",
+        }
+
+        from discord_bot.verification.handlers import _update_mod_message_for_review
+
+        await _update_mod_message_for_review(
+            guild=mock_discord_guild,
+            request=request,
+            config=config,
+            request_id=1,
+        )
+
+        mock_mod_message.edit.assert_called_once()
