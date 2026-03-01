@@ -302,18 +302,6 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
         # COMMON - General
         # ====================================================================
         ConfigOption(
-            key=ConfigKey.PURGE_HOUR,
-            name="Hora de ejecución",
-            description="Hora del día (UTC) a la que se ejecutará la purga. "
-            "El comando añade días, pero la hora será esta.",
-            option_type=ConfigOptionType.INTEGER,
-            section="Común",
-            group="General",
-            default=18,
-            min_value=0,
-            max_value=23,
-        ),
-        ConfigOption(
             key=ConfigKey.TEST_MODE,
             name="Modo prueba",
             description="Permite saltarse las restricciones mínimas: "
@@ -346,12 +334,12 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.LOG_CREATED,
             name="Log: Purga creada",
-            description="Placeholders: {user}, {purga_type}, {dias}, {scheduled_for}",
+            description="Placeholders: {user}, {purga_type}, {horas}, {scheduled_for}",
             option_type=ConfigOptionType.STRING,
             section="Común",
             group="General",
             default="Purga **{purga_type}** creada por **{user}** - "
-            "Ejecución: {scheduled_for} ({dias} días)",
+            "Ejecución: {scheduled_for} ({horas}h)",
             max_length=500,
         ),
         ConfigOption(

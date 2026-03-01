@@ -33,7 +33,6 @@ class ConfigKey(StrEnum):
     USER_REMOVED_REACTION_TEXT = "user_removed_reaction_text"
 
     # === COMMON - General ===
-    PURGE_HOUR = "purge_hour"
     TEST_MODE = "test_mode"
     AUDIT_LEVEL = "audit_level"
 

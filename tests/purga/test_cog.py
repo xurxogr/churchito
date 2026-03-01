@@ -1885,7 +1885,7 @@ class TestOnConfigChangedExtended:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.PURGE_HOUR)
+            await purga_cog.on_config_changed(mock_guild, ConfigKey.TEST_MODE)
             mock_register.assert_not_called()
 
     async def test_triggers_resync_on_global_command_name(
@@ -5859,9 +5859,7 @@ class TestAuthorizePurgaReturnsNone:
             )
             await session.commit()
 
-            config: dict[str, Any] = {
-                ConfigKey.PURGE_HOUR: 10,
-            }
+            config: dict[str, Any] = {}
 
             # Mock update_status to return None
             with patch.object(

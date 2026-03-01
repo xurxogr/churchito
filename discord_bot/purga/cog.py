@@ -307,13 +307,13 @@ class PurgaCog(commands.Cog):
             name=command_name,
             description=cfg["description"],
         )
-        @app_commands.describe(dias="Número de días hasta la ejecución de la purga")
+        @app_commands.describe(horas="Número de horas hasta la ejecución de la purga")
         async def purge_command(
             interaction: discord.Interaction,
-            dias: app_commands.Range[int, 1, 30],
+            horas: app_commands.Range[int, 1, 720],
             _purga_type: PurgaType = purga_type,
         ) -> None:
-            await self._handle_purge(interaction=interaction, dias=dias, purga_type=_purga_type)
+            await self._handle_purge(interaction=interaction, horas=horas, purga_type=_purga_type)
 
         # Add command to guild
         self.bot.tree.add_command(purge_command, guild=guild)
@@ -419,14 +419,14 @@ class PurgaCog(commands.Cog):
     async def _handle_purge(
         self,
         interaction: discord.Interaction,
-        dias: int,
+        horas: int,
         purga_type: PurgaType,
     ) -> None:
         """Manejar el comando de purga (unificado para todos los tipos).
 
         Args:
             interaction (discord.Interaction): Interacción de Discord.
-            dias (int): Número de días hasta la ejecución.
+            horas (int): Número de horas hasta la ejecución.
             purga_type (PurgaType): Tipo de purga a iniciar.
         """
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
@@ -463,12 +463,16 @@ class PurgaCog(commands.Cog):
                 )
                 return
 
-            # Calcular fecha de ejecución
-            purge_hour = config.get(ConfigKey.PURGE_HOUR, 18)
+            # Calcular fecha de ejecución (redondeada a la hora en punto siguiente)
             now = datetime.now(UTC)
-            scheduled_for = (now + timedelta(days=dias)).replace(
-                hour=purge_hour, minute=0, second=0, microsecond=0
-            )
+            scheduled_for = now + timedelta(hours=horas)
+            # Redondear hacia arriba a la hora en punto
+            if scheduled_for.minute > 0 or scheduled_for.second > 0:
+                scheduled_for = (scheduled_for + timedelta(hours=1)).replace(
+                    minute=0, second=0, microsecond=0
+                )
+            else:
+                scheduled_for = scheduled_for.replace(second=0, microsecond=0)
 
             # Calcular fecha de expiración para autorizaciones
             timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
@@ -496,12 +500,12 @@ class PurgaCog(commands.Cog):
             log_template = config.get(
                 ConfigKey.LOG_CREATED,
                 "Purga **{purga_type}** creada por **{user}** - "
-                "Ejecución: {scheduled_for} ({dias} días)",
+                "Ejecución: {scheduled_for} ({horas}h)",
             )
             log_message = log_template.format(
                 user=user.display_name,
                 purga_type=display_name,
-                dias=str(dias),
+                horas=str(horas),
                 scheduled_for=scheduled_for.strftime("%Y-%m-%d %H:%M UTC"),
             )
             await self._send_log(
