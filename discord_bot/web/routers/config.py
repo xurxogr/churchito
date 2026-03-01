@@ -218,12 +218,13 @@ async def _render_cog_settings(
                     )
             channels.sort(key=lambda c: (c["category"] or "", c["name"]))
 
-            # Get roles (exclude @everyone)
+            # Get roles (exclude @everyone and roles above bot's highest role)
+            bot_top_role = discord_guild.me.top_role
             roles = [
                 # Use string IDs to avoid JS precision loss with snowflakes
                 {"id": str(r.id), "name": r.name, "color": str(r.color)}
                 for r in discord_guild.roles
-                if r.name != "@everyone"
+                if r.name != "@everyone" and r < bot_top_role
             ]
             roles.sort(key=lambda r: r["name"].lower())
 

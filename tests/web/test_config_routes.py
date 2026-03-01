@@ -220,11 +220,23 @@ class TestCogSettings:
         mock_everyone_role = MagicMock()
         mock_everyone_role.name = "@everyone"
 
+        # Bot's top role (higher than other roles)
+        mock_bot_top_role = MagicMock()
+        mock_bot_top_role.position = 100
+
+        # Configure role comparison (role < bot_top_role)
+        mock_role.__lt__ = MagicMock(return_value=True)
+        mock_everyone_role.__lt__ = MagicMock(return_value=True)
+
+        mock_bot_member = MagicMock()
+        mock_bot_member.top_role = mock_bot_top_role
+
         mock_guild = MagicMock()
         mock_guild.text_channels = [mock_channel]
         mock_guild.roles = [mock_everyone_role, mock_role]
         mock_guild.get_channel.return_value = mock_channel
         mock_guild.get_role.return_value = mock_role
+        mock_guild.me = mock_bot_member
 
         mock_config_request.app.state.bot.get_guild.return_value = mock_guild
 
@@ -649,10 +661,20 @@ class TestCogSettingsDisplayValues:
         mock_everyone_role = MagicMock()
         mock_everyone_role.name = "@everyone"
 
+        # Configure role comparison (roles are below bot's top role)
+        mock_role1.__lt__ = MagicMock(return_value=True)
+        mock_role2.__lt__ = MagicMock(return_value=True)
+        mock_everyone_role.__lt__ = MagicMock(return_value=True)
+
+        mock_bot_top_role = MagicMock()
+        mock_bot_member = MagicMock()
+        mock_bot_member.top_role = mock_bot_top_role
+
         mock_guild = MagicMock()
         mock_guild.text_channels = []
         mock_guild.roles = [mock_everyone_role, mock_role1, mock_role2]
         mock_guild.get_channel.return_value = None
+        mock_guild.me = mock_bot_member
 
         def get_role_side_effect(role_id: int) -> MagicMock | None:
             if role_id == 333:
