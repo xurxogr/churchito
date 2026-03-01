@@ -145,16 +145,20 @@ class AutonameCog(commands.Cog):
 
         config = await self._get_config(member.guild.id)
 
-        # Verificar rol requerido si está configurado
-        required_role_id = config.get(ConfigKey.REQUIRED_ROLE)
-        if required_role_id:
-            try:
-                required_role_id_int = int(required_role_id)
-                member_role_ids_set = {r.id for r in member.roles}
-                if required_role_id_int not in member_role_ids_set:
-                    return False
-            except (ValueError, TypeError):
-                pass
+        # Verificar roles requeridos si están configurados
+        required_roles = config.get(ConfigKey.REQUIRED_ROLES) or []
+        if required_roles:
+            member_role_ids_set = {r.id for r in member.roles}
+            has_required_role = False
+            for role_id in required_roles:
+                try:
+                    if int(role_id) in member_role_ids_set:
+                        has_required_role = True
+                        break
+                except (ValueError, TypeError):
+                    continue
+            if not has_required_role:
+                return False
 
         tags_config = config.get(ConfigKey.ROLE_TAGS) or []
         prefixes_config = config.get(ConfigKey.ROLE_PREFIXES) or []
@@ -331,7 +335,7 @@ class AutonameCog(commands.Cog):
             ConfigKey.ROLE_TAGS,
             ConfigKey.ROLE_PREFIXES,
             ConfigKey.TAG_FORMAT,
-            ConfigKey.REQUIRED_ROLE,
+            ConfigKey.REQUIRED_ROLES,
         )
         if key in resync_keys:
             logger.info(f"[{guild.name}] Configuración '{key}' cambió, re-sincronizando")

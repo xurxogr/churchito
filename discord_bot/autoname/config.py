@@ -12,7 +12,7 @@ COG_NAME = "autoname"
 class ConfigKey(StrEnum):
     """Claves de configuracion para el cog de autoname."""
 
-    REQUIRED_ROLE = "required_role"
+    REQUIRED_ROLES = "required_roles"
     ROLE_TAGS = "role_tags"
     ROLE_PREFIXES = "role_prefixes"
     TAG_FORMAT = "tag_format"
@@ -29,14 +29,14 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
     icon="🏷️",
     options=[
         ConfigOption(
-            key=ConfigKey.REQUIRED_ROLE,
-            name="Rol requerido",
+            key=ConfigKey.REQUIRED_ROLES,
+            name="Roles requeridos",
             description=(
-                "Solo se modificaran los nicknames de miembros que tengan este rol. "
+                "Solo se modificaran los nicknames de miembros que tengan alguno de estos roles. "
                 "Dejar vacio para procesar todos los miembros."
             ),
-            option_type=ConfigOptionType.ROLE,
-            default=None,
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
         ),
         ConfigOption(
             key=ConfigKey.ROLE_TAGS,

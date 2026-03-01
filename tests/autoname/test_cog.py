@@ -320,15 +320,15 @@ class TestApplyNickname:
 class TestApplyNicknameRequiredRole:
     """Tests para required_role en apply_nickname."""
 
-    async def test_skips_member_without_required_role(
+    async def test_skips_member_without_required_roles(
         self,
         autoname_cog: AutonameCog,
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que salta miembros sin el rol requerido."""
+        """Probar que salta miembros sin ninguno de los roles requeridos."""
         guild_id = mock_member.guild.id
-        required_role_id = 999  # Rol que el miembro NO tiene
+        required_roles = [999, 998]  # Roles que el miembro NO tiene
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
         async with test_database.session() as session:
@@ -337,7 +337,7 @@ class TestApplyNicknameRequiredRole:
                 guild_id=guild_id, cog_name="autoname", enabled=True
             )
             await config_service.set_value(
-                guild_id, "autoname", ConfigKey.REQUIRED_ROLE, required_role_id
+                guild_id, "autoname", ConfigKey.REQUIRED_ROLES, required_roles
             )
             await config_service.set_value(guild_id, "autoname", ConfigKey.ROLE_TAGS, tags_config)
             await session.commit()
@@ -347,15 +347,15 @@ class TestApplyNicknameRequiredRole:
         assert result is False
         mock_member.edit.assert_not_called()
 
-    async def test_processes_member_with_required_role(
+    async def test_processes_member_with_any_required_role(
         self,
         autoname_cog: AutonameCog,
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que procesa miembros con el rol requerido."""
+        """Probar que procesa miembros con alguno de los roles requeridos."""
         guild_id = mock_member.guild.id
-        required_role_id = 100  # Rol que el miembro SI tiene
+        required_roles = [999, 100]  # 100 es un rol que el miembro SI tiene
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
         async with test_database.session() as session:
@@ -364,7 +364,7 @@ class TestApplyNicknameRequiredRole:
                 guild_id=guild_id, cog_name="autoname", enabled=True
             )
             await config_service.set_value(
-                guild_id, "autoname", ConfigKey.REQUIRED_ROLE, required_role_id
+                guild_id, "autoname", ConfigKey.REQUIRED_ROLES, required_roles
             )
             await config_service.set_value(guild_id, "autoname", ConfigKey.ROLE_TAGS, tags_config)
             await config_service.set_value(
@@ -377,13 +377,13 @@ class TestApplyNicknameRequiredRole:
         assert result is True
         mock_member.edit.assert_called_once()
 
-    async def test_handles_invalid_required_role_value(
+    async def test_handles_invalid_required_roles_values(
         self,
         autoname_cog: AutonameCog,
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que maneja valores invalidos de required_role."""
+        """Probar que maneja valores invalidos en la lista de roles requeridos."""
         guild_id = mock_member.guild.id
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
@@ -392,8 +392,9 @@ class TestApplyNicknameRequiredRole:
             await config_service.set_cog_enabled(
                 guild_id=guild_id, cog_name="autoname", enabled=True
             )
+            # Lista con valores invalidos y uno valido (100)
             await config_service.set_value(
-                guild_id, "autoname", ConfigKey.REQUIRED_ROLE, "invalid_not_a_number"
+                guild_id, "autoname", ConfigKey.REQUIRED_ROLES, ["invalid", None, 100]
             )
             await config_service.set_value(guild_id, "autoname", ConfigKey.ROLE_TAGS, tags_config)
             await config_service.set_value(
@@ -401,7 +402,7 @@ class TestApplyNicknameRequiredRole:
             )
             await session.commit()
 
-        # Debe continuar procesando (no fallar)
+        # Debe continuar procesando porque 100 es valido y el miembro lo tiene
         result = await autoname_cog.apply_nickname(mock_member)
 
         assert result is True
@@ -671,13 +672,13 @@ class TestOnConfigChanged:
             await autoname_cog.on_config_changed(mock_guild, ConfigKey.TAG_FORMAT)
             mock_sync.assert_called_once_with(mock_guild)
 
-    async def test_resyncs_on_required_role_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que re-sincroniza cuando cambia el rol requerido."""
+    async def test_resyncs_on_required_roles_change(self, autoname_cog: AutonameCog) -> None:
+        """Probar que re-sincroniza cuando cambian los roles requeridos."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.REQUIRED_ROLE)
+            await autoname_cog.on_config_changed(mock_guild, ConfigKey.REQUIRED_ROLES)
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_ignores_interval_change(self, autoname_cog: AutonameCog) -> None:
