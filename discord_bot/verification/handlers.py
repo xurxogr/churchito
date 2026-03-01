@@ -318,6 +318,7 @@ async def handle_verification_start(
             guild_id=guild.id,
             user_id=user.id,
             username=user.name,
+            guild_name=guild.name,
             verification_type=verification_type,
         )
 
@@ -415,20 +416,23 @@ async def handle_dm_screenshots(
 
         del cog._pending_dm_verifications[message.author.id]
 
+        guild = cog.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Unknown"
+
         verification_service = VerificationService(session=session)
 
         request = await verification_service.update_screenshots(
             request_id=request_id,
             url1=url1,
             url2=url2,
+            guild_name=guild_name,
         )
 
         if not request:
             await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
             return
 
-        guild = cog.bot.get_guild(guild_id)
-        server_name = guild.name if guild else "el servidor"
+        server_name = guild_name if guild else "el servidor"
         formatted_received = format_message(
             template=config.get(ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE),
             username=message.author.name,

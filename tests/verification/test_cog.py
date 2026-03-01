@@ -173,6 +173,7 @@ class TestHandleVerificationStart:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -223,6 +224,7 @@ class TestHandleVerificationStart:
                 guild_id=111,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -432,6 +434,7 @@ class TestShowRejectionSelect:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -483,6 +486,7 @@ class TestShowRejectionSelect:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -525,9 +529,10 @@ class TestShowRejectionSelect:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -573,9 +578,10 @@ class TestShowRejectionSelect:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -652,6 +658,7 @@ class TestShowRejectionSelect:
                 guild_id=999,  # Guild diferente
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -703,6 +710,7 @@ class TestOnMemberRemove:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -756,12 +764,14 @@ class TestRestorePendingVerifications:
                 guild_id=111,
                 user_id=456,
                 username="User1",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             request2 = await service.create_request(
                 guild_id=222,
                 user_id=789,
                 username="User2",
+                guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
             await session.commit()
@@ -790,10 +800,11 @@ class TestRestorePendingVerifications:
                 guild_id=111,
                 user_id=456,
                 username="User1",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             # Actualizar a PENDING_REVIEW
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
 
         verification_cog._pending_dm_verifications.clear()
@@ -923,6 +934,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -1026,6 +1038,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -1094,6 +1107,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
@@ -1147,6 +1161,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             # Añadir mod_message_id para que se procese el auto-rechazo
@@ -1266,6 +1281,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -1404,6 +1420,7 @@ class TestOnMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -1532,12 +1549,14 @@ class TestHandleAcceptHappyPath:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.update_screenshots(
                 request.id,
                 "https://cdn.discordapp.com/attachments/123/456/1.png",
                 "https://cdn.discordapp.com/attachments/123/456/2.png",
+                "Test Guild",
             )
             await session.commit()
             request_id = request.id
@@ -1615,9 +1634,10 @@ class TestHandleAcceptHappyPath:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.approve(request.id, 111, "OtherMod")
             await session.commit()
             request_id = request.id
@@ -1662,9 +1682,10 @@ class TestHandleRejectHappyPath:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -2578,9 +2599,10 @@ class TestRoleOperations:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -2640,9 +2662,10 @@ class TestRoleOperations:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -2703,9 +2726,10 @@ class TestRoleOperations:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -2766,9 +2790,10 @@ class TestModMessageEditing:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -2846,9 +2871,10 @@ class TestModMessageEditing:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -2911,9 +2937,10 @@ class TestModMessageEditing:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -2996,9 +3023,10 @@ class TestUpdateModMessageForReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(old_request.id, "old1", "old2")
+            await service.update_screenshots(old_request.id, "old1", "old2", "Test Guild")
             await service.approve(old_request.id, 111, "OldMod")
 
             # Solicitud actual
@@ -3006,9 +3034,10 @@ class TestUpdateModMessageForReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
 
@@ -3056,9 +3085,10 @@ class TestUpdateModMessageForReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             refreshed = await service.get_request(request.id)
@@ -3235,9 +3265,10 @@ class TestHandleAcceptAllyRoles:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -3303,9 +3334,10 @@ class TestModMessageEditFallback:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -3381,9 +3413,10 @@ class TestModMessageEditFallback:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -3492,9 +3525,10 @@ class TestHandleRejectEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.reject(request.id, 111, "OtherMod", "Ya rechazada")
             await session.commit()
             request_id = request.id
@@ -3534,9 +3568,10 @@ class TestHandleRejectEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -3590,9 +3625,10 @@ class TestHandleRejectEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await service.set_mod_message_id(request.id, 777)
             await session.commit()
             request_id = request.id
@@ -3656,6 +3692,7 @@ class TestOnMessageUpdateModMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 777)
@@ -3728,9 +3765,10 @@ class TestUpdateModMessageNoMessageId:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             # NO establecemos mod_message_id
             await session.commit()
             refreshed = await service.get_request(request.id)
@@ -4593,9 +4631,10 @@ class TestUpdateModMessageWithRejectionReason:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(old_request.id, "url1", "url2")
+            await service.update_screenshots(old_request.id, "url1", "url2", "Test Guild")
             await service.reject(old_request.id, 789, "ModUser", "Capturas incorrectas")
             await session.commit()
 
@@ -4606,9 +4645,10 @@ class TestUpdateModMessageWithRejectionReason:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url3", "url4")
+            await service.update_screenshots(request.id, "url3", "url4", "Test Guild")
             request.mod_message_id = 777  # Necesario para que el metodo no retorne temprano
             await session.commit()
             request_id = request.id
@@ -4688,9 +4728,10 @@ class TestHandleAcceptRoleNotFound:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -4749,9 +4790,10 @@ class TestHandleAcceptRoleNotFound:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             await session.commit()
             request_id = request.id
 
@@ -4814,9 +4856,10 @@ class TestHandleAcceptDeleteModMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             request.mod_message_id = 777
             await session.commit()
             request_id = request.id
@@ -4933,9 +4976,10 @@ class TestHandleRejectDeleteModMessage:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2")
+            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
             request.mod_message_id = 777
             await session.commit()
             request_id = request.id
@@ -5051,6 +5095,7 @@ class TestHandleReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.reject(request.id, 789, "ModUser", "Motivo manual")
@@ -5106,6 +5151,7 @@ class TestHandleReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.reject(request1.id, 0, "Auto", "Razon auto")
@@ -5114,6 +5160,7 @@ class TestHandleReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
             await service.reject(request2.id, 0, "Auto", "Otra razon auto")
@@ -5170,6 +5217,7 @@ class TestHandleReview:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             # Rechazar con Auto
@@ -5339,6 +5387,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -5448,6 +5497,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -5566,6 +5616,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -5695,6 +5746,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -5827,6 +5879,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -5960,6 +6013,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6089,6 +6143,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6214,6 +6269,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6324,6 +6380,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6434,6 +6491,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6561,6 +6619,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6705,6 +6764,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6829,6 +6889,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -6937,6 +6998,7 @@ class TestAutoProcessingEdgeCases:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -7124,6 +7186,7 @@ class TestHandleReviewRevertFails:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.reject(request.id, 0, "Auto", "Razon auto")
@@ -7189,6 +7252,7 @@ class TestLegacyBooleanAutoMode:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -7312,6 +7376,7 @@ class TestStatusReplacementInFormatted:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)
@@ -7441,6 +7506,7 @@ class TestStatusReplacementInFormatted:
                 guild_id=123,
                 user_id=456,
                 username="TestUser",
+                guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
             await service.set_mod_message_id(request.id, 999)

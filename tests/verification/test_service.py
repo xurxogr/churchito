@@ -17,6 +17,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -35,6 +36,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 
@@ -48,6 +50,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -70,6 +73,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -91,6 +95,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
         await service.approve(request.id, 789, "Mod")
@@ -107,6 +112,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -133,9 +139,10 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
-        await service.update_screenshots(request.id, "url1", "url2")
+        await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
 
         # No debe encontrar porque ya tiene capturas (PENDING_REVIEW)
         pending = await service.get_any_pending_by_user(456)
@@ -152,6 +159,7 @@ class TestVerificationService:
             guild_id=111,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -160,6 +168,7 @@ class TestVerificationService:
             guild_id=222,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 
@@ -177,12 +186,14 @@ class TestVerificationService:
             guild_id=111,
             user_id=456,
             username="User1",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
         await service.create_request(
             guild_id=222,
             user_id=789,
             username="User2",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 
@@ -206,6 +217,7 @@ class TestVerificationService:
             guild_id=111,
             user_id=456,
             username="User1",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
         await service.approve(request1.id, 999, "Mod")
@@ -215,15 +227,17 @@ class TestVerificationService:
             guild_id=222,
             user_id=789,
             username="User2",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
-        await service.update_screenshots(request2.id, "url1", "url2")
+        await service.update_screenshots(request2.id, "url1", "url2", "Test Guild")
 
         # Crear solicitud pendiente de capturas
         await service.create_request(
             guild_id=333,
             user_id=101,
             username="User3",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -239,6 +253,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
         await service.approve(request1.id, 789, "Mod")
@@ -247,6 +262,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 
@@ -269,6 +285,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -276,6 +293,7 @@ class TestVerificationService:
             request.id,
             "http://example.com/1.png",
             "http://example.com/2.png",
+            "Test Guild",
         )
 
         assert updated is not None
@@ -287,7 +305,7 @@ class TestVerificationService:
     async def test_update_screenshots_not_found(self, test_session: AsyncSession) -> None:
         """Probar actualizacion de capturas para solicitud inexistente."""
         service = VerificationService(test_session)
-        result = await service.update_screenshots(99999, "url1", "url2")
+        result = await service.update_screenshots(99999, "url1", "url2", "Test Guild")
         assert result is None
 
     async def test_set_mod_message_id(self, test_session: AsyncSession) -> None:
@@ -298,6 +316,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -321,6 +340,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -346,6 +366,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -372,6 +393,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -394,6 +416,7 @@ class TestVerificationService:
             guild_id=111,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -401,6 +424,7 @@ class TestVerificationService:
             guild_id=222,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 
@@ -420,6 +444,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -444,6 +469,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
 
@@ -467,6 +493,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
         await service.cancel(request1.id)
@@ -476,6 +503,7 @@ class TestVerificationService:
             guild_id=123,
             user_id=456,
             username="TestUser",
+            guild_name="Test Guild",
             verification_type=VerificationType.ALLY,
         )
 

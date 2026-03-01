@@ -32,6 +32,7 @@ class VerificationService:
         guild_id: int,
         user_id: int,
         username: str,
+        guild_name: str,
         verification_type: VerificationType,
     ) -> VerificationRequest:
         """Crear una nueva solicitud de verificacion.
@@ -40,6 +41,7 @@ class VerificationService:
             guild_id (int): ID del guild
             user_id (int): ID del usuario
             username (str): Nombre de usuario de Discord
+            guild_name (str): Nombre del guild
             verification_type (VerificationType): Tipo de verificacion
 
         Returns:
@@ -55,8 +57,8 @@ class VerificationService:
         self._session.add(request)
         await self._session.flush()
         logger.info(
-            f"Solicitud de verificacion creada: user={user_id}, "
-            f"guild={guild_id}, type={verification_type}"
+            f"[{guild_name}] Solicitud de verificacion creada: "
+            f"{username}, type={verification_type} (ID: {request.id})"
         )
         return request
 
@@ -159,7 +161,7 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def update_screenshots(
-        self, request_id: int, url1: str, url2: str
+        self, request_id: int, url1: str, url2: str, guild_name: str
     ) -> VerificationRequest | None:
         """Actualizar solicitud con las capturas de pantalla.
 
@@ -169,6 +171,7 @@ class VerificationService:
             request_id (int): ID de la solicitud
             url1 (str): URL de la primera captura
             url2 (str): URL de la segunda captura
+            guild_name (str): Nombre del guild
 
         Returns:
             VerificationRequest | None: Solicitud actualizada o None
@@ -183,7 +186,7 @@ class VerificationService:
         request.screenshots_submitted_at = datetime.now(UTC)
         await self._session.flush()
 
-        logger.info(f"Capturas actualizadas para solicitud {request_id}")
+        logger.info(f"[{guild_name}] Capturas actualizadas: {request.username} (ID: {request_id})")
         return request
 
     async def set_mod_message_id(

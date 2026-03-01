@@ -83,7 +83,7 @@ async def call_verification_api(
                 client.get(image2_url),
             )
             t1 = time.perf_counter()
-            logger.info(f"[{guild_name}] Images downloaded in {t1 - t0:.2f}s")
+            logger.debug(f"[{guild_name}] Images downloaded in {t1 - t0:.2f}s")
 
             if resp1.status_code != 200:
                 return VerificationAPIResult(
@@ -101,7 +101,7 @@ async def call_verification_api(
                 )
             image2_data = resp2.content
 
-            logger.info(
+            logger.debug(
                 f"[{guild_name}] Image sizes: "
                 f"{len(image1_data) / 1024:.1f}KB, {len(image2_data) / 1024:.1f}KB"
             )
@@ -120,7 +120,7 @@ async def call_verification_api(
                 headers=headers,
             )
             t3 = time.perf_counter()
-            logger.info(f"[{guild_name}] OCR API call took {t3 - t2:.2f}s")
+            logger.debug(f"[{guild_name}] OCR API call took {t3 - t2:.2f}s")
 
             status_code = response.status_code
 
