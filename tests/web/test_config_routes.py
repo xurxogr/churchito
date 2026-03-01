@@ -303,6 +303,46 @@ class TestCogSettings:
             # Should still render the template
             mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
 
+    async def test_cog_settings_locked_options_excluded(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que las opciones bloqueadas no aparecen en la lista."""
+        # Setup mock cog that locks string_option
+        mock_cog = MagicMock()
+        mock_cog.get_locked_options.return_value = {"string_option": "Locked reason"}
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            # Verify template was called
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+
+            # Get the context passed to the template
+            call_args = mock_config_request.app.state.templates.TemplateResponse.call_args
+            context = call_args[1]["context"]
+
+            # Verify string_option is NOT in the options list
+            option_keys = [opt["key"] for opt in context["options"]]
+            assert "string_option" not in option_keys
+            # But other options should still be there
+            assert "channel_option" in option_keys
+
 
 class TestToggleCog:
     """Tests para toggle_cog."""
