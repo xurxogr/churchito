@@ -1148,23 +1148,24 @@ class PurgaCog(commands.Cog):
         reaction_role = guild.get_role(reaction_role_id) if reaction_role_id else None
         reaction_role_text = reaction_role.mention if reaction_role else ""
 
-        # Calcular días restantes
-        days_remaining = "?"
+        # Calcular fecha con formato de Discord (timestamp dinámico)
         scheduled_date = "No programada"
         scheduled_time = ""
+        discord_timestamp = ""
+        discord_timestamp_relative = ""
         if record.scheduled_for:
-            now = datetime.now(UTC)
-            delta = record.scheduled_for - now
-            days_remaining = str(max(0, delta.days))
+            unix_ts = int(record.scheduled_for.timestamp())
             scheduled_date = record.scheduled_for.strftime("%Y-%m-%d")
             scheduled_time = record.scheduled_for.strftime("%H:%M UTC")
+            # Formato Discord: fecha completa + relativo
+            discord_timestamp = f"<t:{unix_ts}:f>"
+            discord_timestamp_relative = f"<t:{unix_ts}:R>"
 
         content = format_message(
             template=template,
             roles=roles_text,
-            days=days_remaining,
-            scheduled_date=scheduled_date,
-            scheduled_time=scheduled_time,
+            fecha=f"{discord_timestamp} ({discord_timestamp_relative})",
+            fecha_relativa=discord_timestamp_relative,
             reaction_role=reaction_role_text,
             # Mantener compatibilidad con placeholders antiguos
             dia=f"{scheduled_date} {scheduled_time}",

@@ -35,7 +35,7 @@ DEFAULT_USER_MESSAGE = """**PURGA ACTIVA**
 Se ha iniciado una purga. Los siguientes roles están afectados:
 {roles}
 
-Fecha de ejecución: {dia}
+Fecha de ejecución: {fecha}
 
 Reacciona al botón para confirmar tu permanencia y obtener el rol {reaction_rol}."""
 
@@ -44,7 +44,7 @@ DEFAULT_GLOBAL_USER_MESSAGE = """**PURGA GLOBAL ACTIVA**
 
 Se ha iniciado una purga global que afecta a **todos los miembros**.
 
-Fecha de ejecución: {dia}
+Fecha de ejecución: {fecha}
 
 Reacciona al botón para confirmar tu permanencia y obtener el rol {reaction_rol}."""
 
@@ -511,12 +511,13 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.WAR_MESSAGE_TEMPLATE,
             name="Plantilla del mensaje de usuarios",
-            description="Mensaje que ven los usuarios cuando la purga está activa",
+            description="Mensaje que ven los usuarios cuando la purga está activa. "
+            "{fecha} muestra fecha con cuenta atrás dinámica de Discord.",
             option_type=ConfigOptionType.TEXTAREA,
             section="Purga: Final de guerra",
             default=DEFAULT_USER_MESSAGE,
             max_length=2000,
-            placeholders=["roles", "dia", "reaction_rol"],
+            placeholders=["roles", "fecha", "fecha_relativa", "dia", "reaction_rol"],
         ),
         ConfigOption(
             key=ConfigKey.WAR_ADMIN_ROLES,
@@ -639,12 +640,13 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.GLOBAL_MESSAGE_TEMPLATE,
             name="Plantilla del mensaje de usuarios",
-            description="Mensaje que ven los usuarios cuando la purga global está activa",
+            description="Mensaje que ven los usuarios cuando la purga global está activa. "
+            "{fecha} muestra fecha con cuenta atrás dinámica de Discord.",
             option_type=ConfigOptionType.TEXTAREA,
             section="Purga: Global",
             default=DEFAULT_GLOBAL_USER_MESSAGE,
             max_length=2000,
-            placeholders=["roles", "dia", "reaction_rol"],
+            placeholders=["fecha", "fecha_relativa", "dia", "reaction_rol"],
         ),
         ConfigOption(
             key=ConfigKey.GLOBAL_ADMIN_ROLES,

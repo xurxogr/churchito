@@ -54,7 +54,7 @@ class TestDefaultMessages:
     def test_user_message_has_placeholders(self) -> None:
         """Probar que el mensaje de usuarios tiene los placeholders necesarios."""
         assert "{roles}" in DEFAULT_USER_MESSAGE
-        assert "{dia}" in DEFAULT_USER_MESSAGE
+        assert "{fecha}" in DEFAULT_USER_MESSAGE
         assert "{reaction_rol}" in DEFAULT_USER_MESSAGE
 
 
