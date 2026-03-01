@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+from fastapi.testclient import TestClient
+
 from discord_bot.common.core import AppSettings
 from discord_bot.web.app import create_app
 
@@ -66,3 +68,38 @@ class TestCreateApp:
         # Verificar que hay rutas registradas
         routes = [route.path for route in app.routes if hasattr(route, "path")]
         assert "/auth/login" in routes or any("/auth" in r for r in routes)
+
+    def test_health_check_endpoint(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Probar el endpoint de health check."""
+        app = create_app(test_app_settings, mock_db_service)
+        client = TestClient(app)
+
+        response = client.get("/health")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_http_exception_handler(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Probar el manejador de excepciones HTTP con ruta protegida."""
+        from fastapi import HTTPException
+
+        app = create_app(test_app_settings, mock_db_service)
+
+        # Agregar una ruta que lanza HTTPException
+        @app.get("/test-http-error")
+        async def raise_http_error() -> None:
+            raise HTTPException(status_code=403, detail="Test error")
+
+        client = TestClient(app)
+        response = client.get("/test-http-error")
+
+        assert response.status_code == 403
+        assert "text/html" in response.headers.get("content-type", "")

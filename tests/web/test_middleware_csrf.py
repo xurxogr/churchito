@@ -149,3 +149,29 @@ class TestCSRFMiddlewareIntegration:
             data={"csrf_token": csrf_token},
         )
         assert response.status_code == 200
+
+    def test_post_without_session_token_returns_403(self, app_with_csrf: TestClient) -> None:
+        """Probar que POST sin token en sesión retorna 403."""
+        # Crear un nuevo cliente sin cookies previas para asegurar sesión vacía
+        from fastapi import FastAPI
+        from starlette.middleware.sessions import SessionMiddleware
+
+        from discord_bot.web.middleware.csrf import CSRFMiddleware
+
+        app = FastAPI()
+        app.add_middleware(CSRFMiddleware)
+        app.add_middleware(SessionMiddleware, secret_key="test-secret")
+
+        @app.post("/submit")
+        async def submit() -> dict[str, str]:
+            return {"status": "ok"}
+
+        # Crear cliente sin cookies
+        from starlette.testclient import TestClient
+
+        client = TestClient(app, cookies={})
+
+        # POST directo sin haber establecido sesión - retorna 403 con mensaje de CSRF
+        response = client.post("/submit")
+        assert response.status_code == 403
+        assert "CSRF" in response.text

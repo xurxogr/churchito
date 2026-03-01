@@ -132,6 +132,36 @@ class TestGuildConfig:
             assert len(context["cogs"]) == 1
             assert context["cogs"][0]["name"] == "test_cog"
 
+    async def test_guild_config_bot_not_in_guild(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que guild_config lanza 404 cuando el bot no está en el guild."""
+        # Bot no encuentra el guild
+        mock_config_request.app.state.bot.get_guild.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await guild_config(mock_config_request, 999888777, test_user, test_session)
+
+        assert exc_info.value.status_code == 404
+        assert "no está en este servidor" in exc_info.value.detail
+
+    async def test_guild_config_no_bot(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que guild_config lanza 404 cuando no hay bot."""
+        mock_config_request.app.state.bot = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await guild_config(mock_config_request, 111222333, test_user, test_session)
+
+        assert exc_info.value.status_code == 404
+
 
 class TestCogSettings:
     """Tests para la ruta de configuración de cog."""
@@ -368,6 +398,94 @@ class TestReloadCog:
             await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
 
             mock_bot.reload_extension.assert_called_once_with("discord_bot.test_cog.cog")
+
+    async def test_reload_bot_cog_not_allowed(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que no se puede recargar el cog 'bot'."""
+        # Crear schema service con "bot" registrado
+        service = ConfigSchemaService()
+        service.register_schema(
+            CogConfigSchema(
+                cog_name="bot",
+                display_name="Bot",
+                description="Bot core",
+                icon="🤖",
+                options=[],
+            )
+        )
+
+        with patch(
+            "discord_bot.web.routers.config.get_config_schema_service",
+            return_value=service,
+        ):
+            await reload_cog(mock_config_request, 111222333, "bot", test_user, test_session)
+
+            # Debe retornar el template con un error
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+            assert "error" in context
+            assert "no se puede recargar" in context["error"]
+
+    async def test_reload_cog_bot_not_available(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar reload cuando el bot no está disponible."""
+        mock_config_request.app.state.bot = None
+
+        with patch(
+            "discord_bot.web.routers.config.get_config_schema_service",
+            return_value=mock_schema_service,
+        ):
+            await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            # Debe retornar el template con un error
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+            assert "error" in context
+            assert "Bot no disponible" in context["error"]
+
+    async def test_reload_cog_exception(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar reload cuando la extensión falla al recargar."""
+        mock_bot = MagicMock()
+        mock_bot.reload_extension = AsyncMock(side_effect=Exception("Extension not found"))
+        mock_config_request.app.state.bot = mock_bot
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            # Debe retornar el template con un error
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+            call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
+            context = call_kwargs["context"]
+            assert "error" in context
+            assert "Error al recargar" in context["error"]
 
 
 class TestCogSettingsDisplayValues:
