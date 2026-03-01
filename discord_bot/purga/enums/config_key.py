@@ -37,6 +37,12 @@ class ConfigKey(StrEnum):
     TEST_MODE = "test_mode"
     AUDIT_LEVEL = "audit_level"
 
+    # === COMMON - General (Logs) ===
+    LOG_CHANNEL = "log_channel"
+    LOG_CREATED = "log_created"
+    LOG_AUTHORIZED = "log_authorized"
+    LOG_CANCELLED = "log_cancelled"
+
     # === COMMON - Mensajes de ejecución ===
     EXEC_MSG_SIMULATION = "exec_msg_simulation"
     EXEC_MSG_INIT = "exec_msg_init"

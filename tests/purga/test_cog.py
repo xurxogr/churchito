@@ -5878,3 +5878,179 @@ class TestAuthorizePurgaReturnsNone:
                 )
 
                 assert result is None
+
+
+class TestGetPurgaDisplayName:
+    """Tests para el método _get_purga_display_name."""
+
+    def test_war_end_default(self, purga_cog: PurgaCog) -> None:
+        """Devuelve nombre por defecto para purga de guerra."""
+        config: dict[str, Any] = {}
+        result = purga_cog._get_purga_display_name(config, PurgaType.WAR_END)
+        assert result == "Purga de fin de guerra"
+
+    def test_war_end_custom(self, purga_cog: PurgaCog) -> None:
+        """Devuelve nombre personalizado para purga de guerra."""
+        config: dict[str, Any] = {ConfigKey.WAR_DISPLAY_NAME: "Fin de temporada"}
+        result = purga_cog._get_purga_display_name(config, PurgaType.WAR_END)
+        assert result == "Fin de temporada"
+
+    def test_global_default(self, purga_cog: PurgaCog) -> None:
+        """Devuelve nombre por defecto para purga global."""
+        config: dict[str, Any] = {}
+        result = purga_cog._get_purga_display_name(config, PurgaType.GLOBAL)
+        assert result == "Purga global"
+
+    def test_global_custom(self, purga_cog: PurgaCog) -> None:
+        """Devuelve nombre personalizado para purga global."""
+        config: dict[str, Any] = {ConfigKey.GLOBAL_DISPLAY_NAME: "Limpieza general"}
+        result = purga_cog._get_purga_display_name(config, PurgaType.GLOBAL)
+        assert result == "Limpieza general"
+
+
+class TestSendLog:
+    """Tests para el método _send_log."""
+
+    async def test_no_channel_configured(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """No envía si no hay canal configurado."""
+        config: dict[str, Any] = {}
+
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+        )
+
+        # No debería llamar a get_channel
+        mock_guild.get_channel.assert_not_called()
+
+    async def test_audit_level_too_low(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """No envía si audit level es insuficiente."""
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+            audit_level_required=1,
+        )
+
+        # No debería llamar a get_channel porque audit level es insuficiente
+        mock_guild.get_channel.assert_not_called()
+
+    async def test_channel_not_found(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """No crashea si el canal no existe."""
+        mock_guild.get_channel.return_value = None
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+            ConfigKey.AUDIT_LEVEL: 1,
+        }
+
+        # No debería lanzar excepción
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+        )
+
+        mock_guild.get_channel.assert_called_once_with(123456)
+
+    async def test_send_success(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """Envía mensaje con prefijo de purga ID correctamente."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+            ConfigKey.AUDIT_LEVEL: 1,
+        }
+
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=42,
+            message="Test message",
+        )
+
+        mock_channel.send.assert_called_once_with("[#42] Test message")
+
+    async def test_audit_level_met(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """Envía cuando audit level cumple el requisito."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+            ConfigKey.AUDIT_LEVEL: 2,
+        }
+
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test",
+            audit_level_required=1,
+        )
+
+        mock_channel.send.assert_called_once()
+
+    async def test_discord_error_no_crash(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """Error de Discord no crashea."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "Error"))
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+        }
+
+        # No debería lanzar excepción
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+        )
+
+    async def test_invalid_channel_type(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
+        """No envía si el canal no es TextChannel."""
+        mock_channel = MagicMock(spec=discord.VoiceChannel)
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: 123456,
+        }
+
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+        )
+
+        # No debería intentar enviar a un canal de voz
+        assert not hasattr(mock_channel, "send") or not mock_channel.send.called
+
+    async def test_invalid_channel_id_no_crash(
+        self, purga_cog: PurgaCog, mock_guild: MagicMock
+    ) -> None:
+        """No crashea con ID de canal inválido."""
+        config: dict[str, Any] = {
+            ConfigKey.LOG_CHANNEL: "not_a_number",
+        }
+
+        # No debería lanzar excepción
+        await purga_cog._send_log(
+            guild=mock_guild,
+            config=config,
+            purga_id=1,
+            message="Test message",
+        )

@@ -160,6 +160,15 @@ async def execute_purga(
             msg = config.get(ConfigKey.EXEC_MSG_INIT, "🔥 **Iniciando purga...**")
             execution_logs.append(msg)
 
+            # Enviar log de inicio al canal de logs
+            await cog._send_log(
+                guild=guild,
+                config=config,
+                purga_id=purga_id,
+                message=msg,
+                audit_level_required=1,
+            )
+
         # === PHASE 1: CLEAN NON-CONFIRMED USERS ===
         if purga_type == PurgaType.GLOBAL:
             # Purga global: afecta a todos excepto roles excluidos
@@ -254,31 +263,33 @@ async def execute_purga(
                                 f"a {reaction_member.name}"
                             )
 
+        # === GENERATE FINISH MESSAGE ===
+        if purga_type == PurgaType.GLOBAL:
+            finish_msg_template = config.get(
+                ConfigKey.GLOBAL_EXEC_MSG_FINISH,
+                "✅ **Purga global finalizada.**\n\n🧹 Usuarios purgados: {cleaned}",
+            )
+            finish_msg = format_message(finish_msg_template, cleaned=str(cleaned_count))
+        else:
+            finish_msg_template = config.get(
+                ConfigKey.WAR_EXEC_MSG_FINISH,
+                "✅ **Purga finalizada.**\n\n"
+                "🧹 Purgados: {cleaned}\n"
+                "⬆️ Promocionados (grupo): {promoted_in_group}\n"
+                "⬆️ Promocionados (otros): {promoted_not_in_group}\n"
+                "🗑️ Roles globales eliminados: {global_removed}",
+            )
+            finish_msg = format_message(
+                finish_msg_template,
+                cleaned=str(cleaned_count),
+                promoted_in_group=str(promoted_in_group),
+                promoted_not_in_group=str(promoted_not_in_group),
+                global_removed=str(global_removed_count),
+            )
+
         # === LOG FINISH MESSAGE (level 1) ===
         if audit_level >= 1:
-            if purga_type == PurgaType.GLOBAL:
-                msg_template = config.get(
-                    ConfigKey.GLOBAL_EXEC_MSG_FINISH,
-                    "✅ **Purga global finalizada.**\n\n🧹 Usuarios purgados: {cleaned}",
-                )
-                msg = format_message(msg_template, cleaned=str(cleaned_count))
-            else:
-                msg_template = config.get(
-                    ConfigKey.WAR_EXEC_MSG_FINISH,
-                    "✅ **Purga finalizada.**\n\n"
-                    "🧹 Purgados: {cleaned}\n"
-                    "⬆️ Promocionados (grupo): {promoted_in_group}\n"
-                    "⬆️ Promocionados (otros): {promoted_not_in_group}\n"
-                    "🗑️ Roles globales eliminados: {global_removed}",
-                )
-                msg = format_message(
-                    msg_template,
-                    cleaned=str(cleaned_count),
-                    promoted_in_group=str(promoted_in_group),
-                    promoted_not_in_group=str(promoted_not_in_group),
-                    global_removed=str(global_removed_count),
-                )
-            execution_logs.append(msg)
+            execution_logs.append(finish_msg)
 
         # Update execution result
         execution_result = {
@@ -322,6 +333,14 @@ async def execute_purga(
                 f"Purga {purga_id} ejecutada: cleaned={cleaned_count}, "
                 f"promoted_in={promoted_in_group}, promoted_out={promoted_not_in_group}, "
                 f"global_removed={global_removed_count}"
+            )
+
+            # Enviar log de completado al canal de logs
+            await cog._send_log(
+                guild=guild,
+                config=config,
+                purga_id=purga_id,
+                message=finish_msg,
             )
 
         await session.commit()

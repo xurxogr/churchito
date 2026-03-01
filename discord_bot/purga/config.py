@@ -334,6 +334,46 @@ PURGA_CONFIG_SCHEMA = CogConfigSchema(
             min_value=0,
             max_value=2,
         ),
+        ConfigOption(
+            key=ConfigKey.LOG_CHANNEL,
+            name="Canal de logs",
+            description="Canal donde se enviarán los logs de purgas. Dejar vacío para desactivar.",
+            option_type=ConfigOptionType.CHANNEL,
+            section="Común",
+            group="General",
+            default=None,
+        ),
+        ConfigOption(
+            key=ConfigKey.LOG_CREATED,
+            name="Log: Purga creada",
+            description="Placeholders: {user}, {purga_type}, {dias}, {scheduled_for}",
+            option_type=ConfigOptionType.STRING,
+            section="Común",
+            group="General",
+            default="Purga **{purga_type}** creada por **{user}** - "
+            "Ejecución: {scheduled_for} ({dias} días)",
+            max_length=500,
+        ),
+        ConfigOption(
+            key=ConfigKey.LOG_AUTHORIZED,
+            name="Log: Autorización",
+            description="Placeholders: {user}, {auth_count}, {required}",
+            option_type=ConfigOptionType.STRING,
+            section="Común",
+            group="General",
+            default="**{user}** autorizó ({auth_count}/{required})",
+            max_length=500,
+        ),
+        ConfigOption(
+            key=ConfigKey.LOG_CANCELLED,
+            name="Log: Cancelación",
+            description="Placeholders: {user}",
+            option_type=ConfigOptionType.STRING,
+            section="Común",
+            group="General",
+            default="Cancelada por **{user}**",
+            max_length=500,
+        ),
         # ====================================================================
         # COMMON - Mensajes de ejecución
         # ====================================================================

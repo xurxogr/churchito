@@ -141,6 +141,62 @@ class PurgaCog(commands.Cog):
             required = 2
         return required
 
+    def _get_purga_display_name(self, config: dict[str, Any], purga_type: PurgaType) -> str:
+        """Obtener el nombre para mostrar de un tipo de purga.
+
+        Args:
+            config: Configuración del cog.
+            purga_type: Tipo de purga.
+
+        Returns:
+            str: Nombre para mostrar.
+        """
+        if purga_type == PurgaType.GLOBAL:
+            name: str = config.get(ConfigKey.GLOBAL_DISPLAY_NAME, "Purga global")
+            return name
+        name = config.get(ConfigKey.WAR_DISPLAY_NAME, "Purga de fin de guerra")
+        return name
+
+    # =========================================================================
+    # Logging helpers
+    # =========================================================================
+
+    async def _send_log(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        purga_id: int,
+        message: str,
+        audit_level_required: int = 0,
+    ) -> None:
+        """Enviar mensaje al canal de logs si está configurado.
+
+        Args:
+            guild: Guild donde enviar el log
+            config: Configuración del cog
+            purga_id: ID de la purga para prefijo
+            message: Mensaje a enviar (ya formateado)
+            audit_level_required: Nivel mínimo de audit para enviar
+        """
+        # Verificar audit level
+        current_audit = config.get(ConfigKey.AUDIT_LEVEL, 0)
+        if current_audit < audit_level_required:
+            return
+
+        channel_id = config.get(ConfigKey.LOG_CHANNEL)
+        if not channel_id:
+            return
+
+        try:
+            channel = guild.get_channel(int(channel_id))
+            if channel and isinstance(channel, discord.TextChannel):
+                log_message = f"[#{purga_id}] {message}"
+                await channel.send(log_message)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"[{guild.name}] Error con canal de log de purga: {e}")
+        except discord.HTTPException as e:
+            logger.warning(f"[{guild.name}] Error enviando log de purga: {e}")
+
     # =========================================================================
     # Dynamic command registration
     # =========================================================================
@@ -435,6 +491,26 @@ class PurgaCog(commands.Cog):
 
             logger.info(f"[{guild.name}] Purga {record.id} creada por {user.display_name}")
 
+            # Enviar log de creación
+            display_name = self._get_purga_display_name(config=config, purga_type=purga_type)
+            log_template = config.get(
+                ConfigKey.LOG_CREATED,
+                "Purga **{purga_type}** creada por **{user}** - "
+                "Ejecución: {scheduled_for} ({dias} días)",
+            )
+            log_message = log_template.format(
+                user=user.display_name,
+                purga_type=display_name,
+                dias=str(dias),
+                scheduled_for=scheduled_for.strftime("%Y-%m-%d %H:%M UTC"),
+            )
+            await self._send_log(
+                guild=guild,
+                config=config,
+                purga_id=record.id,
+                message=log_message,
+            )
+
             # Obtener canal de moderación
             mod_channel_id = config.get(ConfigKey.MOD_CHANNEL)
             if not mod_channel_id:
@@ -586,6 +662,23 @@ class PurgaCog(commands.Cog):
             required = self._get_required_reactions(config)
             authorized_count = len(record.authorized_by)
 
+            # Enviar log de autorización
+            log_template = config.get(
+                ConfigKey.LOG_AUTHORIZED,
+                "**{user}** autorizó ({auth_count}/{required})",
+            )
+            log_message = log_template.format(
+                user=user.display_name,
+                auth_count=str(authorized_count),
+                required=str(required),
+            )
+            await self._send_log(
+                guild=guild,
+                config=config,
+                purga_id=purga_id,
+                message=log_message,
+            )
+
             if authorized_count >= required and record.status == PurgaStatus.PENDING:
                 # Autorizar purga
                 updated_record = await self._authorize_purga(
@@ -709,6 +802,19 @@ class PurgaCog(commands.Cog):
                     return
 
                 logger.info(f"[{guild.name}] Purga {purga_id} cancelada")
+
+                # Enviar log de cancelación
+                log_template = config.get(
+                    ConfigKey.LOG_CANCELLED,
+                    "Cancelada por **{user}**",
+                )
+                log_message = log_template.format(user=user.display_name)
+                await self._send_log(
+                    guild=guild,
+                    config=config,
+                    purga_id=purga_id,
+                    message=log_message,
+                )
 
                 # Quitar de tracking
                 self._active_purgas.pop(guild.id, None)
