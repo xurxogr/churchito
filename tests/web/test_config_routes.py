@@ -272,6 +272,37 @@ class TestCogSettings:
                 mock_config_request, 111222333, "nonexistent", test_user, test_session
             )
 
+    async def test_cog_settings_locked_options_exception_handled(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que get_locked_options exception no crashea."""
+        # Setup mock cog that raises exception
+        mock_cog = MagicMock()
+        mock_cog.get_locked_options = MagicMock(side_effect=RuntimeError("Test error"))
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            # Should not raise exception
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+            # Should still render the template
+            mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
+
 
 class TestToggleCog:
     """Tests para toggle_cog."""

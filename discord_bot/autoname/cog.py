@@ -29,6 +29,14 @@ class AutonameCog(commands.Cog):
         self._last_sync: dict[int, datetime] = {}
         self._sync_started = False
 
+    def get_locked_options(self) -> dict[str, dict[str, Any]]:
+        """Obtener opciones bloqueadas por configuración de despliegue.
+
+        Returns:
+            dict[str, dict[str, Any]]: Mapa de key -> {locked, reason}
+        """
+        return {}
+
     async def cog_load(self) -> None:
         """Iniciar tareas al cargar el cog."""
         if not self._sync_started:

@@ -43,6 +43,14 @@ class VerificationCog(commands.Cog):
         self._last_health_check: dict[int, datetime] = {}
         self._health_check_started = False
 
+    def get_locked_options(self) -> dict[str, dict[str, Any]]:
+        """Obtener opciones bloqueadas por configuración de despliegue.
+
+        Returns:
+            dict[str, dict[str, Any]]: Mapa de key -> {locked, reason}
+        """
+        return {}
+
     async def cog_load(self) -> None:
         """Registrar vistas persistentes y restaurar estado al cargar el cog."""
         self.bot.add_view(VerificationPanelView())

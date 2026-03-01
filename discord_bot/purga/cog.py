@@ -24,6 +24,7 @@ from discord_bot.purga.formatters import (
 )
 from discord_bot.purga.models import PurgaRecord
 from discord_bot.purga.service import PurgaService
+from discord_bot.purga.settings import get_purga_settings
 from discord_bot.purga.views import ModAuthorizationView, UserConfirmationView
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ class PurgaCog(commands.Cog):
         self._cancel_pending_purgas: dict[int, tuple[int, datetime]] = {}
         # Track messages scheduled for deletion: {(channel_id, message_id): delete_at}
         self._pending_deletions: dict[tuple[int, int], datetime] = {}
+        # Cog-level settings (from env/json, not editable via web)
+        self._cog_settings = get_purga_settings()
         logger.info("PurgaCog inicializado")
 
     @staticmethod
@@ -63,6 +66,41 @@ class PurgaCog(commands.Cog):
             CogConfigSchema: Esquema de configuración.
         """
         return PURGA_CONFIG_SCHEMA
+
+    def get_locked_options(self) -> dict[str, dict[str, Any]]:
+        """Obtener opciones bloqueadas por la configuración de despliegue.
+
+        Las opciones bloqueadas aparecen deshabilitadas en la web UI.
+
+        Returns:
+            dict[str, dict[str, Any]]: Mapa de key -> {locked, reason}
+        """
+        locked: dict[str, dict[str, Any]] = {}
+
+        if not self._cog_settings.test_mode_allowed:
+            locked[ConfigKey.TEST_MODE] = {
+                "locked": True,
+                "reason": "Deshabilitado por el administrador del sistema",
+            }
+
+        return locked
+
+    def _is_test_mode_enabled(self, config: dict[str, Any]) -> bool:
+        """Verificar si el modo prueba está habilitado.
+
+        Comprueba tanto la configuración del guild como los settings de despliegue.
+
+        Args:
+            config: Configuración del guild.
+
+        Returns:
+            bool: True si el modo prueba está habilitado y permitido.
+        """
+        # Si el despliegue no permite test_mode, siempre devolver False
+        if not self._cog_settings.test_mode_allowed:
+            return False
+        enabled: bool = config.get(ConfigKey.TEST_MODE, False)
+        return enabled
 
     # =========================================================================
     # Config helpers
@@ -135,7 +173,7 @@ class PurgaCog(commands.Cog):
         Returns:
             int: Número de reacciones requeridas.
         """
-        test_mode = config.get(ConfigKey.TEST_MODE, False)
+        test_mode = self._is_test_mode_enabled(config)
         required: int = config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2)
         if not test_mode and required < 2:
             required = 2
@@ -390,7 +428,7 @@ class PurgaCog(commands.Cog):
         snapshot: dict[str, Any] = {
             "reaction_role": config.get(ConfigKey.USER_REACTION_ROLE),
             "required_reactions": config.get(ConfigKey.MOD_REQUIRED_REACTIONS, 2),
-            "test_mode": config.get(ConfigKey.TEST_MODE, False),
+            "test_mode": self._is_test_mode_enabled(config),
         }
 
         if purga_type == PurgaType.GLOBAL:
@@ -1021,7 +1059,7 @@ class PurgaCog(commands.Cog):
         Returns:
             PurgaRecord | None: Registro actualizado o None si falló.
         """
-        test_mode = config.get(ConfigKey.TEST_MODE, False)
+        test_mode = self._is_test_mode_enabled(config)
 
         # Calcular tiempo de ejecución
         exec_scheduled_for: datetime | None

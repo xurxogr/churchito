@@ -18,6 +18,7 @@ services:
         condition: service_healthy
     volumes:
       - ./config.json:/home/botuser/.config/discord-bot/config.json:ro
+      - ./purga.json:/home/botuser/.config/discord-bot/purga.json:ro
       - bot_data:/app/data
       - bot_logs:/app/logs
     ports:

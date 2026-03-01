@@ -227,8 +227,23 @@ async def _render_cog_settings(
             ]
             roles.sort(key=lambda r: r["name"].lower())
 
+    # Check for locked options from cog settings
+    locked_options: dict[str, dict[str, Any]] = {}
+    if bot:
+        cog_class_name = cog_name.title().replace("_", "") + "Cog"
+        cog = bot.get_cog(cog_class_name)
+        if cog:
+            try:
+                locked_options = cog.get_locked_options()
+            except Exception as e:
+                logger.warning(f"Error getting locked options from {cog_name}: {e}")
+
     options_data: list[dict[str, Any]] = []
     for opt in schema.options:
+        # Skip locked options - they don't appear in the UI
+        if opt.key in locked_options:
+            continue
+
         raw_value = config_values.get(opt.key, opt.default)
 
         # Resolve display name for channel/role values (using raw int IDs)

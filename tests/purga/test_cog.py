@@ -35,7 +35,10 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
 @pytest.fixture
 def purga_cog(mock_discord_bot: MagicMock) -> PurgaCog:
     """Crear instancia del cog para tests."""
-    return PurgaCog(mock_discord_bot)
+    cog = PurgaCog(mock_discord_bot)
+    # Allow test mode in tests
+    cog._cog_settings.test_mode_allowed = True
+    return cog
 
 
 @pytest.fixture
@@ -5876,6 +5879,49 @@ class TestAuthorizePurgaReturnsNone:
                 )
 
                 assert result is None
+
+
+class TestCogSettings:
+    """Tests para configuración de despliegue del cog."""
+
+    def test_get_locked_options_test_mode_not_allowed(self, mock_discord_bot: MagicMock) -> None:
+        """Devuelve test_mode como bloqueado cuando no está permitido."""
+        cog = PurgaCog(mock_discord_bot)
+        cog._cog_settings.test_mode_allowed = False
+
+        locked = cog.get_locked_options()
+
+        assert ConfigKey.TEST_MODE in locked
+        assert locked[ConfigKey.TEST_MODE]["locked"] is True
+        assert "reason" in locked[ConfigKey.TEST_MODE]
+
+    def test_get_locked_options_test_mode_allowed(self, purga_cog: PurgaCog) -> None:
+        """No devuelve test_mode como bloqueado cuando está permitido."""
+        # purga_cog fixture ya tiene test_mode_allowed = True
+        locked = purga_cog.get_locked_options()
+
+        assert ConfigKey.TEST_MODE not in locked
+
+    def test_is_test_mode_enabled_blocked_by_settings(self, mock_discord_bot: MagicMock) -> None:
+        """test_mode devuelve False si settings no lo permite."""
+        cog = PurgaCog(mock_discord_bot)
+        cog._cog_settings.test_mode_allowed = False
+
+        config: dict[str, Any] = {ConfigKey.TEST_MODE: True}
+
+        assert cog._is_test_mode_enabled(config) is False
+
+    def test_is_test_mode_enabled_allowed_by_settings(self, purga_cog: PurgaCog) -> None:
+        """test_mode devuelve True si settings y config lo permiten."""
+        config: dict[str, Any] = {ConfigKey.TEST_MODE: True}
+
+        assert purga_cog._is_test_mode_enabled(config) is True
+
+    def test_is_test_mode_enabled_disabled_in_config(self, purga_cog: PurgaCog) -> None:
+        """test_mode devuelve False si config lo deshabilita."""
+        config: dict[str, Any] = {ConfigKey.TEST_MODE: False}
+
+        assert purga_cog._is_test_mode_enabled(config) is False
 
 
 class TestGetPurgaDisplayName:
