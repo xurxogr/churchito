@@ -781,6 +781,18 @@ function moveSelectedItem(fromSelect, toId) {
 }
 
 // Table functions
+function getUsedRoleIds(optionKey, colKey) {
+    // Get all role IDs already used in this table for this column
+    const tbody = document.getElementById('tbody-' + optionKey);
+    const usedIds = new Set();
+    tbody.querySelectorAll(`select[data-col="${colKey}"]`).forEach(select => {
+        if (select.value) {
+            usedIds.add(select.value);
+        }
+    });
+    return usedIds;
+}
+
 function addTableRow(optionKey) {
     const tbody = document.getElementById('tbody-' + optionKey);
     const columns = window.tableColumns[optionKey] || [];
@@ -793,12 +805,17 @@ function addTableRow(optionKey) {
     columns.forEach(col => {
         const td = document.createElement('td');
         if (col.type === 'role') {
+            // Get roles already used in this column
+            const usedRoleIds = getUsedRoleIds(optionKey, col.key);
+            // Filter out already used roles
+            const availableRoles = roles.filter(r => !usedRoleIds.has(r.id));
+
             const select = document.createElement('select');
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
             select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
             select.innerHTML = '<option value="">-- Seleccionar --</option>' +
-                roles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('');
+                availableRoles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('');
             td.appendChild(select);
         } else if (col.type === 'channel') {
             const select = document.createElement('select');
