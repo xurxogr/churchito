@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -109,6 +109,32 @@ class DatabaseService:
         # Redact password in URLs like: postgresql+asyncpg://user:password@host:port/db
         return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
 
+    def _is_sqlite(self) -> bool:
+        """Verificar si la base de datos es SQLite.
+
+        Returns:
+            bool: True si es SQLite
+        """
+        return self.settings.url.startswith("sqlite")
+
+    def _configure_sqlite_pragmas(self, engine: AsyncEngine) -> None:
+        """Configurar PRAGMAs de SQLite para mejor rendimiento y consistencia.
+
+        Args:
+            engine: Motor de SQLAlchemy
+        """
+
+        def set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_connection.cursor()
+            # WAL mode: mejor rendimiento en lecturas/escrituras concurrentes
+            cursor.execute("PRAGMA journal_mode=WAL")
+            # Habilitar foreign keys (deshabilitadas por defecto en SQLite)
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+        # El evento se registra en el sync_engine subyacente
+        event.listen(engine.sync_engine, "connect", set_sqlite_pragma)
+
     async def initialize(self) -> None:
         """Inicializar el motor de la base de datos y el creador de sesiones."""
         logger.info(f"Inicializando base de datos: {self._redact_url(self.settings.url)}")
@@ -121,6 +147,10 @@ class DatabaseService:
             echo=self.settings.echo,
             pool_recycle=self.settings.pool_recycle,
         )
+
+        # Configurar PRAGMAs para SQLite
+        if self._is_sqlite():
+            self._configure_sqlite_pragmas(self._engine)
 
         self._session_maker = async_sessionmaker(
             self._engine,

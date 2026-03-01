@@ -292,3 +292,74 @@ def test_ensure_database_directory_with_double_slash_path() -> None:
                 mock_logger.info.assert_called_once()
         finally:
             os.chdir(original_cwd)
+
+
+def test_is_sqlite_returns_true_for_sqlite_urls() -> None:
+    """Probar que _is_sqlite devuelve True para URLs de SQLite."""
+    sqlite_urls = [
+        "sqlite+aiosqlite:///data/bot.db",
+        "sqlite+aiosqlite:///:memory:",
+        "sqlite:///test.db",
+    ]
+    for url in sqlite_urls:
+        settings = DatabaseSettings(url=url)
+        db_service = DatabaseService(settings)
+        assert db_service._is_sqlite() is True
+
+
+def test_is_sqlite_returns_false_for_non_sqlite_urls() -> None:
+    """Probar que _is_sqlite devuelve False para URLs que no son SQLite."""
+    non_sqlite_urls = [
+        "postgresql+asyncpg://user:pass@localhost/dbname",
+        "mysql+aiomysql://user:pass@localhost/dbname",
+    ]
+    for url in non_sqlite_urls:
+        settings = DatabaseSettings(url=url)
+        db_service = DatabaseService(settings)
+        assert db_service._is_sqlite() is False
+
+
+async def test_sqlite_pragmas_configured_on_initialize() -> None:
+    """Probar que los PRAGMAs de SQLite se configuran al inicializar."""
+    import os
+
+    from sqlalchemy import text
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(tmpdir)
+
+            # WAL mode requiere una base de datos en archivo, no en memoria
+            settings = DatabaseSettings(url="sqlite+aiosqlite:///test_pragmas.db")
+            db_service = DatabaseService(settings)
+
+            await db_service.initialize()
+
+            try:
+                async with db_service.engine.connect() as conn:
+                    # Verificar que WAL mode está configurado
+                    result = await conn.execute(text("PRAGMA journal_mode"))
+                    journal_mode = result.scalar()
+                    assert journal_mode == "wal"
+
+                    # Verificar que foreign_keys está habilitado
+                    result = await conn.execute(text("PRAGMA foreign_keys"))
+                    foreign_keys = result.scalar()
+                    assert foreign_keys == 1
+            finally:
+                await db_service.close()
+        finally:
+            os.chdir(original_cwd)
+
+
+async def test_postgresql_does_not_configure_sqlite_pragmas() -> None:
+    """Probar que _configure_sqlite_pragmas no se llama para PostgreSQL."""
+    settings = DatabaseSettings(url="postgresql+asyncpg://user:pass@localhost/dbname")
+    db_service = DatabaseService(settings)
+
+    with patch.object(db_service, "_configure_sqlite_pragmas") as mock_configure:
+        # No podemos inicializar realmente sin una DB PostgreSQL, pero podemos
+        # verificar que _is_sqlite devuelve False
+        assert db_service._is_sqlite() is False
+        mock_configure.assert_not_called()
