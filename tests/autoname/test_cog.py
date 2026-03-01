@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from discord_bot.autoname.cog import AutonameCog, ConfigKey
+from discord_bot.autoname.cog import AutonameCog
+from discord_bot.autoname.config import AUTONAME_CONFIG_SCHEMA, ConfigKey
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
@@ -589,6 +590,28 @@ class TestOnConfigChanged:
             mock_sync.assert_not_called()
 
 
+class TestOnCogToggled:
+    """Tests para on_cog_toggled."""
+
+    async def test_syncs_on_enabled(self, autoname_cog: AutonameCog) -> None:
+        """Probar que sincroniza cuando se habilita el cog."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test"
+
+        with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
+            await autoname_cog.on_cog_toggled(mock_guild, enabled=True)
+            mock_sync.assert_called_once_with(mock_guild)
+
+    async def test_no_sync_on_disabled(self, autoname_cog: AutonameCog) -> None:
+        """Probar que no sincroniza cuando se deshabilita el cog."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test"
+
+        with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
+            await autoname_cog.on_cog_toggled(mock_guild, enabled=False)
+            mock_sync.assert_not_called()
+
+
 class TestCogLifecycle:
     """Tests para cog_load y cog_unload."""
 
@@ -923,7 +946,7 @@ class TestSetupAndTeardown:
 
     async def test_setup_registers_schema_and_adds_cog(self, mock_discord_bot: MagicMock) -> None:
         """Probar que setup registra el schema y añade el cog."""
-        from discord_bot.autoname.cog import AUTONAME_CONFIG_SCHEMA, setup
+        from discord_bot.autoname.cog import setup
         from discord_bot.common.services.config_schema_service import (
             get_config_schema_service,
         )

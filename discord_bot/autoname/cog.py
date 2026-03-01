@@ -287,6 +287,19 @@ class AutonameCog(commands.Cog):
         if updated > 0:
             logger.info(f"[{guild.name}] Autoname sync: {updated} nicknames actualizados")
 
+    async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
+        """Manejar cuando el cog es habilitado o deshabilitado.
+
+        Args:
+            guild (discord.Guild): Guild donde cambió el estado
+            enabled (bool): True si fue habilitado, False si fue deshabilitado
+        """
+        if enabled:
+            logger.info(f"[{guild.name}] Autoname habilitado, sincronizando nicknames")
+            await self._sync_guild(guild)
+        else:
+            logger.info(f"[{guild.name}] Autoname deshabilitado")
+
     async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
         """Callback cuando cambia la configuracion del cog.
 
