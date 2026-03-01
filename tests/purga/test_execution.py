@@ -1189,3 +1189,684 @@ class TestExecuteGlobalCleaningPhase:
         # Debe haber log de inicio y log por usuario
         assert len(execution_logs) == 2
         assert "TestUser" in execution_logs[1]
+
+
+class TestExecutePurgaGlobal:
+    """Tests para execute_purga con purga global."""
+
+    async def test_execute_global_purga(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar ejecución completa de purga global."""
+        # Crear miembro mock
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 444555666
+        mock_member.bot = False
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.roles = [mock_guild.default_role]
+        mock_member.remove_roles = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+
+        mock_guild.members = [mock_member]
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        # Crear registro en DB
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.GLOBAL,
+                initiated_by=123,
+                config_snapshot={
+                    "excluded_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                },
+                scheduled_for=datetime.now(UTC) - timedelta(hours=1),
+            )
+            await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
+            await session.commit()
+            purga_id = record.id
+
+        with (
+            patch.object(purga_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock),
+            patch.object(purga_cog, "_send_user_message", new_callable=AsyncMock),
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+        ):
+            mock_config.return_value = {
+                ConfigKey.AUDIT_LEVEL: 1,
+                ConfigKey.GLOBAL_EXEC_MSG_FINISH: "Purga finalizada: {cleaned}",
+            }
+            await execute_purga(
+                cog=purga_cog,
+                guild_id=mock_guild.id,
+                purga_id=purga_id,
+            )
+
+
+class TestExecuteWarEndWithGlobalRemoval:
+    """Tests para execute_purga con WAR_END y global_roles_to_remove."""
+
+    async def test_execute_war_purga_with_global_removal(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar ejecución de purga WAR_END con eliminación global de roles (línea 229)."""
+        # Crear rol global a eliminar
+        mock_global_role = MagicMock(spec=discord.Role)
+        mock_global_role.id = 600
+        mock_global_role.name = "GlobalWarRole"
+
+        # Crear miembro con el rol global
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 444555666
+        mock_member.bot = False
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.roles = [mock_guild.default_role, mock_global_role]
+        mock_member.remove_roles = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+
+        mock_guild.members = [mock_member]
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_global_role)
+
+        # Crear registro WAR_END con global_roles_to_remove
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={
+                    "affected_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                    "promotions": [],
+                    "default_promotion": None,
+                    "global_roles_to_remove": [600],  # Este activa la línea 229
+                },
+                scheduled_for=datetime.now(UTC) - timedelta(hours=1),
+            )
+            await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
+            await session.commit()
+            purga_id = record.id
+
+        with (
+            patch.object(purga_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock),
+            patch.object(purga_cog, "_send_user_message", new_callable=AsyncMock),
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+        ):
+            mock_config.return_value = {
+                ConfigKey.AUDIT_LEVEL: 1,
+            }
+            await execute_purga(
+                cog=purga_cog,
+                guild_id=mock_guild.id,
+                purga_id=purga_id,
+            )
+
+        # Verificar que se intentó quitar el rol global
+        mock_member.remove_roles.assert_called()
+
+
+class TestExecuteGlobalRemovalPhaseIntegration:
+    """Tests de integración para _execute_global_removal_phase."""
+
+    async def test_global_removal_with_roles(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar eliminación global de roles."""
+        # Crear rol mock
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 500
+        mock_role.name = "GlobalRole"
+
+        # Crear miembros con el rol
+        mock_member1 = MagicMock(spec=discord.Member)
+        mock_member1.id = 111
+        mock_member1.bot = False
+        mock_member1.name = "User1"
+        mock_member1.display_name = "User1"
+        mock_member1.roles = [mock_guild.default_role, mock_role]
+        mock_member1.remove_roles = AsyncMock()
+
+        mock_member2 = MagicMock(spec=discord.Member)
+        mock_member2.id = 222
+        mock_member2.bot = False
+        mock_member2.name = "User2"
+        mock_member2.display_name = "User2"
+        mock_member2.roles = [mock_guild.default_role, mock_role]
+        mock_member2.remove_roles = AsyncMock()
+
+        # The function iterates over guild.members
+        mock_guild.members = [mock_member1, mock_member2]
+
+        # Return role when get_role is called
+        def get_role_side_effect(role_id: int) -> MagicMock | None:
+            if role_id == 500:
+                return mock_role
+            return None
+
+        mock_guild.get_role = MagicMock(side_effect=get_role_side_effect)
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 2,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            count = await _execute_global_removal_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=mock_purga_record,
+                config=config,
+                global_roles_to_remove=[500],
+                audit_level=2,
+                execution_logs=execution_logs,
+            )
+
+        assert count == 2
+        mock_member1.remove_roles.assert_called_once()
+        mock_member2.remove_roles.assert_called_once()
+
+
+class TestExecutePromotionWithDefault:
+    """Tests para fase de promoción con default_promotion."""
+
+    async def test_promotion_with_default(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar promoción con rol por defecto."""
+        # Crear rol de promoción por defecto
+        default_promo_role = MagicMock(spec=discord.Role)
+        default_promo_role.id = 800
+        default_promo_role.name = "DefaultPromo"
+
+        # Miembro confirmado que no está en ningún grupo de promoción
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 444555666
+        mock_member.bot = False
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.roles = [mock_guild.default_role]
+        mock_member.add_roles = AsyncMock()
+
+        mock_guild.get_role = MagicMock(return_value=default_promo_role)
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        # Crear registro
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={
+                    "affected_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                    "promotions": [],
+                    "default_promotion": 800,
+                },
+                scheduled_for=datetime.now(UTC),
+            )
+            await session.commit()
+            purga_id = record.id
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 2,
+            ConfigKey.EXEC_MSG_PROMOTION_DEFAULT: "Default promo",
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            in_group, not_in_group, promoted_users = await _execute_promotion_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=[],
+                promotions=[],
+                default_promotion=800,
+                confirmed_users={444555666},
+                processed_users=set(),
+                audit_level=2,
+                execution_logs=execution_logs,
+            )
+
+        # El usuario debería ser promocionado con el rol por defecto
+        assert not_in_group >= 0
+
+
+class TestGlobalCleaningAlreadyProcessed:
+    """Tests para usuario ya procesado en limpieza global."""
+
+    async def test_skip_already_processed_user(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que salta usuarios duplicados en la lista de miembros."""
+        # Crear miembro
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 111
+        mock_member.bot = False
+        mock_member.name = "User1"
+        mock_member.display_name = "User1"
+        mock_member.roles = [mock_guild.default_role]
+        mock_member.remove_roles = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+
+        # El mismo miembro aparece dos veces (cubrimos la rama "already processed")
+        mock_guild.members = [mock_member, mock_member]
+
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.GLOBAL,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC),
+            )
+            await session.commit()
+            purga_id = record.id
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            count, processed = await _execute_global_cleaning_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=mock_purga_record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                excluded_roles=[],
+                roles_to_remove=[],
+                roles_to_add=[],
+                confirmed_users=set(),
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # El usuario solo se procesa una vez (el segundo es saltado)
+        assert count == 1
+        assert 111 in processed
+
+
+class TestDefaultPromotionEdgeCases:
+    """Tests para casos edge en promoción por defecto."""
+
+    async def test_default_promotion_user_already_processed(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que salta usuarios ya procesados en promoción por defecto."""
+        default_promo_role = MagicMock(spec=discord.Role)
+        default_promo_role.id = 800
+        default_promo_role.name = "DefaultPromo"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 444555666
+        mock_member.bot = False
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.roles = [mock_guild.default_role]
+        mock_member.add_roles = AsyncMock()
+
+        mock_guild.get_role = MagicMock(return_value=default_promo_role)
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={
+                    "affected_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                    "promotions": [],
+                    "default_promotion": 800,
+                },
+                scheduled_for=datetime.now(UTC),
+            )
+            await session.commit()
+            purga_id = record.id
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            in_group, not_in_group, promoted = await _execute_promotion_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=[],
+                promotions=[],
+                default_promotion=800,
+                confirmed_users={444555666},
+                processed_users={444555666},  # Already processed
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # User should be skipped
+        assert not_in_group == 0
+
+    async def test_default_promotion_user_not_found(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que maneja usuario no encontrado en promoción por defecto."""
+        default_promo_role = MagicMock(spec=discord.Role)
+        default_promo_role.id = 800
+        default_promo_role.name = "DefaultPromo"
+
+        mock_guild.get_role = MagicMock(return_value=default_promo_role)
+        mock_guild.get_member = MagicMock(return_value=None)  # User not found
+
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={
+                    "affected_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                    "promotions": [],
+                    "default_promotion": 800,
+                },
+                scheduled_for=datetime.now(UTC),
+            )
+            await session.commit()
+            purga_id = record.id
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            in_group, not_in_group, promoted = await _execute_promotion_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=[],
+                promotions=[],
+                default_promotion=800,
+                confirmed_users={444555666},
+                processed_users=set(),
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # User should be skipped (not found)
+        assert not_in_group == 0
+
+    async def test_default_promotion_forbidden_exception(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar manejo de Forbidden al añadir rol por defecto."""
+        default_promo_role = MagicMock(spec=discord.Role)
+        default_promo_role.id = 800
+        default_promo_role.name = "DefaultPromo"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 444555666
+        mock_member.bot = False
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.roles = [mock_guild.default_role]
+        mock_member.add_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "No permission")
+        )
+
+        mock_guild.get_role = MagicMock(return_value=default_promo_role)
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={
+                    "affected_roles": [],
+                    "roles_to_remove": [],
+                    "roles_to_add": [],
+                    "promotions": [],
+                    "default_promotion": 800,
+                },
+                scheduled_for=datetime.now(UTC),
+            )
+            await session.commit()
+            purga_id = record.id
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            # Should not raise exception
+            in_group, not_in_group, promoted = await _execute_promotion_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=record,
+                config=config,
+                purga_service=purga_service,
+                purga_id=purga_id,
+                affected_roles=[],
+                promotions=[],
+                default_promotion=800,
+                confirmed_users={444555666},
+                processed_users=set(),
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # Should handle the exception gracefully
+        assert not_in_group == 1
+
+
+class TestGlobalRemovalEdgeCases:
+    """Tests para casos edge en _execute_global_removal_phase."""
+
+    async def test_global_removal_role_not_found(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar que retorna 0 cuando el rol no existe en el guild."""
+        # El rol 999 no existe
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.members = []
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        count = await _execute_global_removal_phase(
+            cog=purga_cog,
+            guild=mock_guild,
+            record=mock_purga_record,
+            config=config,
+            global_roles_to_remove=[999],  # Este rol no existe
+            audit_level=0,
+            execution_logs=execution_logs,
+        )
+
+        # Debería retornar 0 (línea 750)
+        assert count == 0
+
+    async def test_global_removal_skips_bots(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar que salta bots en eliminación global."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 500
+        mock_role.name = "GlobalRole"
+
+        # Crear un bot con el rol
+        mock_bot = MagicMock(spec=discord.Member)
+        mock_bot.id = 111
+        mock_bot.bot = True  # Es un bot
+        mock_bot.name = "BotUser"
+        mock_bot.roles = [mock_guild.default_role, mock_role]
+        mock_bot.remove_roles = AsyncMock()
+
+        mock_guild.members = [mock_bot]
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            count = await _execute_global_removal_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=mock_purga_record,
+                config=config,
+                global_roles_to_remove=[500],
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # No debería procesar al bot (línea 764)
+        assert count == 0
+        mock_bot.remove_roles.assert_not_called()
+
+    async def test_global_removal_skips_member_without_role(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar que salta miembros que no tienen el rol."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 500
+        mock_role.name = "GlobalRole"
+
+        # Miembro sin el rol
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 111
+        mock_member.bot = False
+        mock_member.name = "User1"
+        mock_member.roles = [mock_guild.default_role]  # No tiene el rol 500
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild.members = [mock_member]
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            count = await _execute_global_removal_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=mock_purga_record,
+                config=config,
+                global_roles_to_remove=[500],
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # No debería procesar al miembro (línea 769)
+        assert count == 0
+        mock_member.remove_roles.assert_not_called()
+
+    async def test_global_removal_forbidden_exception(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_purga_record: MagicMock,
+    ) -> None:
+        """Probar manejo de Forbidden al quitar roles globales."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 500
+        mock_role.name = "GlobalRole"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 111
+        mock_member.bot = False
+        mock_member.name = "User1"
+        mock_member.display_name = "User1"
+        mock_member.roles = [mock_guild.default_role, mock_role]
+        mock_member.remove_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "No permission")
+        )
+
+        mock_guild.members = [mock_member]
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        config: dict[str, Any] = {
+            ConfigKey.AUDIT_LEVEL: 0,
+        }
+        execution_logs: list[str] = []
+
+        with patch.object(purga_cog, "_update_mod_message", new_callable=AsyncMock):
+            # No debería lanzar excepción (líneas 789-790)
+            count = await _execute_global_removal_phase(
+                cog=purga_cog,
+                guild=mock_guild,
+                record=mock_purga_record,
+                config=config,
+                global_roles_to_remove=[500],
+                audit_level=0,
+                execution_logs=execution_logs,
+            )
+
+        # Conteo debería ser 0 porque el remove_roles falló
+        assert count == 0

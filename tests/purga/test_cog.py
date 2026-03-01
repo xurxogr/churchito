@@ -5588,3 +5588,293 @@ class TestModAuthorizationViewCancelPending:
         assert isinstance(button, discord.ui.Button)
         assert button.label == "Cancelar"
         assert button.style == discord.ButtonStyle.danger
+
+
+class TestHandleAuthorizeReturnsNone:
+    """Tests para cuando add_authorization retorna None en _handle_authorize."""
+
+    async def test_add_authorization_returns_none(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que retorna temprano cuando add_authorization retorna None."""
+        purga_id = 1
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_member
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        # Crear record inicial en estado PENDING
+        mock_record = MagicMock()
+        mock_record.id = purga_id
+        mock_record.guild_id = mock_guild.id
+        mock_record.status = PurgaStatus.PENDING
+        mock_record.purga_type = PurgaType.WAR_END
+        mock_record.authorized_by = []
+
+        with (
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+            patch("discord_bot.purga.cog.PurgaService") as mock_service_class,
+        ):
+            mock_config.return_value = {
+                ConfigKey.WAR_ADMIN_ROLES: [100],  # mock_member tiene rol 100
+            }
+
+            mock_service = MagicMock()
+            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.add_authorization = AsyncMock(return_value=None)
+            mock_service_class.return_value = mock_service
+
+            await purga_cog._handle_authorize(
+                interaction=interaction,
+                purga_id=purga_id,
+            )
+
+            # Verificar que se llamó add_authorization y retornó
+            mock_service.add_authorization.assert_called_once()
+
+
+class TestHandleCancelReturnsNone:
+    """Tests para cuando add_cancellation retorna None en _handle_cancel."""
+
+    async def test_add_cancellation_returns_none(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que retorna temprano cuando add_cancellation retorna None."""
+        purga_id = 1
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_member
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        mock_record = MagicMock()
+        mock_record.id = purga_id
+        mock_record.guild_id = mock_guild.id
+        mock_record.status = PurgaStatus.AUTHORIZED
+        mock_record.purga_type = PurgaType.WAR_END
+        mock_record.cancelled_by = []
+
+        with (
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+            patch("discord_bot.purga.cog.PurgaService") as mock_service_class,
+        ):
+            mock_config.return_value = {
+                ConfigKey.WAR_ADMIN_ROLES: [100],
+            }
+
+            mock_service = MagicMock()
+            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.add_cancellation = AsyncMock(return_value=None)
+            mock_service_class.return_value = mock_service
+
+            await purga_cog._handle_cancel(
+                interaction=interaction,
+                purga_id=purga_id,
+            )
+
+            mock_service.add_cancellation.assert_called_once()
+
+
+class TestUpdateStatusReturnsNone:
+    """Tests para cuando update_status retorna None en diferentes contextos."""
+
+    async def test_update_status_returns_none_on_cancel_transition(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que retorna cuando update_status falla en transición a CANCEL_PENDING."""
+        purga_id = 1
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_member
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        # Record con estado AUTHORIZED
+        mock_record = MagicMock()
+        mock_record.id = purga_id
+        mock_record.guild_id = mock_guild.id
+        mock_record.status = PurgaStatus.AUTHORIZED
+        mock_record.purga_type = PurgaType.WAR_END
+        mock_record.cancelled_by = [111]  # Un voto de cancelación
+
+        with (
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+            patch("discord_bot.purga.cog.PurgaService") as mock_service_class,
+        ):
+            mock_config.return_value = {
+                ConfigKey.WAR_ADMIN_ROLES: [100],
+                ConfigKey.MOD_REQUIRED_REACTIONS: 2,  # Requiere 2, tiene 1
+                ConfigKey.MOD_REACTION_TIMEOUT: 10,
+            }
+
+            mock_service = MagicMock()
+            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.add_cancellation = AsyncMock(return_value=mock_record)
+            mock_service.update_status = AsyncMock(return_value=None)
+            mock_service_class.return_value = mock_service
+
+            await purga_cog._handle_cancel(
+                interaction=interaction,
+                purga_id=purga_id,
+            )
+
+            mock_service.update_status.assert_called()
+
+    async def test_update_status_returns_none_on_full_cancel(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que retorna cuando update_status falla al cancelar completamente."""
+        purga_id = 1
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_member
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        # Record con suficientes votos para cancelar
+        mock_record = MagicMock()
+        mock_record.id = purga_id
+        mock_record.guild_id = mock_guild.id
+        mock_record.status = PurgaStatus.CANCEL_PENDING
+        mock_record.purga_type = PurgaType.WAR_END
+        mock_record.cancelled_by = [111]
+
+        with (
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+            patch("discord_bot.purga.cog.PurgaService") as mock_service_class,
+        ):
+            mock_config.return_value = {
+                ConfigKey.WAR_ADMIN_ROLES: [100],
+                ConfigKey.MOD_REQUIRED_REACTIONS: 1,
+            }
+
+            mock_service = MagicMock()
+            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.add_cancellation = AsyncMock(return_value=mock_record)
+            mock_service.update_status = AsyncMock(return_value=None)
+            mock_service_class.return_value = mock_service
+
+            await purga_cog._handle_cancel(
+                interaction=interaction,
+                purga_id=purga_id,
+            )
+
+
+class TestCheckExpiredPurgasException:
+    """Tests para manejo de excepciones en _check_expired_purgas."""
+
+    async def test_exception_during_expiration(
+        self, purga_cog: PurgaCog, mock_guild: MagicMock, test_database: DatabaseService
+    ) -> None:
+        """Probar que captura excepciones durante expiración de purga."""
+        guild_id = mock_guild.id
+        purga_id = 999
+
+        purga_cog._active_purgas[guild_id] = (
+            purga_id,
+            datetime.now(UTC) - timedelta(hours=1),
+        )
+
+        with (
+            patch.object(purga_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+        ):
+            mock_config.side_effect = Exception("Test error")
+
+            await purga_cog._check_expired_purgas()
+
+
+class TestCheckCancelPendingExpiredException:
+    """Tests para manejo de excepciones en _check_cancel_pending_expired."""
+
+    async def test_exception_during_revert(
+        self, purga_cog: PurgaCog, mock_guild: MagicMock, test_database: DatabaseService
+    ) -> None:
+        """Probar que captura excepciones durante reversión de cancelación."""
+        guild_id = mock_guild.id
+        purga_id = 999
+
+        purga_cog._cancel_pending_purgas[guild_id] = (
+            purga_id,
+            datetime.now(UTC) - timedelta(hours=1),
+        )
+
+        with (
+            patch.object(purga_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purga_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+        ):
+            mock_config.side_effect = Exception("Test error")
+
+            await purga_cog._check_cancel_pending_expired()
+
+
+class TestAuthorizePurgaReturnsNone:
+    """Tests para cuando _authorize_purga retorna None."""
+
+    async def test_authorize_purga_update_status_returns_none(
+        self,
+        purga_cog: PurgaCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Probar que retorna None cuando update_status falla al autorizar."""
+        # Crear registro en DB
+        async with test_database.session() as session:
+            purga_service = PurgaService(session)
+            record = await purga_service.create_purga(
+                guild_id=mock_guild.id,
+                purga_type=PurgaType.WAR_END,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+
+            config: dict[str, Any] = {
+                ConfigKey.PURGE_HOUR: 10,
+            }
+
+            # Mock update_status to return None
+            with patch.object(
+                purga_service, "update_status", new_callable=AsyncMock
+            ) as mock_update:
+                mock_update.return_value = None
+
+                result = await purga_cog._authorize_purga(
+                    guild=mock_guild,
+                    record=record,
+                    config=config,
+                    purga_service=purga_service,
+                    session=session,
+                )
+
+                assert result is None
