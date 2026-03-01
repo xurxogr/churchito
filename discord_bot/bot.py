@@ -206,8 +206,8 @@ class DiscordBot(commands.Bot):
 
             if db_guild:
                 db_guild.name = guild.name
-                # Solo actualizar invited_by_id si no estaba establecido
-                if db_guild.invited_by_id is None and invited_by_id:
+                # Actualizar invited_by_id cuando el bot es re-invitado
+                if invited_by_id:
                     db_guild.invited_by_id = invited_by_id
             else:
                 db_guild = GuildModel(

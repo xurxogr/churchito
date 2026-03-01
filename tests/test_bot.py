@@ -1174,8 +1174,8 @@ async def test_save_guild_updates_existing_guild_name(
 
             assert updated_guild is not None
             assert updated_guild.name == "New Name"
-            # invited_by_id NO debe cambiar porque ya estaba establecido
-            assert updated_guild.invited_by_id == 111222333
+            # invited_by_id se actualiza cuando el bot es re-invitado
+            assert updated_guild.invited_by_id == 444555666
 
 
 async def test_save_guild_updates_invited_by_if_null(
