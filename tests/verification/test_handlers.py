@@ -10,6 +10,8 @@ from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
     _is_valid_discord_url,
+    _replace_status_in_content,
+    _send_mod_ping_message,
     _update_mod_message_for_review,
     _update_status_ready_for_approval,
 )
@@ -365,3 +367,179 @@ class TestUpdateModMessageForReview:
 
         # No debería fallar
         await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+
+
+class TestReplaceStatusInContent:
+    """Tests para _replace_status_in_content."""
+
+    def test_replaces_pending_review_status(self) -> None:
+        """Probar que reemplaza STATUS_PENDING_REVIEW."""
+        config = {
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+        content = "Mensaje\n\n🔍 Pendiente\n\nMás info"
+        new_status = "✅ Aprobado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert "✅ Aprobado" in result
+        assert "🔍 Pendiente" not in result
+
+    def test_replaces_ready_for_approval_status_with_roles(self) -> None:
+        """Probar que reemplaza STATUS_READY_FOR_APPROVAL con menciones de roles."""
+        config = {
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+        # El contenido tiene el estado con roles ya formateados
+        content = "Mensaje\n\n✅ Listo - <@&123>, <@&456>\n\nMás info"
+        new_status = "✅ Aprobado por moderador"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert "✅ Aprobado por moderador" in result
+        assert "✅ Listo - <@&123>" not in result
+
+    def test_appends_when_no_status_found(self) -> None:
+        """Probar que añade al final si no hay estado conocido."""
+        config = {
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+        content = "Mensaje sin estado"
+        new_status = "✅ Aprobado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert result == "Mensaje sin estado\n\n✅ Aprobado"
+
+    def test_handles_empty_config(self) -> None:
+        """Probar con configuración vacía."""
+        config: dict[str, Any] = {}
+        content = "Mensaje"
+        new_status = "✅ Aprobado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert result == "Mensaje\n\n✅ Aprobado"
+
+    def test_handles_template_without_roles_placeholder(self) -> None:
+        """Probar con template sin {roles}."""
+        config = {
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo para aprobar",  # Sin {roles}
+        }
+        content = "Mensaje\n\n🔍 Pendiente"
+        new_status = "✅ Aprobado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert "✅ Aprobado" in result
+
+
+class TestSendModPingMessage:
+    """Tests para _send_mod_ping_message."""
+
+    @pytest.mark.asyncio
+    async def test_sends_ping_message_with_roles(self) -> None:
+        """Probar que envía mensaje con menciones de roles."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.mention = "<@&123>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.guild = mock_guild
+        mock_channel.send = AsyncMock()
+
+        config = {
+            "mod_ping_message": "{roles} - Nueva verificación",
+            "mod_roles": [123],
+        }
+
+        await _send_mod_ping_message(mock_channel, config)
+
+        mock_channel.send.assert_called_once()
+        call_args = mock_channel.send.call_args
+        assert "<@&123> - Nueva verificación" in call_args.kwargs["content"]
+
+    @pytest.mark.asyncio
+    async def test_does_not_send_when_no_template(self) -> None:
+        """Probar que no envía si no hay template configurado."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+
+        config: dict[str, Any] = {
+            "mod_ping_message": "",
+            "mod_roles": [123],
+        }
+
+        await _send_mod_ping_message(mock_channel, config)
+
+        mock_channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_send_when_no_roles(self) -> None:
+        """Probar que no envía si no hay roles configurados."""
+        mock_guild = MagicMock(spec=discord.Guild)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.guild = mock_guild
+        mock_channel.send = AsyncMock()
+
+        config = {
+            "mod_ping_message": "{roles} - Nueva verificación",
+            "mod_roles": [],
+        }
+
+        await _send_mod_ping_message(mock_channel, config)
+
+        mock_channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_send_when_roles_not_found(self) -> None:
+        """Probar que no envía si los roles no existen en el guild."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=None)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.guild = mock_guild
+        mock_channel.send = AsyncMock()
+
+        config = {
+            "mod_ping_message": "{roles} - Nueva verificación",
+            "mod_roles": [999],
+        }
+
+        await _send_mod_ping_message(mock_channel, config)
+
+        mock_channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_sends_with_multiple_roles(self) -> None:
+        """Probar que envía con múltiples roles."""
+        mock_role1 = MagicMock(spec=discord.Role)
+        mock_role1.mention = "<@&111>"
+        mock_role2 = MagicMock(spec=discord.Role)
+        mock_role2.mention = "<@&222>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(side_effect=[mock_role1, mock_role2])
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.guild = mock_guild
+        mock_channel.send = AsyncMock()
+
+        config = {
+            "mod_ping_message": "{roles} - Pendiente",
+            "mod_roles": [111, 222],
+        }
+
+        await _send_mod_ping_message(mock_channel, config)
+
+        mock_channel.send.assert_called_once()
+        call_args = mock_channel.send.call_args
+        assert "<@&111>" in call_args.kwargs["content"]
+        assert "<@&222>" in call_args.kwargs["content"]

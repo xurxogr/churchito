@@ -1,6 +1,7 @@
 """Manejadores de flujo de verificacion."""
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import discord
@@ -72,13 +73,10 @@ def _is_valid_discord_url(url: str) -> bool:
         return False
 
     # Extraer dominio
-    try:
-        # URL format: https://domain/path
-        domain_part = url[8:]  # Remove "https://"
-        domain = domain_part.split("/")[0]
-        return domain in DISCORD_CDN_DOMAINS
-    except (IndexError, ValueError):
-        return False
+    # URL format: https://domain/path
+    domain_part = url[8:]  # Remove "https://"
+    domain = domain_part.split("/")[0]
+    return domain in DISCORD_CDN_DOMAINS
 
 
 def _get_api_error_message(status_code: int) -> str:
@@ -159,6 +157,45 @@ def _update_status_ready_for_approval(
         return formatted.replace(current_status, new_status)
 
     return formatted
+
+
+def _replace_status_in_content(
+    content: str,
+    new_status: str,
+    config: dict[str, Any],
+) -> str:
+    """Reemplazar cualquier estado conocido en el contenido del mensaje.
+
+    Busca y reemplaza STATUS_PENDING_REVIEW o STATUS_READY_FOR_APPROVAL
+    (que puede contener menciones de roles dinámicas).
+
+    Args:
+        content: Contenido actual del mensaje
+        new_status: Nuevo estado a establecer
+        config: Configuración del cog
+
+    Returns:
+        Contenido con el estado actualizado
+    """
+    # Intentar reemplazar STATUS_PENDING_REVIEW
+    pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+    if pending_status and pending_status in content:
+        return content.replace(pending_status, new_status)
+
+    # Intentar reemplazar STATUS_READY_FOR_APPROVAL (que tiene {roles} dinámico)
+    ready_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
+    if ready_template and "{roles}" in ready_template:
+        # Extraer la parte fija antes de {roles} y escapar para regex
+        prefix = ready_template.split("{roles}")[0]
+        if prefix:
+            escaped_prefix = re.escape(prefix)
+            # Buscar desde el prefijo hasta el final de la línea
+            pattern = escaped_prefix + r"[^\n]*"
+            if re.search(pattern, content):
+                return re.sub(pattern, new_status, content)
+
+    # Si no se encontró ningún estado conocido, añadir al final
+    return content + f"\n\n{new_status}"
 
 
 class ModActionContext(NamedTuple):
@@ -978,17 +1015,15 @@ async def handle_accept(
                             current_content = ""
                             if mod_message.embeds:
                                 current_content = mod_message.embeds[0].description or ""
-                            pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
                             approved_status = format_message(
                                 template=config.get(ConfigKey.STATUS_APPROVED),
                                 moderator=interaction.user.name,
                             )
-                            if pending_status and pending_status in current_content:
-                                new_content = current_content.replace(
-                                    pending_status, approved_status
-                                )
-                            else:
-                                new_content = current_content + f"\n\n{approved_status}"
+                            new_content = _replace_status_in_content(
+                                content=current_content,
+                                new_status=approved_status,
+                                config=config,
+                            )
                             # Crear nuevo embed y mantener los embeds de capturas
                             main_embed = create_mod_embed(
                                 new_content,
@@ -1199,18 +1234,16 @@ async def handle_reject(
                             current_content = ""
                             if mod_message.embeds:
                                 current_content = mod_message.embeds[0].description or ""
-                            pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
                             rejected_status = format_message(
                                 template=config.get(ConfigKey.STATUS_REJECTED),
                                 moderator=interaction.user.name,
                                 reason=reason,
                             )
-                            if pending_status and pending_status in current_content:
-                                new_content = current_content.replace(
-                                    pending_status, rejected_status
-                                )
-                            else:
-                                new_content = current_content + f"\n\n{rejected_status}"
+                            new_content = _replace_status_in_content(
+                                content=current_content,
+                                new_status=rejected_status,
+                                config=config,
+                            )
                             # Crear nuevo embed y mantener los embeds de capturas
                             main_embed = create_mod_embed(
                                 new_content,
