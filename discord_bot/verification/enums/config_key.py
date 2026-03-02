@@ -31,6 +31,7 @@ class ConfigKey(StrEnum):
     WRONG_IMAGES_MESSAGE = "wrong_images_message"
     SCREENSHOTS_RECEIVED_MESSAGE = "screenshots_received_message"
     MOD_MESSAGE_TEMPLATE = "mod_message_template"
+    MOD_PING_MESSAGE = "mod_ping_message"
     STATUS_AWAITING_SCREENSHOTS = "status_awaiting_screenshots"
     STATUS_PENDING_REVIEW = "status_pending_review"
     STATUS_READY_FOR_APPROVAL = "status_ready_for_approval"

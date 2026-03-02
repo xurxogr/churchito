@@ -660,6 +660,41 @@ async def update_mod_message_for_review(
     all_embeds = [main_embed, *embeds]
     await mod_message.edit(embeds=all_embeds, view=view)
 
+    # Enviar mensaje de ping a moderadores (las menciones solo funcionan en mensajes nuevos)
+    await _send_mod_ping_message(channel=channel, config=config)
+
+
+async def _send_mod_ping_message(
+    channel: discord.TextChannel,
+    config: dict[str, Any],
+) -> None:
+    """Enviar mensaje de ping a moderadores cuando hay verificación pendiente.
+
+    Args:
+        channel: Canal de moderación
+        config: Configuración del cog
+    """
+    ping_template = config.get(ConfigKey.MOD_PING_MESSAGE)
+    if not ping_template:
+        return
+
+    # Obtener roles de moderador
+    mod_role_ids = config.get(ConfigKey.MOD_ROLES) or []
+    role_mentions = []
+
+    for role_id in mod_role_ids:
+        role = channel.guild.get_role(role_id)
+        if role:
+            role_mentions.append(role.mention)
+
+    if not role_mentions:
+        return
+
+    roles_text = ", ".join(role_mentions)
+    ping_message = format_message(ping_template, roles=roles_text)
+
+    await channel.send(content=ping_message)
+
 
 async def _handle_auto_approval(
     cog: "VerificationCog",

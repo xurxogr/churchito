@@ -250,6 +250,20 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.MOD_PING_MESSAGE,
+            name="Mensaje de ping a moderadores",
+            description=(
+                "Mensaje que se envía para notificar a los moderadores cuando hay una "
+                "verificación pendiente. Usa {roles} para mencionar los roles. "
+                "Déjalo vacío para no enviar ping."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="{roles} - Nueva verificación pendiente de revisión",
+            max_length=500,
+            placeholders=["roles"],
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.DELETE_PROCESSED_MESSAGES,
             name="Eliminar mensajes procesados",
             description="Eliminar mensajes del canal de moderación tras aceptar/rechazar",
