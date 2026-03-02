@@ -21,6 +21,7 @@ from discord_bot.verification.handlers import (
     handle_review,
     handle_verification_start,
     show_rejection_select,
+    update_mod_message_cancelled,
 )
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
 from discord_bot.verification.service import VerificationService
@@ -178,8 +179,58 @@ class VerificationCog(commands.Cog):
     async def before_health_check(self) -> None:
         """Esperar a que el bot este listo antes de iniciar el health check."""
         await self.bot.wait_until_ready()
+        # Limpiar verificaciones de usuarios que salieron mientras el bot estaba offline
+        await self._cleanup_stale_verifications()
         # Ejecutar inmediatamente al iniciar para todos los guilds
         await self._run_health_check(force_all=True)
+
+    async def _cleanup_stale_verifications(self) -> None:
+        """Cancelar verificaciones de usuarios que salieron mientras el bot estaba offline."""
+        async with self.bot.database.session() as session:
+            service = VerificationService(session=session)
+            pending = await service.get_all_pending()
+
+            if not pending:
+                return
+
+            config_service = ConfigService(session=session)
+            cancelled_count = 0
+
+            for request in pending:
+                guild = self.bot.get_guild(request.guild_id)
+                if not guild:
+                    continue
+
+                member = guild.get_member(request.user_id)
+                if member:
+                    continue
+
+                # Usuario no está en el servidor, cancelar verificación
+                await service.cancel(request_id=request.id)
+
+                # Limpiar de memoria si estaba pendiente
+                if request.user_id in self._pending_dm_verifications:
+                    del self._pending_dm_verifications[request.user_id]
+
+                # Actualizar mensaje de moderación
+                config = await config_service.get_all_config(
+                    guild_id=request.guild_id, cog_name=COG_NAME
+                )
+                await update_mod_message_cancelled(
+                    guild=guild,
+                    request=request,
+                    config=config,
+                )
+
+                cancelled_count += 1
+                logger.info(
+                    f"[{guild.name}] Verificacion {request.id} cancelada "
+                    f"(usuario {request.username} ya no esta en el servidor)"
+                )
+
+            if cancelled_count > 0:
+                await session.commit()
+                logger.info(f"Limpiadas {cancelled_count} verificaciones obsoletas")
 
     async def _run_health_check(self, force_all: bool = False) -> None:
         """Ejecutar verificacion de salud de paneles en guilds que esten listos.
@@ -552,6 +603,18 @@ class VerificationCog(commands.Cog):
             if pending:
                 await verification_service.cancel(request_id=pending.id)
                 await session.commit()
+
+                # Actualizar el mensaje de moderación
+                config_service = ConfigService(session=session)
+                config = await config_service.get_all_config(
+                    guild_id=member.guild.id, cog_name=COG_NAME
+                )
+                await update_mod_message_cancelled(
+                    guild=member.guild,
+                    request=pending,
+                    config=config,
+                )
+
                 logger.info(
                     f"Verificacion cancelada para {member.name} "
                     f"(salio del servidor {member.guild.name})"

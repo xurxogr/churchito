@@ -749,6 +749,49 @@ class TestOnMemberRemove:
         # No deberia fallar
         await verification_cog.on_member_remove(member)
 
+    async def test_updates_mod_message_on_leave(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que actualiza el mensaje de moderación cuando el usuario sale."""
+        # Crear solicitud con mod_message_id
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+
+        # Mock member con guild que tiene canal de moderación
+        member = MagicMock(spec=discord.Member)
+        member.id = 456
+        member.name = "TestUser"
+        member.guild = MagicMock(spec=discord.Guild)
+        member.guild.id = 123
+        member.guild.name = "Test Guild"
+
+        # Mock canal de moderación
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [MagicMock(description="Test content\n⏳ Pendiente de revisión")]
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_message.edit = AsyncMock()
+        member.guild.get_channel = MagicMock(return_value=mock_channel)
+
+        # Mock la función update_mod_message_cancelled
+        with patch("discord_bot.verification.cog.update_mod_message_cancelled") as mock_update:
+            mock_update.return_value = None
+            await verification_cog.on_member_remove(member)
+
+            # Verificar que se llamó a update_mod_message_cancelled
+            mock_update.assert_called_once()
+            call_args = mock_update.call_args
+            assert call_args[1]["guild"] == member.guild
+
 
 class TestRestorePendingVerifications:
     """Tests para restauracion de verificaciones pendientes."""
@@ -812,6 +855,114 @@ class TestRestorePendingVerifications:
 
         # No debe restaurar porque ya tiene capturas
         assert 456 not in verification_cog._pending_dm_verifications
+
+
+class TestCleanupStaleVerifications:
+    """Tests para limpieza de verificaciones obsoletas al iniciar."""
+
+    async def test_cancels_verification_when_user_not_in_guild(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que cancela verificaciones si el usuario ya no está en el servidor."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+            request_id = request.id
+
+        # Añadir a pending_dm_verifications para verificar que se limpia
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # Mock guild sin el miembro
+        mock_guild = MagicMock()
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = None  # Usuario no está
+        mock_guild.get_channel.return_value = None  # Sin canal de mod
+        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+
+        await verification_cog._cleanup_stale_verifications()
+
+        # Verificar que se canceló en la base de datos
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.CANCELLED
+
+        # Verificar que se limpió de memoria
+        assert 456 not in verification_cog._pending_dm_verifications
+
+    async def test_skips_verification_when_guild_not_found(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que ignora verificaciones si el guild no está disponible."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=999,  # Guild que no existe
+                user_id=456,
+                username="TestUser",
+                guild_name="Unknown Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Bot no encuentra el guild
+        verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
+
+        await verification_cog._cleanup_stale_verifications()
+
+        # Verificar que NO se canceló (el guild no está disponible)
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+
+    async def test_skips_verification_when_user_still_in_guild(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no cancela verificaciones si el usuario sigue en el servidor."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Mock guild con el miembro presente
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 456
+        mock_guild = MagicMock()
+        mock_guild.id = 123
+        mock_guild.get_member.return_value = mock_member  # Usuario está
+        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+
+        await verification_cog._cleanup_stale_verifications()
+
+        # Verificar que NO se canceló
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
 
 
 class TestOnMessage:

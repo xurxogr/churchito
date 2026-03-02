@@ -359,6 +359,15 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.STATUS_CANCELLED,
+            name="Estado: Cancelado",
+            description="Texto del estado cuando la verificación fue cancelada",
+            option_type=ConfigOptionType.STRING,
+            default="🚫 **Estado:** Cancelado (el usuario salió del servidor)",
+            max_length=200,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.REJECT_WRONG_CAPTURES,
             name="Rechazo: Capturas incorrectas",
             description="Motivo cuando las capturas son incorrectas o ilegibles (error API 422)",

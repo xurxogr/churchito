@@ -14,7 +14,9 @@ from discord_bot.verification.handlers import (
     _send_mod_ping_message,
     _update_mod_message_for_review,
     _update_status_ready_for_approval,
+    update_mod_message_cancelled,
 )
+from discord_bot.verification.models import VerificationRequest
 
 
 class TestIsValidDiscordUrl:
@@ -436,6 +438,155 @@ class TestReplaceStatusInContent:
         result = _replace_status_in_content(content, new_status, config)
 
         assert "✅ Aprobado" in result
+
+    def test_handles_template_starting_with_placeholder(self) -> None:
+        """Probar con template que empieza con placeholder (sin prefijo)."""
+        config = {
+            "status_pending_review": "{placeholder} Pendiente",  # Empieza con {
+            "status_ready_for_approval": "",
+        }
+        content = "Mensaje sin estado"
+        new_status = "✅ Aprobado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        # Debe añadir al final porque no puede extraer prefijo
+        assert result == "Mensaje sin estado\n\n✅ Aprobado"
+
+    def test_replaces_awaiting_screenshots_status(self) -> None:
+        """Probar que reemplaza STATUS_AWAITING_SCREENSHOTS."""
+        config = {
+            "status_awaiting_screenshots": "⏳ Esperando capturas...",
+            "status_pending_review": "🔍 Pendiente",
+            "status_ready_for_approval": "✅ Listo - {roles}",
+        }
+        content = "Mensaje\n\n⏳ Esperando capturas...\n\nMás info"
+        new_status = "🚫 Cancelado"
+
+        result = _replace_status_in_content(content, new_status, config)
+
+        assert "🚫 Cancelado" in result
+        assert "⏳ Esperando capturas..." not in result
+
+
+class TestUpdateModMessageCancelled:
+    """Tests para update_mod_message_cancelled."""
+
+    @pytest.mark.asyncio
+    async def test_returns_early_if_no_mod_message_id(self) -> None:
+        """Probar que retorna si no hay mod_message_id."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = None
+
+        # No debe hacer nada
+        await update_mod_message_cancelled(mock_guild, mock_request, {})
+
+        mock_guild.get_channel.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_early_if_no_mod_channel_config(self) -> None:
+        """Probar que retorna si no hay canal de moderación configurado."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+
+        await update_mod_message_cancelled(mock_guild, mock_request, {})
+
+        mock_guild.get_channel.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_early_if_channel_not_found(self) -> None:
+        """Probar que retorna si el canal no existe."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+
+        config = {"mod_notification_channel": 456}
+
+        await update_mod_message_cancelled(mock_guild, mock_request, config)
+
+        mock_guild.get_channel.assert_called_once_with(456)
+
+    @pytest.mark.asyncio
+    async def test_deletes_message_if_configured(self) -> None:
+        """Probar que elimina el mensaje si DELETE_PROCESSED_MESSAGES está activo."""
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.delete = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+
+        config = {
+            "mod_notification_channel": 456,
+            "delete_processed_messages": True,
+        }
+
+        await update_mod_message_cancelled(mock_guild, mock_request, config)
+
+        mock_message.delete.assert_called_once()
+        mock_message.edit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_updates_message_with_cancelled_status(self) -> None:
+        """Probar que actualiza el mensaje con estado cancelado."""
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "Usuario: Test\n\n⏳ Esperando capturas..."
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [mock_embed]
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+        mock_request.username = "TestUser"
+        mock_request.user_id = 789
+
+        config = {
+            "mod_notification_channel": 456,
+            "delete_processed_messages": False,
+            "status_awaiting_screenshots": "⏳ Esperando capturas...",
+            "status_cancelled": "🚫 Cancelado",
+        }
+
+        await update_mod_message_cancelled(mock_guild, mock_request, config)
+
+        mock_message.edit.assert_called_once()
+        call_kwargs = mock_message.edit.call_args[1]
+        assert call_kwargs["view"] is None
+        assert len(call_kwargs["embeds"]) >= 1
+
+    @pytest.mark.asyncio
+    async def test_handles_message_not_found(self) -> None:
+        """Probar que maneja cuando el mensaje no existe."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "Not found")
+        )
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+
+        config = {"mod_notification_channel": 456}
+
+        # No debe lanzar excepción
+        await update_mod_message_cancelled(mock_guild, mock_request, config)
 
 
 class TestSendModPingMessage:

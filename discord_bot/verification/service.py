@@ -140,6 +140,26 @@ class VerificationService:
         )
         return list(result.scalars().all())
 
+    async def get_all_pending(self) -> list[VerificationRequest]:
+        """Obtener todas las solicitudes pendientes (screenshots o review).
+
+        Util para limpiar verificaciones de usuarios que salieron del servidor.
+
+        Returns:
+            list[VerificationRequest]: Lista de solicitudes pendientes
+        """
+        result = await self._session.execute(
+            select(VerificationRequest).where(
+                VerificationRequest.status.in_(
+                    [
+                        VerificationStatus.PENDING_SCREENSHOTS,
+                        VerificationStatus.PENDING_REVIEW,
+                    ]
+                ),
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_user_history(self, guild_id: int, user_id: int) -> list[VerificationRequest]:
         """Obtener historial de verificaciones de un usuario.
 

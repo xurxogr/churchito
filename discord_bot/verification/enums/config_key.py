@@ -37,6 +37,7 @@ class ConfigKey(StrEnum):
     STATUS_READY_FOR_APPROVAL = "status_ready_for_approval"
     STATUS_APPROVED = "status_approved"
     STATUS_REJECTED = "status_rejected"
+    STATUS_CANCELLED = "status_cancelled"
     APPROVAL_MESSAGE_REGULAR = "approval_message_regular"
     APPROVAL_MESSAGE_ALLY = "approval_message_ally"
     REJECTION_MESSAGE = "rejection_message"

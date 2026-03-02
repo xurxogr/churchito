@@ -159,15 +159,62 @@ def _update_status_ready_for_approval(
     return formatted
 
 
+def _try_replace_status(
+    content: str,
+    template: str,
+    new_status: str,
+) -> str | None:
+    """Intentar reemplazar un estado en el contenido.
+
+    Maneja tanto strings literales como templates con placeholders.
+
+    Args:
+        content: Contenido del mensaje
+        template: Template del estado a buscar (puede tener placeholders como {roles})
+        new_status: Nuevo estado a establecer
+
+    Returns:
+        Contenido actualizado si se encontró el estado, None si no
+    """
+    if not template:
+        return None
+
+    # Si el template no tiene placeholders, buscar literal
+    if "{" not in template:
+        if template in content:
+            return content.replace(template, new_status)
+        return None
+
+    # Template tiene placeholders - extraer prefijo antes del primer placeholder
+    prefix = template.split("{")[0]
+    if not prefix:
+        return None
+
+    escaped_prefix = re.escape(prefix)
+    pattern = escaped_prefix + r"[^\n]*"
+    if re.search(pattern, content):
+        return re.sub(pattern, new_status, content)
+
+    return None
+
+
+# Estados que pueden aparecer en un mensaje pendiente (en orden de prioridad)
+_PENDING_STATUS_KEYS = (
+    ConfigKey.STATUS_AWAITING_SCREENSHOTS,
+    ConfigKey.STATUS_PENDING_REVIEW,
+    ConfigKey.STATUS_READY_FOR_APPROVAL,
+)
+
+
 def _replace_status_in_content(
     content: str,
     new_status: str,
     config: dict[str, Any],
 ) -> str:
-    """Reemplazar cualquier estado conocido en el contenido del mensaje.
+    """Reemplazar cualquier estado pendiente en el contenido del mensaje.
 
-    Busca y reemplaza STATUS_PENDING_REVIEW o STATUS_READY_FOR_APPROVAL
-    (que puede contener menciones de roles dinámicas).
+    Busca y reemplaza cualquier estado de verificación pendiente
+    (awaiting screenshots, pending review, ready for approval).
 
     Args:
         content: Contenido actual del mensaje
@@ -177,22 +224,11 @@ def _replace_status_in_content(
     Returns:
         Contenido con el estado actualizado
     """
-    # Intentar reemplazar STATUS_PENDING_REVIEW
-    pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
-    if pending_status and pending_status in content:
-        return content.replace(pending_status, new_status)
-
-    # Intentar reemplazar STATUS_READY_FOR_APPROVAL (que tiene {roles} dinámico)
-    ready_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
-    if ready_template and "{roles}" in ready_template:
-        # Extraer la parte fija antes de {roles} y escapar para regex
-        prefix = ready_template.split("{roles}")[0]
-        if prefix:
-            escaped_prefix = re.escape(prefix)
-            # Buscar desde el prefijo hasta el final de la línea
-            pattern = escaped_prefix + r"[^\n]*"
-            if re.search(pattern, content):
-                return re.sub(pattern, new_status, content)
+    for key in _PENDING_STATUS_KEYS:
+        template = config.get(key) or ""
+        result = _try_replace_status(content, template, new_status)
+        if result is not None:
+            return result
 
     # Si no se encontró ningún estado conocido, añadir al final
     return content + f"\n\n{new_status}"
@@ -1431,3 +1467,65 @@ async def _update_mod_message_for_review(
     )
 
     await mod_message.edit(embeds=all_embeds, view=view)
+
+
+async def update_mod_message_cancelled(
+    guild: discord.Guild,
+    request: "VerificationRequest",
+    config: dict[str, Any],
+) -> None:
+    """Actualizar el mensaje de moderación cuando una verificación es cancelada.
+
+    Se usa cuando un usuario sale del servidor mientras tiene una verificación pendiente.
+
+    Args:
+        guild: Guild donde está el canal de moderación
+        request: Solicitud de verificación cancelada
+        config: Configuración del cog
+    """
+    if not request.mod_message_id:
+        return
+
+    mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
+    if not mod_channel_id:
+        return
+
+    mod_channel = guild.get_channel(mod_channel_id)
+    if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
+        return
+
+    try:
+        mod_message = await mod_channel.fetch_message(request.mod_message_id)
+    except discord.NotFound:
+        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        return
+
+    if config.get(ConfigKey.DELETE_PROCESSED_MESSAGES):
+        await mod_message.delete()
+        return
+
+    # Obtener contenido del embed principal
+    current_content = ""
+    if mod_message.embeds:
+        current_content = mod_message.embeds[0].description or ""
+
+    cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Estado:** Cancelado"
+    new_content = _replace_status_in_content(
+        content=current_content,
+        new_status=cancelled_status,
+        config=config,
+    )
+
+    # Crear nuevo embed con color gris
+    main_embed = create_mod_embed(
+        new_content,
+        username=request.username,
+        user_id=request.user_id,
+    )
+    main_embed.color = discord.Color.dark_grey()
+
+    # Mantener embeds de capturas (todos excepto el primero)
+    screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
+    all_embeds = [main_embed, *screenshot_embeds]
+
+    await mod_message.edit(embeds=all_embeds, view=None)
