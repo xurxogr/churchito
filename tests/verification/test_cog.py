@@ -964,6 +964,47 @@ class TestCleanupStaleVerifications:
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
 
+    async def test_handles_mod_message_update_error(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que continúa si falla la actualización del mensaje de mod."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+            request_id = request.id
+
+        # Mock guild sin el miembro
+        mock_guild = MagicMock()
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = None
+        mock_guild.get_channel.return_value = None
+        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+
+        # Mock update_mod_message_cancelled para que falle
+        with patch(
+            "discord_bot.verification.cog.update_mod_message_cancelled",
+            side_effect=Exception("Discord API error"),
+        ):
+            # No debe lanzar excepción
+            await verification_cog._cleanup_stale_verifications()
+
+        # Verificar que se canceló en la base de datos a pesar del error
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.CANCELLED
+
 
 class TestOnMessage:
     """Tests para on_message (DM screenshots)."""

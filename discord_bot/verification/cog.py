@@ -191,18 +191,24 @@ class VerificationCog(commands.Cog):
             pending = await service.get_all_pending()
 
             if not pending:
+                logger.debug("No hay verificaciones pendientes para limpiar")
                 return
 
+            logger.info(f"Verificando {len(pending)} solicitudes pendientes...")
             config_service = ConfigService(session=session)
             cancelled_count = 0
 
             for request in pending:
                 guild = self.bot.get_guild(request.guild_id)
                 if not guild:
+                    logger.warning(
+                        f"Guild {request.guild_id} no encontrado para solicitud {request.id}"
+                    )
                     continue
 
                 member = guild.get_member(request.user_id)
                 if member:
+                    logger.debug(f"[{guild.name}] Usuario {request.username} sigue en el servidor")
                     continue
 
                 # Usuario no está en el servidor, cancelar verificación
@@ -216,11 +222,14 @@ class VerificationCog(commands.Cog):
                 config = await config_service.get_all_config(
                     guild_id=request.guild_id, cog_name=COG_NAME
                 )
-                await update_mod_message_cancelled(
-                    guild=guild,
-                    request=request,
-                    config=config,
-                )
+                try:
+                    await update_mod_message_cancelled(
+                        guild=guild,
+                        request=request,
+                        config=config,
+                    )
+                except Exception as e:
+                    logger.error(f"Error actualizando mensaje de mod: {e}")
 
                 cancelled_count += 1
                 logger.info(
@@ -230,7 +239,9 @@ class VerificationCog(commands.Cog):
 
             if cancelled_count > 0:
                 await session.commit()
-                logger.info(f"Limpiadas {cancelled_count} verificaciones obsoletas")
+            logger.info(
+                f"Limpieza completada: {cancelled_count}/{len(pending)} verificaciones canceladas"
+            )
 
     async def _run_health_check(self, force_all: bool = False) -> None:
         """Ejecutar verificacion de salud de paneles en guilds que esten listos.
