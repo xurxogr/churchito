@@ -20,6 +20,9 @@ class EmbedSection(BaseModel):
     type: EmbedSectionType = Field(description="Tipo de sección")
     content: str = Field(default="", description="Contenido de texto (para TEXT, HEADER)")
 
+    # Para TEXT_COLORED
+    text_color: str | None = Field(default=None, description="Color ANSI para TEXT_COLORED")
+
     # Para PROGRESS
     value_key: str | None = Field(default=None, description="Clave del placeholder para el valor")
     max_value: int | None = Field(default=None, description="Valor máximo para la barra")
@@ -49,11 +52,36 @@ class EmbedSection(BaseModel):
 class EmbedConfig(BaseModel):
     """Configuración completa de un embed."""
 
-    sections: list[EmbedSection] = Field(default_factory=list)
+    # Propiedades principales del embed
+    title: str | None = Field(default=None, description="Título del embed")
     color: str | None = Field(default=None, description="Color en formato hex (#FF5733)")
-    thumbnail_url: str | None = Field(default=None, description="URL del thumbnail")
+
+    # Imágenes
+    thumbnail_url: str | None = Field(default=None, description="URL del thumbnail (esquina)")
+    image_url: str | None = Field(default=None, description="URL de la imagen principal")
+
+    # Footer
     footer_text: str | None = Field(default=None, description="Texto del footer")
     footer_icon_url: str | None = Field(default=None, description="URL del icono del footer")
+
+    # Secciones que componen el cuerpo del embed
+    sections: list[EmbedSection] = Field(default_factory=list)
+
+    def count_fields(self) -> int:
+        """Contar el número total de campos en todas las secciones."""
+        total = 0
+        for section in self.sections:
+            if section.type == EmbedSectionType.FIELDS:
+                total += len(section.get_fields())
+        return total
+
+    def validate_field_limit(self) -> bool:
+        """Validar que no se excedan los 25 campos permitidos por Discord.
+
+        Returns:
+            True si está dentro del límite, False si lo excede.
+        """
+        return self.count_fields() <= 25
 
     @classmethod
     def from_table_rows(cls, rows: list[dict[str, Any]]) -> "EmbedConfig":
@@ -64,6 +92,7 @@ class EmbedConfig(BaseModel):
             section = EmbedSection(
                 type=section_type,
                 content=row.get("content", ""),
+                text_color=row.get("text_color"),
                 value_key=row.get("value_key"),
                 max_value=row.get("max_value"),
                 label_left=row.get("label_left"),

@@ -459,6 +459,119 @@
                 </script>
             </div>
 
+            {% elif option.type == 'embed' %}
+            {% set embed_value = option.value or {} %}
+            {% set embed_sections = embed_value.sections or [] %}
+            <div class="embed-editor" id="embed-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "{}" }}'>
+                <div class="embed-editor-fields">
+                    <div class="embed-field-row">
+                        <div class="embed-field">
+                            <label for="embed-title-{{ option.key }}">Título</label>
+                            <input type="text" id="embed-title-{{ option.key }}" class="input"
+                                   value="{{ embed_value.title or '' }}"
+                                   placeholder="Título del embed (soporta placeholders)"
+                                   maxlength="256"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                        <div class="embed-field embed-field-small">
+                            <label for="embed-color-{{ option.key }}">Color</label>
+                            <input type="text" id="embed-color-{{ option.key }}" class="input"
+                                   value="{{ embed_value.color or '' }}"
+                                   placeholder="#FF5733"
+                                   maxlength="7"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                    </div>
+                    <div class="embed-field-row">
+                        <div class="embed-field">
+                            <label for="embed-thumbnail-{{ option.key }}">Thumbnail URL</label>
+                            <input type="text" id="embed-thumbnail-{{ option.key }}" class="input"
+                                   value="{{ embed_value.thumbnail_url or '' }}"
+                                   placeholder="URL de imagen pequeña (esquina)"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                        <div class="embed-field">
+                            <label for="embed-image-{{ option.key }}">Imagen URL</label>
+                            <input type="text" id="embed-image-{{ option.key }}" class="input"
+                                   value="{{ embed_value.image_url or '' }}"
+                                   placeholder="URL de imagen principal"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                    </div>
+                    <div class="embed-field-row">
+                        <div class="embed-field">
+                            <label for="embed-footer-text-{{ option.key }}">Texto del footer</label>
+                            <input type="text" id="embed-footer-text-{{ option.key }}" class="input"
+                                   value="{{ embed_value.footer_text or '' }}"
+                                   placeholder="Pie de página (soporta placeholders)"
+                                   maxlength="2048"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                        <div class="embed-field">
+                            <label for="embed-footer-icon-{{ option.key }}">Icono del footer URL</label>
+                            <input type="text" id="embed-footer-icon-{{ option.key }}" class="input"
+                                   value="{{ embed_value.footer_icon_url or '' }}"
+                                   placeholder="URL del icono del footer"
+                                   oninput="trackEmbedChange('{{ option.key }}')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="embed-sections-header">
+                    <h4>Secciones del contenido</h4>
+                    <span class="embed-sections-help">Máximo 25 campos en total</span>
+                </div>
+
+                <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
+                    <table class="config-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Contenido</th>
+                                <th>Opciones</th>
+                                <th class="actions-col">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="embed-tbody-{{ option.key }}">
+                            {% for row in embed_sections %}
+                            <tr data-row-index="{{ loop.index0 }}">
+                                <td>
+                                    <select class="select select-sm" data-col="type" onchange="updateEmbedSectionOptions(this); trackEmbedChange('{{ option.key }}')">
+                                        <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
+                                        <option value="text_colored" {% if row.type == 'text_colored' %}selected{% endif %}>Texto con color</option>
+                                        <option value="header" {% if row.type == 'header' %}selected{% endif %}>Encabezado</option>
+                                        <option value="progress" {% if row.type == 'progress' %}selected{% endif %}>Barra de progreso</option>
+                                        <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" class="input input-sm" data-col="content"
+                                           value="{{ row.content or '' }}"
+                                           placeholder="Contenido..."
+                                           oninput="trackEmbedChange('{{ option.key }}')">
+                                </td>
+                                <td class="embed-section-options">
+                                    <button type="button" class="btn btn-secondary btn-sm"
+                                            onclick="openEmbedSectionOptions(this, '{{ option.key }}')"
+                                            title="Configurar opciones">⚙️</button>
+                                    <div class="embed-section-data" style="display:none;"
+                                         data-options='{{ row | tojson }}'></div>
+                                </td>
+                                <td class="actions-col">
+                                    <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('{{ option.key }}')" title="Subir">&#9650;</button>
+                                    <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('{{ option.key }}')" title="Bajar">&#9660;</button>
+                                    <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="config-table-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSection('{{ option.key }}')">+ Añadir sección</button>
+                    </div>
+                </div>
+            </div>
+
             {% else %}
             <input
                 type="text"
@@ -996,5 +1109,266 @@ function moveRowDown(btn) {
     if (next) {
         row.parentNode.insertBefore(next, row);
     }
+}
+
+// Embed editor functions
+function trackEmbedChange(optionKey) {
+    const container = document.getElementById('embed-' + optionKey);
+    const original = container.dataset.original || '{}';
+    const current = JSON.stringify(getEmbedData(optionKey));
+
+    if (current !== original) {
+        window.changedOptions.set(optionKey, { type: 'embed', value: current });
+    } else {
+        window.changedOptions.delete(optionKey);
+    }
+    updateSaveBar();
+}
+
+function getEmbedData(optionKey) {
+    const container = document.getElementById('embed-' + optionKey);
+
+    // Get main embed fields
+    const data = {
+        title: document.getElementById('embed-title-' + optionKey)?.value || '',
+        color: document.getElementById('embed-color-' + optionKey)?.value || '',
+        thumbnail_url: document.getElementById('embed-thumbnail-' + optionKey)?.value || '',
+        image_url: document.getElementById('embed-image-' + optionKey)?.value || '',
+        footer_text: document.getElementById('embed-footer-text-' + optionKey)?.value || '',
+        footer_icon_url: document.getElementById('embed-footer-icon-' + optionKey)?.value || '',
+        sections: []
+    };
+
+    // Get sections
+    const tbody = document.getElementById('embed-tbody-' + optionKey);
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const sectionData = getEmbedSectionData(tr);
+        data.sections.push(sectionData);
+    });
+
+    // Clean empty values
+    Object.keys(data).forEach(key => {
+        if (key !== 'sections' && !data[key]) {
+            delete data[key];
+        }
+    });
+
+    return data;
+}
+
+function getEmbedSectionData(tr) {
+    const typeSelect = tr.querySelector('[data-col="type"]');
+    const contentInput = tr.querySelector('[data-col="content"]');
+    const optionsDiv = tr.querySelector('.embed-section-data');
+
+    let sectionData = {};
+
+    // Try to parse stored options
+    if (optionsDiv && optionsDiv.dataset.options) {
+        try {
+            sectionData = JSON.parse(optionsDiv.dataset.options);
+        } catch (e) {
+            console.warn('Failed to parse section options:', e);
+        }
+    }
+
+    // Override with current visible values
+    sectionData.type = typeSelect?.value || 'text';
+    sectionData.content = contentInput?.value || '';
+
+    return sectionData;
+}
+
+function addEmbedSection(optionKey) {
+    const tbody = document.getElementById('embed-tbody-' + optionKey);
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-row-index', tbody.children.length);
+    tr.innerHTML = `
+        <td>
+            <select class="select select-sm" data-col="type" onchange="updateEmbedSectionOptions(this); trackEmbedChange('${optionKey}')">
+                <option value="text">Texto</option>
+                <option value="text_colored">Texto con color</option>
+                <option value="header">Encabezado</option>
+                <option value="progress">Barra de progreso</option>
+                <option value="fields">Campos (3 col)</option>
+            </select>
+        </td>
+        <td>
+            <input type="text" class="input input-sm" data-col="content"
+                   placeholder="Contenido..."
+                   oninput="trackEmbedChange('${optionKey}')">
+        </td>
+        <td class="embed-section-options">
+            <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="openEmbedSectionOptions(this, '${optionKey}')"
+                    title="Configurar opciones">⚙️</button>
+            <div class="embed-section-data" style="display:none;"
+                 data-options='{"type":"text"}'></div>
+        </td>
+        <td class="actions-col">
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('${optionKey}')" title="Subir">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('${optionKey}')" title="Bajar">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('${optionKey}')" title="Eliminar">&#10005;</button>
+        </td>
+    `;
+
+    tbody.appendChild(tr);
+    trackEmbedChange(optionKey);
+}
+
+function updateEmbedSectionOptions(selectEl) {
+    const tr = selectEl.closest('tr');
+    const optionsDiv = tr.querySelector('.embed-section-data');
+    const type = selectEl.value;
+
+    // Update the stored options with new type, keeping other values
+    let options = {};
+    try {
+        options = JSON.parse(optionsDiv.dataset.options || '{}');
+    } catch (e) {}
+
+    options.type = type;
+    optionsDiv.dataset.options = JSON.stringify(options);
+}
+
+function openEmbedSectionOptions(btn, optionKey) {
+    const tr = btn.closest('tr');
+    const optionsDiv = tr.querySelector('.embed-section-data');
+    const typeSelect = tr.querySelector('[data-col="type"]');
+    const type = typeSelect?.value || 'text';
+
+    let options = {};
+    try {
+        options = JSON.parse(optionsDiv.dataset.options || '{}');
+    } catch (e) {}
+
+    // Create modal based on section type
+    let modalContent = '';
+
+    if (type === 'text_colored') {
+        const colors = [
+            ['Gris', 'gray'], ['Rojo', 'red'], ['Verde', 'green'], ['Amarillo', 'yellow'],
+            ['Azul', 'blue'], ['Rosa', 'pink'], ['Cian', 'cyan'], ['Blanco', 'white']
+        ];
+        modalContent = `
+            <div class="modal-field">
+                <label>Color del texto</label>
+                <select id="modal-text-color">
+                    ${colors.map(([label, value]) =>
+                        `<option value="${value}" ${options.text_color === value ? 'selected' : ''}>${label}</option>`
+                    ).join('')}
+                </select>
+            </div>
+        `;
+    } else if (type === 'progress') {
+        modalContent = `
+            <div class="modal-field">
+                <label>Placeholder del valor</label>
+                <input type="text" id="modal-value-key" value="${options.value_key || ''}" placeholder="ej: level">
+            </div>
+            <div class="modal-field">
+                <label>Valor máximo</label>
+                <input type="number" id="modal-max-value" value="${options.max_value || 100}" min="1">
+            </div>
+            <div class="modal-field">
+                <label>Etiqueta izquierda</label>
+                <input type="text" id="modal-label-left" value="${options.label_left || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Etiqueta derecha</label>
+                <input type="text" id="modal-label-right" value="${options.label_right || ''}">
+            </div>
+        `;
+    } else if (type === 'fields') {
+        modalContent = `
+            <div class="modal-field">
+                <label><input type="checkbox" id="modal-inline" ${options.inline !== false ? 'checked' : ''}> En línea (horizontal)</label>
+            </div>
+            <div class="modal-field">
+                <label>Campo 1 - Nombre</label>
+                <input type="text" id="modal-field-1-name" value="${options.field_1_name || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Campo 1 - Valor</label>
+                <input type="text" id="modal-field-1-value" value="${options.field_1_value || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Campo 2 - Nombre</label>
+                <input type="text" id="modal-field-2-name" value="${options.field_2_name || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Campo 2 - Valor</label>
+                <input type="text" id="modal-field-2-value" value="${options.field_2_value || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Campo 3 - Nombre</label>
+                <input type="text" id="modal-field-3-name" value="${options.field_3_name || ''}">
+            </div>
+            <div class="modal-field">
+                <label>Campo 3 - Valor</label>
+                <input type="text" id="modal-field-3-value" value="${options.field_3_value || ''}">
+            </div>
+        `;
+    } else {
+        modalContent = '<p>Este tipo de sección no tiene opciones adicionales.</p>';
+    }
+
+    // Create and show modal
+    const modal = document.createElement('div');
+    modal.className = 'embed-options-modal';
+    modal.innerHTML = `
+        <div class="embed-options-modal-content">
+            <h3>Opciones de la sección</h3>
+            ${modalContent}
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="this.closest('.embed-options-modal').remove()">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveEmbedSectionOptions(this, '${optionKey}')">Guardar</button>
+            </div>
+        </div>
+    `;
+    modal.dataset.targetRow = tr.rowIndex;
+    document.body.appendChild(modal);
+}
+
+function saveEmbedSectionOptions(btn, optionKey) {
+    const modal = btn.closest('.embed-options-modal');
+    const tbody = document.getElementById('embed-tbody-' + optionKey);
+    const rowIndex = parseInt(modal.dataset.targetRow) - 1; // Adjust for header
+    const tr = tbody.children[rowIndex];
+
+    if (!tr) {
+        modal.remove();
+        return;
+    }
+
+    const optionsDiv = tr.querySelector('.embed-section-data');
+    const typeSelect = tr.querySelector('[data-col="type"]');
+    const type = typeSelect?.value || 'text';
+    const contentInput = tr.querySelector('[data-col="content"]');
+
+    let options = { type, content: contentInput?.value || '' };
+
+    // Collect options based on type
+    if (type === 'text_colored') {
+        options.text_color = document.getElementById('modal-text-color')?.value || 'white';
+    } else if (type === 'progress') {
+        options.value_key = document.getElementById('modal-value-key')?.value || '';
+        options.max_value = parseInt(document.getElementById('modal-max-value')?.value) || 100;
+        options.label_left = document.getElementById('modal-label-left')?.value || '';
+        options.label_right = document.getElementById('modal-label-right')?.value || '';
+    } else if (type === 'fields') {
+        options.inline = document.getElementById('modal-inline')?.checked !== false;
+        options.field_1_name = document.getElementById('modal-field-1-name')?.value || '';
+        options.field_1_value = document.getElementById('modal-field-1-value')?.value || '';
+        options.field_2_name = document.getElementById('modal-field-2-name')?.value || '';
+        options.field_2_value = document.getElementById('modal-field-2-value')?.value || '';
+        options.field_3_name = document.getElementById('modal-field-3-name')?.value || '';
+        options.field_3_value = document.getElementById('modal-field-3-value')?.value || '';
+    }
+
+    optionsDiv.dataset.options = JSON.stringify(options);
+    modal.remove();
+    trackEmbedChange(optionKey);
 }
 </script>

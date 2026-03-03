@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
-from discord_bot.common.enums.embed_section_type import EmbedSectionType
+from discord_bot.common.enums.embed_section_type import AnsiColor, EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
 
 if TYPE_CHECKING:
@@ -160,6 +160,19 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
         return None
 
 
+# Mapeo de colores ANSI para TEXT_COLORED
+ANSI_COLOR_CODES: dict[str, int] = {
+    AnsiColor.GRAY: 30,
+    AnsiColor.RED: 31,
+    AnsiColor.GREEN: 32,
+    AnsiColor.YELLOW: 33,
+    AnsiColor.BLUE: 34,
+    AnsiColor.PINK: 35,
+    AnsiColor.CYAN: 36,
+    AnsiColor.WHITE: 37,
+}
+
+
 def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[str, Any]:
     """Renderizar una sección a datos para el embed.
 
@@ -171,6 +184,12 @@ def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[
     match section.type:
         case EmbedSectionType.TEXT:
             result["description"] = format_placeholders(section.content, context)
+
+        case EmbedSectionType.TEXT_COLORED:
+            formatted = format_placeholders(section.content, context)
+            color_code = ANSI_COLOR_CODES.get(section.text_color or "", 37)  # Default white
+            # Wrap in ANSI code block with color
+            result["description"] = f"```ansi\n\u001b[{color_code}m{formatted}\u001b[0m\n```"
 
         case EmbedSectionType.HEADER:
             # Header es texto en negrita con separación
@@ -216,28 +235,57 @@ def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[
     return result
 
 
+class EmbedFieldLimitError(Exception):
+    """Error cuando se excede el límite de 25 campos en un embed."""
+
+    def __init__(self, field_count: int) -> None:
+        """Inicializar el error.
+
+        Args:
+            field_count: Número de campos que se intentaron agregar.
+        """
+        self.field_count = field_count
+        super().__init__(f"El embed excede el límite de 25 campos ({field_count} campos)")
+
+
 def build_embed(
     config: EmbedConfig,
     context: PlaceholderContext,
     *,
     title: str | None = None,
     default_color: discord.Color | None = None,
+    validate_fields: bool = True,
 ) -> discord.Embed:
     """Construir un embed desde una configuración de secciones.
 
     Args:
         config: Configuración del embed con secciones.
         context: Contexto con datos para resolver placeholders.
-        title: Título opcional del embed.
+        title: Título opcional (sobrescribe config.title si se proporciona).
         default_color: Color por defecto si no hay color en config.
+        validate_fields: Si True, lanza error si se exceden 25 campos.
 
     Returns:
         discord.Embed construido.
+
+    Raises:
+        EmbedFieldLimitError: Si validate_fields=True y se exceden 25 campos.
     """
+    # Validar límite de campos
+    if validate_fields:
+        field_count = config.count_fields()
+        if field_count > 25:
+            raise EmbedFieldLimitError(field_count)
+
+    # Determinar título (parámetro > config)
+    embed_title = title
+    if embed_title is None and config.title:
+        embed_title = format_placeholders(config.title, context)
+
     # Determinar color
     color = _parse_hex_color(config.color) or default_color or discord.Color.blurple()
 
-    embed = discord.Embed(title=title, color=color)
+    embed = discord.Embed(title=embed_title, color=color)
 
     # Construir descripción y campos desde secciones
     description_parts: list[str] = []
@@ -264,6 +312,11 @@ def build_embed(
         url = format_placeholders(config.thumbnail_url, context)
         embed.set_thumbnail(url=url)
 
+    # Imagen principal
+    if config.image_url:
+        url = format_placeholders(config.image_url, context)
+        embed.set_image(url=url)
+
     # Footer
     if config.footer_text:
         footer_text = format_placeholders(config.footer_text, context)
@@ -282,9 +335,11 @@ def build_embed_from_rows(
     title: str | None = None,
     color: str | None = None,
     thumbnail_url: str | None = None,
+    image_url: str | None = None,
     footer_text: str | None = None,
     footer_icon_url: str | None = None,
     default_color: discord.Color | None = None,
+    validate_fields: bool = True,
 ) -> discord.Embed:
     """Construir un embed directamente desde filas de configuración de tabla.
 
@@ -293,20 +348,29 @@ def build_embed_from_rows(
     Args:
         rows: Lista de filas de la tabla de configuración.
         context: Contexto con datos para resolver placeholders.
-        title: Título opcional del embed.
+        title: Título del embed (soporta placeholders).
         color: Color en formato hex.
         thumbnail_url: URL del thumbnail.
+        image_url: URL de la imagen principal.
         footer_text: Texto del footer.
         footer_icon_url: URL del icono del footer.
         default_color: Color por defecto si no hay color.
+        validate_fields: Si True, lanza error si se exceden 25 campos.
 
     Returns:
         discord.Embed construido.
+
+    Raises:
+        EmbedFieldLimitError: Si validate_fields=True y se exceden 25 campos.
     """
     config = EmbedConfig.from_table_rows(rows)
+    config.title = title
     config.color = color
     config.thumbnail_url = thumbnail_url
+    config.image_url = image_url
     config.footer_text = footer_text
     config.footer_icon_url = footer_icon_url
 
-    return build_embed(config, context, title=title, default_color=default_color)
+    return build_embed(
+        config, context, default_color=default_color, validate_fields=validate_fields
+    )

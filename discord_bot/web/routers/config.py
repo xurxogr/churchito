@@ -742,5 +742,43 @@ def _convert_form_value(
                 return cleaned_data
 
             return data
+        case ConfigOptionType.EMBED:
+            import json
+
+            # Limitar tamaño del JSON para prevenir DoS
+            max_json_size = 100_000  # 100KB
+            if len(value) > max_json_size:
+                logger.warning(f"JSON de EMBED demasiado grande: {len(value)} bytes")
+                return None
+
+            try:
+                data = json.loads(value)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON inválido en EMBED config: {e}")
+                return None
+
+            # Validar que data es un diccionario
+            if not isinstance(data, dict):
+                logger.warning("EMBED config debe ser un diccionario")
+                return None
+
+            # Validar estructura del embed
+            valid_embed_keys = {
+                "title",
+                "color",
+                "thumbnail_url",
+                "image_url",
+                "footer_text",
+                "footer_icon_url",
+                "sections",
+            }
+            embed_data: dict[str, Any] = {k: v for k, v in data.items() if k in valid_embed_keys}
+
+            # Validar que sections es una lista si existe
+            if "sections" in embed_data:
+                if not isinstance(embed_data["sections"], list):
+                    embed_data["sections"] = []
+
+            return embed_data
         case _:
             return value

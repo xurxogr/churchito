@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from discord_bot.common.enums.embed_section_type import EmbedSectionType
+from discord_bot.common.enums.embed_section_type import AnsiColor, EmbedSectionType
 
 # Columnas para la tabla de secciones de embed
 EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
@@ -13,6 +13,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
         "required": True,
         "choices": [
             ("Texto", EmbedSectionType.TEXT),
+            ("Texto con color", EmbedSectionType.TEXT_COLORED),
             ("Encabezado", EmbedSectionType.HEADER),
             ("Barra de progreso", EmbedSectionType.PROGRESS),
             ("Campos (3 columnas)", EmbedSectionType.FIELDS),
@@ -24,7 +25,26 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
         "type": "string",
         "required": False,
         "max_length": 1024,
-        "description": "Texto para secciones TEXT y HEADER. Soporta placeholders.",
+        "description": "Texto para secciones TEXT, TEXT_COLORED y HEADER. Soporta placeholders.",
+    },
+    # Campos para TEXT_COLORED
+    {
+        "key": "text_color",
+        "name": "Color del texto",
+        "type": "choice",
+        "required": False,
+        "choices": [
+            ("Gris", AnsiColor.GRAY),
+            ("Rojo", AnsiColor.RED),
+            ("Verde", AnsiColor.GREEN),
+            ("Amarillo", AnsiColor.YELLOW),
+            ("Azul", AnsiColor.BLUE),
+            ("Rosa", AnsiColor.PINK),
+            ("Cian", AnsiColor.CYAN),
+            ("Blanco", AnsiColor.WHITE),
+        ],
+        "description": "Color ANSI para el texto",
+        "show_when": {"type": EmbedSectionType.TEXT_COLORED},
     },
     # Campos para PROGRESS
     {

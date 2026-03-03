@@ -16,3 +16,4 @@ class ConfigOptionType(StrEnum):
     ROLE_LIST = "role_list"
     TEXT_CHOICE = "text_choice"
     TABLE = "table"
+    EMBED = "embed"

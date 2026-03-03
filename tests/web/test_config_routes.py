@@ -1236,3 +1236,85 @@ class TestConvertFormValueTable:
         result = _convert_form_value(value, ConfigOptionType.TABLE, option)
 
         assert result == [{"name": "valid"}, {"name": "also_valid"}]
+
+
+class TestConvertFormValueEmbed:
+    """Tests para _convert_form_value con tipo EMBED."""
+
+    def test_embed_valid_json_dict(self) -> None:
+        """Probar conversión de JSON válido como diccionario."""
+        value = '{"title": "Mi Embed", "color": "#ff0000"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result == {"title": "Mi Embed", "color": "#ff0000"}
+
+    def test_embed_json_too_large(self) -> None:
+        """Probar que JSON demasiado grande retorna None."""
+        # Crear JSON de más de 100KB
+        large_title = "x" * 100_001
+        large_value = '{"title": "' + large_title + '"}'
+        assert len(large_value) > 100_000
+
+        result = _convert_form_value(large_value, ConfigOptionType.EMBED)
+        assert result is None
+
+    def test_embed_invalid_json(self) -> None:
+        """Probar que JSON inválido retorna None."""
+        value = "not valid json {"
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result is None
+
+    def test_embed_not_a_dict(self) -> None:
+        """Probar que JSON que no es diccionario retorna None."""
+        value = '["item1", "item2"]'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result is None
+
+    def test_embed_filters_invalid_keys(self) -> None:
+        """Probar que se filtran claves inválidas."""
+        value = '{"title": "Test", "invalid_key": "value", "color": "#000"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result == {"title": "Test", "color": "#000"}
+        assert "invalid_key" not in result
+
+    def test_embed_with_all_valid_keys(self) -> None:
+        """Probar que todas las claves válidas se mantienen."""
+        value = """{
+            "title": "Mi Embed",
+            "color": "#ff0000",
+            "thumbnail_url": "https://example.com/thumb.png",
+            "image_url": "https://example.com/image.png",
+            "footer_text": "Footer",
+            "footer_icon_url": "https://example.com/icon.png",
+            "sections": []
+        }"""
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result["title"] == "Mi Embed"
+        assert result["color"] == "#ff0000"
+        assert result["thumbnail_url"] == "https://example.com/thumb.png"
+        assert result["image_url"] == "https://example.com/image.png"
+        assert result["footer_text"] == "Footer"
+        assert result["footer_icon_url"] == "https://example.com/icon.png"
+        assert result["sections"] == []
+
+    def test_embed_sections_not_list_becomes_empty(self) -> None:
+        """Probar que sections que no es lista se convierte a lista vacía."""
+        value = '{"title": "Test", "sections": "not a list"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result["sections"] == []
+
+    def test_embed_with_sections(self) -> None:
+        """Probar embed con secciones."""
+        value = """{
+            "title": "Estadísticas",
+            "sections": [
+                {"type": "header", "content": "Información"},
+                {"type": "text", "content": "Descripción"},
+                {"type": "progress", "value_key": "health", "max_value": 100}
+            ]
+        }"""
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result["title"] == "Estadísticas"
+        assert len(result["sections"]) == 3
+        assert result["sections"][0]["type"] == "header"
+        assert result["sections"][1]["type"] == "text"
+        assert result["sections"][2]["type"] == "progress"
