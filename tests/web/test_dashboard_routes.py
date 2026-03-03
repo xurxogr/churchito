@@ -191,6 +191,86 @@ class TestDashboardRoutes:
         assert guild_with_bot is not None
         assert guild_with_bot["bot_present"] is True
 
+    async def test_dashboard_non_owner_with_bot_in_guild(
+        self,
+        mock_request_with_user: MagicMock,
+        mock_session: AsyncMock,
+    ) -> None:
+        """Probar dashboard para non-owner cuando el bot está en el guild."""
+        # User is NOT a bot owner but IS a guild owner
+        mock_request_with_user.app.state.settings.web.owner_ids = []
+
+        # User is guild owner (so _check_guild_access returns True)
+        non_owner_user = {
+            "id": "999888777",
+            "username": "non_owner",
+            "avatar": None,
+            "guilds": [
+                {
+                    "id": "111222333",
+                    "name": "Test Guild",
+                    "icon": None,
+                    "permissions": str(0x20),
+                    "owner": True,  # Guild owner
+                },
+            ],
+        }
+
+        # Setup mock templates
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        # Setup mock bot con guild
+        mock_guild = MagicMock()
+        mock_guild.id = 111222333
+        mock_request_with_user.app.state.bot = MagicMock()
+        mock_request_with_user.app.state.bot.guilds = [mock_guild]
+        mock_request_with_user.app.state.bot.user = MagicMock()
+        mock_request_with_user.app.state.bot.user.name = "TestBot"
+        mock_request_with_user.app.state.bot.user.avatar = None
+
+        await dashboard(request=mock_request_with_user, user=non_owner_user, session=mock_session)
+
+        call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
+        context = call_kwargs["context"]
+
+        # Non-owner should not be flagged as owner
+        assert context["is_owner"] is False
+        # Guild should be in the list with access
+        guilds = context["guilds"]
+        assert len(guilds) == 1
+        assert guilds[0]["id"] == "111222333"
+        assert guilds[0]["has_access"] is True
+
+    async def test_dashboard_non_owner_guild_not_shown_without_access(
+        self,
+        mock_request_with_user: MagicMock,
+        test_user: dict[str, Any],
+        mock_session: AsyncMock,
+    ) -> None:
+        """Probar que non-owner no ve guild sin acceso."""
+        # User is NOT an owner
+        mock_request_with_user.app.state.settings.web.owner_ids = []
+
+        # Setup mock templates
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_response = MagicMock()
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
+
+        # Bot not in guild
+        mock_request_with_user.app.state.bot = MagicMock()
+        mock_request_with_user.app.state.bot.guilds = []
+        mock_request_with_user.app.state.bot.user = None
+
+        await dashboard(request=mock_request_with_user, user=test_user, session=mock_session)
+
+        call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
+        context = call_kwargs["context"]
+
+        # No guilds should be shown (bot not in any of user's guilds)
+        assert context["guilds"] == []
+
 
 class TestCheckGuildAccess:
     """Tests para _check_guild_access."""

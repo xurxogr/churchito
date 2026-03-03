@@ -183,61 +183,71 @@ async def dashboard(
 
     logger.debug(f"Usuario ID: {user_id}, Es owner: {is_owner}")
 
-    user_guilds = user.get("guilds", [])
-    logger.debug(f"Usuario tiene {len(user_guilds)} guilds en Discord")
-
     manageable_guilds = []
 
-    for guild in user_guilds:
-        permissions = int(guild.get("permissions", 0))
-        is_guild_owner = guild.get("owner", False)
-        # MANAGE_GUILD = 0x20, ADMINISTRATOR = 0x8
-        has_manage = (permissions & 0x20) != 0 or (permissions & 0x8) != 0 or is_guild_owner
+    # Bot owners see ALL guilds the bot is in
+    if is_owner and bot:
+        logger.debug(f"Usuario es owner, mostrando todos los {len(bot.guilds)} guilds del bot")
+        for discord_guild in bot.guilds:
+            manageable_guilds.append(
+                {
+                    "id": str(discord_guild.id),
+                    "name": discord_guild.name,
+                    "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
+                    "bot_present": True,
+                    "has_access": True,
+                }
+            )
+    else:
+        # Non-owners: check guilds from OAuth
+        user_guilds = user.get("guilds", [])
+        logger.debug(f"Usuario tiene {len(user_guilds)} guilds en Discord")
 
-        logger.debug(
-            f"Guild {guild['name']}: perms={permissions}, "
-            f"manage={has_manage}, owner={is_guild_owner}"
-        )
-
-        if is_owner or has_manage:
-            guild_id = int(guild.get("id", 0))
-            bot_in_guild = bot and any(g.id == guild_id for g in bot.guilds)
+        for guild in user_guilds:
+            permissions = int(guild.get("permissions", 0))
+            is_guild_owner = guild.get("owner", False)
+            # MANAGE_GUILD = 0x20, ADMINISTRATOR = 0x8
+            has_manage = (permissions & 0x20) != 0 or (permissions & 0x8) != 0 or is_guild_owner
 
             logger.debug(
-                f"Guild {guild['name']} (ID: {guild_id}): bot_in_guild={bot_in_guild}, "
-                f"bot_guilds={[g.id for g in bot.guilds] if bot else 'no bot'}"
+                f"Guild {guild['name']}: perms={permissions}, "
+                f"manage={has_manage}, owner={is_guild_owner}"
             )
 
-            # Check actual access if bot is in guild
-            has_access = False
-            if bot_in_guild:
-                has_access = await _check_guild_access(
-                    session=session,
-                    bot=bot,
-                    guild_id=guild_id,
-                    user_id=user_id,
-                    is_bot_owner=is_owner,
-                    is_guild_owner=is_guild_owner,
-                    user=user,
+            if has_manage:
+                guild_id = int(guild.get("id", 0))
+                bot_in_guild = bot and any(g.id == guild_id for g in bot.guilds)
+
+                logger.debug(
+                    f"Guild {guild['name']} (ID: {guild_id}): bot_in_guild={bot_in_guild}, "
+                    f"bot_guilds={[g.id for g in bot.guilds] if bot else 'no bot'}"
                 )
 
-            # Only show guilds where:
-            # - Bot is present AND user has access
-            # - OR user is bot owner (show all)
-            if is_owner or (bot_in_guild and has_access):
-                manageable_guilds.append(
-                    {
-                        "id": guild["id"],
-                        "name": guild["name"],
-                        "icon": guild.get("icon"),
-                        "bot_present": bot_in_guild,
-                        "has_access": has_access,
-                    }
-                )
+                # Check actual access if bot is in guild
+                has_access = False
+                if bot_in_guild:
+                    has_access = await _check_guild_access(
+                        session=session,
+                        bot=bot,
+                        guild_id=guild_id,
+                        user_id=user_id,
+                        is_bot_owner=False,
+                        is_guild_owner=is_guild_owner,
+                        user=user,
+                    )
 
-    manageable_guilds.sort(
-        key=lambda g: (not g["bot_present"], not g["has_access"], g["name"].lower())
-    )
+                if bot_in_guild and has_access:
+                    manageable_guilds.append(
+                        {
+                            "id": guild["id"],
+                            "name": guild["name"],
+                            "icon": guild.get("icon"),
+                            "bot_present": bot_in_guild,
+                            "has_access": has_access,
+                        }
+                    )
+
+    manageable_guilds.sort(key=lambda g: g["name"].lower())
 
     logger.debug(f"Guilds gestionables: {len(manageable_guilds)}")
 
@@ -279,14 +289,22 @@ def _get_guild_access(
     """
     owner_ids = request.app.state.settings.web.owner_ids
     user_id = int(user.get("id", 0))
-    guilds: list[dict[str, Any]] = user.get("guilds", [])
+    bot = request.app.state.bot
 
+    # Bot owners can access any guild the bot is in
     if user_id in owner_ids:
-        for guild in guilds:
-            if int(guild.get("id", 0)) == guild_id:
-                return guild
-        return {"id": str(guild_id), "name": f"Guild {guild_id}"}
+        if not bot:
+            return None
+        discord_guild = bot.get_guild(guild_id)
+        if not discord_guild:
+            return None
+        return {
+            "id": str(discord_guild.id),
+            "name": discord_guild.name,
+            "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
+        }
 
+    guilds: list[dict[str, Any]] = user.get("guilds", [])
     for guild in guilds:
         if int(guild.get("id", 0)) == guild_id:
             permissions = int(guild.get("permissions", 0))

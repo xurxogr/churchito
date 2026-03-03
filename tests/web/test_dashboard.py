@@ -7,7 +7,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from discord_bot.web.routers.dashboard import _get_guild_access, get_templates, router
+from discord_bot.web.routers.dashboard import (
+    _check_guild_access,
+    _get_guild_access,
+    get_templates,
+    router,
+)
 
 
 @pytest.fixture
@@ -52,30 +57,51 @@ class TestGetTemplates:
 class TestGetGuildAccess:
     """Tests para _get_guild_access."""
 
-    def test_owner_has_access_to_any_guild(
+    def test_owner_has_access_to_any_guild_bot_is_in(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que owner tiene acceso a cualquier guild."""
+        """Probar que owner tiene acceso a cualquier guild donde está el bot."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = [123456789]
 
-        # Guild que no está en la lista del usuario
+        # Mock bot with guild
+        mock_guild = MagicMock()
+        mock_guild.id = 999999
+        mock_guild.name = "Bot Guild"
+        mock_guild.icon = None
+        simple_app.state.bot.get_guild = MagicMock(return_value=mock_guild)
+
         result = _get_guild_access(request, 999999, test_user)
         assert result is not None
         assert result["id"] == "999999"
+        assert result["name"] == "Bot Guild"
 
-    def test_owner_gets_guild_info_when_in_list(
+    def test_owner_no_access_if_bot_not_in_guild(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que owner obtiene info del guild cuando está en su lista."""
+        """Probar que owner no tiene acceso si el bot no está en el guild."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = [123456789]
 
-        result = _get_guild_access(request, 111222333, test_user)
-        assert result is not None
-        assert result["name"] == "Test Guild"
+        # Bot not in guild
+        simple_app.state.bot.get_guild = MagicMock(return_value=None)
+
+        result = _get_guild_access(request, 999999, test_user)
+        assert result is None
+
+    def test_owner_no_access_if_bot_is_none(
+        self, simple_app: FastAPI, test_user: dict[str, Any]
+    ) -> None:
+        """Probar que owner no tiene acceso si el bot es None."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.settings.web.owner_ids = [123456789]
+        simple_app.state.bot = None
+
+        result = _get_guild_access(request, 999999, test_user)
+        assert result is None
 
     def test_user_with_manage_guild_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
@@ -108,6 +134,48 @@ class TestGetGuildAccess:
 
         result = _get_guild_access(request, 999999, test_user)
         assert result is None
+
+
+class TestCheckGuildAccess:
+    """Tests para _check_guild_access."""
+
+    @pytest.mark.asyncio
+    async def test_bot_owner_always_has_access(self) -> None:
+        """Probar que bot owner siempre tiene acceso."""
+        session = MagicMock()
+        bot = MagicMock()
+        user: dict[str, Any] = {"id": "123456789"}
+
+        result = await _check_guild_access(
+            session=session,
+            bot=bot,
+            guild_id=999999,
+            user_id=123456789,
+            is_bot_owner=True,
+            is_guild_owner=False,
+            user=user,
+        )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_guild_owner_always_has_access(self) -> None:
+        """Probar que guild owner siempre tiene acceso."""
+        session = MagicMock()
+        bot = MagicMock()
+        user: dict[str, Any] = {"id": "123456789"}
+
+        result = await _check_guild_access(
+            session=session,
+            bot=bot,
+            guild_id=999999,
+            user_id=123456789,
+            is_bot_owner=False,
+            is_guild_owner=True,
+            user=user,
+        )
+
+        assert result is True
 
 
 class TestIndexRoute:
