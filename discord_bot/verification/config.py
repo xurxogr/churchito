@@ -345,10 +345,14 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.ACCEPT_BUTTON_TEXT,
             name="Texto botón aceptar",
-            description="Texto del botón de aceptar para moderadores",
+            description=(
+                "Texto del botón de aceptar para moderadores. "
+                "Usa {verification_type} para mostrar el tipo de verificación."
+            ),
             option_type=ConfigOptionType.STRING,
             default="Aceptar",
             max_length=80,
+            placeholders=["verification_type"],
             group="Panel de moderación",
         ),
         ConfigOption(

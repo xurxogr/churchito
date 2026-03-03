@@ -728,7 +728,10 @@ async def update_mod_message_for_review(
                 )
 
     # Manual review - show buttons
-    accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"
+    accept_label = format_message(
+        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+        verification_type=type_display,
+    )
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
     view = ModReviewView(
         request_id=request.id, accept_label=accept_label, reject_label=reject_label
@@ -1483,7 +1486,13 @@ async def _update_mod_message_for_review(
     all_embeds = [main_embed, *screenshot_embeds]
 
     # Crear vista con botones de aceptar/rechazar
-    accept_label = config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar"
+    type_display = get_verification_type_display(
+        verification_type=VerificationType(request.verification_type), config=config
+    )
+    accept_label = format_message(
+        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+        verification_type=type_display,
+    )
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
     view = ModReviewView(
         request_id=request_id,
