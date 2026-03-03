@@ -154,6 +154,45 @@
     </details>
     {% endif %}
 
+    {# Macro para renderizar el contenido de una sección de embed según su tipo #}
+    {% macro renderSectionContent(row, optionKey, rowIndex) %}
+    {% set sectionType = row.type or 'text' %}
+    {% if sectionType == 'text' %}
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <input type="text" class="input input-sm" data-col="title"
+                   value="{{ row.title or '' }}" placeholder="Título (se muestra en negrita)"
+                   oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+            <textarea class="textarea" data-col="content" rows="2"
+                      placeholder="Contenido (soporta placeholders y Markdown)"
+                      oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')"
+                      style="width: 100%; resize: vertical;">{{ row.content or '' }}</textarea>
+        </div>
+    {% elif sectionType == 'fields' %}
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 11px; color: var(--text-muted);">
+                    <input type="checkbox" data-col="inline" {% if row.inline != false %}checked{% endif %}
+                           onchange="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                    En línea (horizontal)
+                </label>
+            </div>
+            {% for i in [1, 2, 3] %}
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 10px; color: var(--text-muted); min-width: 15px;">{{ i }}.</span>
+                <input type="text" class="input input-sm" data-col="field_{{ i }}_name"
+                       value="{{ row['field_' ~ i ~ '_name'] or '' }}" placeholder="Nombre"
+                       style="width: 120px;"
+                       oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                <input type="text" class="input input-sm" data-col="field_{{ i }}_value"
+                       value="{{ row['field_' ~ i ~ '_value'] or '' }}" placeholder="Valor (soporta placeholders)"
+                       style="flex: 1;"
+                       oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    {% endmacro %}
+
     {# Macro para renderizar una opción #}
     {% macro render_option(option) %}
     <div class="option-item" data-option-key="{{ option.key }}">
@@ -463,111 +502,189 @@
             {% set embed_value = option.value or {} %}
             {% set embed_sections = embed_value.sections or [] %}
             <div class="embed-editor" id="embed-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "{}" }}'>
-                <div class="embed-editor-fields">
-                    <div class="embed-field-row">
-                        <div class="embed-field">
-                            <label for="embed-title-{{ option.key }}">Título</label>
-                            <input type="text" id="embed-title-{{ option.key }}" class="input"
-                                   value="{{ embed_value.title or '' }}"
-                                   placeholder="Título del embed (soporta placeholders)"
-                                   maxlength="256"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
+                <div class="embed-editor-label">Configuración del Embed</div>
+                <div class="embed-editor-container">
+                    <div class="embed-editor-main">
+                        <div class="embed-editor-fields">
+                            <div class="embed-field-row">
+                                <div class="embed-field">
+                                    <label for="embed-title-{{ option.key }}">Título</label>
+                                    <input type="text" id="embed-title-{{ option.key }}" class="input"
+                                           value="{{ embed_value.title or '' }}"
+                                           placeholder="Título del embed (soporta placeholders)"
+                                           maxlength="256"
+                                           oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                </div>
+                                <div class="embed-field" style="flex: 0 0 180px;">
+                                    <label for="embed-color-{{ option.key }}">Color</label>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="color" id="embed-color-picker-{{ option.key }}"
+                                               value="{{ embed_value.color or '#5865F2' }}"
+                                               style="width: 38px; height: 38px; padding: 0; border: none; cursor: pointer; border-radius: 4px;"
+                                               oninput="document.getElementById('embed-color-{{ option.key }}').value = this.value; trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                        <input type="text" id="embed-color-{{ option.key }}" class="input"
+                                               value="{{ embed_value.color or '' }}"
+                                               placeholder="#5865F2"
+                                               maxlength="7"
+                                               style="flex: 1;"
+                                               oninput="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)) document.getElementById('embed-color-picker-{{ option.key }}').value = this.value; trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="embed-field-row">
+                                <div class="embed-field">
+                                    <label for="embed-description-{{ option.key }}">Descripción <small>(aparece antes de las secciones)</small></label>
+                                    <textarea id="embed-description-{{ option.key }}" class="textarea"
+                                              rows="3"
+                                              placeholder="Descripción del embed (soporta placeholders y Markdown)"
+                                              oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">{{ embed_value.description or '' }}</textarea>
+                                </div>
+                            </div>
+                            <div class="embed-field-row">
+                                <div class="embed-field">
+                                    <label for="embed-thumbnail-{{ option.key }}">Thumbnail URL <small>(esquina superior derecha)</small></label>
+                                    <input type="text" id="embed-thumbnail-{{ option.key }}" class="input"
+                                           value="{{ embed_value.thumbnail_url or '' }}"
+                                           placeholder="https://ejemplo.com/imagen.png"
+                                           oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                </div>
+                            </div>
+                            <div class="embed-field-row">
+                                <div class="embed-field">
+                                    <label for="embed-image-{{ option.key }}">Imagen URL <small>(imagen principal grande)</small></label>
+                                    <input type="text" id="embed-image-{{ option.key }}" class="input"
+                                           value="{{ embed_value.image_url or '' }}"
+                                           placeholder="https://ejemplo.com/imagen.png"
+                                           oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                </div>
+                            </div>
+                            <div class="embed-field-row">
+                                <div class="embed-field">
+                                    <label for="embed-footer-text-{{ option.key }}">Texto del footer</label>
+                                    <input type="text" id="embed-footer-text-{{ option.key }}" class="input"
+                                           value="{{ embed_value.footer_text or '' }}"
+                                           placeholder="Pie de página (soporta placeholders)"
+                                           maxlength="2048"
+                                           oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                </div>
+                                <div class="embed-field">
+                                    <label for="embed-footer-icon-{{ option.key }}">Icono del footer URL</label>
+                                    <input type="text" id="embed-footer-icon-{{ option.key }}" class="input"
+                                           value="{{ embed_value.footer_icon_url or '' }}"
+                                           placeholder="URL del icono (20x20)"
+                                           oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
+                                </div>
+                            </div>
                         </div>
-                        <div class="embed-field embed-field-small">
-                            <label for="embed-color-{{ option.key }}">Color</label>
-                            <input type="text" id="embed-color-{{ option.key }}" class="input"
-                                   value="{{ embed_value.color or '' }}"
-                                   placeholder="#FF5733"
-                                   maxlength="7"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
+
+                        <div class="embed-sections-header">
+                            <h4>Secciones del contenido</h4>
+                            <span class="embed-sections-help">Las secciones se muestran en orden</span>
+                        </div>
+
+                        <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
+                            <table class="config-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 140px;">Tipo</th>
+                                        <th>Contenido / Configuración</th>
+                                        <th class="actions-col" style="width: 100px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="embed-tbody-{{ option.key }}">
+                                    {% for row in embed_sections %}
+                                    <tr data-row-index="{{ loop.index0 }}" class="embed-section-row" data-section-type="{{ row.type or 'text' }}">
+                                        <td>
+                                            <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '{{ option.key }}')">
+                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
+                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
+                                            </select>
+                                        </td>
+                                        <td class="embed-section-content-cell">
+                                            {{ renderSectionContent(row, option.key, loop.index0) }}
+                                        </td>
+                                        <td class="actions-col">
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Subir">&#9650;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Bajar">&#9660;</button>
+                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                        </td>
+                                        <div class="embed-section-data" style="display:none;" data-options='{{ row | tojson }}'></div>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="config-table-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSection('{{ option.key }}')">+ Añadir sección</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="embed-field-row">
-                        <div class="embed-field">
-                            <label for="embed-thumbnail-{{ option.key }}">Thumbnail URL</label>
-                            <input type="text" id="embed-thumbnail-{{ option.key }}" class="input"
-                                   value="{{ embed_value.thumbnail_url or '' }}"
-                                   placeholder="URL de imagen pequeña (esquina)"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
-                        </div>
-                        <div class="embed-field">
-                            <label for="embed-image-{{ option.key }}">Imagen URL</label>
-                            <input type="text" id="embed-image-{{ option.key }}" class="input"
-                                   value="{{ embed_value.image_url or '' }}"
-                                   placeholder="URL de imagen principal"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
-                        </div>
-                    </div>
-                    <div class="embed-field-row">
-                        <div class="embed-field">
-                            <label for="embed-footer-text-{{ option.key }}">Texto del footer</label>
-                            <input type="text" id="embed-footer-text-{{ option.key }}" class="input"
-                                   value="{{ embed_value.footer_text or '' }}"
-                                   placeholder="Pie de página (soporta placeholders)"
-                                   maxlength="2048"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
-                        </div>
-                        <div class="embed-field">
-                            <label for="embed-footer-icon-{{ option.key }}">Icono del footer URL</label>
-                            <input type="text" id="embed-footer-icon-{{ option.key }}" class="input"
-                                   value="{{ embed_value.footer_icon_url or '' }}"
-                                   placeholder="URL del icono del footer"
-                                   oninput="trackEmbedChange('{{ option.key }}')">
+
+                    <div class="embed-editor-preview">
+                        <div class="embed-preview-container">
+                            <div class="embed-preview-title">Vista previa</div>
+                            <div class="discord-embed-preview" id="embed-preview-{{ option.key }}" style="border-left-color: {{ embed_value.color or '#5865F2' }}">
+                                <!-- Preview content will be generated by JS -->
+                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="embed-sections-header">
-                    <h4>Secciones del contenido</h4>
-                    <span class="embed-sections-help">Máximo 25 campos en total</span>
-                </div>
+            {% elif option.type == 'embed_sections' %}
+            {% set sections_value = option.value or [] %}
+            <div class="embed-editor embed-sections-editor" id="embed-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "[]" }}' data-is-sections="true">
+                <div class="embed-editor-label">Configuración de contenido</div>
+                <div class="embed-editor-container">
+                    <div class="embed-editor-main">
+                        <div class="embed-sections-header" style="margin-top: 0;">
+                            <h4>Secciones</h4>
+                            <span class="embed-sections-help">Las secciones se añaden al embed principal</span>
+                        </div>
 
-                <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
-                    <table class="config-table">
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th>Contenido</th>
-                                <th>Opciones</th>
-                                <th class="actions-col">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="embed-tbody-{{ option.key }}">
-                            {% for row in embed_sections %}
-                            <tr data-row-index="{{ loop.index0 }}">
-                                <td>
-                                    <select class="select select-sm" data-col="type" onchange="updateEmbedSectionOptions(this); trackEmbedChange('{{ option.key }}')">
-                                        <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
-                                        <option value="text_colored" {% if row.type == 'text_colored' %}selected{% endif %}>Texto con color</option>
-                                        <option value="header" {% if row.type == 'header' %}selected{% endif %}>Encabezado</option>
-                                        <option value="progress" {% if row.type == 'progress' %}selected{% endif %}>Barra de progreso</option>
-                                        <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <input type="text" class="input input-sm" data-col="content"
-                                           value="{{ row.content or '' }}"
-                                           placeholder="Contenido..."
-                                           oninput="trackEmbedChange('{{ option.key }}')">
-                                </td>
-                                <td class="embed-section-options">
-                                    <button type="button" class="btn btn-secondary btn-sm"
-                                            onclick="openEmbedSectionOptions(this, '{{ option.key }}')"
-                                            title="Configurar opciones">⚙️</button>
-                                    <div class="embed-section-data" style="display:none;"
-                                         data-options='{{ row | tojson }}'></div>
-                                </td>
-                                <td class="actions-col">
-                                    <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('{{ option.key }}')" title="Subir">&#9650;</button>
-                                    <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('{{ option.key }}')" title="Bajar">&#9660;</button>
-                                    <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('{{ option.key }}')" title="Eliminar">&#10005;</button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <div class="config-table-actions">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSection('{{ option.key }}')">+ Añadir sección</button>
+                        <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
+                            <table class="config-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 140px;">Tipo</th>
+                                        <th>Contenido / Configuración</th>
+                                        <th class="actions-col" style="width: 100px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="embed-tbody-{{ option.key }}">
+                                    {% for row in sections_value %}
+                                    <tr data-row-index="{{ loop.index0 }}" class="embed-section-row" data-section-type="{{ row.type or 'text' }}">
+                                        <td>
+                                            <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '{{ option.key }}')">
+                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
+                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
+                                            </select>
+                                        </td>
+                                        <td class="embed-section-content-cell">
+                                            {{ renderSectionContent(row, option.key, loop.index0) }}
+                                        </td>
+                                        <td class="actions-col">
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Subir">&#9650;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Bajar">&#9660;</button>
+                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                        </td>
+                                        <div class="embed-section-data" style="display:none;" data-options='{{ row | tojson }}'></div>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="config-table-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSectionFor('{{ option.key }}')">+ Añadir sección</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="embed-editor-preview">
+                        <div class="embed-preview-container">
+                            <div class="embed-preview-title">Vista previa</div>
+                            <div class="discord-embed-preview" id="embed-preview-{{ option.key }}" style="border-left-color: #5865F2">
+                                <!-- Preview content will be generated by JS -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -782,6 +899,9 @@ window.changedOptions = new Map();
 window.rootPath = '{{ root_path }}';
 window.guildId = '{{ guild_id }}';
 window.cogName = '{{ cog_name }}';
+
+// Preview data for placeholder replacement
+window.previewData = {{ preview_data | tojson }};
 
 function trackChange(el) {
     const key = el.dataset.optionKey;
@@ -1126,11 +1246,10 @@ function trackEmbedChange(optionKey) {
 }
 
 function getEmbedData(optionKey) {
-    const container = document.getElementById('embed-' + optionKey);
-
     // Get main embed fields
     const data = {
         title: document.getElementById('embed-title-' + optionKey)?.value || '',
+        description: document.getElementById('embed-description-' + optionKey)?.value || '',
         color: document.getElementById('embed-color-' + optionKey)?.value || '',
         thumbnail_url: document.getElementById('embed-thumbnail-' + optionKey)?.value || '',
         image_url: document.getElementById('embed-image-' + optionKey)?.value || '',
@@ -1141,10 +1260,12 @@ function getEmbedData(optionKey) {
 
     // Get sections
     const tbody = document.getElementById('embed-tbody-' + optionKey);
-    tbody.querySelectorAll('tr').forEach(tr => {
-        const sectionData = getEmbedSectionData(tr);
-        data.sections.push(sectionData);
-    });
+    if (tbody) {
+        tbody.querySelectorAll('tr').forEach(tr => {
+            const sectionData = getEmbedSectionData(tr);
+            data.sections.push(sectionData);
+        });
+    }
 
     // Clean empty values
     Object.keys(data).forEach(key => {
@@ -1158,25 +1279,95 @@ function getEmbedData(optionKey) {
 
 function getEmbedSectionData(tr) {
     const typeSelect = tr.querySelector('[data-col="type"]');
-    const contentInput = tr.querySelector('[data-col="content"]');
-    const optionsDiv = tr.querySelector('.embed-section-data');
+    const type = typeSelect?.value || 'text';
 
-    let sectionData = {};
+    let sectionData = { type };
 
-    // Try to parse stored options
-    if (optionsDiv && optionsDiv.dataset.options) {
-        try {
-            sectionData = JSON.parse(optionsDiv.dataset.options);
-        } catch (e) {
-            console.warn('Failed to parse section options:', e);
+    // Get type-specific fields
+    if (type === 'text') {
+        const titleEl = tr.querySelector('[data-col="title"]');
+        const contentEl = tr.querySelector('[data-col="content"]');
+        if (titleEl) sectionData.title = titleEl.value || '';
+        if (contentEl) sectionData.content = contentEl.value || '';
+    } else if (type === 'fields') {
+        const inlineCheckbox = tr.querySelector('[data-col="inline"]');
+        sectionData.inline = inlineCheckbox ? inlineCheckbox.checked : true;
+
+        for (let i = 1; i <= 3; i++) {
+            const nameInput = tr.querySelector(`[data-col="field_${i}_name"]`);
+            const valueInput = tr.querySelector(`[data-col="field_${i}_value"]`);
+            if (nameInput) sectionData[`field_${i}_name`] = nameInput.value || '';
+            if (valueInput) sectionData[`field_${i}_value`] = valueInput.value || '';
         }
     }
 
-    // Override with current visible values
-    sectionData.type = typeSelect?.value || 'text';
-    sectionData.content = contentInput?.value || '';
-
     return sectionData;
+}
+
+function getSectionContentHTML(type, optionKey) {
+    // Helper to get the right handler calls based on editor type
+    const editor = document.getElementById('embed-' + optionKey);
+    const isSections = editor && editor.dataset.isSections === 'true';
+    const trackFn = isSections ? 'trackEmbedSectionsChange' : 'trackEmbedChange';
+    const previewFn = isSections ? 'updateEmbedSectionsPreview' : 'updateEmbedPreview';
+    const handler = `${trackFn}('${optionKey}'); ${previewFn}('${optionKey}')`;
+
+    if (type === 'text') {
+        return `<div style="display: flex; flex-direction: column; gap: 6px;">
+            <input type="text" class="input input-sm" data-col="title"
+                   placeholder="Título (se muestra en negrita)"
+                   oninput="${handler}">
+            <textarea class="textarea" data-col="content" rows="2"
+                      placeholder="Contenido (soporta placeholders y Markdown)"
+                      oninput="${handler}"
+                      style="width: 100%; resize: vertical;"></textarea>
+        </div>`;
+    } else if (type === 'fields') {
+        let fieldsHTML = `<div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 11px; color: var(--text-muted);">
+                    <input type="checkbox" data-col="inline" checked
+                           onchange="${handler}">
+                    En línea (horizontal)
+                </label>
+            </div>`;
+        for (let i = 1; i <= 3; i++) {
+            fieldsHTML += `<div style="display: flex; gap: 8px; align-items: center;">
+                <span style="font-size: 10px; color: var(--text-muted); min-width: 15px;">${i}.</span>
+                <input type="text" class="input input-sm" data-col="field_${i}_name"
+                       placeholder="Nombre" style="width: 120px;"
+                       oninput="${handler}">
+                <input type="text" class="input input-sm" data-col="field_${i}_value"
+                       placeholder="Valor (soporta placeholders)" style="flex: 1;"
+                       oninput="${handler}">
+            </div>`;
+        }
+        fieldsHTML += '</div>';
+        return fieldsHTML;
+    }
+    return '';
+}
+
+function handleSectionTypeChange(selectEl, optionKey) {
+    const tr = selectEl.closest('tr');
+    const type = selectEl.value;
+    const contentCell = tr.querySelector('.embed-section-content-cell');
+
+    if (contentCell) {
+        contentCell.innerHTML = getSectionContentHTML(type, optionKey);
+    }
+
+    tr.setAttribute('data-section-type', type);
+
+    // Check if this is an embed_sections type
+    const editor = document.getElementById('embed-' + optionKey);
+    if (editor && editor.dataset.isSections === 'true') {
+        trackEmbedSectionsChange(optionKey);
+        updateEmbedSectionsPreview(optionKey);
+    } else {
+        trackEmbedChange(optionKey);
+        updateEmbedPreview(optionKey);
+    }
 }
 
 function addEmbedSection(optionKey) {
@@ -1184,191 +1375,384 @@ function addEmbedSection(optionKey) {
 
     const tr = document.createElement('tr');
     tr.setAttribute('data-row-index', tbody.children.length);
+    tr.className = 'embed-section-row';
+    tr.setAttribute('data-section-type', 'text');
     tr.innerHTML = `
         <td>
-            <select class="select select-sm" data-col="type" onchange="updateEmbedSectionOptions(this); trackEmbedChange('${optionKey}')">
-                <option value="text">Texto</option>
-                <option value="text_colored">Texto con color</option>
-                <option value="header">Encabezado</option>
-                <option value="progress">Barra de progreso</option>
+            <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '${optionKey}')">
+                <option value="text" selected>Texto</option>
                 <option value="fields">Campos (3 col)</option>
             </select>
         </td>
-        <td>
-            <input type="text" class="input input-sm" data-col="content"
-                   placeholder="Contenido..."
-                   oninput="trackEmbedChange('${optionKey}')">
-        </td>
-        <td class="embed-section-options">
-            <button type="button" class="btn btn-secondary btn-sm"
-                    onclick="openEmbedSectionOptions(this, '${optionKey}')"
-                    title="Configurar opciones">⚙️</button>
-            <div class="embed-section-data" style="display:none;"
-                 data-options='{"type":"text"}'></div>
+        <td class="embed-section-content-cell">
+            ${getSectionContentHTML('text', optionKey)}
         </td>
         <td class="actions-col">
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('${optionKey}')" title="Subir">&#9650;</button>
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('${optionKey}')" title="Bajar">&#9660;</button>
-            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('${optionKey}')" title="Eliminar">&#10005;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Subir">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Bajar">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Eliminar">&#10005;</button>
         </td>
+        <div class="embed-section-data" style="display:none;" data-options='{"type":"text"}'></div>
     `;
 
     tbody.appendChild(tr);
     trackEmbedChange(optionKey);
+    updateEmbedPreview(optionKey);
 }
 
-function updateEmbedSectionOptions(selectEl) {
-    const tr = selectEl.closest('tr');
-    const optionsDiv = tr.querySelector('.embed-section-data');
-    const type = selectEl.value;
+// Embed Sections functions (for EMBED_SECTIONS type - sections only, no embed wrapper)
+function trackEmbedSectionsChange(optionKey) {
+    const container = document.getElementById('embed-' + optionKey);
+    const original = container.dataset.original || '[]';
+    const current = JSON.stringify(getEmbedSectionsData(optionKey));
 
-    // Update the stored options with new type, keeping other values
-    let options = {};
-    try {
-        options = JSON.parse(optionsDiv.dataset.options || '{}');
-    } catch (e) {}
-
-    options.type = type;
-    optionsDiv.dataset.options = JSON.stringify(options);
-}
-
-function openEmbedSectionOptions(btn, optionKey) {
-    const tr = btn.closest('tr');
-    const optionsDiv = tr.querySelector('.embed-section-data');
-    const typeSelect = tr.querySelector('[data-col="type"]');
-    const type = typeSelect?.value || 'text';
-
-    let options = {};
-    try {
-        options = JSON.parse(optionsDiv.dataset.options || '{}');
-    } catch (e) {}
-
-    // Create modal based on section type
-    let modalContent = '';
-
-    if (type === 'text_colored') {
-        const colors = [
-            ['Gris', 'gray'], ['Rojo', 'red'], ['Verde', 'green'], ['Amarillo', 'yellow'],
-            ['Azul', 'blue'], ['Rosa', 'pink'], ['Cian', 'cyan'], ['Blanco', 'white']
-        ];
-        modalContent = `
-            <div class="modal-field">
-                <label>Color del texto</label>
-                <select id="modal-text-color">
-                    ${colors.map(([label, value]) =>
-                        `<option value="${value}" ${options.text_color === value ? 'selected' : ''}>${label}</option>`
-                    ).join('')}
-                </select>
-            </div>
-        `;
-    } else if (type === 'progress') {
-        modalContent = `
-            <div class="modal-field">
-                <label>Placeholder del valor</label>
-                <input type="text" id="modal-value-key" value="${options.value_key || ''}" placeholder="ej: level">
-            </div>
-            <div class="modal-field">
-                <label>Valor máximo</label>
-                <input type="number" id="modal-max-value" value="${options.max_value || 100}" min="1">
-            </div>
-            <div class="modal-field">
-                <label>Etiqueta izquierda</label>
-                <input type="text" id="modal-label-left" value="${options.label_left || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Etiqueta derecha</label>
-                <input type="text" id="modal-label-right" value="${options.label_right || ''}">
-            </div>
-        `;
-    } else if (type === 'fields') {
-        modalContent = `
-            <div class="modal-field">
-                <label><input type="checkbox" id="modal-inline" ${options.inline !== false ? 'checked' : ''}> En línea (horizontal)</label>
-            </div>
-            <div class="modal-field">
-                <label>Campo 1 - Nombre</label>
-                <input type="text" id="modal-field-1-name" value="${options.field_1_name || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Campo 1 - Valor</label>
-                <input type="text" id="modal-field-1-value" value="${options.field_1_value || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Campo 2 - Nombre</label>
-                <input type="text" id="modal-field-2-name" value="${options.field_2_name || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Campo 2 - Valor</label>
-                <input type="text" id="modal-field-2-value" value="${options.field_2_value || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Campo 3 - Nombre</label>
-                <input type="text" id="modal-field-3-name" value="${options.field_3_name || ''}">
-            </div>
-            <div class="modal-field">
-                <label>Campo 3 - Valor</label>
-                <input type="text" id="modal-field-3-value" value="${options.field_3_value || ''}">
-            </div>
-        `;
+    if (current !== original) {
+        window.changedOptions.set(optionKey, { type: 'embed', value: current });
     } else {
-        modalContent = '<p>Este tipo de sección no tiene opciones adicionales.</p>';
+        window.changedOptions.delete(optionKey);
     }
-
-    // Create and show modal
-    const modal = document.createElement('div');
-    modal.className = 'embed-options-modal';
-    modal.innerHTML = `
-        <div class="embed-options-modal-content">
-            <h3>Opciones de la sección</h3>
-            ${modalContent}
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="this.closest('.embed-options-modal').remove()">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="saveEmbedSectionOptions(this, '${optionKey}')">Guardar</button>
-            </div>
-        </div>
-    `;
-    modal.dataset.targetRow = tr.rowIndex;
-    document.body.appendChild(modal);
+    updateSaveBar();
 }
 
-function saveEmbedSectionOptions(btn, optionKey) {
-    const modal = btn.closest('.embed-options-modal');
+function getEmbedSectionsData(optionKey) {
+    const sections = [];
     const tbody = document.getElementById('embed-tbody-' + optionKey);
-    const rowIndex = parseInt(modal.dataset.targetRow) - 1; // Adjust for header
-    const tr = tbody.children[rowIndex];
+    if (tbody) {
+        tbody.querySelectorAll('tr').forEach(tr => {
+            const sectionData = getEmbedSectionData(tr);
+            sections.push(sectionData);
+        });
+    }
+    return sections;
+}
 
-    if (!tr) {
-        modal.remove();
+function addEmbedSectionFor(optionKey) {
+    const tbody = document.getElementById('embed-tbody-' + optionKey);
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-row-index', tbody.children.length);
+    tr.className = 'embed-section-row';
+    tr.setAttribute('data-section-type', 'text');
+    tr.innerHTML = `
+        <td>
+            <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '${optionKey}')">
+                <option value="text" selected>Texto</option>
+                <option value="fields">Campos (3 col)</option>
+            </select>
+        </td>
+        <td class="embed-section-content-cell">
+            ${getSectionContentHTML('text', optionKey)}
+        </td>
+        <td class="actions-col">
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Subir">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Bajar">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Eliminar">&#10005;</button>
+        </td>
+        <div class="embed-section-data" style="display:none;" data-options='{"type":"text"}'></div>
+    `;
+
+    tbody.appendChild(tr);
+    trackEmbedSectionsChange(optionKey);
+    updateEmbedSectionsPreview(optionKey);
+}
+
+function updateEmbedSectionsPreview(optionKey) {
+    const previewEl = document.getElementById('embed-preview-' + optionKey);
+    if (!previewEl) return;
+
+    const sections = getEmbedSectionsData(optionKey);
+    const color = '#5865F2'; // Default Discord blue
+
+    // Split sections into embed groups
+    const embedGroups = splitSectionsIntoEmbeds(sections);
+
+    // If only one group, render as single block (original behavior)
+    if (embedGroups.length <= 1) {
+        const group = embedGroups[0] || [];
+        let html = '';
+        if (group.length > 0) {
+            html += '<div class="discord-embed-sections">';
+            group.forEach(section => {
+                html += renderSectionPreview(section);
+            });
+            html += '</div>';
+        }
+        if (!html) {
+            html = '<div style="color: #72767d; font-style: italic;">Añade secciones para ver la vista previa</div>';
+        }
+        previewEl.style.borderLeftColor = color;
+        previewEl.innerHTML = html;
         return;
     }
 
-    const optionsDiv = tr.querySelector('.embed-section-data');
-    const typeSelect = tr.querySelector('[data-col="type"]');
-    const type = typeSelect?.value || 'text';
-    const contentInput = tr.querySelector('[data-col="content"]');
+    // Multiple embeds - render as separate blocks
+    previewEl.style.borderLeftColor = 'transparent';
+    previewEl.style.background = 'transparent';
+    previewEl.style.padding = '0';
 
-    let options = { type, content: contentInput?.value || '' };
+    let html = '';
+    embedGroups.forEach((group, idx) => {
+        html += `<div class="discord-embed-preview" style="border-left-color: ${color}; margin-bottom: 8px;">`;
+        html += '<div class="discord-embed-sections">';
+        group.forEach(section => {
+            html += renderSectionPreview(section);
+        });
+        html += '</div>';
+        html += '</div>';
+    });
 
-    // Collect options based on type
-    if (type === 'text_colored') {
-        options.text_color = document.getElementById('modal-text-color')?.value || 'white';
-    } else if (type === 'progress') {
-        options.value_key = document.getElementById('modal-value-key')?.value || '';
-        options.max_value = parseInt(document.getElementById('modal-max-value')?.value) || 100;
-        options.label_left = document.getElementById('modal-label-left')?.value || '';
-        options.label_right = document.getElementById('modal-label-right')?.value || '';
-    } else if (type === 'fields') {
-        options.inline = document.getElementById('modal-inline')?.checked !== false;
-        options.field_1_name = document.getElementById('modal-field-1-name')?.value || '';
-        options.field_1_value = document.getElementById('modal-field-1-value')?.value || '';
-        options.field_2_name = document.getElementById('modal-field-2-name')?.value || '';
-        options.field_2_value = document.getElementById('modal-field-2-value')?.value || '';
-        options.field_3_name = document.getElementById('modal-field-3-name')?.value || '';
-        options.field_3_value = document.getElementById('modal-field-3-value')?.value || '';
+    // Add indicator for multi-embed
+    html += '<div style="font-size: 11px; color: #72767d; margin-top: 4px; text-align: center;">';
+    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${embedGroups.length} embeds (auto-split)</span>`;
+    html += '</div>';
+
+    previewEl.innerHTML = html;
+}
+
+// Check if a section type produces full-width content (not inline fields)
+function isFullWidthSection(type) {
+    return type === 'text';
+}
+
+// Split sections into embed groups based on type transitions
+function splitSectionsIntoEmbeds(sections) {
+    if (!sections || sections.length === 0) return [[]];
+
+    const groups = [];
+    let currentGroup = [];
+    let lastWasFields = false;
+
+    sections.forEach(section => {
+        const isDescription = isFullWidthSection(section.type || 'text');
+
+        // Detect transition: fields -> description = new embed
+        if (isDescription && lastWasFields && currentGroup.length > 0) {
+            groups.push(currentGroup);
+            currentGroup = [];
+        }
+
+        currentGroup.push(section);
+        lastWasFields = !isDescription;
+    });
+
+    // Don't forget the last group
+    if (currentGroup.length > 0) {
+        groups.push(currentGroup);
     }
 
-    optionsDiv.dataset.options = JSON.stringify(options);
-    modal.remove();
-    trackEmbedChange(optionKey);
+    return groups.length > 0 ? groups : [[]];
 }
+
+// Live preview function with auto-split support
+function updateEmbedPreview(optionKey) {
+    const previewEl = document.getElementById('embed-preview-' + optionKey);
+    if (!previewEl) return;
+
+    const data = getEmbedData(optionKey);
+    const color = data.color || '#5865F2';
+
+    // Split sections into embed groups
+    const embedGroups = splitSectionsIntoEmbeds(data.sections || []);
+
+    // If only one group, render as single embed (original behavior)
+    if (embedGroups.length <= 1) {
+        previewEl.style.borderLeftColor = color;
+        previewEl.innerHTML = renderSingleEmbed(data, embedGroups[0] || []);
+        return;
+    }
+
+    // Multiple embeds - render as a container with multiple embed previews
+    previewEl.style.borderLeftColor = 'transparent';
+    previewEl.style.background = 'transparent';
+    previewEl.style.padding = '0';
+
+    let html = '';
+    embedGroups.forEach((group, idx) => {
+        const isFirst = idx === 0;
+        const isLast = idx === embedGroups.length - 1;
+
+        html += `<div class="discord-embed-preview" style="border-left-color: ${color}; margin-bottom: 8px;">`;
+        html += renderEmbedContent({
+            title: isFirst ? data.title : null,
+            thumbnail_url: isFirst ? data.thumbnail_url : null,
+            image_url: isLast ? data.image_url : null,
+            footer_text: isLast ? data.footer_text : null,
+            footer_icon_url: isLast ? data.footer_icon_url : null,
+            sections: group
+        });
+        html += '</div>';
+    });
+
+    // Add indicator for multi-embed
+    html += '<div style="font-size: 11px; color: #72767d; margin-top: 4px; text-align: center;">';
+    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${embedGroups.length} embeds (auto-split)</span>`;
+    html += '</div>';
+
+    previewEl.innerHTML = html;
+}
+
+// Render a single embed preview
+function renderSingleEmbed(data, sections) {
+    return renderEmbedContent({
+        title: data.title,
+        description: data.description,
+        thumbnail_url: data.thumbnail_url,
+        image_url: data.image_url,
+        footer_text: data.footer_text,
+        footer_icon_url: data.footer_icon_url,
+        sections: sections
+    });
+}
+
+// Render embed content (used by both single and multi-embed modes)
+function renderEmbedContent(data) {
+    let html = '';
+
+    // Header with thumbnail
+    const hasThumbnail = data.thumbnail_url;
+    if (data.title || hasThumbnail) {
+        html += '<div class="discord-embed-header">';
+        html += '<div class="discord-embed-content">';
+        if (data.title) {
+            html += `<div class="discord-embed-title">${formatDiscordText(data.title)}</div>`;
+        }
+    }
+
+    // Description (appears before sections)
+    if (data.description) {
+        html += `<div class="discord-embed-description">${formatDiscordText(data.description)}</div>`;
+    }
+
+    // Sections content
+    if (data.sections && data.sections.length > 0) {
+        html += '<div class="discord-embed-sections">';
+        data.sections.forEach(section => {
+            html += renderSectionPreview(section);
+        });
+        html += '</div>';
+    }
+
+    if (data.title || hasThumbnail) {
+        html += '</div>'; // Close discord-embed-content
+        if (hasThumbnail) {
+            html += `<img class="discord-embed-thumbnail" src="${escapeHtml(data.thumbnail_url)}" alt="Thumbnail" onerror="this.style.display='none'">`;
+        }
+        html += '</div>'; // Close discord-embed-header
+    }
+
+    // Main image
+    if (data.image_url) {
+        html += `<img class="discord-embed-image" src="${escapeHtml(data.image_url)}" alt="Image" onerror="this.style.display='none'">`;
+    }
+
+    // Footer
+    if (data.footer_text || data.footer_icon_url) {
+        html += '<div class="discord-embed-footer">';
+        if (data.footer_icon_url) {
+            html += `<img class="discord-embed-footer-icon" src="${escapeHtml(data.footer_icon_url)}" alt="" onerror="this.style.display='none'">`;
+        }
+        if (data.footer_text) {
+            html += `<span>${formatDiscordText(data.footer_text)}</span>`;
+        }
+        html += '</div>';
+    }
+
+    // Empty state
+    if (!html) {
+        html = '<div style="color: #72767d; font-style: italic;">Configura el embed para ver la vista previa</div>';
+    }
+
+    return html;
+}
+
+function renderSectionPreview(section) {
+    const type = section.type || 'text';
+    const title = section.title || '';
+    const content = section.content || '';
+
+    if (type === 'text') {
+        // Render as a full-width field with title + content
+        let html = '<div class="discord-embed-fields">';
+        html += '<div class="discord-embed-field" style="width: 100%;">';
+        if (title) {
+            html += `<div class="discord-embed-field-name">${escapeHtml(title)}</div>`;
+        }
+        if (content) {
+            html += `<div class="discord-embed-field-value">${formatDiscordText(content)}</div>`;
+        }
+        if (!title && !content) {
+            html += '<div style="color: #72767d; font-style: italic;">Campo vacío</div>';
+        }
+        html += '</div></div>';
+        return html;
+    } else if (type === 'fields') {
+        let fieldsHtml = '<div class="discord-embed-fields">';
+        for (let i = 1; i <= 3; i++) {
+            const name = section[`field_${i}_name`];
+            const value = section[`field_${i}_value`];
+            if (name || value) {
+                const inlineClass = section.inline !== false ? ' inline' : '';
+                fieldsHtml += `<div class="discord-embed-field${inlineClass}">`;
+                if (name) fieldsHtml += `<div class="discord-embed-field-name">${escapeHtml(name)}</div>`;
+                if (value) fieldsHtml += `<div class="discord-embed-field-value">${formatDiscordText(value)}</div>`;
+                fieldsHtml += '</div>';
+            }
+        }
+        fieldsHtml += '</div>';
+        return fieldsHtml;
+    }
+    return '';
+}
+
+function formatDiscordText(text) {
+    if (!text) return '';
+    let html = escapeHtml(text);
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Strikethrough
+    html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // Underline
+    html = html.replace(/__(.+?)__/g, '<u>$1</u>');
+    // Replace placeholders with actual values from previewData, or highlight if no value
+    html = html.replace(/\{([^}]+)\}/g, function(match, key) {
+        const value = window.previewData && window.previewData[key];
+        if (value !== undefined && value !== null && value !== '') {
+            // Replace with actual value (styled to show it's a placeholder value)
+            return '<span style="color: #00b894; font-weight: 500;">' + escapeHtml(value) + '</span>';
+        }
+        // No value available - highlight the placeholder
+        return '<span style="background: rgba(88, 101, 242, 0.3); padding: 0 4px; border-radius: 3px; color: #a8b3ff;">{' + key + '}</span>';
+    });
+    // Literal \n escape sequence (typed as backslash + n)
+    html = html.replace(/\\n/g, '<br>');
+    // Actual newlines
+    html = html.replace(/\n/g, '<br>');
+    return html;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initialize all embed previews
+// Call immediately since this script runs after the DOM elements are created
+// (works for both initial page load and HTMX content swaps)
+(function initEmbedPreviews() {
+    document.querySelectorAll('.embed-editor').forEach(function(editor) {
+        const optionKey = editor.dataset.optionKey;
+        if (optionKey) {
+            // Check if this is an embed_sections type
+            if (editor.dataset.isSections === 'true') {
+                updateEmbedSectionsPreview(optionKey);
+            } else {
+                updateEmbedPreview(optionKey);
+            }
+        }
+    });
+})();
 </script>

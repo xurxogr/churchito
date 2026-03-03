@@ -90,7 +90,9 @@ class TestVerificationConfigSchema:
         assert "verification_panel_message" in keys
         assert "dm_instructions_message" in keys
         assert "dm_instructions_ally_message" in keys
-        assert "mod_message_template" in keys
+        # mod_message_template fue reemplazado por los embeds configurables
+        assert "mod_embed_regular" in keys
+        assert "mod_embed_ally" in keys
 
     def test_schema_has_api_verification_options(self) -> None:
         """Probar que existen las opciones de API de verificación."""
@@ -101,4 +103,4 @@ class TestVerificationConfigSchema:
         assert "verification_time_diff" in keys
         assert "verification_automatic" in keys
         assert "verification_match_name" in keys
-        assert "player_info_template" in keys
+        assert "player_info_sections" in keys

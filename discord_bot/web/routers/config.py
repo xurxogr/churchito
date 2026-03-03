@@ -1,6 +1,7 @@
 """Router para configuración de servidores."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
@@ -89,6 +90,35 @@ def _get_guild_info(user: dict[str, Any], guild_id: int) -> dict[str, Any]:
     return {"id": str(guild_id), "name": f"Servidor {guild_id}"}
 
 
+def _format_relative_time(delta: timedelta) -> str:
+    """Formatear un timedelta como texto relativo en español.
+
+    Args:
+        delta: Diferencia de tiempo
+
+    Returns:
+        str: Texto como "hace 2 días", "hace 3 meses", etc.
+    """
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 60:
+        return "hace unos segundos"
+    elif total_seconds < 3600:
+        minutes = total_seconds // 60
+        return f"hace {minutes} minuto{'s' if minutes != 1 else ''}"
+    elif total_seconds < 86400:
+        hours = total_seconds // 3600
+        return f"hace {hours} hora{'s' if hours != 1 else ''}"
+    elif total_seconds < 2592000:  # ~30 days
+        days = total_seconds // 86400
+        return f"hace {days} día{'s' if days != 1 else ''}"
+    elif total_seconds < 31536000:  # ~365 days
+        months = total_seconds // 2592000
+        return f"hace {months} mes{'es' if months != 1 else ''}"
+    else:
+        years = total_seconds // 31536000
+        return f"hace {years} año{'s' if years != 1 else ''}"
+
+
 @router.get("/{guild_id}", response_class=HTMLResponse)
 async def guild_config(
     request: Request,
@@ -165,6 +195,7 @@ async def _render_cog_settings(
     guild_id: int,
     cog_name: str,
     session: Any,
+    user: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> HTMLResponse:
     """Renderizar el partial de configuración de un cog.
@@ -174,6 +205,7 @@ async def _render_cog_settings(
         guild_id (int): ID del guild
         cog_name (str): Nombre del cog
         session: Sesión de base de datos
+        user: Usuario autenticado (para preview de placeholders)
         error (str | None): Mensaje de error opcional
 
     Returns:
@@ -303,6 +335,66 @@ async def _render_cog_settings(
 
     templates = get_templates(request)
     guild_name = discord_guild.name if discord_guild else f"Servidor {guild_id}"
+    member_count = discord_guild.member_count if discord_guild else 0
+
+    # Get member from guild for join date info
+    member = None
+    if discord_guild and user:
+        user_id = user.get("id")
+        if user_id:
+            member = discord_guild.get_member(int(user_id))
+
+    # Build preview data for placeholders
+    now = datetime.now(UTC)
+
+    # Format join dates if member is available
+    user_joined_server = ""
+    user_joined_server_relative = ""
+    user_joined_discord = ""
+    user_joined_discord_relative = ""
+
+    if member:
+        if member.joined_at:
+            user_joined_server = member.joined_at.strftime("%d/%m/%Y %H:%M")
+            delta = now - member.joined_at
+            user_joined_server_relative = _format_relative_time(delta)
+
+        if member.created_at:
+            user_joined_discord = member.created_at.strftime("%d/%m/%Y %H:%M")
+            delta = now - member.created_at
+            user_joined_discord_relative = _format_relative_time(delta)
+
+    preview_data = {
+        "server_name": guild_name,
+        "server_id": str(guild_id),
+        "server_member_count": str(member_count),
+        "user_name": user.get("username", "Usuario") if user else "Usuario",
+        "user_mention": f"@{user.get('username', 'Usuario')}" if user else "@Usuario",
+        "user_id": str(user.get("id", "123456789")) if user else "123456789",
+        "user_avatar_url": (
+            f"https://cdn.discordapp.com/avatars/{user.get('id')}/{user.get('avatar')}.png"
+            if user and user.get("avatar")
+            else "https://cdn.discordapp.com/embed/avatars/0.png"
+        ),
+        "user_joined_server": user_joined_server or "01/01/2024 12:00",
+        "user_joined_server_relative": user_joined_server_relative or "hace 2 meses",
+        "user_joined_discord": user_joined_discord or "01/06/2020 15:00",
+        "user_joined_discord_relative": user_joined_discord_relative or "hace 4 años",
+        "created_at": now.strftime("%Y-%m-%d %H:%M"),
+        "status": "📷 Esperando capturas",
+        "verification_type": "Miembro",
+        "username": user.get("username", "Usuario") if user else "Usuario",
+        # Player info placeholders (for verification API response preview)
+        "name": "PlayerName",
+        "regiment": "82DK",
+        "level": "45",
+        "faction": "colonial",
+        "shard": "ABLE",
+        "time": "268, 07:41",
+        "war": "115",
+        "war_time": "278, 08:34",
+    }
+
     return templates.TemplateResponse(
         request=request,
         name="partials/cog_settings.html",
@@ -324,6 +416,7 @@ async def _render_cog_settings(
             "ConfigOptionType": ConfigOptionType,
             "error": error,
             "global_placeholders": GLOBAL_PLACEHOLDERS,
+            "preview_data": preview_data,
         },
     )
 
@@ -353,6 +446,7 @@ async def cog_settings(
         guild_id=guild_id,
         cog_name=cog_name,
         session=session,
+        user=user,
     )
 
 
@@ -399,6 +493,7 @@ async def toggle_cog(
         guild_id=guild_id,
         cog_name=cog_name,
         session=session,
+        user=user,
     )
 
 
@@ -446,6 +541,7 @@ async def update_option(
                 guild_id=guild_id,
                 cog_name=cog_name,
                 session=session,
+                user=user,
                 error=permission_error,
             )
 
@@ -460,6 +556,7 @@ async def update_option(
             guild_id=guild_id,
             cog_name=cog_name,
             session=session,
+            user=user,
             error=validation_error,
         )
 
@@ -474,6 +571,7 @@ async def update_option(
         guild_id=guild_id,
         cog_name=cog_name,
         session=session,
+        user=user,
     )
 
 
@@ -509,6 +607,7 @@ async def reload_cog(
             guild_id=guild_id,
             cog_name=cog_name,
             session=session,
+            user=user,
             error="El módulo 'bot' no se puede recargar",
         )
 
@@ -519,6 +618,7 @@ async def reload_cog(
             guild_id=guild_id,
             cog_name=cog_name,
             session=session,
+            user=user,
             error="Bot no disponible",
         )
 
@@ -533,6 +633,7 @@ async def reload_cog(
             guild_id=guild_id,
             cog_name=cog_name,
             session=session,
+            user=user,
             error=f"Error al recargar: {e}",
         )
 
@@ -541,6 +642,7 @@ async def reload_cog(
         guild_id=guild_id,
         cog_name=cog_name,
         session=session,
+        user=user,
     )
 
 
@@ -780,5 +882,26 @@ def _convert_form_value(
                     embed_data["sections"] = []
 
             return embed_data
+        case ConfigOptionType.EMBED_SECTIONS:
+            import json
+
+            # Limitar tamaño del JSON para prevenir DoS
+            max_json_size = 100_000  # 100KB
+            if len(value) > max_json_size:
+                logger.warning(f"JSON de EMBED_SECTIONS demasiado grande: {len(value)} bytes")
+                return None
+
+            try:
+                data = json.loads(value)
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON inválido en EMBED_SECTIONS config: {e}")
+                return None
+
+            # Validar que data es una lista
+            if not isinstance(data, list):
+                logger.warning("EMBED_SECTIONS config debe ser una lista")
+                return None
+
+            return data
         case _:
             return value

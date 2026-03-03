@@ -17,3 +17,4 @@ class ConfigOptionType(StrEnum):
     TEXT_CHOICE = "text_choice"
     TABLE = "table"
     EMBED = "embed"
+    EMBED_SECTIONS = "embed_sections"  # Only sections, for appending to existing embeds

@@ -1,5 +1,6 @@
 """Tests para el router de configuración."""
 
+from datetime import timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.web.routers.config import (
     _convert_form_value,
+    _format_relative_time,
     _get_guild_info,
     _validate_channel_permissions,
     get_templates,
@@ -248,3 +250,95 @@ class TestGuildAccessDep:
 
         result = await guild_access_dep(request, 111222333, test_user)
         assert result == test_user
+
+
+class TestFormatRelativeTime:
+    """Tests para _format_relative_time."""
+
+    def test_seconds(self) -> None:
+        """Probar formato para segundos."""
+        result = _format_relative_time(timedelta(seconds=30))
+        assert result == "hace unos segundos"
+
+    def test_one_minute(self) -> None:
+        """Probar formato para 1 minuto."""
+        result = _format_relative_time(timedelta(minutes=1))
+        assert result == "hace 1 minuto"
+
+    def test_multiple_minutes(self) -> None:
+        """Probar formato para varios minutos."""
+        result = _format_relative_time(timedelta(minutes=45))
+        assert result == "hace 45 minutos"
+
+    def test_one_hour(self) -> None:
+        """Probar formato para 1 hora."""
+        result = _format_relative_time(timedelta(hours=1))
+        assert result == "hace 1 hora"
+
+    def test_multiple_hours(self) -> None:
+        """Probar formato para varias horas."""
+        result = _format_relative_time(timedelta(hours=12))
+        assert result == "hace 12 horas"
+
+    def test_one_day(self) -> None:
+        """Probar formato para 1 día."""
+        result = _format_relative_time(timedelta(days=1))
+        assert result == "hace 1 día"
+
+    def test_multiple_days(self) -> None:
+        """Probar formato para varios días."""
+        result = _format_relative_time(timedelta(days=15))
+        assert result == "hace 15 días"
+
+    def test_one_month(self) -> None:
+        """Probar formato para 1 mes (~30 días)."""
+        result = _format_relative_time(timedelta(days=30))
+        assert result == "hace 1 mes"
+
+    def test_multiple_months(self) -> None:
+        """Probar formato para varios meses."""
+        result = _format_relative_time(timedelta(days=180))
+        assert result == "hace 6 meses"
+
+    def test_one_year(self) -> None:
+        """Probar formato para 1 año (~365 días)."""
+        result = _format_relative_time(timedelta(days=365))
+        assert result == "hace 1 año"
+
+    def test_multiple_years(self) -> None:
+        """Probar formato para varios años."""
+        result = _format_relative_time(timedelta(days=730))
+        assert result == "hace 2 años"
+
+
+class TestConvertFormValueEmbedSections:
+    """Tests para _convert_form_value con EMBED_SECTIONS."""
+
+    def test_valid_json_list(self) -> None:
+        """Probar conversión de JSON válido como lista."""
+        value = '[{"type": "text", "title": "Test", "content": "Hello"}]'
+        result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+        assert result == [{"type": "text", "title": "Test", "content": "Hello"}]
+
+    def test_empty_list(self) -> None:
+        """Probar conversión de lista vacía."""
+        result = _convert_form_value("[]", ConfigOptionType.EMBED_SECTIONS)
+        assert result == []
+
+    def test_invalid_json(self) -> None:
+        """Probar que JSON inválido retorna None."""
+        result = _convert_form_value("{invalid json}", ConfigOptionType.EMBED_SECTIONS)
+        assert result is None
+
+    def test_json_not_list(self) -> None:
+        """Probar que JSON que no es lista retorna None."""
+        result = _convert_form_value('{"key": "value"}', ConfigOptionType.EMBED_SECTIONS)
+        assert result is None
+
+    def test_json_too_large(self) -> None:
+        """Probar que JSON demasiado grande retorna None."""
+        # Crear un JSON de más de 100KB
+        large_value = "[" + ",".join(['"x"' * 1000] * 200) + "]"
+        assert len(large_value) > 100_000
+        result = _convert_form_value(large_value, ConfigOptionType.EMBED_SECTIONS)
+        assert result is None

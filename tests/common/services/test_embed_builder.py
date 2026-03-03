@@ -227,113 +227,43 @@ class TestBuildEmbed:
         assert embed.description is None or embed.description == ""
 
     def test_text_section(self) -> None:
-        """Test sección de texto simple."""
+        """Test sección de texto simple se renderiza como campo."""
         config = EmbedConfig(
-            sections=[EmbedSection(type=EmbedSectionType.TEXT, content="Hello World")]
+            sections=[
+                EmbedSection(type=EmbedSectionType.TEXT, title="Title", content="Hello World")
+            ]
         )
         context = PlaceholderContext()
         embed = build_embed(config, context)
 
-        assert embed.description is not None
-        assert "Hello World" in embed.description
+        assert len(embed.fields) == 1
+        assert embed.fields[0].name == "Title"
+        assert embed.fields[0].value == "Hello World"
+        assert embed.fields[0].inline is False
 
     def test_text_section_with_placeholder(self) -> None:
         """Test sección de texto con placeholder."""
         config = EmbedConfig(
-            sections=[EmbedSection(type=EmbedSectionType.TEXT, content="Hola {name}!")]
+            sections=[
+                EmbedSection(type=EmbedSectionType.TEXT, title="Saludo", content="Hola {name}!")
+            ]
         )
         context = PlaceholderContext(extra_data={"name": "Usuario"})
         embed = build_embed(config, context)
 
-        assert embed.description is not None
-        assert "Hola Usuario!" in embed.description
+        assert len(embed.fields) == 1
+        assert embed.fields[0].value == "Hola Usuario!"
 
-    def test_text_colored_section_green(self) -> None:
-        """Test sección de texto con color verde."""
+    def test_description_field(self) -> None:
+        """Test descripción del embed desde config."""
         config = EmbedConfig(
-            sections=[
-                EmbedSection(
-                    type=EmbedSectionType.TEXT_COLORED,
-                    content="Datos disponibles",
-                    text_color="green",
-                )
-            ]
+            description="Esta es la descripción con {name}",
+            sections=[],
         )
-        context = PlaceholderContext()
+        context = PlaceholderContext(extra_data={"name": "placeholder"})
         embed = build_embed(config, context)
 
-        assert embed.description is not None
-        assert "```ansi" in embed.description
-        assert "\u001b[32m" in embed.description  # Green color code
-        assert "Datos disponibles" in embed.description
-
-    def test_text_colored_section_default_color(self) -> None:
-        """Test sección de texto con color sin especificar usa blanco."""
-        config = EmbedConfig(
-            sections=[
-                EmbedSection(
-                    type=EmbedSectionType.TEXT_COLORED,
-                    content="Sin color",
-                )
-            ]
-        )
-        context = PlaceholderContext()
-        embed = build_embed(config, context)
-
-        assert embed.description is not None
-        assert "```ansi" in embed.description
-        assert "\u001b[37m" in embed.description  # White (default) color code
-
-    def test_header_section(self) -> None:
-        """Test sección de encabezado."""
-        config = EmbedConfig(
-            sections=[EmbedSection(type=EmbedSectionType.HEADER, content="Título")]
-        )
-        context = PlaceholderContext()
-        embed = build_embed(config, context)
-
-        assert embed.description is not None
-        assert "**Título**" in embed.description
-
-    def test_progress_section(self) -> None:
-        """Test sección de barra de progreso."""
-        config = EmbedConfig(
-            sections=[
-                EmbedSection(
-                    type=EmbedSectionType.PROGRESS,
-                    value_key="level",
-                    max_value=100,
-                    label_left="Nivel 1",
-                    label_right="Nivel 2",
-                )
-            ]
-        )
-        context = PlaceholderContext(extra_data={"level": "50"})
-        embed = build_embed(config, context)
-
-        assert embed.description is not None
-        assert "█" in embed.description
-        assert "50%" in embed.description
-        assert "Nivel 1" in embed.description
-        assert "Nivel 2" in embed.description
-
-    def test_progress_section_with_invalid_value(self) -> None:
-        """Test sección de progreso con valor no numérico usa 0."""
-        config = EmbedConfig(
-            sections=[
-                EmbedSection(
-                    type=EmbedSectionType.PROGRESS,
-                    value_key="level",
-                    max_value=100,
-                )
-            ]
-        )
-        context = PlaceholderContext(extra_data={"level": "not_a_number"})
-        embed = build_embed(config, context)
-
-        assert embed.description is not None
-        assert "0%" in embed.description
-        assert "░░░░░░░░░░" in embed.description
+        assert embed.description == "Esta es la descripción con placeholder"
 
     def test_fields_section(self) -> None:
         """Test sección de campos."""
@@ -415,25 +345,28 @@ class TestBuildEmbed:
         assert embed.thumbnail.url == "https://example.com/image.png"
 
     def test_multiple_sections(self) -> None:
-        """Test múltiples secciones."""
+        """Test múltiples secciones se renderizan como campos."""
         config = EmbedConfig(
+            description="Descripción principal",
             sections=[
-                EmbedSection(type=EmbedSectionType.TEXT, content="Intro"),
-                EmbedSection(type=EmbedSectionType.HEADER, content="Stats"),
+                EmbedSection(type=EmbedSectionType.TEXT, title="Intro", content="Bienvenido"),
+                EmbedSection(type=EmbedSectionType.TEXT, title="Info", content="Más datos"),
                 EmbedSection(
-                    type=EmbedSectionType.PROGRESS,
-                    value_key="xp",
-                    max_value=1000,
+                    type=EmbedSectionType.FIELDS,
+                    field_1_name="Campo 1",
+                    field_1_value="Valor 1",
                 ),
-            ]
+            ],
         )
-        context = PlaceholderContext(extra_data={"xp": "500"})
+        context = PlaceholderContext()
         embed = build_embed(config, context)
 
-        assert embed.description is not None
-        assert "Intro" in embed.description
-        assert "**Stats**" in embed.description
-        assert "50%" in embed.description
+        assert embed.description == "Descripción principal"
+        assert len(embed.fields) == 3
+        assert embed.fields[0].name == "Intro"
+        assert embed.fields[0].value == "Bienvenido"
+        assert embed.fields[1].name == "Info"
+        assert embed.fields[2].name == "Campo 1"
 
     def test_title_from_config(self) -> None:
         """Test título desde la configuración."""
@@ -541,7 +474,7 @@ class TestBuildEmbedFromRows:
     def test_from_table_rows(self) -> None:
         """Test construir embed desde filas de tabla."""
         rows: list[dict[str, Any]] = [
-            {"type": "text", "content": "Bienvenido {user_name}!"},
+            {"type": "text", "title": "Bienvenida", "content": "Bienvenido {user_name}!"},
             {
                 "type": "fields",
                 "inline": True,
@@ -559,9 +492,12 @@ class TestBuildEmbedFromRows:
         context = PlaceholderContext(guild=guild, member=member)
         embed = build_embed_from_rows(rows, context, color="#00FF00", footer_text="Pie de página")
 
-        assert embed.description is not None
-        assert "Bienvenido TestUser!" in embed.description
-        assert embed.fields[0].value == "Mi Servidor"
+        # TEXT section becomes a field
+        assert len(embed.fields) == 2
+        assert embed.fields[0].name == "Bienvenida"
+        assert embed.fields[0].value == "Bienvenido TestUser!"
+        # FIELDS section
+        assert embed.fields[1].value == "Mi Servidor"
         assert embed.color == discord.Color(0x00FF00)
         assert embed.footer.text == "Pie de página"
 

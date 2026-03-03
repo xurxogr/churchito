@@ -778,34 +778,86 @@ a:hover {
     color: var(--warning);
 }
 
-/* Embed Editor */
+/* Embed Editor - Full Width */
+.option-form:has(.embed-editor) {
+    display: block;
+    width: 100%;
+}
+
 .embed-editor {
-    background-color: var(--bg-tertiary);
+    background-color: #2a2d31;
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 16px;
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.embed-editor-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.embed-editor-label::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-primary);
+    border-radius: 2px;
+}
+
+/* Ensure inputs inside embed editor are visible */
+.embed-editor .input,
+.embed-editor .textarea,
+.embed-editor .select {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+}
+
+.embed-editor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+}
+
+.embed-editor-main {
+    width: 100%;
+}
+
+.embed-editor-preview {
+    width: 100%;
 }
 
 .embed-editor-fields {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 16px;
+    margin-bottom: 20px;
 }
 
 .embed-field-row {
     display: flex;
-    gap: 12px;
+    gap: 16px;
 }
 
 .embed-field {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .embed-field-small {
-    flex: 0 0 120px;
+    flex: 0 0 140px;
 }
 
 .embed-field label {
@@ -819,7 +871,7 @@ a:hover {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
-    padding-top: 12px;
+    padding-top: 16px;
     border-top: 1px solid var(--border-color);
 }
 
@@ -835,10 +887,224 @@ a:hover {
     color: var(--text-muted);
 }
 
-.embed-section-options {
-    width: 60px;
-    text-align: center;
+/* Section type indicator */
+.embed-section-type-indicator {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background-color: var(--bg-primary);
+    color: var(--text-muted);
+    margin-left: 8px;
 }
+
+/* Section content based on type */
+.embed-section-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.embed-section-content textarea {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+}
+
+.embed-section-content input {
+    width: 100%;
+}
+
+/* Inline options for simple types */
+.embed-section-inline-options {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.embed-section-inline-options select {
+    width: auto;
+    min-width: 100px;
+}
+
+.embed-section-inline-options input[type="number"] {
+    width: 80px;
+}
+
+.embed-section-inline-options label {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Hide options button for types without options */
+.embed-section-no-options .embed-section-options-btn {
+    display: none;
+}
+
+.embed-section-options {
+    width: auto;
+    min-width: 120px;
+}
+
+/* Discord-style embed preview */
+.embed-preview-container {
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.embed-preview-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.discord-embed-preview {
+    background-color: #2f3136;
+    border-radius: 4px;
+    padding: 12px 16px;
+    border-left: 4px solid #5865f2;
+    max-width: 100%;
+    font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    color: #dcddde;
+    line-height: 1.375;
+}
+
+.discord-embed-preview.has-color {
+    /* border-left-color will be set dynamically */
+}
+
+.discord-embed-header {
+    display: flex;
+    gap: 16px;
+}
+
+.discord-embed-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.discord-embed-thumbnail {
+    width: 80px;
+    height: 80px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.discord-embed-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.discord-embed-description {
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.discord-embed-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.discord-embed-field {
+    flex: 1 1 100%;
+}
+
+.discord-embed-field.inline {
+    flex: 1 1 calc(33.33% - 8px);
+    min-width: 100px;
+}
+
+.discord-embed-field-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 2px;
+}
+
+.discord-embed-field-value {
+    font-size: 14px;
+    color: #dcddde;
+}
+
+.discord-embed-image {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 4px;
+    margin-top: 12px;
+}
+
+.discord-embed-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #72767d;
+}
+
+.discord-embed-footer-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+/* Progress bar preview */
+.discord-progress-bar {
+    background-color: #4f545c;
+    border-radius: 4px;
+    height: 18px;
+    overflow: hidden;
+    position: relative;
+    margin: 4px 0;
+}
+
+.discord-progress-fill {
+    background-color: #5865f2;
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.discord-progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #72767d;
+}
+
+/* Colored text preview */
+.discord-text-gray { color: #4f545c; }
+.discord-text-red { color: #ed4245; }
+.discord-text-green { color: #57f287; }
+.discord-text-yellow { color: #fee75c; }
+.discord-text-blue { color: #5865f2; }
+.discord-text-pink { color: #eb459e; }
+.discord-text-cyan { color: #00b0f4; }
+.discord-text-white { color: #ffffff; }
+
+/* Header section preview */
+.discord-section-header {
+    font-size: 12px;
+    font-weight: 700;
+    color: #b9bbbe;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin: 12px 0 4px 0;
+}
+
 
 /* Embed Options Modal */
 .embed-options-modal {

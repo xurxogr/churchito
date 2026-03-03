@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from discord_bot.common.enums.embed_section_type import AnsiColor, EmbedSectionType
+from discord_bot.common.enums.embed_section_type import EmbedSectionType
 
 # Columnas para la tabla de secciones de embed
 EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
@@ -13,76 +13,27 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
         "required": True,
         "choices": [
             ("Texto", EmbedSectionType.TEXT),
-            ("Texto con color", EmbedSectionType.TEXT_COLORED),
-            ("Encabezado", EmbedSectionType.HEADER),
-            ("Barra de progreso", EmbedSectionType.PROGRESS),
             ("Campos (3 columnas)", EmbedSectionType.FIELDS),
         ],
+    },
+    # Campos para TEXT
+    {
+        "key": "title",
+        "name": "Título",
+        "type": "string",
+        "required": False,
+        "max_length": 256,
+        "description": "Título del campo (se muestra en negrita)",
+        "show_when": {"type": EmbedSectionType.TEXT},
     },
     {
         "key": "content",
         "name": "Contenido",
-        "type": "string",
+        "type": "textarea",
         "required": False,
         "max_length": 1024,
-        "description": "Texto para secciones TEXT, TEXT_COLORED y HEADER. Soporta placeholders.",
-    },
-    # Campos para TEXT_COLORED
-    {
-        "key": "text_color",
-        "name": "Color del texto",
-        "type": "choice",
-        "required": False,
-        "choices": [
-            ("Gris", AnsiColor.GRAY),
-            ("Rojo", AnsiColor.RED),
-            ("Verde", AnsiColor.GREEN),
-            ("Amarillo", AnsiColor.YELLOW),
-            ("Azul", AnsiColor.BLUE),
-            ("Rosa", AnsiColor.PINK),
-            ("Cian", AnsiColor.CYAN),
-            ("Blanco", AnsiColor.WHITE),
-        ],
-        "description": "Color ANSI para el texto",
-        "show_when": {"type": EmbedSectionType.TEXT_COLORED},
-    },
-    # Campos para PROGRESS
-    {
-        "key": "value_key",
-        "name": "Placeholder valor",
-        "type": "string",
-        "required": False,
-        "max_length": 50,
-        "description": "Nombre del placeholder con el valor numérico (ej: level)",
-        "show_when": {"type": EmbedSectionType.PROGRESS},
-    },
-    {
-        "key": "max_value",
-        "name": "Valor máximo",
-        "type": "integer",
-        "required": False,
-        "min_value": 1,
-        "max_value": 999999,
-        "description": "Valor máximo para calcular el porcentaje",
-        "show_when": {"type": EmbedSectionType.PROGRESS},
-    },
-    {
-        "key": "label_left",
-        "name": "Etiqueta izquierda",
-        "type": "string",
-        "required": False,
-        "max_length": 100,
-        "description": "Texto debajo de la barra (izquierda)",
-        "show_when": {"type": EmbedSectionType.PROGRESS},
-    },
-    {
-        "key": "label_right",
-        "name": "Etiqueta derecha",
-        "type": "string",
-        "required": False,
-        "max_length": 100,
-        "description": "Texto debajo de la barra (derecha)",
-        "show_when": {"type": EmbedSectionType.PROGRESS},
+        "description": "Contenido del campo. Soporta placeholders.",
+        "show_when": {"type": EmbedSectionType.TEXT},
     },
     # Campos para FIELDS
     {

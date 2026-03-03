@@ -21,9 +21,8 @@ from discord_bot.verification.enums import (
     VerificationType,
 )
 from discord_bot.verification.formatters import (
-    create_mod_embed,
+    create_mod_embeds,
     format_message,
-    format_player_info,
     get_verification_type_display,
 )
 from discord_bot.verification.models import VerificationRequest
@@ -121,20 +120,18 @@ def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discor
     return embeds
 
 
-def _update_status_ready_for_approval(
-    formatted: str,
+def _get_ready_for_approval_status(
     config: dict[str, Any],
     guild: discord.Guild,
 ) -> str:
-    """Actualizar el mensaje con estado 'listo para aprobar' incluyendo roles.
+    """Obtener el texto de estado 'listo para aprobar' incluyendo roles.
 
     Args:
-        formatted: Mensaje formateado actual
         config: Configuración del cog
         guild: Guild para obtener los roles
 
     Returns:
-        Mensaje actualizado con el nuevo estado
+        Texto del estado formateado
     """
     # Obtener roles de moderador
     mod_role_ids = config.get(ConfigKey.MOD_ROLES) or []
@@ -147,16 +144,9 @@ def _update_status_ready_for_approval(
 
     roles_text = ", ".join(role_mentions) if role_mentions else "moderadores"
 
-    # Obtener el estado actual y el nuevo
-    current_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
-    new_status_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
-    new_status = format_message(new_status_template, roles=roles_text)
-
-    # Reemplazar el estado en el mensaje
-    if current_status and new_status:
-        return formatted.replace(current_status, new_status)
-
-    return formatted
+    # Formatear el estado
+    status_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
+    return format_message(status_template, roles=roles_text)
 
 
 def _try_replace_status(
@@ -423,23 +413,21 @@ async def handle_verification_start(
         # Enviar notificacion al canal de moderacion
         status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-        formatted_mod = format_message(
-            template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
-            username=user.name,
-            user_mention=user.mention,
-            verification_type=type_display,
-            status=status_text,
-            created_at=created_at_str,
-        )
-        mod_embed = create_mod_embed(
-            formatted_mod,
-            username=user.name,
-            user_id=user.id,
+        # user es Member en contexto de guild (interaction en guild)
+        member = user if isinstance(user, discord.Member) else None
+        mod_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
+            username=user.name,
+            user_mention=user.mention,
+            user_id=user.id,
+            status=status_text,
+            created_at=created_at_str,
+            guild=guild,
+            member=member,
         )
 
-        mod_message = await mod_channel.send(embed=mod_embed)
+        mod_message = await mod_channel.send(embeds=mod_embeds)
         await verification_service.set_mod_message_id(
             request_id=request.id, message_id=mod_message.id
         )
@@ -589,36 +577,44 @@ async def update_mod_message_for_review(
         logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
         return
 
-    type_display = get_verification_type_display(
-        verification_type=VerificationType(request.verification_type), config=config
-    )
+    verification_type = VerificationType(request.verification_type)
+    type_display = get_verification_type_display(verification_type=verification_type, config=config)
     status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
     created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-    formatted = format_message(
-        template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
-        username=request.username,
-        user_mention=f"<@{request.user_id}>",
-        verification_type=type_display,
-        status=status_text,
-        created_at=created_at_str,
-    )
 
-    # Add API result info if available
+    # Build additional content for player info
+    additional_content = ""
+    additional_sections: list[dict[str, Any]] | None = None
+    sections_context: dict[str, Any] | None = None
+
     if api_result:
         if api_result.success and api_result.response:
-            # Format player info using template
-            player_info_template = config.get(ConfigKey.PLAYER_INFO_TEMPLATE)
-            if player_info_template:
-                player_info = format_player_info(player_info_template, api_result.response)
-                formatted += f"\n\n{player_info}"
+            # Get player info sections config
+            player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
+            if player_info_sections and isinstance(player_info_sections, list):
+                additional_sections = player_info_sections
+                sections_context = {
+                    "name": api_result.response.name or "N/A",
+                    "regiment": api_result.response.regiment or "N/A",
+                    "level": str(api_result.response.level)
+                    if api_result.response.level is not None
+                    else "N/A",
+                    "faction": api_result.response.faction or "N/A",
+                    "shard": api_result.response.shard or "N/A",
+                    "time": api_result.response.ingame_time or "N/A",
+                    "war": str(api_result.response.war)
+                    if api_result.response.war is not None
+                    else "N/A",
+                    "war_time": api_result.response.current_ingame_time or "N/A",
+                }
         elif api_result.status_code == 422:
             # 422 means images are invalid/unreadable - show configured message
             reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
-            formatted += f"\n\n⚠️ **{reject_msg}**"
+            additional_content += f"\n\n⚠️ **{reject_msg}**"
         else:
             # Show API error for other status codes
             error_msg = _get_api_error_message(api_result.status_code)
-            formatted += f"\n\n❌ **API Error:** {error_msg}"
+            additional_content += f"\n\n❌ **API Error:** {error_msg}"
 
     # Crear embeds para las capturas (se muestran en una fila)
     embeds = _create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
@@ -631,7 +627,7 @@ async def update_mod_message_for_review(
 
     if past_requests:
         history_label = config.get(ConfigKey.HISTORY_LABEL) or "Historial"
-        formatted += f"\n**{history_label}:**"
+        additional_content += f"\n\n**{history_label}:**"
         for past in past_requests[:5]:
             status_emoji = {
                 VerificationStatus.APPROVED: "✅",
@@ -644,9 +640,9 @@ async def update_mod_message_for_review(
             past_type_display = get_verification_type_display(
                 verification_type=VerificationType(past.verification_type), config=config
             )
-            formatted += f"\n{status_emoji} {past_type_display} - {moderator} ({date_str})"
+            additional_content += f"\n{status_emoji} {past_type_display} - {moderator} ({date_str})"
             if past.rejection_reason:
-                formatted += f" - {past.rejection_reason}"
+                additional_content += f" - {past.rejection_reason}"
 
     # Comprobar si debemos auto-procesar
     auto_mode = config.get(ConfigKey.VERIFICATION_AUTOMATIC, AutoProcessMode.NONE)
@@ -672,9 +668,11 @@ async def update_mod_message_for_review(
                 verification_service=verification_service,
                 config=config,
                 mod_message=mod_message,
-                formatted=formatted,
+                additional_content=additional_content,
                 embeds=embeds,
                 reason=reject_reason,
+                additional_sections=additional_sections,
+                sections_context=sections_context,
             )
             return
 
@@ -701,8 +699,10 @@ async def update_mod_message_for_review(
                     verification_service=verification_service,
                     config=config,
                     mod_message=mod_message,
-                    formatted=formatted,
+                    additional_content=additional_content,
                     embeds=embeds,
+                    additional_sections=additional_sections,
+                    sections_context=sections_context,
                 )
                 return
             elif not should_approve and auto_reject:
@@ -714,18 +714,17 @@ async def update_mod_message_for_review(
                     verification_service=verification_service,
                     config=config,
                     mod_message=mod_message,
-                    formatted=formatted,
+                    additional_content=additional_content,
                     embeds=embeds,
                     reason=rejection_reason or "Auto-rejected",
+                    additional_sections=additional_sections,
+                    sections_context=sections_context,
                 )
                 return
             elif should_approve and not auto_approve:
-                # Listo para aprobar manualmente - actualizar estado con roles
-                formatted = _update_status_ready_for_approval(
-                    formatted=formatted,
-                    config=config,
-                    guild=guild,
-                )
+                # Listo para aprobar manualmente - actualizar estado
+                # El status_text se actualizará al construir el embed
+                status_text = _get_ready_for_approval_status(config=config, guild=guild)
 
     # Manual review - show buttons
     accept_label = format_message(
@@ -737,15 +736,23 @@ async def update_mod_message_for_review(
         request_id=request.id, accept_label=accept_label, reject_label=reject_label
     )
 
-    # Crear embed principal y combinarlo con los embeds de capturas
-    main_embed = create_mod_embed(
-        formatted,
-        username=request.username,
-        user_id=request.user_id,
-        verification_type=VerificationType(request.verification_type),
+    # Crear embeds principales y combinarlos con los embeds de capturas
+    member = channel.guild.get_member(request.user_id)
+    main_embeds = create_mod_embeds(
+        verification_type=verification_type,
         config=config,
+        username=request.username,
+        user_mention=f"<@{request.user_id}>",
+        user_id=request.user_id,
+        status=status_text,
+        created_at=created_at_str,
+        guild=channel.guild,
+        member=member,
+        additional_content=additional_content,
+        additional_sections=additional_sections,
+        sections_context=sections_context,
     )
-    all_embeds = [main_embed, *embeds]
+    all_embeds = [*main_embeds, *embeds]
     await mod_message.edit(embeds=all_embeds, view=view)
 
     # Enviar mensaje de ping a moderadores (las menciones solo funcionan en mensajes nuevos)
@@ -791,8 +798,10 @@ async def _handle_auto_approval(
     verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
-    formatted: str,
+    additional_content: str,
     embeds: list[discord.Embed],
+    additional_sections: list[dict[str, Any]] | None = None,
+    sections_context: dict[str, Any] | None = None,
 ) -> None:
     """Handle automatic approval of verification.
 
@@ -803,8 +812,10 @@ async def _handle_auto_approval(
         verification_service: Verification service
         config: Cog configuration
         mod_message: Moderation message to update
-        formatted: Formatted message content
+        additional_content: Additional content (player info, history)
         embeds: Screenshot embeds
+        additional_sections: Secciones adicionales para el embed.
+        sections_context: Contexto para placeholders de secciones.
     """
     # Approve in database
     await verification_service.approve(
@@ -857,24 +868,30 @@ async def _handle_auto_approval(
     if delete_messages:
         await mod_message.delete()
     else:
-        pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
         approved_status = format_message(
             template=config.get(ConfigKey.STATUS_APPROVED),
             moderator="Auto",
         )
-        if pending_status and pending_status in formatted:
-            new_content = formatted.replace(pending_status, approved_status)
-        else:
-            new_content = formatted + f"\n\n{approved_status}"
-        main_embed = create_mod_embed(
-            new_content,
-            username=request.username,
-            user_id=request.user_id,
-            verification_type=VerificationType(request.verification_type),
+        verification_type = VerificationType(request.verification_type)
+        created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        main_embeds = create_mod_embeds(
+            verification_type=verification_type,
             config=config,
+            username=request.username,
+            user_mention=f"<@{request.user_id}>",
+            user_id=request.user_id,
+            status=approved_status,
+            created_at=created_at_str,
+            guild=guild,
+            member=member,
+            additional_content=additional_content,
+            additional_sections=additional_sections,
+            sections_context=sections_context,
         )
-        main_embed.color = discord.Color.green()
-        all_embeds = [main_embed, *embeds]
+        # Aplicar color verde a todos los embeds principales
+        for embed in main_embeds:
+            embed.color = discord.Color.green()
+        all_embeds = [*main_embeds, *embeds]
         await mod_message.edit(embeds=all_embeds, view=None)
 
 
@@ -885,9 +902,11 @@ async def _handle_auto_rejection(
     verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
-    formatted: str,
+    additional_content: str,
     embeds: list[discord.Embed],
     reason: str,
+    additional_sections: list[dict[str, Any]] | None = None,
+    sections_context: dict[str, Any] | None = None,
 ) -> None:
     """Handle automatic rejection of verification.
 
@@ -898,9 +917,11 @@ async def _handle_auto_rejection(
         verification_service: Verification service
         config: Cog configuration
         mod_message: Moderation message to update
-        formatted: Formatted message content
+        additional_content: Additional content (player info, history)
         embeds: Screenshot embeds
         reason: Rejection reason
+        additional_sections: Secciones adicionales para el embed.
+        sections_context: Contexto para placeholders de secciones.
     """
     # Reject in database
     await verification_service.reject(
@@ -912,10 +933,9 @@ async def _handle_auto_rejection(
 
     # Send rejection DM
     member = guild.get_member(request.user_id)
+    verification_type = VerificationType(request.verification_type)
+    type_display = get_verification_type_display(verification_type=verification_type, config=config)
     if member:
-        type_display = get_verification_type_display(
-            verification_type=VerificationType(request.verification_type), config=config
-        )
         rejection_msg = format_message(
             template=config.get(ConfigKey.REJECTION_MESSAGE),
             username=request.username,
@@ -933,25 +953,30 @@ async def _handle_auto_rejection(
     if delete_messages:
         await mod_message.delete()
     else:
-        pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
         rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
             moderator="Auto",
             reason=reason,
         )
-        if pending_status and pending_status in formatted:
-            new_content = formatted.replace(pending_status, rejected_status)
-        else:
-            new_content = formatted + f"\n\n{rejected_status}"
-        main_embed = create_mod_embed(
-            new_content,
-            username=request.username,
-            user_id=request.user_id,
-            verification_type=VerificationType(request.verification_type),
+        created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        main_embeds = create_mod_embeds(
+            verification_type=verification_type,
             config=config,
+            username=request.username,
+            user_mention=f"<@{request.user_id}>",
+            user_id=request.user_id,
+            status=rejected_status,
+            created_at=created_at_str,
+            guild=guild,
+            member=member,
+            additional_content=additional_content,
+            additional_sections=additional_sections,
+            sections_context=sections_context,
         )
-        main_embed.color = discord.Color.red()
-        all_embeds = [main_embed, *embeds]
+        # Aplicar color rojo a todos los embeds principales
+        for embed in main_embeds:
+            embed.color = discord.Color.red()
+        all_embeds = [*main_embeds, *embeds]
 
         # Añadir botón de revisión si está configurado
         review_window = config.get(ConfigKey.AUTO_REJECT_REVIEW_WINDOW, 0)
@@ -1083,14 +1108,9 @@ async def handle_accept(
                                 new_status=approved_status,
                                 config=config,
                             )
-                            # Crear nuevo embed y mantener los embeds de capturas
-                            main_embed = create_mod_embed(
-                                new_content,
-                                username=request.username,
-                                user_id=request.user_id,
-                                verification_type=VerificationType(request.verification_type),
-                                config=config,
-                            )
+                            # Actualizar el embed existente con el nuevo contenido
+                            main_embed = mod_message.embeds[0].copy()
+                            main_embed.description = new_content
                             main_embed.color = discord.Color.green()
                             # Mantener embeds de capturas (todos excepto el primero)
                             screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
@@ -1305,14 +1325,9 @@ async def handle_reject(
                                 new_status=rejected_status,
                                 config=config,
                             )
-                            # Crear nuevo embed y mantener los embeds de capturas
-                            main_embed = create_mod_embed(
-                                new_content,
-                                username=request.username,
-                                user_id=request.user_id,
-                                verification_type=VerificationType(request.verification_type),
-                                config=config,
-                            )
+                            # Actualizar el embed existente con el nuevo contenido
+                            main_embed = mod_message.embeds[0].copy()
+                            main_embed.description = new_content
                             main_embed.color = discord.Color.red()
                             # Mantener embeds de capturas (todos excepto el primero)
                             screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
@@ -1472,14 +1487,9 @@ async def _update_mod_message_for_review(
         if new_content == current_content:
             new_content = current_content + f"\n\n{pending_status}"
 
-    # Crear nuevo embed
-    main_embed = create_mod_embed(
-        new_content,
-        username=request.username,
-        user_id=request.user_id,
-        verification_type=VerificationType(request.verification_type),
-        config=config,
-    )
+    # Actualizar el embed existente con el nuevo contenido
+    main_embed = mod_message.embeds[0].copy() if mod_message.embeds else discord.Embed()
+    main_embed.description = new_content
 
     # Mantener embeds de capturas
     screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
@@ -1550,14 +1560,9 @@ async def update_mod_message_cancelled(
         config=config,
     )
 
-    # Crear nuevo embed con color gris
-    main_embed = create_mod_embed(
-        new_content,
-        username=request.username,
-        user_id=request.user_id,
-        verification_type=VerificationType(request.verification_type),
-        config=config,
-    )
+    # Actualizar el embed existente con el nuevo contenido y color gris
+    main_embed = mod_message.embeds[0].copy() if mod_message.embeds else discord.Embed()
+    main_embed.description = new_content
     main_embed.color = discord.Color.dark_grey()
 
     # Mantener embeds de capturas (todos excepto el primero)

@@ -8100,7 +8100,12 @@ class TestRebuildSingleEmbed:
         mock_request.created_at = datetime.now(UTC)
 
         config: dict[str, Any] = {
-            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
+            ConfigKey.MOD_EMBED_ALLY: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
             ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
             ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
@@ -8127,8 +8132,16 @@ class TestRebuildSingleEmbed:
 
         main_embed = MagicMock()
         main_embed.description = "Usuario: Test\n⏳ Estado"
+        main_embed.image = MagicMock()
+        main_embed.image.url = None  # Main embed has no image
+
         screenshot_embed1 = MagicMock()
+        screenshot_embed1.image = MagicMock()
+        screenshot_embed1.image.url = "https://example.com/screenshot1.png"
+
         screenshot_embed2 = MagicMock()
+        screenshot_embed2.image = MagicMock()
+        screenshot_embed2.image.url = "https://example.com/screenshot2.png"
 
         mock_message = MagicMock(spec=discord.Message)
         mock_message.embeds = [main_embed, screenshot_embed1, screenshot_embed2]
@@ -8147,7 +8160,12 @@ class TestRebuildSingleEmbed:
         mock_request.created_at = datetime.now(UTC)
 
         config: dict[str, Any] = {
-            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
+            ConfigKey.MOD_EMBED_ALLY: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
             ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
             ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
@@ -8191,7 +8209,12 @@ class TestRebuildSingleEmbed:
         mock_request.created_at = datetime.now(UTC)
 
         config: dict[str, Any] = {
-            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
+            ConfigKey.MOD_EMBED_ALLY: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
             ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando",
         }
 
@@ -8273,7 +8296,12 @@ class TestRebuildPendingEmbedsForGuild:
 
         config: dict[str, Any] = {
             ConfigKey.MOD_NOTIFICATION_CHANNEL: 888,
-            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
+            ConfigKey.MOD_EMBED_ALLY: {
+                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+            },
             ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
             ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
@@ -8413,7 +8441,7 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_COLOR_REGULAR)
+            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_REGULAR)
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_rebuilds_on_mod_embed_icon_change(
@@ -8429,7 +8457,7 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_ICON_ALLY)
+            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_ALLY)
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_rebuilds_on_accept_button_change(

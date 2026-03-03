@@ -14,7 +14,7 @@ from discord_bot.common.utils import delete_message
 from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
-    create_mod_embed,
+    create_mod_embeds,
     create_panel_embed,
     format_message,
     get_verification_type_display,
@@ -119,13 +119,8 @@ class VerificationCog(commands.Cog):
     # Claves de configuración que requieren actualizar los embeds de moderación
     _MOD_EMBED_UPDATE_KEYS = frozenset(
         {
-            ConfigKey.MOD_EMBED_COLOR_REGULAR,
-            ConfigKey.MOD_EMBED_COLOR_ALLY,
-            ConfigKey.MOD_EMBED_ICON_REGULAR,
-            ConfigKey.MOD_EMBED_ICON_ALLY,
-            ConfigKey.MOD_EMBED_TITLE_REGULAR,
-            ConfigKey.MOD_EMBED_TITLE_ALLY,
-            ConfigKey.MOD_MESSAGE_TEMPLATE,
+            ConfigKey.MOD_EMBED_REGULAR,
+            ConfigKey.MOD_EMBED_ALLY,
             ConfigKey.STATUS_AWAITING_SCREENSHOTS,
             ConfigKey.STATUS_PENDING_REVIEW,
             ConfigKey.ACCEPT_BUTTON_TEXT,
@@ -396,33 +391,25 @@ class VerificationCog(commands.Cog):
         member = guild.get_member(request.user_id)
         user_mention = member.mention if member else f"<@{request.user_id}>"
 
-        # Formatear el nuevo contenido con el template actual
+        # Crear nuevos embeds con la configuración actual
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-        new_content = format_message(
-            template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
-            username=request.username,
-            user_mention=user_mention,
-            verification_type=type_display,
-            status=status_text,
-            created_at=created_at_str,
-        )
-
-        # Añadir contenido extra preservado (OCR results, etc.)
-        if extra_content:
-            new_content = f"{new_content}\n\n{extra_content}"
-
-        # Crear nuevo embed con la configuración actual
-        main_embed = create_mod_embed(
-            text=new_content,
-            username=request.username,
-            user_id=request.user_id,
+        main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
+            username=request.username,
+            user_mention=user_mention,
+            user_id=request.user_id,
+            status=status_text,
+            created_at=created_at_str,
+            guild=guild,
+            member=member,
+            additional_content=extra_content,
         )
 
-        # Mantener embeds de capturas (todos excepto el primero)
-        screenshot_embeds = mod_message.embeds[1:] if len(mod_message.embeds) > 1 else []
-        all_embeds = [main_embed, *screenshot_embeds]
+        # Mantener embeds de capturas (identificados por tener imagen)
+        # Los embeds de capturas tienen set_image con URL de las capturas
+        screenshot_embeds = [e for e in mod_message.embeds if e.image and e.image.url]
+        all_embeds = [*main_embeds, *screenshot_embeds]
 
         # Solo añadir botones si está pendiente de revisión (ya tiene capturas)
         view: ModReviewView | None = None

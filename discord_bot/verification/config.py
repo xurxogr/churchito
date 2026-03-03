@@ -228,92 +228,57 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
-            key=ConfigKey.MOD_EMBED_COLOR_REGULAR,
-            name="Color embed (Normal)",
-            description=(
-                "Color del embed para verificaciones normales (formato hex: #FF5733). "
-                "Dejar vacío para usar naranja por defecto."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=7,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_EMBED_COLOR_ALLY,
-            name="Color embed (Aliado)",
-            description=(
-                "Color del embed para verificaciones de aliados (formato hex: #FF5733). "
-                "Dejar vacío para usar naranja por defecto."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=7,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_EMBED_ICON_REGULAR,
-            name="Icono embed (Normal)",
-            description=(
-                "URL de la imagen para el thumbnail en verificaciones normales. "
-                "Dejar vacío para usar el avatar por defecto del usuario."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=500,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_EMBED_ICON_ALLY,
-            name="Icono embed (Aliado)",
-            description=(
-                "URL de la imagen para el thumbnail en verificaciones de aliados. "
-                "Dejar vacío para usar el avatar por defecto del usuario."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=500,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_EMBED_TITLE_REGULAR,
-            name="Título embed (Normal)",
-            description=(
-                "Título del embed para verificaciones normales. Dejar vacío para no mostrar título."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=256,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_EMBED_TITLE_ALLY,
-            name="Título embed (Aliado)",
-            description=(
-                "Título del embed para verificaciones de aliados. "
-                "Dejar vacío para no mostrar título."
-            ),
-            option_type=ConfigOptionType.STRING,
-            default="",
-            max_length=256,
-            group="Panel de moderación",
-        ),
-        ConfigOption(
-            key=ConfigKey.MOD_MESSAGE_TEMPLATE,
-            name="Mensaje de moderación",
-            description="Mensaje en el canal de moderación (se actualiza con el progreso)",
-            option_type=ConfigOptionType.TEXTAREA,
-            default=(
-                "**Solicitud de verificación**\n\n"
-                "**Usuario:** {user_mention} ({username})\n"
-                "**Tipo:** {verification_type}\n"
-                "**Fecha:** {created_at}\n\n"
-                "{status}"
-            ),
-            max_length=2000,
+            key=ConfigKey.MOD_EMBED_REGULAR,
+            name="Embed de moderación (Normal)",
+            description="Configuración del embed para verificaciones normales",
+            option_type=ConfigOptionType.EMBED,
+            default={
+                "color": "#FFA500",
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": (
+                            "**Usuario:** {user_mention} ({username})\n"
+                            "**Tipo:** {verification_type}\n"
+                            "**Fecha:** {created_at}\n\n"
+                            "{status}"
+                        ),
+                    }
+                ],
+            },
             placeholders=[
                 "username",
                 "user_mention",
+                "user_avatar_url",
+                "verification_type",
+                "status",
+                "created_at",
+            ],
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_EMBED_ALLY,
+            name="Embed de moderación (Aliado)",
+            description="Configuración del embed para verificaciones de aliados",
+            option_type=ConfigOptionType.EMBED,
+            default={
+                "color": "#FFA500",
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": (
+                            "**Usuario:** {user_mention} ({username})\n"
+                            "**Tipo:** {verification_type}\n"
+                            "**Fecha:** {created_at}\n\n"
+                            "{status}"
+                        ),
+                    }
+                ],
+            },
+            placeholders=[
+                "username",
+                "user_mention",
+                "user_avatar_url",
                 "verification_type",
                 "status",
                 "created_at",
@@ -815,24 +780,50 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="API de Verificación",
         ),
         ConfigOption(
-            key=ConfigKey.PLAYER_INFO_TEMPLATE,
-            name="Plantilla de información del jugador",
+            key=ConfigKey.PLAYER_INFO_SECTIONS,
+            name="Secciones de información del jugador",
             description=(
-                "Plantilla para mostrar la información del jugador en el mensaje de moderación"
+                "Secciones para mostrar la información del jugador en el mensaje de moderación. "
+                "Usa el tipo 'Campos (3 col)' para mostrar datos en columnas."
             ),
-            option_type=ConfigOptionType.TEXTAREA,
-            default=(
-                "**Información del jugador:**\n"
-                "Nombre: {name}\n"
-                "Regimiento: {regiment}\n"
-                "Nivel: {level}\n"
-                "Facción: {faction}\n"
-                "Shard: {shard}\n"
-                "Tiempo de juego: {time}\n"
-                "Guerra: {war}\n"
-                "Tiempo actual: {war_time}"
-            ),
-            max_length=2000,
+            option_type=ConfigOptionType.EMBED_SECTIONS,
+            default=[
+                {
+                    "type": "text",
+                    "title": "Información del jugador",
+                    "content": "",
+                },
+                {
+                    "type": "fields",
+                    "inline": True,
+                    "field_1_name": "Nombre",
+                    "field_1_value": "{name}",
+                    "field_2_name": "Regimiento",
+                    "field_2_value": "{regiment}",
+                    "field_3_name": "Nivel",
+                    "field_3_value": "{level}",
+                },
+                {
+                    "type": "fields",
+                    "inline": True,
+                    "field_1_name": "Facción",
+                    "field_1_value": "{faction}",
+                    "field_2_name": "Shard",
+                    "field_2_value": "{shard}",
+                    "field_3_name": "Tiempo de juego",
+                    "field_3_value": "{time}",
+                },
+                {
+                    "type": "fields",
+                    "inline": True,
+                    "field_1_name": "Guerra",
+                    "field_1_value": "{war}",
+                    "field_2_name": "Tiempo actual",
+                    "field_2_value": "{war_time}",
+                    "field_3_name": "",
+                    "field_3_value": "",
+                },
+            ],
             placeholders=[
                 "name",
                 "regiment",

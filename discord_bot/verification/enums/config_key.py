@@ -23,13 +23,9 @@ class ConfigKey(StrEnum):
     VERIFICATION_TYPE_ALLY_DISPLAY = "verification_type_ally_display"
     HISTORY_LABEL = "history_label"
 
-    # Colores, iconos y títulos del embed de moderación
-    MOD_EMBED_COLOR_REGULAR = "mod_embed_color_regular"
-    MOD_EMBED_COLOR_ALLY = "mod_embed_color_ally"
-    MOD_EMBED_ICON_REGULAR = "mod_embed_icon_regular"
-    MOD_EMBED_ICON_ALLY = "mod_embed_icon_ally"
-    MOD_EMBED_TITLE_REGULAR = "mod_embed_title_regular"
-    MOD_EMBED_TITLE_ALLY = "mod_embed_title_ally"
+    # Embeds de moderación (ConfigOptionType.EMBED)
+    MOD_EMBED_REGULAR = "mod_embed_regular"
+    MOD_EMBED_ALLY = "mod_embed_ally"
 
     # Mensajes del panel y DM
     VERIFICATION_PANEL_MESSAGE = "verification_panel_message"
@@ -38,7 +34,6 @@ class ConfigKey(StrEnum):
     VERIFICATION_STARTED_MESSAGE = "verification_started_message"
     WRONG_IMAGES_MESSAGE = "wrong_images_message"
     SCREENSHOTS_RECEIVED_MESSAGE = "screenshots_received_message"
-    MOD_MESSAGE_TEMPLATE = "mod_message_template"
     MOD_PING_MESSAGE = "mod_ping_message"
     STATUS_AWAITING_SCREENSHOTS = "status_awaiting_screenshots"
     STATUS_PENDING_REVIEW = "status_pending_review"
@@ -101,7 +96,7 @@ class ConfigKey(StrEnum):
     VERIFICATION_AUTOMATIC = "verification_automatic"
     VERIFICATION_MATCH_NAME = "verification_match_name"
     VERIFICATION_VALID_REGIMENT = "verification_valid_regiment"
-    PLAYER_INFO_TEMPLATE = "player_info_template"
+    PLAYER_INFO_SECTIONS = "player_info_sections"
 
     # Claves internas (prefijo _ indica que no son configurables por usuario)
     PANEL_MESSAGE_ID = "_panel_message_id"

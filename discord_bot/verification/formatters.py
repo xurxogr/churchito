@@ -7,8 +7,24 @@ from typing import Any
 
 import discord
 
-from discord_bot.verification.api_client import VerificationAPIResponse
+from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
+from discord_bot.common.services.embed_builder import (
+    PlaceholderContext,
+    build_embeds,
+)
 from discord_bot.verification.enums import ConfigKey, VerificationType
+
+# Embed config por defecto para moderación
+DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
+    "color": "#FFA500",
+    "description": (
+        "**Usuario:** {user_mention} ({username})\n"
+        "**Tipo:** {verification_type}\n"
+        "**Fecha:** {created_at}\n\n"
+        "{status}"
+    ),
+    "sections": [],
+}
 
 
 def format_message(template: str | None = None, **kwargs: str | None) -> str:
@@ -85,62 +101,139 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
         return None
 
 
-def create_mod_embed(
-    text: str,
+def create_mod_embeds(
+    verification_type: VerificationType,
+    config: dict[str, Any],
+    *,
     username: str | None = None,
+    user_mention: str | None = None,
     user_id: int | None = None,
-    verification_type: VerificationType | None = None,
-    config: dict[str, Any] | None = None,
-) -> discord.Embed:
-    """Crear un embed para el mensaje de moderación.
+    status: str | None = None,
+    created_at: str | None = None,
+    guild: discord.Guild | None = None,
+    member: discord.Member | None = None,
+    additional_content: str | None = None,
+    additional_sections: list[dict[str, Any]] | None = None,
+    sections_context: dict[str, Any] | None = None,
+    **extra_placeholders: str | None,
+) -> list[discord.Embed]:
+    """Crear embeds para el mensaje de moderación con auto-split.
+
+    Cuando una sección de descripción sigue a una de campos (o viceversa),
+    se crea un nuevo embed automáticamente para mantener el orden visual.
 
     Args:
-        text: Texto del mensaje de moderación.
-        username: Nombre del usuario (para el footer).
-        user_id: ID del usuario (para el thumbnail).
         verification_type: Tipo de verificación (REGULAR o ALLY).
-        config: Configuración del cog para obtener color, icono y título personalizados.
+        config: Configuración del cog con el embed config.
+        username: Nombre del usuario.
+        user_mention: Mención del usuario.
+        user_id: ID del usuario (para el thumbnail fallback).
+        status: Texto del estado actual.
+        created_at: Fecha de creación formateada.
+        guild: Guild de Discord (para placeholders globales).
+        member: Miembro de Discord (para placeholders de usuario).
+        additional_content: Contenido adicional (errores API, historial de usuario).
+        additional_sections: Secciones adicionales a añadir (player info, etc.).
+        sections_context: Contexto de placeholders para las secciones adicionales.
+        **extra_placeholders: Placeholders adicionales.
 
     Returns:
-        discord.Embed: Embed con el mensaje formateado.
+        list[discord.Embed]: Lista de embeds con el mensaje formateado.
     """
-    # Determinar color según el tipo de verificación
-    color = discord.Color.orange()
-    title = None
-    if config and verification_type:
-        if verification_type == VerificationType.REGULAR:
-            custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_REGULAR))
-            title = config.get(ConfigKey.MOD_EMBED_TITLE_REGULAR) or None
-        else:
-            custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_ALLY))
-            title = config.get(ConfigKey.MOD_EMBED_TITLE_ALLY) or None
-        if custom_color:
-            color = custom_color
+    # Obtener el embed config según el tipo de verificación
+    if verification_type == VerificationType.REGULAR:
+        embed_config_data = config.get(ConfigKey.MOD_EMBED_REGULAR)
+    else:
+        embed_config_data = config.get(ConfigKey.MOD_EMBED_ALLY)
 
-    embed = discord.Embed(
-        title=title,
-        description=text,
-        color=color,
+    # Usar config por defecto si no hay configuración
+    if not embed_config_data or not isinstance(embed_config_data, dict):
+        embed_config_data = DEFAULT_MOD_EMBED_CONFIG
+
+    # Construir EmbedConfig desde los datos
+    embed_config = EmbedConfig(**embed_config_data)
+
+    # Obtener el nombre del tipo de verificación
+    type_display = get_verification_type_display(verification_type, config)
+
+    # Crear contexto con todos los placeholders
+    extra_data: dict[str, Any] = {
+        "username": username or "",
+        "user_mention": user_mention or "",
+        "verification_type": type_display,
+        "status": status or "",
+        "created_at": created_at or "",
+        **{k: v or "" for k, v in extra_placeholders.items()},
+    }
+
+    context = PlaceholderContext(
+        guild=guild,
+        member=member,
+        extra_data=extra_data,
     )
 
-    if username:
-        embed.set_footer(text=f"Usuario: {username}")
+    # Añadir secciones adicionales al embed config si existen
+    all_sections = list(embed_config.sections)
 
-    # Determinar thumbnail según el tipo de verificación
-    thumbnail_url = None
-    if config and verification_type:
-        if verification_type == VerificationType.REGULAR:
-            thumbnail_url = config.get(ConfigKey.MOD_EMBED_ICON_REGULAR)
-        else:
-            thumbnail_url = config.get(ConfigKey.MOD_EMBED_ICON_ALLY)
+    if additional_sections:
+        # Crear contexto combinado para las secciones adicionales
+        sections_extra_data = dict(extra_data)
+        if sections_context:
+            sections_extra_data.update(sections_context)
 
-    if thumbnail_url:
-        embed.set_thumbnail(url=thumbnail_url)
-    elif user_id:
-        # Usar el avatar del usuario como thumbnail si no hay icono configurado
-        embed.set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")
+        # Validar y añadir secciones adicionales
+        for section_data in additional_sections:
+            if not isinstance(section_data, dict):
+                continue
+            if not section_data.get("type"):
+                continue
+            try:
+                section = EmbedSection(**section_data)
+                all_sections.append(section)
+            except (TypeError, ValueError):
+                continue
 
-    return embed
+        # Actualizar el contexto con los datos de secciones adicionales
+        context = PlaceholderContext(
+            guild=guild,
+            member=member,
+            extra_data=sections_extra_data,
+        )
+
+    # Construir el EmbedConfig completo con todas las secciones
+    full_config = EmbedConfig(
+        title=embed_config.title,
+        description=embed_config.description,
+        color=embed_config.color,
+        thumbnail_url=embed_config.thumbnail_url,
+        image_url=embed_config.image_url,
+        footer_text=embed_config.footer_text,
+        footer_icon_url=embed_config.footer_icon_url,
+        sections=all_sections,
+    )
+
+    # Construir los embeds con auto-split
+    embeds = build_embeds(
+        full_config,
+        context,
+        default_color=discord.Color.orange(),
+    )
+
+    # Añadir contenido adicional (errores API, historial) al último embed
+    if additional_content and embeds:
+        last_embed = embeds[-1]
+        current_desc = last_embed.description or ""
+        last_embed.description = current_desc + additional_content
+
+    # Footer con nombre de usuario en el último embed
+    if username and embeds:
+        embeds[-1].set_footer(text=f"Usuario: {username}")
+
+    # Fallback para thumbnail si no está configurado (primer embed)
+    if embeds and not embeds[0].thumbnail.url and user_id:
+        embeds[0].set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")
+
+    return embeds
 
 
 def get_verification_type_display(
@@ -158,32 +251,3 @@ def get_verification_type_display(
     if verification_type == VerificationType.REGULAR:
         return config.get(ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY) or "Normal"
     return config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Aliado"
-
-
-def format_player_info(
-    template: str | None,
-    api_response: VerificationAPIResponse,
-) -> str:
-    """Format player info using template and API response.
-
-    Args:
-        template: Template with placeholders
-        api_response: API response with player data
-
-    Returns:
-        Formatted string
-    """
-    if not template:
-        return ""
-
-    return format_message(
-        template=template,
-        name=api_response.name,
-        regiment=api_response.regiment or "N/A",
-        level=str(api_response.level),
-        faction=api_response.faction,
-        shard=api_response.shard,
-        time=api_response.ingame_time,
-        war=str(api_response.war),
-        war_time=api_response.current_ingame_time,
-    )

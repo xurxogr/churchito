@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
-from discord_bot.common.enums.embed_section_type import AnsiColor, EmbedSectionType
+from discord_bot.common.enums.embed_section_type import EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
 
 if TYPE_CHECKING:
@@ -117,6 +117,9 @@ def format_placeholders(template: str, context: PlaceholderContext) -> str:
         if value is not None:
             result = result.replace(f"{{{key}}}", value)
 
+    # Convert literal \n to actual newlines
+    result = result.replace("\\n", "\n")
+
     return result
 
 
@@ -160,68 +163,31 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
         return None
 
 
-# Mapeo de colores ANSI para TEXT_COLORED
-ANSI_COLOR_CODES: dict[str, int] = {
-    AnsiColor.GRAY: 30,
-    AnsiColor.RED: 31,
-    AnsiColor.GREEN: 32,
-    AnsiColor.YELLOW: 33,
-    AnsiColor.BLUE: 34,
-    AnsiColor.PINK: 35,
-    AnsiColor.CYAN: 36,
-    AnsiColor.WHITE: 37,
-}
-
-
 def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[str, Any]:
     """Renderizar una sección a datos para el embed.
 
     Returns:
-        Dict con 'description' (texto a agregar) y/o 'fields' (campos a agregar).
+        Dict con 'fields' (campos a agregar). Todas las secciones ahora son campos.
     """
-    result: dict[str, Any] = {"description": "", "fields": []}
+    # Zero-width space for empty field names/values (Discord requires non-empty)
+    EMPTY = "\u200b"
+    result: dict[str, Any] = {"fields": []}
 
     match section.type:
         case EmbedSectionType.TEXT:
-            result["description"] = format_placeholders(section.content, context)
-
-        case EmbedSectionType.TEXT_COLORED:
-            formatted = format_placeholders(section.content, context)
-            color_code = ANSI_COLOR_CODES.get(section.text_color or "", 37)  # Default white
-            # Wrap in ANSI code block with color
-            result["description"] = f"```ansi\n\u001b[{color_code}m{formatted}\u001b[0m\n```"
-
-        case EmbedSectionType.HEADER:
-            # Header es texto en negrita con separación
-            formatted = format_placeholders(section.content, context)
-            result["description"] = f"\n**{formatted}**\n"
-
-        case EmbedSectionType.PROGRESS:
-            # Obtener valor del contexto
-            value: float = 0.0
-            if section.value_key:
-                raw_value = context.resolve(section.value_key)
-                if raw_value is not None:
-                    try:
-                        value = float(raw_value)
-                    except ValueError:
-                        pass
-
-            max_val = section.max_value or 100
-            percentage = min(int((value / max_val) * 100), 100) if max_val > 0 else 0
-            bar = create_progress_bar(value, max_val)
-
-            # Construir la línea de progreso
-            left = format_placeholders(section.label_left or "", context)
-            right = format_placeholders(section.label_right or "", context)
-
-            lines = [f"`{bar}` {percentage}%"]
-            if left or right:
-                lines.append(f"{left}{'  →  ' if left and right else ''}{right}")
-
-            result["description"] = "\n".join(lines)
+            # Full-width field with title + content
+            title = format_placeholders(section.title, context) if section.title else EMPTY
+            content = format_placeholders(section.content, context) if section.content else EMPTY
+            result["fields"].append(
+                {
+                    "name": title,
+                    "value": content,
+                    "inline": False,
+                }
+            )
 
         case EmbedSectionType.FIELDS:
+            # Inline fields (up to 3 per row)
             fields = section.get_fields()
             for field_item in fields:
                 result["fields"].append(
@@ -287,25 +253,19 @@ def build_embed(
 
     embed = discord.Embed(title=embed_title, color=color)
 
-    # Construir descripción y campos desde secciones
-    description_parts: list[str] = []
+    # Descripción (aparece antes de los campos)
+    if config.description:
+        embed.description = format_placeholders(config.description, context)
 
+    # Construir campos desde secciones (todas las secciones son campos ahora)
     for section in config.sections:
         rendered = _render_section(section, context)
-
-        if rendered["description"]:
-            description_parts.append(rendered["description"])
-
         for field_data in rendered["fields"]:
             embed.add_field(
                 name=field_data["name"],
                 value=field_data["value"],
                 inline=field_data["inline"],
             )
-
-    # Unir descripción
-    if description_parts:
-        embed.description = "\n".join(description_parts)
 
     # Thumbnail
     if config.thumbnail_url:
@@ -326,6 +286,38 @@ def build_embed(
         embed.set_footer(text=footer_text, icon_url=footer_icon)
 
     return embed
+
+
+def build_embeds(
+    config: EmbedConfig,
+    context: PlaceholderContext,
+    *,
+    title: str | None = None,
+    default_color: discord.Color | None = None,
+) -> list[discord.Embed]:
+    """Construir un embed desde una configuración de secciones.
+
+    Todas las secciones se renderizan como campos de Discord. Esta función
+    devuelve una lista para mantener compatibilidad con código existente,
+    pero siempre devuelve un único embed (ya no hay auto-split).
+
+    Args:
+        config: Configuración del embed con secciones.
+        context: Contexto con datos para resolver placeholders.
+        title: Título opcional (sobrescribe config.title).
+        default_color: Color por defecto si no hay color en config.
+
+    Returns:
+        Lista con un único discord.Embed construido.
+    """
+    embed = build_embed(
+        config,
+        context,
+        title=title,
+        default_color=default_color,
+        validate_fields=False,  # Don't validate here, caller can validate if needed
+    )
+    return [embed]
 
 
 def build_embed_from_rows(

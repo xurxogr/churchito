@@ -4,14 +4,12 @@ from typing import Any
 
 import discord
 
-from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import (
     _parse_hex_color,
-    create_mod_embed,
+    create_mod_embeds,
     create_panel_embed,
     format_message,
-    format_player_info,
     get_verification_type_display,
 )
 
@@ -227,91 +225,6 @@ class TestGetVerificationTypeDisplay:
         assert result == "Aliado"
 
 
-class TestFormatPlayerInfo:
-    """Tests para format_player_info."""
-
-    def test_format_all_fields(self) -> None:
-        """Probar formateo con todos los campos."""
-        template = "Name: {name}, Level: {level}, Faction: {faction}"
-        api_response = VerificationAPIResponse(
-            name="TestPlayer",
-            level=25,
-            regiment="TestRegiment",
-            faction="colonial",
-            shard="ABLE",
-            ingame_time="268, 07:41",
-            war=100,
-            current_ingame_time="278, 08:34",
-        )
-
-        result = format_player_info(template, api_response)
-
-        assert "TestPlayer" in result
-        assert "25" in result
-        assert "colonial" in result
-
-    def test_format_with_empty_regiment(self) -> None:
-        """Probar formateo cuando regiment está vacío."""
-        template = "Regiment: {regiment}"
-        api_response = VerificationAPIResponse(
-            name="TestPlayer",
-            level=25,
-            regiment="",
-            faction="colonial",
-            shard="ABLE",
-            ingame_time="268, 07:41",
-            war=100,
-            current_ingame_time="278, 08:34",
-        )
-
-        result = format_player_info(template, api_response)
-
-        assert "N/A" in result
-
-    def test_format_with_none_template(self) -> None:
-        """Probar con template None."""
-        api_response = VerificationAPIResponse(
-            name="TestPlayer",
-            level=25,
-            regiment="TestRegiment",
-            faction="colonial",
-            shard="ABLE",
-            ingame_time="268, 07:41",
-            war=100,
-            current_ingame_time="278, 08:34",
-        )
-
-        result = format_player_info(None, api_response)
-
-        assert result == ""
-
-    def test_format_with_all_placeholders(self) -> None:
-        """Probar formateo con todos los placeholders disponibles."""
-        template = (
-            "{name} - {regiment} - {level} - {faction} - {shard} - {time} - {war} - {war_time}"
-        )
-        api_response = VerificationAPIResponse(
-            name="Player",
-            level=50,
-            regiment="Regiment",
-            faction="wardens",
-            shard="CHARLIE",
-            ingame_time="100, 12:00",
-            war=50,
-            current_ingame_time="110, 14:00",
-        )
-
-        result = format_player_info(template, api_response)
-
-        assert "Player" in result
-        assert "Regiment" in result
-        assert "50" in result
-        assert "wardens" in result
-        assert "CHARLIE" in result
-        assert "100, 12:00" in result
-        assert "110, 14:00" in result
-
-
 class TestParseHexColor:
     """Tests para _parse_hex_color."""
 
@@ -354,154 +267,379 @@ class TestParseHexColor:
         assert result == discord.Color(0xFF5733)
 
 
-class TestCreateModEmbed:
-    """Tests para create_mod_embed."""
+class TestCreateModEmbeds:
+    """Tests para create_mod_embeds."""
 
-    def test_basic_embed(self) -> None:
-        """Probar embed básico sin config."""
-        embed = create_mod_embed("Test message")
-        assert embed.description == "Test message"
-        assert embed.color == discord.Color.orange()
+    def test_basic_embed_with_default_config(self) -> None:
+        """Probar embed básico con configuración por defecto."""
+        config: dict[str, Any] = {}
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            status="Test status",
+        )
+        assert embeds[0].description is not None
+        assert "Test status" in embeds[0].description
+        # Default color is #FFA500 (naranja) from DEFAULT_MOD_EMBED_CONFIG
+        assert embeds[0].color == discord.Color(0xFFA500)
 
-    def test_with_username(self) -> None:
+    def test_with_username_in_footer(self) -> None:
         """Probar embed con username en footer."""
-        embed = create_mod_embed("Test", username="TestUser")
-        assert embed.footer is not None
-        assert embed.footer.text is not None
-        assert "TestUser" in embed.footer.text
+        config: dict[str, Any] = {}
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+        )
+        assert embeds[0].footer is not None
+        assert embeds[0].footer.text is not None
+        assert "TestUser" in embeds[0].footer.text
 
     def test_with_user_id_default_thumbnail(self) -> None:
         """Probar embed con thumbnail por defecto basado en user_id."""
-        embed = create_mod_embed("Test", user_id=12345)
-        assert embed.thumbnail is not None
-        assert embed.thumbnail.url is not None
-        assert "cdn.discordapp.com" in embed.thumbnail.url
+        config: dict[str, Any] = {}
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            user_id=12345,
+        )
+        assert embeds[0].thumbnail is not None
+        assert embeds[0].thumbnail.url is not None
+        assert "cdn.discordapp.com" in embeds[0].thumbnail.url
 
     def test_custom_color_regular(self) -> None:
         """Probar color personalizado para verificación regular."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_COLOR_REGULAR: "#3498db",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "#3498db",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.color == discord.Color(0x3498DB)
+        assert embeds[0].color == discord.Color(0x3498DB)
 
     def test_custom_color_ally(self) -> None:
         """Probar color personalizado para verificación aliado."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_COLOR_ALLY: "#e74c3c",
+            ConfigKey.MOD_EMBED_ALLY: {
+                "color": "#e74c3c",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.ALLY,
             config=config,
         )
-        assert embed.color == discord.Color(0xE74C3C)
+        assert embeds[0].color == discord.Color(0xE74C3C)
 
-    def test_custom_icon_regular(self) -> None:
-        """Probar icono personalizado para verificación regular."""
+    def test_custom_thumbnail_regular(self) -> None:
+        """Probar thumbnail personalizado para verificación regular."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_ICON_REGULAR: "https://example.com/icon.png",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "thumbnail_url": "https://example.com/icon.png",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.thumbnail is not None
-        assert embed.thumbnail.url == "https://example.com/icon.png"
+        assert embeds[0].thumbnail is not None
+        assert embeds[0].thumbnail.url == "https://example.com/icon.png"
 
-    def test_custom_icon_ally(self) -> None:
-        """Probar icono personalizado para verificación aliado."""
+    def test_custom_thumbnail_ally(self) -> None:
+        """Probar thumbnail personalizado para verificación aliado."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_ICON_ALLY: "https://example.com/ally.png",
+            ConfigKey.MOD_EMBED_ALLY: {
+                "thumbnail_url": "https://example.com/ally.png",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.ALLY,
             config=config,
         )
-        assert embed.thumbnail is not None
-        assert embed.thumbnail.url == "https://example.com/ally.png"
+        assert embeds[0].thumbnail is not None
+        assert embeds[0].thumbnail.url == "https://example.com/ally.png"
 
-    def test_empty_color_uses_default(self) -> None:
-        """Probar que color vacío usa naranja por defecto."""
-        config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_COLOR_REGULAR: "",
-        }
-        embed = create_mod_embed(
-            "Test",
+    def test_empty_config_uses_default_color(self) -> None:
+        """Probar que configuración vacía usa naranja por defecto."""
+        config: dict[str, Any] = {}
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.color == discord.Color.orange()
+        # Default color is #FFA500 (naranja) from DEFAULT_MOD_EMBED_CONFIG
+        assert embeds[0].color == discord.Color(0xFFA500)
 
     def test_invalid_color_uses_default(self) -> None:
         """Probar que color inválido usa naranja por defecto."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_COLOR_REGULAR: "invalid",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "invalid",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.color == discord.Color.orange()
+        assert embeds[0].color == discord.Color.orange()
 
-    def test_custom_icon_overrides_user_avatar(self) -> None:
-        """Probar que icono personalizado tiene prioridad sobre avatar."""
+    def test_custom_thumbnail_overrides_user_avatar(self) -> None:
+        """Probar que thumbnail personalizado tiene prioridad sobre avatar."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_ICON_REGULAR: "https://example.com/custom.png",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "thumbnail_url": "https://example.com/custom.png",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
-            user_id=12345,
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
+            user_id=12345,
         )
-        assert embed.thumbnail is not None
-        assert embed.thumbnail.url == "https://example.com/custom.png"
+        assert embeds[0].thumbnail is not None
+        assert embeds[0].thumbnail.url == "https://example.com/custom.png"
 
     def test_title_regular(self) -> None:
         """Probar título personalizado para verificación regular."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_TITLE_REGULAR: "🟢 Verificación de Miembro",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "title": "🟢 Verificación de Miembro",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.title == "🟢 Verificación de Miembro"
+        assert embeds[0].title == "🟢 Verificación de Miembro"
 
     def test_title_ally(self) -> None:
         """Probar título personalizado para verificación aliado."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_TITLE_ALLY: "🟡 Verificación de Aliado",
+            ConfigKey.MOD_EMBED_ALLY: {
+                "title": "🟡 Verificación de Aliado",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.ALLY,
             config=config,
         )
-        assert embed.title == "🟡 Verificación de Aliado"
+        assert embeds[0].title == "🟡 Verificación de Aliado"
 
     def test_empty_title_not_shown(self) -> None:
         """Probar que título vacío no se muestra."""
         config: dict[str, Any] = {
-            ConfigKey.MOD_EMBED_TITLE_REGULAR: "",
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "title": "",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
         }
-        embed = create_mod_embed(
-            "Test",
+        embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
         )
-        assert embed.title is None
+        assert embeds[0].title is None
 
     def test_no_title_without_config(self) -> None:
-        """Probar que no hay título sin config."""
-        embed = create_mod_embed("Test")
-        assert embed.title is None
+        """Probar que no hay título con configuración por defecto."""
+        config: dict[str, Any] = {}
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embeds[0].title is None
+
+    def test_placeholders_replaced(self) -> None:
+        """Probar que los placeholders se reemplazan."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "Usuario: {username}, Estado: {status}",
+            },
+        }
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+            status="Pendiente",
+        )
+        assert embeds[0].description is not None
+        assert "TestUser" in embeds[0].description
+        assert "Pendiente" in embeds[0].description
+
+    def test_additional_content_appended(self) -> None:
+        """Probar que el contenido adicional se añade."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "Base content",
+            },
+        }
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            additional_content="\n\nPlayer Info: Level 25",
+        )
+        assert embeds[0].description is not None
+        assert "Base content" in embeds[0].description
+        assert "Player Info: Level 25" in embeds[0].description
+
+    def test_additional_sections_text(self) -> None:
+        """Probar que las secciones adicionales de texto se añaden como campos."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "Base content",
+            },
+        }
+        additional_sections = [
+            {"type": "text", "title": "Player Info", "content": "Name: {name}, Level: {level}"},
+        ]
+        sections_context = {"name": "TestPlayer", "level": "25"}
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            additional_sections=additional_sections,
+            sections_context=sections_context,
+        )
+
+        assert embeds[0].description is not None
+        assert "Base content" in embeds[0].description
+        # TEXT section is now a field
+        assert len(embeds[0].fields) == 1
+        assert embeds[0].fields[0].name == "Player Info"
+        assert embeds[0].fields[0].value is not None
+        assert "TestPlayer" in embeds[0].fields[0].value
+        assert "25" in embeds[0].fields[0].value
+
+    def test_additional_sections_fields(self) -> None:
+        """Probar que las secciones adicionales con campos se añaden."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "Base content",
+            },
+        }
+        additional_sections = [
+            {
+                "type": "fields",
+                "inline": True,
+                "field_1_name": "Name",
+                "field_1_value": "{name}",
+                "field_2_name": "Level",
+                "field_2_value": "{level}",
+                "field_3_name": "Faction",
+                "field_3_value": "{faction}",
+            },
+        ]
+        sections_context = {"name": "TestPlayer", "level": "25", "faction": "colonial"}
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            additional_sections=additional_sections,
+            sections_context=sections_context,
+        )
+
+        assert len(embeds[0].fields) == 3
+        assert embeds[0].fields[0].name == "Name"
+        assert embeds[0].fields[0].value == "TestPlayer"
+        assert embeds[0].fields[1].name == "Level"
+        assert embeds[0].fields[1].value == "25"
+        assert embeds[0].fields[2].name == "Faction"
+        assert embeds[0].fields[2].value == "colonial"
+
+    def test_additional_sections_without_context(self) -> None:
+        """Probar secciones adicionales sin contexto (placeholders no resueltos)."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "Base",
+            },
+        }
+        additional_sections = [
+            {"type": "text", "title": "Info", "content": "Name: {name}"},
+        ]
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            additional_sections=additional_sections,
+        )
+
+        # TEXT section is a field, placeholder not resolved stays as-is
+        assert len(embeds[0].fields) == 1
+        assert embeds[0].fields[0].value is not None
+        assert "{name}" in embeds[0].fields[0].value
+
+    def test_mixed_sections_as_fields(self) -> None:
+        """Probar que todas las secciones se renderizan como campos."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "#FFA500",
+                "description": "Main description",
+                "sections": [
+                    {"type": "text", "title": "Section 1", "content": "Text content"},
+                    {
+                        "type": "fields",
+                        "inline": True,
+                        "field_1_name": "Field 1",
+                        "field_1_value": "Value 1",
+                        "field_2_name": "Field 2",
+                        "field_2_value": "Value 2",
+                    },
+                ],
+            },
+        }
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+        )
+
+        # Should be single embed
+        assert len(embeds) == 1
+
+        # Description from config
+        assert embeds[0].description is not None
+        assert "Main description" in embeds[0].description
+
+        # All sections are fields
+        assert len(embeds[0].fields) == 3
+        assert embeds[0].fields[0].name == "Section 1"
+        assert embeds[0].fields[0].value == "Text content"
+        assert embeds[0].fields[1].name == "Field 1"
+        assert embeds[0].fields[2].name == "Field 2"
+
+        # Footer with username
+        assert embeds[0].footer is not None
+        assert embeds[0].footer.text is not None
+        assert "TestUser" in embeds[0].footer.text
+
+    def test_text_sections_as_full_width_fields(self) -> None:
+        """Probar que secciones TEXT se renderizan como campos de ancho completo."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [
+                    {"type": "text", "title": "Title 1", "content": "Content 1"},
+                    {"type": "text", "title": "Title 2", "content": "Content 2"},
+                ],
+            },
+        }
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+
+        # All sections as fields in single embed
+        assert len(embeds) == 1
+        assert len(embeds[0].fields) == 2
+        assert embeds[0].fields[0].name == "Title 1"
+        assert embeds[0].fields[0].value == "Content 1"
+        assert embeds[0].fields[1].name == "Title 2"
+        assert embeds[0].fields[1].value == "Content 2"

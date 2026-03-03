@@ -18,16 +18,10 @@ class EmbedSection(BaseModel):
     """Definición de una sección de embed."""
 
     type: EmbedSectionType = Field(description="Tipo de sección")
-    content: str = Field(default="", description="Contenido de texto (para TEXT, HEADER)")
 
-    # Para TEXT_COLORED
-    text_color: str | None = Field(default=None, description="Color ANSI para TEXT_COLORED")
-
-    # Para PROGRESS
-    value_key: str | None = Field(default=None, description="Clave del placeholder para el valor")
-    max_value: int | None = Field(default=None, description="Valor máximo para la barra")
-    label_left: str | None = Field(default=None, description="Etiqueta izquierda")
-    label_right: str | None = Field(default=None, description="Etiqueta derecha")
+    # Para TEXT
+    title: str = Field(default="", description="Título/nombre del campo")
+    content: str = Field(default="", description="Contenido de texto")
 
     # Para FIELDS
     inline: bool = Field(default=True, description="Si los campos son inline")
@@ -54,6 +48,9 @@ class EmbedConfig(BaseModel):
 
     # Propiedades principales del embed
     title: str | None = Field(default=None, description="Título del embed")
+    description: str | None = Field(
+        default=None, description="Descripción del embed (aparece antes de los campos)"
+    )
     color: str | None = Field(default=None, description="Color en formato hex (#FF5733)")
 
     # Imágenes
@@ -73,6 +70,8 @@ class EmbedConfig(BaseModel):
         for section in self.sections:
             if section.type == EmbedSectionType.FIELDS:
                 total += len(section.get_fields())
+            elif section.type == EmbedSectionType.TEXT:
+                total += 1
         return total
 
     def validate_field_limit(self) -> bool:
@@ -91,12 +90,8 @@ class EmbedConfig(BaseModel):
             section_type = row.get("type", EmbedSectionType.TEXT)
             section = EmbedSection(
                 type=section_type,
+                title=row.get("title", ""),
                 content=row.get("content", ""),
-                text_color=row.get("text_color"),
-                value_key=row.get("value_key"),
-                max_value=row.get("max_value"),
-                label_left=row.get("label_left"),
-                label_right=row.get("label_right"),
                 inline=row.get("inline", True),
                 field_1_name=row.get("field_1_name"),
                 field_1_value=row.get("field_1_value"),
