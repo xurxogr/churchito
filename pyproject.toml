@@ -116,10 +116,27 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
-addopts = "-n auto --cov=discord_bot --cov-report=term-missing --cov-report=html"
+# Use loadfile distribution for better coverage combining
+addopts = "-n auto --dist=loadfile --cov=discord_bot --cov-report=term-missing"
 filterwarnings = [
     "ignore::RuntimeWarning",
 ]
+
+[tool.coverage.run]
+source = ["discord_bot"]
+parallel = true
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 98
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [project.scripts]
 discord-bot = "discord_bot.__main__:run"
