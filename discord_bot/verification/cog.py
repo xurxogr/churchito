@@ -13,7 +13,12 @@ from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import delete_message
 from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
 from discord_bot.verification.enums import ConfigKey, VerificationType
-from discord_bot.verification.formatters import create_panel_embed, format_message
+from discord_bot.verification.formatters import (
+    create_mod_embed,
+    create_panel_embed,
+    format_message,
+    get_verification_type_display,
+)
 from discord_bot.verification.handlers import (
     handle_accept,
     handle_dm_screenshots,
@@ -25,7 +30,7 @@ from discord_bot.verification.handlers import (
 )
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
 from discord_bot.verification.service import VerificationService
-from discord_bot.verification.views import VerificationPanelView
+from discord_bot.verification.views import ModReviewView, VerificationPanelView
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +116,20 @@ class VerificationCog(commands.Cog):
         }
     )
 
+    # Claves de configuración que requieren actualizar los embeds de moderación
+    _MOD_EMBED_UPDATE_KEYS = frozenset(
+        {
+            ConfigKey.MOD_EMBED_COLOR_REGULAR,
+            ConfigKey.MOD_EMBED_COLOR_ALLY,
+            ConfigKey.MOD_EMBED_ICON_REGULAR,
+            ConfigKey.MOD_EMBED_ICON_ALLY,
+            ConfigKey.MOD_EMBED_TITLE_REGULAR,
+            ConfigKey.MOD_EMBED_TITLE_ALLY,
+            ConfigKey.ACCEPT_BUTTON_TEXT,
+            ConfigKey.REJECT_BUTTON_TEXT,
+        }
+    )
+
     async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
         """Manejar cambios de configuración desde el dashboard web.
 
@@ -121,6 +140,10 @@ class VerificationCog(commands.Cog):
         if key in self._PANEL_UPDATE_KEYS:
             logger.info(f"[{guild.name}] Configuración '{key}' cambió, actualizando panel")
             await self._check_verification_message(guild=guild, recreate=True)
+
+        if key in self._MOD_EMBED_UPDATE_KEYS:
+            logger.info(f"[{guild.name}] Configuración '{key}' cambió, actualizando embeds de mod")
+            await self._rebuild_pending_embeds_for_guild(guild)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
         """Manejar cuando el cog es habilitado o deshabilitado.
@@ -242,6 +265,122 @@ class VerificationCog(commands.Cog):
             logger.info(
                 f"Limpieza completada: {cancelled_count}/{len(pending)} verificaciones canceladas"
             )
+
+    async def _rebuild_pending_embeds_for_guild(self, guild: discord.Guild) -> None:
+        """Reconstruir embeds de verificaciones pendientes para un guild específico.
+
+        Se llama cuando cambia la configuración de embeds de moderación.
+
+        Args:
+            guild: Guild donde reconstruir los embeds
+        """
+        async with self.bot.database.session() as session:
+            service = VerificationService(session=session)
+            pending = await service.get_pending_with_mod_messages()
+
+            # Filtrar solo las de este guild
+            guild_requests = [r for r in pending if r.guild_id == guild.id]
+            if not guild_requests:
+                logger.debug(f"[{guild.name}] No hay verificaciones pendientes para reconstruir")
+                return
+
+            config_service = ConfigService(session=session)
+            config = await config_service.get_all_config(guild_id=guild.id, cog_name=COG_NAME)
+
+            mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
+            if not mod_channel_id:
+                return
+
+            mod_channel = guild.get_channel(mod_channel_id)
+            if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
+                return
+
+            rebuilt_count = 0
+            for request in guild_requests:
+                try:
+                    rebuilt = await self._rebuild_single_embed(
+                        guild=guild,
+                        channel=mod_channel,
+                        request=request,
+                        config=config,
+                    )
+                    if rebuilt:
+                        rebuilt_count += 1
+                except Exception as e:
+                    logger.error(
+                        f"[{guild.name}] Error reconstruyendo embed para "
+                        f"solicitud {request.id}: {e}"
+                    )
+
+            logger.info(
+                f"[{guild.name}] Reconstrucción completada: "
+                f"{rebuilt_count}/{len(guild_requests)} embeds"
+            )
+
+    async def _rebuild_single_embed(
+        self,
+        guild: discord.Guild,
+        channel: discord.TextChannel,
+        request: Any,
+        config: dict[str, Any],
+    ) -> bool:
+        """Reconstruir un solo embed de verificación pendiente.
+
+        Args:
+            guild: Guild donde está el mensaje
+            channel: Canal de moderación
+            request: Solicitud de verificación
+            config: Configuración del cog
+
+        Returns:
+            bool: True si se reconstruyó correctamente
+        """
+        if not request.mod_message_id:
+            return False
+
+        try:
+            mod_message = await channel.fetch_message(request.mod_message_id)
+        except discord.NotFound:
+            logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
+            return False
+
+        # Obtener el contenido actual del embed (preservar información)
+        current_content = ""
+        if mod_message.embeds:
+            current_content = mod_message.embeds[0].description or ""
+
+        # Crear nuevo embed con la configuración actual
+        verification_type = VerificationType(request.verification_type)
+        main_embed = create_mod_embed(
+            text=current_content,
+            username=request.username,
+            user_id=request.user_id,
+            verification_type=verification_type,
+            config=config,
+        )
+
+        # Mantener embeds de capturas (todos excepto el primero)
+        screenshot_embeds = mod_message.embeds[1:] if len(mod_message.embeds) > 1 else []
+        all_embeds = [main_embed, *screenshot_embeds]
+
+        # Recrear la vista con botones
+        type_display = get_verification_type_display(
+            verification_type=verification_type, config=config
+        )
+        accept_label = format_message(
+            template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+            verification_type=type_display,
+        )
+        reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+        view = ModReviewView(
+            request_id=request.id,
+            accept_label=accept_label,
+            reject_label=reject_label,
+        )
+
+        await mod_message.edit(embeds=all_embeds, view=view)
+        logger.debug(f"[{guild.name}] Embed reconstruido para solicitud {request.id}")
+        return True
 
     async def _run_health_check(self, force_all: bool = False) -> None:
         """Ejecutar verificacion de salud de paneles en guilds que esten listos.

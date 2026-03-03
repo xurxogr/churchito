@@ -160,6 +160,22 @@ class VerificationService:
         )
         return list(result.scalars().all())
 
+    async def get_pending_with_mod_messages(self) -> list[VerificationRequest]:
+        """Obtener solicitudes pendientes de revisión que tienen mensaje de moderación.
+
+        Util para reconstruir los embeds de verificación al reiniciar el bot.
+
+        Returns:
+            list[VerificationRequest]: Lista de solicitudes con mensaje de mod
+        """
+        result = await self._session.execute(
+            select(VerificationRequest).where(
+                VerificationRequest.status == VerificationStatus.PENDING_REVIEW,
+                VerificationRequest.mod_message_id.isnot(None),
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_user_history(self, guild_id: int, user_id: int) -> list[VerificationRequest]:
         """Obtener historial de verificaciones de un usuario.
 

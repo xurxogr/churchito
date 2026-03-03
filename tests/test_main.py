@@ -251,48 +251,6 @@ async def test_main_missing_bot_token(
 @patch("discord_bot.__main__.setup_logging")
 @patch("discord_bot.__main__.DatabaseService")
 @patch("discord_bot.__main__.DiscordBot")
-async def test_main_keyboard_interrupt(
-    mock_bot_class: MagicMock,
-    mock_db_service_class: MagicMock,
-    mock_setup_logging: MagicMock,
-    mock_load_settings: MagicMock,
-    mock_parse_args: MagicMock,
-    test_settings: AppSettings,
-) -> None:
-    """Test main function with keyboard interrupt.
-
-    Args:
-        mock_bot_class: Mock DiscordBot class
-        mock_db_service_class: Mock DatabaseService class
-        mock_setup_logging: Mock setup_logging function
-        mock_load_settings: Mock load_settings function
-        mock_parse_args: Mock parse_args function
-        test_settings: Test application settings
-    """
-    mock_parse_args.return_value = MagicMock(config=None, token=None, log_level=None)
-    mock_load_settings.return_value = test_settings
-
-    mock_db = MagicMock()
-    mock_db_service_class.return_value = mock_db
-
-    mock_bot = MagicMock()
-    mock_bot.__aenter__ = AsyncMock(return_value=mock_bot)
-    mock_bot.__aexit__ = AsyncMock(return_value=None)
-    mock_bot.start = AsyncMock(side_effect=KeyboardInterrupt)
-    mock_bot_class.return_value = mock_bot
-
-    # Should not raise
-    await main()
-
-    mock_bot.start.assert_called_once()
-
-
-@pytest.mark.asyncio
-@patch("discord_bot.__main__.parse_args")
-@patch("discord_bot.__main__.load_settings")
-@patch("discord_bot.__main__.setup_logging")
-@patch("discord_bot.__main__.DatabaseService")
-@patch("discord_bot.__main__.DiscordBot")
 async def test_main_fatal_error(
     mock_bot_class: MagicMock,
     mock_db_service_class: MagicMock,

@@ -157,7 +157,9 @@ class TestHandleVerificationStart:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_verification_start(interaction, VerificationType.REGULAR)
+        await verification_cog.handle_verification_start(
+            interaction=interaction, verification_type=VerificationType.REGULAR
+        )
 
         # No deberia hacer nada
         interaction.response.defer.assert_not_called()
@@ -312,7 +314,7 @@ class TestHandleAccept:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_accept(interaction, 1)
+        await verification_cog.handle_accept(interaction=interaction, request_id=1)
 
         interaction.response.defer.assert_not_called()
 
@@ -377,7 +379,7 @@ class TestHandleReject:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_reject(interaction, 1, "motivo")
+        await verification_cog.handle_reject(interaction=interaction, request_id=1, reason="motivo")
 
         interaction.response.defer.assert_not_called()
 
@@ -419,7 +421,7 @@ class TestShowRejectionSelect:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        await verification_cog.show_rejection_select(interaction, 1)
+        await verification_cog.show_rejection_select(interaction=interaction, request_id=1)
 
         interaction.response.send_message.assert_not_called()
 
@@ -468,7 +470,9 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, request_id)
+            await verification_cog.show_rejection_select(
+                interaction=interaction, request_id=request_id
+            )
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args[1]
@@ -515,7 +519,9 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, request_id)
+            await verification_cog.show_rejection_select(
+                interaction=interaction, request_id=request_id
+            )
 
             interaction.response.send_message.assert_called_once()
 
@@ -532,7 +538,9 @@ class TestShowRejectionSelect:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -560,7 +568,9 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, request_id)
+            await verification_cog.show_rejection_select(
+                interaction=interaction, request_id=request_id
+            )
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args[1]
@@ -581,7 +591,9 @@ class TestShowRejectionSelect:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -609,7 +621,9 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, request_id)
+            await verification_cog.show_rejection_select(
+                interaction=interaction, request_id=request_id
+            )
 
             # Debe funcionar sin error (el motivo se omite)
             interaction.response.send_message.assert_called_once()
@@ -640,7 +654,7 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, 1)
+            await verification_cog.show_rejection_select(interaction=interaction, request_id=1)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -687,7 +701,9 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction, request_id)
+            await verification_cog.show_rejection_select(
+                interaction=interaction, request_id=request_id
+            )
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -847,7 +863,9 @@ class TestRestorePendingVerifications:
                 verification_type=VerificationType.REGULAR,
             )
             # Actualizar a PENDING_REVIEW
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
 
         verification_cog._pending_dm_verifications.clear()
@@ -1357,7 +1375,7 @@ class TestOnMessage:
                 verification_type=VerificationType.REGULAR,
             )
             # Añadir mod_message_id para que se procese el auto-rechazo
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -1476,7 +1494,7 @@ class TestOnMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -1615,7 +1633,7 @@ class TestOnMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -1798,7 +1816,7 @@ class TestHandleAcceptHappyPath:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             # Rol agregado
             mock_member.add_roles.assert_called_once_with(mock_role)
@@ -1829,8 +1847,12 @@ class TestHandleAcceptHappyPath:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.approve(request.id, 111, "OtherMod")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.approve(
+                request_id=request.id, reviewer_id=111, reviewer_username="OtherMod"
+            )
             await session.commit()
             request_id = request.id
 
@@ -1854,7 +1876,7 @@ class TestHandleAcceptHappyPath:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             call_args = interaction.followup.send.call_args
             assert "ya fue procesada" in call_args.kwargs["content"].lower()
@@ -1877,7 +1899,9 @@ class TestHandleRejectHappyPath:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -2761,7 +2785,9 @@ class TestHandleVerificationStartHappyPath:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_verification_start(interaction, VerificationType.REGULAR)
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
 
             # DM enviado
             mock_user.send.assert_called_once()
@@ -2794,7 +2820,9 @@ class TestRoleOperations:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -2857,7 +2885,9 @@ class TestRoleOperations:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -2921,7 +2951,9 @@ class TestRoleOperations:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -2985,8 +3017,10 @@ class TestModMessageEditing:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3066,8 +3100,10 @@ class TestModMessageEditing:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3115,7 +3151,7 @@ class TestModMessageEditing:
             mock_config.return_value = config_values
 
             # No deberia fallar
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             interaction.followup.send.assert_called()
 
@@ -3132,8 +3168,10 @@ class TestModMessageEditing:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3229,8 +3267,10 @@ class TestUpdateModMessageForReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
 
             # Refrescar request
@@ -3280,8 +3320,10 @@ class TestUpdateModMessageForReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             refreshed = await service.get_request(request.id)
             assert refreshed is not None
@@ -3460,7 +3502,9 @@ class TestHandleAcceptAllyRoles:
                 guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -3507,7 +3551,7 @@ class TestHandleAcceptAllyRoles:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             # Debe usar rol de aliado, no regular
             mock_member.add_roles.assert_called_once_with(mock_ally_role)
@@ -3529,8 +3573,10 @@ class TestModMessageEditFallback:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3608,8 +3654,10 @@ class TestModMessageEditFallback:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3702,7 +3750,9 @@ class TestHandleRejectEdgeCases:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_reject(interaction, 99999, "motivo")
+            await verification_cog.handle_reject(
+                interaction=interaction, request_id=99999, reason="motivo"
+            )
 
             call_args = interaction.followup.send.call_args
             assert "no encontrada" in call_args.kwargs["content"].lower()
@@ -3720,8 +3770,15 @@ class TestHandleRejectEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.reject(request.id, 111, "OtherMod", "Ya rechazada")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.reject(
+                request_id=request.id,
+                reviewer_id=111,
+                reviewer_username="OtherMod",
+                reason="Ya rechazada",
+            )
             await session.commit()
             request_id = request.id
 
@@ -3745,7 +3802,9 @@ class TestHandleRejectEdgeCases:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_reject(interaction, request_id, "motivo")
+            await verification_cog.handle_reject(
+                interaction=interaction, request_id=request_id, reason="motivo"
+            )
 
             call_args = interaction.followup.send.call_args
             assert "ya fue procesada" in call_args.kwargs["content"].lower()
@@ -3763,7 +3822,9 @@ class TestHandleRejectEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -3803,7 +3864,9 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             # No deberia fallar aunque el DM falle
-            await verification_cog.handle_reject(interaction, request_id, "Capturas invalidas")
+            await verification_cog.handle_reject(
+                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+            )
 
             interaction.followup.send.assert_called()
 
@@ -3820,8 +3883,10 @@ class TestHandleRejectEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
-            await service.set_mod_message_id(request.id, 777)
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3866,7 +3931,9 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             # No deberia fallar
-            await verification_cog.handle_reject(interaction, request_id, "Capturas invalidas")
+            await verification_cog.handle_reject(
+                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+            )
 
             interaction.followup.send.assert_called()
 
@@ -3887,7 +3954,7 @@ class TestOnMessageUpdateModMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 777)
+            await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             request_id = request.id
 
@@ -3960,7 +4027,9 @@ class TestUpdateModMessageNoMessageId:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             # NO establecemos mod_message_id
             await session.commit()
             refreshed = await service.get_request(request.id)
@@ -4272,7 +4341,9 @@ class TestHandleVerificationStartExtended:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_verification_start(interaction, VerificationType.REGULAR)
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
@@ -4741,7 +4812,9 @@ class TestHandleVerificationStartCogDisabled:
         ) as mock_enabled:
             mock_enabled.return_value = False
 
-            await verification_cog.handle_verification_start(interaction, VerificationType.REGULAR)
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
 
             # No deberia hacer defer si el cog esta deshabilitado
             interaction.response.defer.assert_not_called()
@@ -4777,7 +4850,9 @@ class TestHandleVerificationStartCogDisabled:
             mock_config.return_value = config_values
             mock_mod_channel.return_value = None  # Canal no accesible
 
-            await verification_cog.handle_verification_start(interaction, VerificationType.REGULAR)
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
 
             # Deberia enviar mensaje de sistema no disponible
             interaction.followup.send.assert_called_once()
@@ -4840,7 +4915,9 @@ class TestUpdateModMessageWithRejectionReason:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url3", "url4", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url3", url2="url4", guild_name="Test Guild"
+            )
             request.mod_message_id = 777  # Necesario para que el metodo no retorne temprano
             await session.commit()
             request_id = request.id
@@ -4923,7 +5000,9 @@ class TestHandleAcceptRoleNotFound:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -4964,7 +5043,7 @@ class TestHandleAcceptRoleNotFound:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             # No deberia intentar agregar roles ya que no existe
             mock_member.add_roles.assert_not_called()
@@ -4985,7 +5064,9 @@ class TestHandleAcceptRoleNotFound:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             await session.commit()
             request_id = request.id
 
@@ -5026,7 +5107,7 @@ class TestHandleAcceptRoleNotFound:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             # No deberia intentar quitar roles ya que no existe
             mock_member.remove_roles.assert_not_called()
@@ -5051,7 +5132,9 @@ class TestHandleAcceptDeleteModMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             request.mod_message_id = 777
             await session.commit()
             request_id = request.id
@@ -5100,7 +5183,7 @@ class TestHandleAcceptDeleteModMessage:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction, request_id)
+            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
 
             # Deberia eliminar el mensaje
             mock_mod_message.delete.assert_called_once()
@@ -5146,7 +5229,9 @@ class TestHandleRejectCogDisabled:
         ) as mock_enabled:
             mock_enabled.return_value = False
 
-            await verification_cog.handle_reject(interaction, request_id=1, reason="Test")
+            await verification_cog.handle_reject(
+                interaction=interaction, request_id=1, reason="Test"
+            )
 
             # No deberia hacer nada si el cog esta deshabilitado
             interaction.response.defer.assert_not_called()
@@ -5171,7 +5256,9 @@ class TestHandleRejectDeleteModMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.update_screenshots(request.id, "url1", "url2", "Test Guild")
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
             request.mod_message_id = 777
             await session.commit()
             request_id = request.id
@@ -5290,7 +5377,12 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.reject(request.id, 789, "ModUser", "Motivo manual")
+            await service.reject(
+                request_id=request.id,
+                reviewer_id=789,
+                reviewer_username="ModUser",
+                reason="Motivo manual",
+            )
             await session.commit()
             request_id = request.id
 
@@ -5413,7 +5505,12 @@ class TestHandleReview:
                 verification_type=VerificationType.REGULAR,
             )
             # Rechazar con Auto
-            await service.reject(request.id, 0, "Auto", "Razon automatica")
+            await service.reject(
+                request_id=request.id,
+                reviewer_id=0,
+                reviewer_username="Auto",
+                reason="Razon automatica",
+            )
             await session.commit()
             request_id = request.id
 
@@ -5582,7 +5679,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -5692,7 +5789,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -5811,7 +5908,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -5941,7 +6038,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6074,7 +6171,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6208,7 +6305,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6338,7 +6435,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6464,7 +6561,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6575,7 +6672,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6686,7 +6783,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6814,7 +6911,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -6959,7 +7056,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7084,7 +7181,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7193,7 +7290,7 @@ class TestAutoProcessingEdgeCases:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7381,7 +7478,12 @@ class TestHandleReviewRevertFails:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.reject(request.id, 0, "Auto", "Razon auto")
+            await service.reject(
+                request_id=request.id,
+                reviewer_id=0,
+                reviewer_username="Auto",
+                reason="Razon auto",
+            )
             await session.commit()
             request_id = request.id
 
@@ -7447,7 +7549,7 @@ class TestLegacyBooleanAutoMode:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7571,7 +7673,7 @@ class TestStatusReplacementInFormatted:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7701,7 +7803,7 @@ class TestStatusReplacementInFormatted:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.set_mod_message_id(request.id, 999)
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             request_id = request.id
 
@@ -7878,3 +7980,439 @@ class TestHandleReviewRegexFallback:
         )
 
         mock_mod_message.edit.assert_called_once()
+
+
+class TestGetLockedOptions:
+    """Tests para get_locked_options."""
+
+    def test_returns_empty_dict(self, verification_cog: VerificationCog) -> None:
+        """Probar que retorna un diccionario vacío."""
+        result = verification_cog.get_locked_options()
+        assert result == {}
+
+
+class TestIsCogEnabled:
+    """Tests para _is_cog_enabled."""
+
+    async def test_returns_true_when_enabled(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que retorna True cuando el cog está habilitado."""
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=123, cog_name="verification", enabled=True
+            )
+            await session.commit()
+
+        cog = VerificationCog(verification_cog.bot)
+        result = await cog._is_cog_enabled(123)
+        assert result is True
+
+    async def test_returns_false_when_disabled(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que retorna False cuando el cog está deshabilitado."""
+        cog = VerificationCog(verification_cog.bot)
+        result = await cog._is_cog_enabled(999)
+        assert result is False
+
+
+class TestCreatePanelEmbed:
+    """Tests para _create_panel_embed."""
+
+    def test_creates_embed_with_text(self, verification_cog: VerificationCog) -> None:
+        """Probar que crea un embed con el texto proporcionado."""
+        text = "Panel de verificación"
+        embed = verification_cog._create_panel_embed(text)
+        assert embed is not None
+        assert isinstance(embed, discord.Embed)
+
+
+class TestRebuildSingleEmbed:
+    """Tests para _rebuild_single_embed."""
+
+    async def test_returns_false_without_mod_message_id(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que retorna False si no hay mod_message_id."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_request = MagicMock()
+        mock_request.mod_message_id = None
+
+        result = await verification_cog._rebuild_single_embed(
+            guild=mock_guild,
+            channel=mock_channel,
+            request=mock_request,
+            config={},
+        )
+        assert result is False
+
+    async def test_returns_false_when_message_not_found(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que retorna False si el mensaje no existe."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
+
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 789
+
+        result = await verification_cog._rebuild_single_embed(
+            guild=mock_guild,
+            channel=mock_channel,
+            request=mock_request,
+            config={},
+        )
+        assert result is False
+
+    async def test_rebuilds_embed_successfully(self, verification_cog: VerificationCog) -> None:
+        """Probar que reconstruye el embed correctamente."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+
+        mock_embed = MagicMock()
+        mock_embed.description = "Test content"
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [mock_embed]
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.mod_message_id = 789
+        mock_request.username = "TestUser"
+        mock_request.user_id = 456
+        mock_request.verification_type = VerificationType.REGULAR
+
+        config: dict[str, Any] = {
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
+            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+        }
+
+        result = await verification_cog._rebuild_single_embed(
+            guild=mock_guild,
+            channel=mock_channel,
+            request=mock_request,
+            config=config,
+        )
+
+        assert result is True
+        mock_message.edit.assert_called_once()
+
+    async def test_preserves_screenshot_embeds(self, verification_cog: VerificationCog) -> None:
+        """Probar que preserva los embeds de capturas de pantalla."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+
+        main_embed = MagicMock()
+        main_embed.description = "Test content"
+        screenshot_embed1 = MagicMock()
+        screenshot_embed2 = MagicMock()
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [main_embed, screenshot_embed1, screenshot_embed2]
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.mod_message_id = 789
+        mock_request.username = "TestUser"
+        mock_request.user_id = 456
+        mock_request.verification_type = VerificationType.ALLY
+
+        result = await verification_cog._rebuild_single_embed(
+            guild=mock_guild,
+            channel=mock_channel,
+            request=mock_request,
+            config={},
+        )
+
+        assert result is True
+        call_args = mock_message.edit.call_args
+        embeds = call_args.kwargs.get("embeds", [])
+        assert len(embeds) == 3
+
+    async def test_handles_empty_embeds(self, verification_cog: VerificationCog) -> None:
+        """Probar que maneja mensajes sin embeds."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = []
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.mod_message_id = 789
+        mock_request.username = "TestUser"
+        mock_request.user_id = 456
+        mock_request.verification_type = VerificationType.REGULAR
+
+        result = await verification_cog._rebuild_single_embed(
+            guild=mock_guild,
+            channel=mock_channel,
+            request=mock_request,
+            config={},
+        )
+
+        assert result is True
+        mock_message.edit.assert_called_once()
+
+
+class TestRebuildPendingEmbedsForGuild:
+    """Tests para _rebuild_pending_embeds_for_guild."""
+
+    async def test_no_pending_for_guild(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no hace nada si no hay verificaciones para el guild."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
+
+    async def test_rebuilds_only_guild_verifications(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que solo reconstruye verificaciones del guild especificado."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id,
+                url1="https://cdn.discordapp.com/test1.png",
+                url2="https://cdn.discordapp.com/test2.png",
+                guild_name="Test Guild",
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+
+            request2 = await service.create_request(
+                guild_id=999,
+                user_id=789,
+                username="OtherUser",
+                guild_name="Other Guild",
+                verification_type=VerificationType.ALLY,
+            )
+            await service.update_screenshots(
+                request_id=request2.id,
+                url1="https://cdn.discordapp.com/other1.png",
+                url2="https://cdn.discordapp.com/other2.png",
+                guild_name="Other Guild",
+            )
+            await service.set_mod_message_id(request_id=request2.id, message_id=999)
+            await session.commit()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [MagicMock(description="Test content")]
+        mock_message.edit = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={ConfigKey.MOD_NOTIFICATION_CHANNEL: 888},
+        ):
+            await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
+
+        mock_message.edit.assert_called_once()
+
+    async def test_skips_no_mod_channel_configured(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no hace nada si no hay canal de mod configurado."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id,
+                url1="https://cdn.discordapp.com/test1.png",
+                url2="https://cdn.discordapp.com/test2.png",
+                guild_name="Test Guild",
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={},  # Sin MOD_NOTIFICATION_CHANNEL
+        ):
+            await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
+
+    async def test_skips_invalid_mod_channel(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no hace nada si el canal de mod no es válido."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id,
+                url1="https://cdn.discordapp.com/test1.png",
+                url2="https://cdn.discordapp.com/test2.png",
+                guild_name="Test Guild",
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=None)
+
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={ConfigKey.MOD_NOTIFICATION_CHANNEL: 888},
+        ):
+            await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
+
+    async def test_handles_rebuild_error(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que continúa si falla la reconstrucción de un embed."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id,
+                url1="https://cdn.discordapp.com/test1.png",
+                url2="https://cdn.discordapp.com/test2.png",
+                guild_name="Test Guild",
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=789)
+            await session.commit()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(side_effect=Exception("Discord API error"))
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={ConfigKey.MOD_NOTIFICATION_CHANNEL: 888},
+        ):
+            await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
+
+
+class TestOnConfigChangedModEmbed:
+    """Tests para on_config_changed con claves de embed de moderación."""
+
+    async def test_rebuilds_on_mod_embed_color_change(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que reconstruye embeds al cambiar color."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        with patch.object(
+            verification_cog,
+            "_rebuild_pending_embeds_for_guild",
+            new_callable=AsyncMock,
+        ) as mock_rebuild:
+            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_COLOR_REGULAR)
+            mock_rebuild.assert_called_once_with(mock_guild)
+
+    async def test_rebuilds_on_mod_embed_icon_change(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que reconstruye embeds al cambiar icono."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        with patch.object(
+            verification_cog,
+            "_rebuild_pending_embeds_for_guild",
+            new_callable=AsyncMock,
+        ) as mock_rebuild:
+            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_ICON_ALLY)
+            mock_rebuild.assert_called_once_with(mock_guild)
+
+    async def test_rebuilds_on_accept_button_change(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que reconstruye embeds al cambiar texto del botón."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        with patch.object(
+            verification_cog,
+            "_rebuild_pending_embeds_for_guild",
+            new_callable=AsyncMock,
+        ) as mock_rebuild:
+            await verification_cog.on_config_changed(mock_guild, ConfigKey.ACCEPT_BUTTON_TEXT)
+            mock_rebuild.assert_called_once_with(mock_guild)
+
+    async def test_no_rebuild_on_unrelated_key(self, verification_cog: VerificationCog) -> None:
+        """Probar que no reconstruye con claves no relacionadas."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        with patch.object(
+            verification_cog,
+            "_rebuild_pending_embeds_for_guild",
+            new_callable=AsyncMock,
+        ) as mock_rebuild:
+            await verification_cog.on_config_changed(mock_guild, "some_unrelated_key")
+            mock_rebuild.assert_not_called()
