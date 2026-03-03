@@ -54,6 +54,7 @@ dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.5.0",
 
     # Code Quality & Formatting
     "mypy>=1.18.2",
@@ -115,6 +116,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+addopts = "-n auto --cov=discord_bot --cov-report=term-missing --cov-report=html"
 filterwarnings = [
     "ignore::RuntimeWarning",
 ]
