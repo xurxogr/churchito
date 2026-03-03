@@ -7,6 +7,8 @@ import discord
 from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import (
+    _parse_hex_color,
+    create_mod_embed,
     create_panel_embed,
     format_message,
     format_player_info,
@@ -308,3 +310,157 @@ class TestFormatPlayerInfo:
         assert "CHARLIE" in result
         assert "100, 12:00" in result
         assert "110, 14:00" in result
+
+
+class TestParseHexColor:
+    """Tests para _parse_hex_color."""
+
+    def test_valid_hex_with_hash(self) -> None:
+        """Probar color hex válido con #."""
+        result = _parse_hex_color("#FF5733")
+        assert result is not None
+        assert result == discord.Color(0xFF5733)
+
+    def test_valid_hex_without_hash(self) -> None:
+        """Probar color hex válido sin #."""
+        result = _parse_hex_color("3498db")
+        assert result is not None
+        assert result == discord.Color(0x3498DB)
+
+    def test_empty_string(self) -> None:
+        """Probar con string vacío."""
+        result = _parse_hex_color("")
+        assert result is None
+
+    def test_none_value(self) -> None:
+        """Probar con None."""
+        result = _parse_hex_color(None)
+        assert result is None
+
+    def test_invalid_length(self) -> None:
+        """Probar con longitud inválida."""
+        result = _parse_hex_color("#FFF")
+        assert result is None
+
+    def test_invalid_characters(self) -> None:
+        """Probar con caracteres inválidos."""
+        result = _parse_hex_color("#GGGGGG")
+        assert result is None
+
+    def test_with_whitespace(self) -> None:
+        """Probar que elimina espacios."""
+        result = _parse_hex_color("  #FF5733  ")
+        assert result is not None
+        assert result == discord.Color(0xFF5733)
+
+
+class TestCreateModEmbed:
+    """Tests para create_mod_embed."""
+
+    def test_basic_embed(self) -> None:
+        """Probar embed básico sin config."""
+        embed = create_mod_embed("Test message")
+        assert embed.description == "Test message"
+        assert embed.color == discord.Color.orange()
+
+    def test_with_username(self) -> None:
+        """Probar embed con username en footer."""
+        embed = create_mod_embed("Test", username="TestUser")
+        assert embed.footer is not None
+        assert embed.footer.text is not None
+        assert "TestUser" in embed.footer.text
+
+    def test_with_user_id_default_thumbnail(self) -> None:
+        """Probar embed con thumbnail por defecto basado en user_id."""
+        embed = create_mod_embed("Test", user_id=12345)
+        assert embed.thumbnail is not None
+        assert embed.thumbnail.url is not None
+        assert "cdn.discordapp.com" in embed.thumbnail.url
+
+    def test_custom_color_regular(self) -> None:
+        """Probar color personalizado para verificación regular."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_COLOR_REGULAR: "#3498db",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.color == discord.Color(0x3498DB)
+
+    def test_custom_color_ally(self) -> None:
+        """Probar color personalizado para verificación aliado."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_COLOR_ALLY: "#e74c3c",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.ALLY,
+            config=config,
+        )
+        assert embed.color == discord.Color(0xE74C3C)
+
+    def test_custom_icon_regular(self) -> None:
+        """Probar icono personalizado para verificación regular."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_ICON_REGULAR: "https://example.com/icon.png",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.thumbnail is not None
+        assert embed.thumbnail.url == "https://example.com/icon.png"
+
+    def test_custom_icon_ally(self) -> None:
+        """Probar icono personalizado para verificación aliado."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_ICON_ALLY: "https://example.com/ally.png",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.ALLY,
+            config=config,
+        )
+        assert embed.thumbnail is not None
+        assert embed.thumbnail.url == "https://example.com/ally.png"
+
+    def test_empty_color_uses_default(self) -> None:
+        """Probar que color vacío usa naranja por defecto."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_COLOR_REGULAR: "",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.color == discord.Color.orange()
+
+    def test_invalid_color_uses_default(self) -> None:
+        """Probar que color inválido usa naranja por defecto."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_COLOR_REGULAR: "invalid",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.color == discord.Color.orange()
+
+    def test_custom_icon_overrides_user_avatar(self) -> None:
+        """Probar que icono personalizado tiene prioridad sobre avatar."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_ICON_REGULAR: "https://example.com/custom.png",
+        }
+        embed = create_mod_embed(
+            "Test",
+            user_id=12345,
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.thumbnail is not None
+        assert embed.thumbnail.url == "https://example.com/custom.png"

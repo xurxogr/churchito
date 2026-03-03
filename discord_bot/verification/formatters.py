@@ -65,10 +65,32 @@ def create_panel_embed(text: str) -> discord.Embed:
     return embed
 
 
+def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
+    """Parsear un color hexadecimal a discord.Color.
+
+    Args:
+        hex_color: Color en formato hex (#FF5733 o FF5733).
+
+    Returns:
+        discord.Color o None si el formato es inválido.
+    """
+    if not hex_color:
+        return None
+    hex_color = hex_color.strip().lstrip("#")
+    if len(hex_color) != 6:
+        return None
+    try:
+        return discord.Color(int(hex_color, 16))
+    except ValueError:
+        return None
+
+
 def create_mod_embed(
     text: str,
     username: str | None = None,
     user_id: int | None = None,
+    verification_type: VerificationType | None = None,
+    config: dict[str, Any] | None = None,
 ) -> discord.Embed:
     """Crear un embed para el mensaje de moderación.
 
@@ -76,20 +98,42 @@ def create_mod_embed(
         text: Texto del mensaje de moderación.
         username: Nombre del usuario (para el footer).
         user_id: ID del usuario (para el thumbnail).
+        verification_type: Tipo de verificación (REGULAR o ALLY).
+        config: Configuración del cog para obtener color e icono personalizados.
 
     Returns:
         discord.Embed: Embed con el mensaje formateado.
     """
+    # Determinar color según el tipo de verificación
+    color = discord.Color.orange()
+    if config and verification_type:
+        if verification_type == VerificationType.REGULAR:
+            custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_REGULAR))
+        else:
+            custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_ALLY))
+        if custom_color:
+            color = custom_color
+
     embed = discord.Embed(
         description=text,
-        color=discord.Color.orange(),
+        color=color,
     )
 
     if username:
         embed.set_footer(text=f"Usuario: {username}")
 
-    if user_id:
-        # Usar el avatar del usuario como thumbnail si está disponible
+    # Determinar thumbnail según el tipo de verificación
+    thumbnail_url = None
+    if config and verification_type:
+        if verification_type == VerificationType.REGULAR:
+            thumbnail_url = config.get(ConfigKey.MOD_EMBED_ICON_REGULAR)
+        else:
+            thumbnail_url = config.get(ConfigKey.MOD_EMBED_ICON_ALLY)
+
+    if thumbnail_url:
+        embed.set_thumbnail(url=thumbnail_url)
+    elif user_id:
+        # Usar el avatar del usuario como thumbnail si no hay icono configurado
         embed.set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")
 
     return embed

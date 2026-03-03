@@ -23,6 +23,12 @@ class ConfigKey(StrEnum):
     VERIFICATION_TYPE_ALLY_DISPLAY = "verification_type_ally_display"
     HISTORY_LABEL = "history_label"
 
+    # Colores e iconos del embed de moderación
+    MOD_EMBED_COLOR_REGULAR = "mod_embed_color_regular"
+    MOD_EMBED_COLOR_ALLY = "mod_embed_color_ally"
+    MOD_EMBED_ICON_REGULAR = "mod_embed_icon_regular"
+    MOD_EMBED_ICON_ALLY = "mod_embed_icon_ally"
+
     # Mensajes del panel y DM
     VERIFICATION_PANEL_MESSAGE = "verification_panel_message"
     DM_INSTRUCTIONS_MESSAGE = "dm_instructions_message"

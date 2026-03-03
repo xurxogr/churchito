@@ -431,7 +431,13 @@ async def handle_verification_start(
             status=status_text,
             created_at=created_at_str,
         )
-        mod_embed = create_mod_embed(formatted_mod, username=user.name, user_id=user.id)
+        mod_embed = create_mod_embed(
+            formatted_mod,
+            username=user.name,
+            user_id=user.id,
+            verification_type=verification_type,
+            config=config,
+        )
 
         mod_message = await mod_channel.send(embed=mod_embed)
         await verification_service.set_mod_message_id(
@@ -729,7 +735,13 @@ async def update_mod_message_for_review(
     )
 
     # Crear embed principal y combinarlo con los embeds de capturas
-    main_embed = create_mod_embed(formatted, username=request.username, user_id=request.user_id)
+    main_embed = create_mod_embed(
+        formatted,
+        username=request.username,
+        user_id=request.user_id,
+        verification_type=VerificationType(request.verification_type),
+        config=config,
+    )
     all_embeds = [main_embed, *embeds]
     await mod_message.edit(embeds=all_embeds, view=view)
 
@@ -852,7 +864,11 @@ async def _handle_auto_approval(
         else:
             new_content = formatted + f"\n\n{approved_status}"
         main_embed = create_mod_embed(
-            new_content, username=request.username, user_id=request.user_id
+            new_content,
+            username=request.username,
+            user_id=request.user_id,
+            verification_type=VerificationType(request.verification_type),
+            config=config,
         )
         main_embed.color = discord.Color.green()
         all_embeds = [main_embed, *embeds]
@@ -925,7 +941,11 @@ async def _handle_auto_rejection(
         else:
             new_content = formatted + f"\n\n{rejected_status}"
         main_embed = create_mod_embed(
-            new_content, username=request.username, user_id=request.user_id
+            new_content,
+            username=request.username,
+            user_id=request.user_id,
+            verification_type=VerificationType(request.verification_type),
+            config=config,
         )
         main_embed.color = discord.Color.red()
         all_embeds = [main_embed, *embeds]
@@ -1065,6 +1085,8 @@ async def handle_accept(
                                 new_content,
                                 username=request.username,
                                 user_id=request.user_id,
+                                verification_type=VerificationType(request.verification_type),
+                                config=config,
                             )
                             main_embed.color = discord.Color.green()
                             # Mantener embeds de capturas (todos excepto el primero)
@@ -1285,6 +1307,8 @@ async def handle_reject(
                                 new_content,
                                 username=request.username,
                                 user_id=request.user_id,
+                                verification_type=VerificationType(request.verification_type),
+                                config=config,
                             )
                             main_embed.color = discord.Color.red()
                             # Mantener embeds de capturas (todos excepto el primero)
@@ -1450,8 +1474,9 @@ async def _update_mod_message_for_review(
         new_content,
         username=request.username,
         user_id=request.user_id,
+        verification_type=VerificationType(request.verification_type),
+        config=config,
     )
-    main_embed.color = discord.Color.orange()
 
     # Mantener embeds de capturas
     screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
@@ -1521,6 +1546,8 @@ async def update_mod_message_cancelled(
         new_content,
         username=request.username,
         user_id=request.user_id,
+        verification_type=VerificationType(request.verification_type),
+        config=config,
     )
     main_embed.color = discord.Color.dark_grey()
 

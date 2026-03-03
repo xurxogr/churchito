@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
+from discord_bot.verification.enums import VerificationType
 from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
@@ -554,6 +555,7 @@ class TestUpdateModMessageCancelled:
         mock_request.mod_message_id = 123
         mock_request.username = "TestUser"
         mock_request.user_id = 789
+        mock_request.verification_type = VerificationType.REGULAR
 
         config = {
             "mod_notification_channel": 456,

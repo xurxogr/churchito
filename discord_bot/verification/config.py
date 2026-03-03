@@ -228,6 +228,54 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.MOD_EMBED_COLOR_REGULAR,
+            name="Color embed (Normal)",
+            description=(
+                "Color del embed para verificaciones normales (formato hex: #FF5733). "
+                "Dejar vacío para usar naranja por defecto."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=7,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_EMBED_COLOR_ALLY,
+            name="Color embed (Aliado)",
+            description=(
+                "Color del embed para verificaciones de aliados (formato hex: #FF5733). "
+                "Dejar vacío para usar naranja por defecto."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=7,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_EMBED_ICON_REGULAR,
+            name="Icono embed (Normal)",
+            description=(
+                "URL de la imagen para el thumbnail en verificaciones normales. "
+                "Dejar vacío para usar el avatar por defecto del usuario."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=500,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_EMBED_ICON_ALLY,
+            name="Icono embed (Aliado)",
+            description=(
+                "URL de la imagen para el thumbnail en verificaciones de aliados. "
+                "Dejar vacío para usar el avatar por defecto del usuario."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=500,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.MOD_MESSAGE_TEMPLATE,
             name="Mensaje de moderación",
             description="Mensaje en el canal de moderación (se actualiza con el progreso)",

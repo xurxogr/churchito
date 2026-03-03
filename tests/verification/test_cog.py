@@ -7810,6 +7810,7 @@ class TestHandleReviewRegexFallback:
         request.mod_message_id = 999
         request.username = "TestUser"
         request.user_id = 456
+        request.verification_type = VerificationType.REGULAR
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.guild = mock_discord_guild
@@ -7848,6 +7849,7 @@ class TestHandleReviewRegexFallback:
         request.mod_message_id = 999
         request.username = "TestUser"
         request.user_id = 456
+        request.verification_type = VerificationType.REGULAR
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.guild = mock_discord_guild
