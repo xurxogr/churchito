@@ -276,6 +276,29 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.MOD_EMBED_TITLE_REGULAR,
+            name="Título embed (Normal)",
+            description=(
+                "Título del embed para verificaciones normales. Dejar vacío para no mostrar título."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=256,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.MOD_EMBED_TITLE_ALLY,
+            name="Título embed (Aliado)",
+            description=(
+                "Título del embed para verificaciones de aliados. "
+                "Dejar vacío para no mostrar título."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=256,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.MOD_MESSAGE_TEMPLATE,
             name="Mensaje de moderación",
             description="Mensaje en el canal de moderación (se actualiza con el progreso)",

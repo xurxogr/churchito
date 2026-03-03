@@ -464,3 +464,44 @@ class TestCreateModEmbed:
         )
         assert embed.thumbnail is not None
         assert embed.thumbnail.url == "https://example.com/custom.png"
+
+    def test_title_regular(self) -> None:
+        """Probar título personalizado para verificación regular."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_TITLE_REGULAR: "🟢 Verificación de Miembro",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.title == "🟢 Verificación de Miembro"
+
+    def test_title_ally(self) -> None:
+        """Probar título personalizado para verificación aliado."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_TITLE_ALLY: "🟡 Verificación de Aliado",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.ALLY,
+            config=config,
+        )
+        assert embed.title == "🟡 Verificación de Aliado"
+
+    def test_empty_title_not_shown(self) -> None:
+        """Probar que título vacío no se muestra."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_TITLE_REGULAR: "",
+        }
+        embed = create_mod_embed(
+            "Test",
+            verification_type=VerificationType.REGULAR,
+            config=config,
+        )
+        assert embed.title is None
+
+    def test_no_title_without_config(self) -> None:
+        """Probar que no hay título sin config."""
+        embed = create_mod_embed("Test")
+        assert embed.title is None

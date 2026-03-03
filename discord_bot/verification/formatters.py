@@ -99,22 +99,26 @@ def create_mod_embed(
         username: Nombre del usuario (para el footer).
         user_id: ID del usuario (para el thumbnail).
         verification_type: Tipo de verificación (REGULAR o ALLY).
-        config: Configuración del cog para obtener color e icono personalizados.
+        config: Configuración del cog para obtener color, icono y título personalizados.
 
     Returns:
         discord.Embed: Embed con el mensaje formateado.
     """
     # Determinar color según el tipo de verificación
     color = discord.Color.orange()
+    title = None
     if config and verification_type:
         if verification_type == VerificationType.REGULAR:
             custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_REGULAR))
+            title = config.get(ConfigKey.MOD_EMBED_TITLE_REGULAR) or None
         else:
             custom_color = _parse_hex_color(config.get(ConfigKey.MOD_EMBED_COLOR_ALLY))
+            title = config.get(ConfigKey.MOD_EMBED_TITLE_ALLY) or None
         if custom_color:
             color = custom_color
 
     embed = discord.Embed(
+        title=title,
         description=text,
         color=color,
     )
