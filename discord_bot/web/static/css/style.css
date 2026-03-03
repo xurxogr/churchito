@@ -652,6 +652,132 @@ a:hover {
     font-weight: 500;
 }
 
+/* Placeholders Help Section */
+.placeholders-help {
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.placeholders-help summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: background-color 0.15s ease;
+    list-style: none;
+}
+
+.placeholders-help summary::-webkit-details-marker {
+    display: none;
+}
+
+.placeholders-help summary:hover {
+    background-color: var(--bg-elevated);
+}
+
+.placeholders-help-icon {
+    font-size: 16px;
+}
+
+.placeholders-help-arrow {
+    margin-left: auto;
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.placeholders-help[open] .placeholders-help-arrow {
+    transform: rotate(90deg);
+}
+
+.placeholders-help-content {
+    padding: 0 16px 16px 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.placeholders-help-intro {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 12px 0;
+}
+
+.placeholders-help-intro code {
+    background-color: var(--bg-elevated);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent-primary);
+}
+
+.placeholders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.placeholders-section h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.placeholders-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.placeholders-table th {
+    text-align: left;
+    padding: 6px 8px;
+    background-color: var(--bg-elevated);
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.placeholders-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+}
+
+.placeholders-table td code {
+    background-color: var(--bg-elevated);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent-primary);
+}
+
+.placeholders-table td.example {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 11px;
+}
+
+.placeholders-help-note {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background-color: rgba(250, 166, 26, 0.1);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.placeholders-help-note strong {
+    color: var(--warning);
+}
+
 /* Options List - Discord Style */
 .options-list {
     display: flex;

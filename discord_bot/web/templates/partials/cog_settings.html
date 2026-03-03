@@ -45,8 +45,113 @@
     {% if has_textarea %}
     <div class="markdown-info">
         Los campos de mensaje soportan formato de Discord (negrita, cursiva, etc.).
-        <a href="https://support.discord.com/hc/es/articles/210298617" target="_blank" rel="noopener">Ver guia de formato</a>
+        <a href="https://support.discord.com/hc/es/articles/210298617" target="_blank" rel="noopener">Ver guía de formato</a>
     </div>
+
+    <details class="placeholders-help">
+        <summary>
+            <span class="placeholders-help-icon">📝</span>
+            <span>Placeholders globales disponibles</span>
+            <span class="placeholders-help-arrow">▶</span>
+        </summary>
+        <div class="placeholders-help-content">
+            <p class="placeholders-help-intro">
+                Los placeholders se reemplazan automáticamente con datos reales.
+                Escríbelos entre llaves: <code>{placeholder}</code>
+            </p>
+
+            <div class="placeholders-grid">
+                <div class="placeholders-section">
+                    <h4>🏠 Servidor</h4>
+                    <table class="placeholders-table">
+                        <thead>
+                            <tr>
+                                <th>Placeholder</th>
+                                <th>Descripción</th>
+                                <th>Ejemplo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{server_name}</code></td>
+                                <td>Nombre del servidor</td>
+                                <td class="example">{{ guild_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{server_id}</code></td>
+                                <td>ID del servidor</td>
+                                <td class="example">{{ guild_id }}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{server_member_count}</code></td>
+                                <td>Cantidad de miembros</td>
+                                <td class="example">150</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="placeholders-section">
+                    <h4>👤 Usuario</h4>
+                    <table class="placeholders-table">
+                        <thead>
+                            <tr>
+                                <th>Placeholder</th>
+                                <th>Descripción</th>
+                                <th>Ejemplo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{user_name}</code></td>
+                                <td>Nombre del usuario</td>
+                                <td class="example">JohnDoe</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_mention}</code></td>
+                                <td>Mención del usuario</td>
+                                <td class="example">@JohnDoe</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_id}</code></td>
+                                <td>ID del usuario</td>
+                                <td class="example">123456789</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_avatar_url}</code></td>
+                                <td>URL del avatar</td>
+                                <td class="example">https://cdn...</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_joined_server}</code></td>
+                                <td>Fecha de entrada</td>
+                                <td class="example">15/01/2024 10:30</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_joined_server_relative}</code></td>
+                                <td>Tiempo desde entrada</td>
+                                <td class="example">hace 2 meses</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_joined_discord}</code></td>
+                                <td>Fecha creación cuenta</td>
+                                <td class="example">01/06/2020 15:00</td>
+                            </tr>
+                            <tr>
+                                <td><code>{user_joined_discord_relative}</code></td>
+                                <td>Antigüedad cuenta</td>
+                                <td class="example">hace 4 años</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <p class="placeholders-help-note">
+                <strong>Nota:</strong> Cada campo puede tener placeholders adicionales específicos que se muestran debajo de su descripción.
+            </p>
+        </div>
+    </details>
     {% endif %}
 
     {# Macro para renderizar una opción #}

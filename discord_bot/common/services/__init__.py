@@ -6,10 +6,24 @@ from discord_bot.common.services.config_schema_service import (
 )
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
+from discord_bot.common.services.embed_builder import (
+    GLOBAL_PLACEHOLDERS,
+    PlaceholderContext,
+    build_embed,
+    build_embed_from_rows,
+    create_progress_bar,
+    format_placeholders,
+)
 
 __all__ = [
     "ConfigSchemaService",
     "ConfigService",
     "DatabaseService",
+    "GLOBAL_PLACEHOLDERS",
+    "PlaceholderContext",
+    "build_embed",
+    "build_embed_from_rows",
+    "create_progress_bar",
+    "format_placeholders",
     "get_config_schema_service",
 ]
