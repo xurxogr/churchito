@@ -1,5 +1,6 @@
 """Tests para VerificationCog."""
 
+from datetime import UTC, datetime
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8072,11 +8073,15 @@ class TestRebuildSingleEmbed:
 
     async def test_rebuilds_embed_successfully(self, verification_cog: VerificationCog) -> None:
         """Probar que reconstruye el embed correctamente."""
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
 
         mock_embed = MagicMock()
-        mock_embed.description = "Test content"
+        mock_embed.description = "Usuario: Test\n⏳ Estado: Esperando"
 
         mock_message = MagicMock(spec=discord.Message)
         mock_message.embeds = [mock_embed]
@@ -8091,8 +8096,12 @@ class TestRebuildSingleEmbed:
         mock_request.username = "TestUser"
         mock_request.user_id = 456
         mock_request.verification_type = VerificationType.REGULAR
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.created_at = datetime.now(UTC)
 
         config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
             ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
         }
@@ -8109,11 +8118,15 @@ class TestRebuildSingleEmbed:
 
     async def test_preserves_screenshot_embeds(self, verification_cog: VerificationCog) -> None:
         """Probar que preserva los embeds de capturas de pantalla."""
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
 
         main_embed = MagicMock()
-        main_embed.description = "Test content"
+        main_embed.description = "Usuario: Test\n⏳ Estado"
         screenshot_embed1 = MagicMock()
         screenshot_embed2 = MagicMock()
 
@@ -8130,12 +8143,21 @@ class TestRebuildSingleEmbed:
         mock_request.username = "TestUser"
         mock_request.user_id = 456
         mock_request.verification_type = VerificationType.ALLY
+        mock_request.status = VerificationStatus.PENDING_REVIEW
+        mock_request.created_at = datetime.now(UTC)
+
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
+            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+        }
 
         result = await verification_cog._rebuild_single_embed(
             guild=mock_guild,
             channel=mock_channel,
             request=mock_request,
-            config={},
+            config=config,
         )
 
         assert result is True
@@ -8145,8 +8167,12 @@ class TestRebuildSingleEmbed:
 
     async def test_handles_empty_embeds(self, verification_cog: VerificationCog) -> None:
         """Probar que maneja mensajes sin embeds."""
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
 
         mock_message = MagicMock(spec=discord.Message)
         mock_message.embeds = []
@@ -8161,12 +8187,19 @@ class TestRebuildSingleEmbed:
         mock_request.username = "TestUser"
         mock_request.user_id = 456
         mock_request.verification_type = VerificationType.REGULAR
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.created_at = datetime.now(UTC)
+
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando",
+        }
 
         result = await verification_cog._rebuild_single_embed(
             guild=mock_guild,
             channel=mock_channel,
             request=mock_request,
-            config={},
+            config=config,
         )
 
         assert result is True
@@ -8223,22 +8256,34 @@ class TestRebuildPendingEmbedsForGuild:
             await service.set_mod_message_id(request_id=request2.id, message_id=999)
             await session.commit()
 
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_message.embeds = [MagicMock(description="Test content")]
+        mock_message.embeds = [MagicMock(description="Usuario: Test\n⏳ Pendiente")]
         mock_message.edit = AsyncMock()
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        config: dict[str, Any] = {
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 888,
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Usuario: {username}\n{status}",
+            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
+            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+        }
 
         with patch.object(
             ConfigService,
             "get_all_config",
             new_callable=AsyncMock,
-            return_value={ConfigKey.MOD_NOTIFICATION_CHANNEL: 888},
+            return_value=config,
         ):
             await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
 

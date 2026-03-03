@@ -161,16 +161,22 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def get_pending_with_mod_messages(self) -> list[VerificationRequest]:
-        """Obtener solicitudes pendientes de revisión que tienen mensaje de moderación.
+        """Obtener solicitudes pendientes que tienen mensaje de moderación.
 
-        Util para reconstruir los embeds de verificación al reiniciar el bot.
+        Incluye tanto PENDING_SCREENSHOTS como PENDING_REVIEW ya que el mensaje
+        de moderación se crea cuando el usuario inicia la verificación.
 
         Returns:
             list[VerificationRequest]: Lista de solicitudes con mensaje de mod
         """
         result = await self._session.execute(
             select(VerificationRequest).where(
-                VerificationRequest.status == VerificationStatus.PENDING_REVIEW,
+                VerificationRequest.status.in_(
+                    [
+                        VerificationStatus.PENDING_SCREENSHOTS,
+                        VerificationStatus.PENDING_REVIEW,
+                    ]
+                ),
                 VerificationRequest.mod_message_id.isnot(None),
             )
         )

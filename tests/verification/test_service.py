@@ -588,13 +588,14 @@ class TestVerificationService:
         pending = await service.get_pending_with_mod_messages()
         assert pending == []
 
-    async def test_get_pending_with_mod_messages_ignores_pending_screenshots(
+    async def test_get_pending_with_mod_messages_includes_pending_screenshots(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que ignora solicitudes en estado PENDING_SCREENSHOTS."""
+        """Probar que incluye solicitudes en estado PENDING_SCREENSHOTS con mod_message."""
         service = VerificationService(test_session)
 
         # Crear solicitud en PENDING_SCREENSHOTS con mod_message_id
+        # (el mensaje de mod se crea cuando el usuario inicia la verificación)
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -606,7 +607,9 @@ class TestVerificationService:
         # No actualizar screenshots, sigue en PENDING_SCREENSHOTS
 
         pending = await service.get_pending_with_mod_messages()
-        assert pending == []
+        assert len(pending) == 1
+        assert pending[0].mod_message_id == 789
+        assert pending[0].status == VerificationStatus.PENDING_SCREENSHOTS
 
     async def test_get_pending_with_mod_messages_ignores_approved(
         self, test_session: AsyncSession

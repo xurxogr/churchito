@@ -12,7 +12,7 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import delete_message
 from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
     create_mod_embed,
     create_panel_embed,
@@ -125,6 +125,9 @@ class VerificationCog(commands.Cog):
             ConfigKey.MOD_EMBED_ICON_ALLY,
             ConfigKey.MOD_EMBED_TITLE_REGULAR,
             ConfigKey.MOD_EMBED_TITLE_ALLY,
+            ConfigKey.MOD_MESSAGE_TEMPLATE,
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS,
+            ConfigKey.STATUS_PENDING_REVIEW,
             ConfigKey.ACCEPT_BUTTON_TEXT,
             ConfigKey.REJECT_BUTTON_TEXT,
         }
@@ -280,8 +283,11 @@ class VerificationCog(commands.Cog):
 
             # Filtrar solo las de este guild
             guild_requests = [r for r in pending if r.guild_id == guild.id]
+            logger.info(
+                f"[{guild.name}] Verificaciones con embed de mod: "
+                f"{len(guild_requests)} de {len(pending)} totales"
+            )
             if not guild_requests:
-                logger.debug(f"[{guild.name}] No hay verificaciones pendientes para reconstruir")
                 return
 
             config_service = ConfigService(session=session)
@@ -326,6 +332,10 @@ class VerificationCog(commands.Cog):
     ) -> bool:
         """Reconstruir un solo embed de verificación pendiente.
 
+        Regenera el template con la configuración actual mientras preserva
+        cualquier contenido extra (como resultados de OCR) que aparezca
+        después de la línea de estado.
+
         Args:
             guild: Guild donde está el mensaje
             channel: Canal de moderación
@@ -344,15 +354,66 @@ class VerificationCog(commands.Cog):
             logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
             return False
 
-        # Obtener el contenido actual del embed (preservar información)
-        current_content = ""
+        # Extraer contenido extra (después de la línea de estado) del embed actual
+        extra_content = ""
         if mod_message.embeds:
             current_content = mod_message.embeds[0].description or ""
 
-        # Crear nuevo embed con la configuración actual
+            # Buscar las líneas de estado configuradas (solo estados pendientes)
+            status_texts = [
+                config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "",
+                config.get(ConfigKey.STATUS_PENDING_REVIEW) or "",
+                config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or "",
+            ]
+            status_texts = [s for s in status_texts if s]  # Filtrar vacíos
+
+            # Encontrar la última posición de cualquier texto de estado
+            last_status_end = -1
+            for status_text in status_texts:
+                if status_text in current_content:
+                    pos = current_content.rfind(status_text)
+                    end_pos = pos + len(status_text)
+                    if end_pos > last_status_end:
+                        last_status_end = end_pos
+
+            # Si hay contenido después del estado, preservarlo
+            if last_status_end > 0 and last_status_end < len(current_content):
+                extra_content = current_content[last_status_end:].strip()
+
+        # Regenerar el template con la configuración actual
         verification_type = VerificationType(request.verification_type)
+        type_display = get_verification_type_display(
+            verification_type=verification_type, config=config
+        )
+
+        # Determinar el estado según el status de la solicitud
+        if request.status == VerificationStatus.PENDING_SCREENSHOTS:
+            status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
+        else:
+            status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
+
+        # Obtener mención del usuario
+        member = guild.get_member(request.user_id)
+        user_mention = member.mention if member else f"<@{request.user_id}>"
+
+        # Formatear el nuevo contenido con el template actual
+        created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        new_content = format_message(
+            template=config.get(ConfigKey.MOD_MESSAGE_TEMPLATE),
+            username=request.username,
+            user_mention=user_mention,
+            verification_type=type_display,
+            status=status_text,
+            created_at=created_at_str,
+        )
+
+        # Añadir contenido extra preservado (OCR results, etc.)
+        if extra_content:
+            new_content = f"{new_content}\n\n{extra_content}"
+
+        # Crear nuevo embed con la configuración actual
         main_embed = create_mod_embed(
-            text=current_content,
+            text=new_content,
             username=request.username,
             user_id=request.user_id,
             verification_type=verification_type,
@@ -363,20 +424,19 @@ class VerificationCog(commands.Cog):
         screenshot_embeds = mod_message.embeds[1:] if len(mod_message.embeds) > 1 else []
         all_embeds = [main_embed, *screenshot_embeds]
 
-        # Recrear la vista con botones
-        type_display = get_verification_type_display(
-            verification_type=verification_type, config=config
-        )
-        accept_label = format_message(
-            template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
-            verification_type=type_display,
-        )
-        reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
-        view = ModReviewView(
-            request_id=request.id,
-            accept_label=accept_label,
-            reject_label=reject_label,
-        )
+        # Solo añadir botones si está pendiente de revisión (ya tiene capturas)
+        view: ModReviewView | None = None
+        if request.status == VerificationStatus.PENDING_REVIEW:
+            accept_label = format_message(
+                template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+                verification_type=type_display,
+            )
+            reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+            view = ModReviewView(
+                request_id=request.id,
+                accept_label=accept_label,
+                reject_label=reject_label,
+            )
 
         await mod_message.edit(embeds=all_embeds, view=view)
         logger.debug(f"[{guild.name}] Embed reconstruido para solicitud {request.id}")
