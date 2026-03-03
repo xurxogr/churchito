@@ -726,6 +726,20 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="API de Verificación",
         ),
         ConfigOption(
+            key=ConfigKey.VERIFICATION_VALID_REGIMENT,
+            name="Regimiento válido",
+            description=(
+                "ID del regimiento permitido para verificación normal. "
+                "Usar el contenido completo entre corchetes "
+                "(ej: para '[7-HP#8707] 7th Hispanic Platoon' usar '7-HP#8707'). "
+                "Si está vacío, se rechaza cualquier usuario con regimiento."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=50,
+            group="API de Verificación",
+        ),
+        ConfigOption(
             key=ConfigKey.PLAYER_INFO_TEMPLATE,
             name="Plantilla de información del jugador",
             description=(

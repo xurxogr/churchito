@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.auto_processor import (
     calculate_time_diff_days,
+    extract_regiment_id,
     names_match,
     process_verification,
 )
@@ -80,6 +81,50 @@ class TestNamesMatch:
     def test_none_mode_always_true(self) -> None:
         """Probar que modo NONE siempre retorna True."""
         assert names_match("Player1", "Player2", NameMatchMode.NONE) is True
+
+
+class TestExtractRegimentId:
+    """Tests para extract_regiment_id."""
+
+    def test_standard_format(self) -> None:
+        """Probar formato estándar [ID#número] Nombre."""
+        result = extract_regiment_id("[7-HP#8707] 7th Hispanic Platoon")
+        assert result == "7-HP#8707"
+
+    def test_different_id_format(self) -> None:
+        """Probar con otro formato de ID."""
+        result = extract_regiment_id("[ABC#1234] Some Regiment Name")
+        assert result == "ABC#1234"
+
+    def test_no_hash(self) -> None:
+        """Probar cuando no hay # en el contenido."""
+        result = extract_regiment_id("[SOLO] Regiment Name")
+        assert result == "SOLO"
+
+    def test_empty_string(self) -> None:
+        """Probar con string vacío."""
+        result = extract_regiment_id("")
+        assert result is None
+
+    def test_no_brackets(self) -> None:
+        """Probar cuando no hay corchetes."""
+        result = extract_regiment_id("SomeRegiment")
+        assert result is None
+
+    def test_no_closing_bracket(self) -> None:
+        """Probar cuando falta el corchete de cierre."""
+        result = extract_regiment_id("[7-HP#8707 Missing bracket")
+        assert result is None
+
+    def test_empty_brackets(self) -> None:
+        """Probar con corchetes vacíos."""
+        result = extract_regiment_id("[] Regiment Name")
+        assert result == ""
+
+    def test_complex_id(self) -> None:
+        """Probar con ID complejo."""
+        result = extract_regiment_id("[82DK-TF#5555] 82nd Task Force")
+        assert result == "82DK-TF#5555"
 
 
 class TestProcessVerification:
@@ -222,6 +267,62 @@ class TestProcessVerification:
 
         assert should_approve is True
         assert reason is None
+
+    def test_valid_regiment_configured_and_matches(self) -> None:
+        """Probar aprobación cuando el regimiento coincide con el válido."""
+        request = self._create_request(verification_type=VerificationType.REGULAR)
+        api_response = self._create_api_response(regiment="[7-HP#8707] 7th Hispanic Platoon")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is True
+        assert reason is None
+
+    def test_valid_regiment_configured_but_different(self) -> None:
+        """Probar rechazo cuando el regimiento no coincide con el válido."""
+        request = self._create_request(verification_type=VerificationType.REGULAR)
+        api_response = self._create_api_response(regiment="[OTHER#1234] Other Regiment")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
+            ConfigKey.REJECT_HAS_REGIMENT: "Regimiento inválido",
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is False
+        assert reason == "Regimiento inválido"
+
+    def test_valid_regiment_empty_rejects_any_regiment(self) -> None:
+        """Probar que si no hay regimiento válido, rechaza cualquier regimiento."""
+        request = self._create_request(verification_type=VerificationType.REGULAR)
+        api_response = self._create_api_response(regiment="[7-HP#8707] 7th Hispanic Platoon")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_VALID_REGIMENT: "",
+            ConfigKey.REJECT_HAS_REGIMENT: "Tiene regimiento",
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is False
+        assert reason == "Tiene regimiento"
 
     def test_time_diff_exceeded(self) -> None:
         """Probar rechazo por diferencia de tiempo excesiva."""

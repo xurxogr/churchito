@@ -54,6 +54,32 @@ def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
     return True
 
 
+def extract_regiment_id(regiment: str) -> str | None:
+    """Extraer el ID del regimiento desde el formato completo.
+
+    El formato esperado es: [ID#número] Nombre del regimiento
+    Por ejemplo: [7-HP#8707] 7th Hispanic Platoon -> 7-HP#8707
+
+    Args:
+        regiment: String del regimiento completo
+
+    Returns:
+        El ID completo del regimiento (contenido entre corchetes) o None si no se puede extraer
+    """
+    if not regiment:
+        return None
+
+    # Buscar el contenido entre corchetes
+    if not regiment.startswith("["):
+        return None
+
+    bracket_end = regiment.find("]")
+    if bracket_end == -1:
+        return None
+
+    return regiment[1:bracket_end]
+
+
 def process_verification(
     request: VerificationRequest,
     api_response: VerificationAPIResponse,
@@ -84,12 +110,25 @@ def process_verification(
             reason = config.get(ConfigKey.REJECT_NAME_MISMATCH) or "Nombre de usuario no coincide"
             return False, reason
 
-    # 2. Comprobar regimiento (solo para verificación REGULAR - rechazar si tiene regimiento)
+    # 2. Comprobar regimiento (solo para verificación REGULAR)
     if request.verification_type == VerificationType.REGULAR and api_response.regiment:
-        reason = (
-            config.get(ConfigKey.REJECT_HAS_REGIMENT) or "El usuario ya pertenece a un regimiento"
-        )
-        return False, reason
+        valid_regiment = config.get(ConfigKey.VERIFICATION_VALID_REGIMENT, "")
+        if valid_regiment:
+            # Si hay un regimiento válido configurado, solo rechazar si no coincide
+            detected_regiment_id = extract_regiment_id(api_response.regiment)
+            if detected_regiment_id != valid_regiment:
+                reason = (
+                    config.get(ConfigKey.REJECT_HAS_REGIMENT)
+                    or "El usuario ya pertenece a un regimiento"
+                )
+                return False, reason
+        else:
+            # Si no hay regimiento válido configurado, rechazar cualquier regimiento
+            reason = (
+                config.get(ConfigKey.REJECT_HAS_REGIMENT)
+                or "El usuario ya pertenece a un regimiento"
+            )
+            return False, reason
 
     # 3. Comprobar diferencia de tiempo (si está configurado > 0)
     time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)

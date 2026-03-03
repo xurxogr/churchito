@@ -92,6 +92,7 @@ class ConfigKey(StrEnum):
     VERIFICATION_TIME_DIFF = "verification_time_diff"
     VERIFICATION_AUTOMATIC = "verification_automatic"
     VERIFICATION_MATCH_NAME = "verification_match_name"
+    VERIFICATION_VALID_REGIMENT = "verification_valid_regiment"
     PLAYER_INFO_TEMPLATE = "player_info_template"
 
     # Claves internas (prefijo _ indica que no son configurables por usuario)
