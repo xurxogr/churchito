@@ -14,6 +14,7 @@ from discord_bot.common.utils import delete_message
 from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
+    build_mod_embed_sections,
     create_mod_embeds,
     create_panel_embed,
     format_message,
@@ -125,6 +126,8 @@ class VerificationCog(commands.Cog):
             ConfigKey.STATUS_PENDING_REVIEW,
             ConfigKey.ACCEPT_BUTTON_TEXT,
             ConfigKey.REJECT_BUTTON_TEXT,
+            ConfigKey.PLAYER_INFO_SECTIONS,
+            ConfigKey.HISTORY_LABEL,
         }
     )
 
@@ -391,14 +394,19 @@ class VerificationCog(commands.Cog):
         member = guild.get_member(request.user_id)
         user_mention = member.mention if member else f"<@{request.user_id}>"
 
-        # Recuperar secciones de player info si hay datos OCR almacenados
-        additional_sections = None
-        sections_context = None
-        if request.player_info:
-            player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
-            if player_info_sections and isinstance(player_info_sections, list):
-                additional_sections = player_info_sections
-                sections_context = request.player_info
+        # Build additional sections (player info + history)
+        async with self.bot.database.session() as session:
+            verification_service = VerificationService(session=session)
+            history = await verification_service.get_user_history(
+                guild_id=request.guild_id,
+                user_id=request.user_id,
+            )
+        past_requests = [r for r in history if r.id != request.id]
+        additional_sections, sections_context = build_mod_embed_sections(
+            config=config,
+            player_info=request.player_info,
+            past_requests=past_requests,
+        )
 
         # Crear nuevos embeds con la configuración actual
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")

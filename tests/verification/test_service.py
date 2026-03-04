@@ -632,3 +632,28 @@ class TestVerificationService:
 
         pending = await service.get_pending_with_mod_messages()
         assert pending == []
+
+    async def test_set_player_info(self, test_session: AsyncSession) -> None:
+        """Probar guardado de información del jugador."""
+        service = VerificationService(test_session)
+
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            guild_name="Test Guild",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        player_info = {"name": "TestPlayer", "level": "25", "regiment": "TestReg"}
+        await service.set_player_info(request_id=request.id, player_info=player_info)
+
+        updated = await service.get_request(request.id)
+        assert updated is not None
+        assert updated.player_info == player_info
+
+    async def test_set_player_info_not_found(self, test_session: AsyncSession) -> None:
+        """Probar set_player_info para solicitud inexistente."""
+        service = VerificationService(test_session)
+        # No deberia fallar, solo retornar sin hacer nada
+        await service.set_player_info(request_id=99999, player_info={"name": "Test"})

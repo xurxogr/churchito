@@ -3305,8 +3305,12 @@ class TestUpdateModMessageForReview:
             # El contenido ahora está en el primer embed
             assert "embeds" in edit_kwargs
             main_embed = edit_kwargs["embeds"][0]
-            # Debe incluir historial
-            assert "Historial" in (main_embed.description or "")
+            # Historial ahora es un campo, no parte de la descripción
+            history_field = next(
+                (f for f in main_embed.fields if f.name == "Historial"),
+                None,
+            )
+            assert history_field is not None
 
     async def test_update_message_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -4956,7 +4960,13 @@ class TestUpdateModMessageWithRejectionReason:
             # El contenido ahora está en el primer embed
             assert "embeds" in call_args.kwargs
             main_embed = call_args.kwargs["embeds"][0]
-            assert "Capturas incorrectas" in (main_embed.description or "")
+            # Historial ahora es un campo con el motivo de rechazo
+            history_field = next(
+                (f for f in main_embed.fields if f.name == "Historial"),
+                None,
+            )
+            assert history_field is not None
+            assert "Capturas incorrectas" in history_field.value
 
 
 class TestHandleAcceptCogDisabled:
@@ -8095,9 +8105,11 @@ class TestRebuildSingleEmbed:
         mock_request.mod_message_id = 789
         mock_request.username = "TestUser"
         mock_request.user_id = 456
+        mock_request.guild_id = 123
         mock_request.verification_type = VerificationType.REGULAR
         mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
         mock_request.created_at = datetime.now(UTC)
+        mock_request.player_info = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
@@ -8111,12 +8123,25 @@ class TestRebuildSingleEmbed:
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
         }
 
-        result = await verification_cog._rebuild_single_embed(
-            guild=mock_guild,
-            channel=mock_channel,
-            request=mock_request,
-            config=config,
-        )
+        # Mock database session for history lookup
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(verification_cog.bot.database, "session", return_value=mock_session),
+            patch("discord_bot.verification.cog.VerificationService") as mock_service_class,
+        ):
+            mock_service = MagicMock()
+            mock_service.get_user_history = AsyncMock(return_value=[])
+            mock_service_class.return_value = mock_service
+
+            result = await verification_cog._rebuild_single_embed(
+                guild=mock_guild,
+                channel=mock_channel,
+                request=mock_request,
+                config=config,
+            )
 
         assert result is True
         mock_message.edit.assert_called_once()
@@ -8155,9 +8180,11 @@ class TestRebuildSingleEmbed:
         mock_request.mod_message_id = 789
         mock_request.username = "TestUser"
         mock_request.user_id = 456
+        mock_request.guild_id = 123
         mock_request.verification_type = VerificationType.ALLY
         mock_request.status = VerificationStatus.PENDING_REVIEW
         mock_request.created_at = datetime.now(UTC)
+        mock_request.player_info = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
@@ -8171,12 +8198,25 @@ class TestRebuildSingleEmbed:
             ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
         }
 
-        result = await verification_cog._rebuild_single_embed(
-            guild=mock_guild,
-            channel=mock_channel,
-            request=mock_request,
-            config=config,
-        )
+        # Mock database session for history lookup
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(verification_cog.bot.database, "session", return_value=mock_session),
+            patch("discord_bot.verification.cog.VerificationService") as mock_service_class,
+        ):
+            mock_service = MagicMock()
+            mock_service.get_user_history = AsyncMock(return_value=[])
+            mock_service_class.return_value = mock_service
+
+            result = await verification_cog._rebuild_single_embed(
+                guild=mock_guild,
+                channel=mock_channel,
+                request=mock_request,
+                config=config,
+            )
 
         assert result is True
         call_args = mock_message.edit.call_args
@@ -8204,9 +8244,11 @@ class TestRebuildSingleEmbed:
         mock_request.mod_message_id = 789
         mock_request.username = "TestUser"
         mock_request.user_id = 456
+        mock_request.guild_id = 123
         mock_request.verification_type = VerificationType.REGULAR
         mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
         mock_request.created_at = datetime.now(UTC)
+        mock_request.player_info = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
@@ -8218,12 +8260,25 @@ class TestRebuildSingleEmbed:
             ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando",
         }
 
-        result = await verification_cog._rebuild_single_embed(
-            guild=mock_guild,
-            channel=mock_channel,
-            request=mock_request,
-            config=config,
-        )
+        # Mock database session for history lookup
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(verification_cog.bot.database, "session", return_value=mock_session),
+            patch("discord_bot.verification.cog.VerificationService") as mock_service_class,
+        ):
+            mock_service = MagicMock()
+            mock_service.get_user_history = AsyncMock(return_value=[])
+            mock_service_class.return_value = mock_service
+
+            result = await verification_cog._rebuild_single_embed(
+                guild=mock_guild,
+                channel=mock_channel,
+                request=mock_request,
+                config=config,
+            )
 
         assert result is True
         mock_message.edit.assert_called_once()

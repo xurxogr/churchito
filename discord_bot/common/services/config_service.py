@@ -131,7 +131,9 @@ class ConfigService:
         )
 
         for row in result:
-            config[row.key] = row.value
+            # Skip null values to preserve defaults
+            if row.value is not None:
+                config[row.key] = row.value
 
         return config
 

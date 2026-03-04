@@ -1,12 +1,16 @@
 """Tests para discord_bot/verification/formatters.py."""
 
+from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import MagicMock
 
 import discord
 
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
     _parse_hex_color,
+    build_history_section,
+    build_mod_embed_sections,
     create_mod_embeds,
     create_panel_embed,
     format_message,
@@ -283,9 +287,14 @@ class TestCreateModEmbeds:
         # Default color is #FFA500 (naranja) from DEFAULT_MOD_EMBED_CONFIG
         assert embeds[0].color == discord.Color(0xFFA500)
 
-    def test_with_username_in_footer(self) -> None:
-        """Probar embed con username en footer."""
-        config: dict[str, Any] = {}
+    def test_with_configured_footer(self) -> None:
+        """Probar embed con footer configurado."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "footer_text": "Usuario: {username}",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
+        }
         embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,
             config=config,
@@ -581,6 +590,7 @@ class TestCreateModEmbeds:
             ConfigKey.MOD_EMBED_REGULAR: {
                 "color": "#FFA500",
                 "description": "Main description",
+                "footer_text": "Usuario: {username}",
                 "sections": [
                     {"type": "text", "title": "Section 1", "content": "Text content"},
                     {
@@ -615,7 +625,7 @@ class TestCreateModEmbeds:
         assert embeds[0].fields[1].name == "Field 1"
         assert embeds[0].fields[2].name == "Field 2"
 
-        # Footer with username
+        # Footer with username (now requires explicit config)
         assert embeds[0].footer is not None
         assert embeds[0].footer.text is not None
         assert "TestUser" in embeds[0].footer.text
@@ -643,3 +653,196 @@ class TestCreateModEmbeds:
         assert embeds[0].fields[0].value == "Content 1"
         assert embeds[0].fields[1].name == "Title 2"
         assert embeds[0].fields[1].value == "Content 2"
+
+
+class TestBuildHistorySection:
+    """Tests para build_history_section."""
+
+    def test_returns_none_for_empty_history(self) -> None:
+        """Probar que devuelve None cuando no hay historial."""
+        result = build_history_section(
+            past_requests=[],
+            config={},
+        )
+        assert result is None
+
+    def test_builds_history_with_approved_request(self) -> None:
+        """Probar que construye historial con solicitud aprobada."""
+        mock_request = MagicMock()
+        mock_request.status = VerificationStatus.APPROVED.value
+        mock_request.verification_type = VerificationType.REGULAR.value
+        mock_request.reviewed_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        mock_request.created_at = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mock_request.reviewed_by_username = "Mod1"
+        mock_request.rejection_reason = None
+
+        result = build_history_section(
+            past_requests=[mock_request],
+            config={},
+        )
+
+        assert result is not None
+        assert result["type"] == "text"
+        assert result["title"] == "Historial"
+        assert "✅" in result["content"]
+        assert "Mod1" in result["content"]
+        assert "2024-01-15" in result["content"]
+
+    def test_builds_history_with_rejected_request(self) -> None:
+        """Probar que construye historial con solicitud rechazada."""
+        mock_request = MagicMock()
+        mock_request.status = VerificationStatus.REJECTED.value
+        mock_request.verification_type = VerificationType.ALLY.value
+        mock_request.reviewed_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        mock_request.created_at = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mock_request.reviewed_by_username = "Mod2"
+        mock_request.rejection_reason = "Invalid screenshot"
+
+        result = build_history_section(
+            past_requests=[mock_request],
+            config={ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY: "Aliado"},
+        )
+
+        assert result is not None
+        assert "❌" in result["content"]
+        assert "Invalid screenshot" in result["content"]
+        assert "Aliado" in result["content"]
+
+    def test_uses_custom_history_label(self) -> None:
+        """Probar que usa etiqueta de historial personalizada."""
+        mock_request = MagicMock()
+        mock_request.status = VerificationStatus.APPROVED.value
+        mock_request.verification_type = VerificationType.REGULAR.value
+        mock_request.reviewed_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        mock_request.created_at = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mock_request.reviewed_by_username = "Mod1"
+        mock_request.rejection_reason = None
+
+        result = build_history_section(
+            past_requests=[mock_request],
+            config={ConfigKey.HISTORY_LABEL: "Previous Requests"},
+        )
+
+        assert result is not None
+        assert result["title"] == "Previous Requests"
+
+    def test_limits_to_five_requests(self) -> None:
+        """Probar que limita a 5 solicitudes máximo."""
+        past_requests = []
+        for i in range(10):
+            mock_request = MagicMock()
+            mock_request.status = VerificationStatus.APPROVED.value
+            mock_request.verification_type = VerificationType.REGULAR.value
+            mock_request.reviewed_at = datetime(2024, 1, i + 1, 10, 30, tzinfo=UTC)
+            mock_request.created_at = datetime(2024, 1, i + 1, 10, 0, tzinfo=UTC)
+            mock_request.reviewed_by_username = f"Mod{i}"
+            mock_request.rejection_reason = None
+            past_requests.append(mock_request)
+
+        result = build_history_section(
+            past_requests=past_requests,
+            config={},
+        )
+
+        assert result is not None
+        # Should only have 5 entries
+        lines = result["content"].split("\n")
+        assert len(lines) == 5
+
+
+class TestBuildModEmbedSections:
+    """Tests para build_mod_embed_sections."""
+
+    def test_returns_empty_without_player_info_or_history(self) -> None:
+        """Probar que devuelve vacío sin player info ni historial."""
+        additional_sections, sections_context = build_mod_embed_sections(
+            config={},
+            player_info=None,
+            past_requests=[],
+        )
+
+        assert additional_sections == []
+        assert sections_context is None
+
+    def test_returns_player_info_sections_when_configured(self) -> None:
+        """Probar que devuelve secciones de player info cuando están configuradas."""
+        player_info = {"name": "TestPlayer", "level": "25", "regiment": "TestReg"}
+        config: dict[str, Any] = {
+            ConfigKey.PLAYER_INFO_SECTIONS: [
+                {"type": "text", "title": "Player", "content": "Name: {name}"},
+                {"type": "fields", "field_1_name": "Level", "field_1_value": "{level}"},
+            ],
+        }
+
+        additional_sections, sections_context = build_mod_embed_sections(
+            config=config,
+            player_info=player_info,
+            past_requests=[],
+        )
+
+        assert len(additional_sections) == 2
+        assert sections_context == player_info
+        assert additional_sections[0]["title"] == "Player"
+        assert additional_sections[1]["type"] == "fields"
+
+    def test_returns_history_section_when_past_requests_exist(self) -> None:
+        """Probar que devuelve sección de historial cuando hay solicitudes pasadas."""
+        mock_request = MagicMock()
+        mock_request.status = VerificationStatus.APPROVED.value
+        mock_request.verification_type = VerificationType.REGULAR.value
+        mock_request.reviewed_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        mock_request.created_at = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mock_request.reviewed_by_username = "Mod1"
+        mock_request.rejection_reason = None
+
+        additional_sections, sections_context = build_mod_embed_sections(
+            config={},
+            player_info=None,
+            past_requests=[mock_request],
+        )
+
+        assert len(additional_sections) == 1
+        assert additional_sections[0]["type"] == "text"
+        assert additional_sections[0]["title"] == "Historial"
+        assert sections_context is None
+
+    def test_combines_player_info_and_history(self) -> None:
+        """Probar que combina player info e historial."""
+        player_info = {"name": "TestPlayer", "level": "25"}
+        config: dict[str, Any] = {
+            ConfigKey.PLAYER_INFO_SECTIONS: [
+                {"type": "text", "title": "Player", "content": "Name: {name}"},
+            ],
+        }
+        mock_request = MagicMock()
+        mock_request.status = VerificationStatus.APPROVED.value
+        mock_request.verification_type = VerificationType.REGULAR.value
+        mock_request.reviewed_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        mock_request.created_at = datetime(2024, 1, 15, 10, 0, tzinfo=UTC)
+        mock_request.reviewed_by_username = "Mod1"
+        mock_request.rejection_reason = None
+
+        additional_sections, sections_context = build_mod_embed_sections(
+            config=config,
+            player_info=player_info,
+            past_requests=[mock_request],
+        )
+
+        assert len(additional_sections) == 2
+        assert additional_sections[0]["title"] == "Player"
+        assert additional_sections[1]["title"] == "Historial"
+        assert sections_context == player_info
+
+    def test_ignores_player_info_without_config_sections(self) -> None:
+        """Probar que ignora player info si no hay secciones configuradas."""
+        player_info = {"name": "TestPlayer", "level": "25"}
+        config: dict[str, Any] = {}
+
+        additional_sections, sections_context = build_mod_embed_sections(
+            config=config,
+            player_info=player_info,
+            past_requests=[],
+        )
+
+        assert additional_sections == []
+        assert sections_context is None

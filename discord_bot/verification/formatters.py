@@ -12,7 +12,7 @@ from discord_bot.common.services.embed_builder import (
     PlaceholderContext,
     build_embeds,
 )
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 
 # Embed config por defecto para moderación
 DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
@@ -99,6 +99,85 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
         return discord.Color(int(hex_color, 16))
     except ValueError:
         return None
+
+
+def build_history_section(
+    past_requests: list[Any],
+    config: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Build history section for mod embeds.
+
+    Args:
+        past_requests: List of past verification requests (excluding current).
+        config: Cog configuration.
+
+    Returns:
+        Section dict for embed, or None if no history.
+    """
+    if not past_requests:
+        return None
+
+    history_label = config.get(ConfigKey.HISTORY_LABEL) or "Historial"
+    history_lines = []
+
+    for past in past_requests[:5]:
+        status_emoji = {
+            VerificationStatus.APPROVED: "✅",
+            VerificationStatus.REJECTED: "❌",
+            VerificationStatus.CANCELLED: "🚫",
+        }.get(VerificationStatus(past.status), "❓")
+        timestamp = past.reviewed_at or past.created_at
+        date_str = timestamp.strftime("%Y-%m-%d %H:%M")
+        moderator = past.reviewed_by_username or ""
+        past_type_display = get_verification_type_display(
+            verification_type=VerificationType(past.verification_type), config=config
+        )
+        line = f"{status_emoji} {past_type_display} - {moderator} ({date_str})"
+        if past.rejection_reason:
+            line += f" - {past.rejection_reason}"
+        history_lines.append(line)
+
+    return {
+        "type": "text",
+        "title": history_label,
+        "content": "\n".join(history_lines),
+    }
+
+
+def build_mod_embed_sections(
+    config: dict[str, Any],
+    player_info: dict[str, Any] | None,
+    past_requests: list[Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Build additional sections and context for mod embeds.
+
+    Args:
+        config: Cog configuration.
+        player_info: OCR player info dict (from DB or API result).
+        past_requests: List of past verification requests (excluding current).
+
+    Returns:
+        Tuple of (additional_sections, sections_context).
+    """
+    additional_sections: list[dict[str, Any]] = []
+    sections_context: dict[str, Any] | None = None
+
+    # Add player info sections if available
+    if player_info:
+        player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
+        if player_info_sections and isinstance(player_info_sections, list):
+            additional_sections = list(player_info_sections)
+            sections_context = player_info
+
+    # Add history section
+    history_section = build_history_section(
+        past_requests=past_requests,
+        config=config,
+    )
+    if history_section:
+        additional_sections.append(history_section)
+
+    return additional_sections, sections_context
 
 
 def create_mod_embeds(

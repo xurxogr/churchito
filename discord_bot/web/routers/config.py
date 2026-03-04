@@ -912,7 +912,10 @@ def _convert_form_value(
                 logger.warning(f"JSON inválido en EMBED_SECTIONS config: {e}")
                 return None
 
-            # Validar que data es una lista
+            # Handle both list and dict with "sections" key
+            if isinstance(data, dict) and "sections" in data:
+                data = data["sections"]
+
             if not isinstance(data, list):
                 logger.warning("EMBED_SECTIONS config debe ser una lista")
                 return None

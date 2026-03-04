@@ -21,6 +21,7 @@ from discord_bot.verification.enums import (
     VerificationType,
 )
 from discord_bot.verification.formatters import (
+    build_mod_embed_sections,
     create_mod_embeds,
     format_message,
     get_verification_type_display,
@@ -582,15 +583,14 @@ async def update_mod_message_for_review(
     status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
     created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
 
-    # Build additional content for player info
+    # Build additional content for API errors
     additional_content = ""
-    additional_sections: list[dict[str, Any]] | None = None
-    sections_context: dict[str, Any] | None = None
+    player_info: dict[str, Any] | None = None
 
     if api_result:
         if api_result.success and api_result.response:
             # Build player info context from OCR results
-            sections_context = {
+            player_info = {
                 "name": api_result.response.name or "N/A",
                 "regiment": api_result.response.regiment or "N/A",
                 "level": str(api_result.response.level)
@@ -604,14 +604,11 @@ async def update_mod_message_for_review(
                 else "N/A",
                 "war_time": api_result.response.current_ingame_time or "N/A",
             }
-
             # Persist player info to database for rebuild support
-            await verification_service.set_player_info(request.id, sections_context)
-
-            # Get player info sections config
-            player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
-            if player_info_sections and isinstance(player_info_sections, list):
-                additional_sections = player_info_sections
+            await verification_service.set_player_info(
+                request_id=request.id,
+                player_info=player_info,
+            )
         elif api_result.status_code == 422:
             # 422 means images are invalid/unreadable - show configured message
             reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
@@ -621,33 +618,20 @@ async def update_mod_message_for_review(
             error_msg = _get_api_error_message(api_result.status_code)
             additional_content += f"\n\n❌ **API Error:** {error_msg}"
 
-    # Crear embeds para las capturas (se muestran en una fila)
+    # Crear embeds para las capturas
     embeds = _create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
 
-    # Agregar historial
+    # Build additional sections (player info + history)
     history = await verification_service.get_user_history(
-        guild_id=request.guild_id, user_id=request.user_id
+        guild_id=request.guild_id,
+        user_id=request.user_id,
     )
     past_requests = [r for r in history if r.id != request.id]
-
-    if past_requests:
-        history_label = config.get(ConfigKey.HISTORY_LABEL) or "Historial"
-        additional_content += f"\n\n**{history_label}:**"
-        for past in past_requests[:5]:
-            status_emoji = {
-                VerificationStatus.APPROVED: "✅",
-                VerificationStatus.REJECTED: "❌",
-                VerificationStatus.CANCELLED: "🚫",
-            }.get(VerificationStatus(past.status), "❓")
-            timestamp = past.reviewed_at or past.created_at
-            date_str = timestamp.strftime("%Y-%m-%d %H:%M")
-            moderator = past.reviewed_by_username or ""
-            past_type_display = get_verification_type_display(
-                verification_type=VerificationType(past.verification_type), config=config
-            )
-            additional_content += f"\n{status_emoji} {past_type_display} - {moderator} ({date_str})"
-            if past.rejection_reason:
-                additional_content += f" - {past.rejection_reason}"
+    additional_sections, sections_context = build_mod_embed_sections(
+        config=config,
+        player_info=player_info,
+        past_requests=past_requests,
+    )
 
     # Comprobar si debemos auto-procesar
     auto_mode = config.get(ConfigKey.VERIFICATION_AUTOMATIC, AutoProcessMode.NONE)
