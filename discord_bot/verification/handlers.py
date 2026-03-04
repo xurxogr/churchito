@@ -23,6 +23,7 @@ from discord_bot.verification.enums import (
 from discord_bot.verification.formatters import (
     build_mod_embed_sections,
     create_mod_embeds,
+    create_tracker_embed,
     format_message,
     get_verification_type_display,
 )
@@ -435,6 +436,16 @@ async def handle_verification_start(
 
         await session.commit()
 
+        # Actualizar mensaje de tracker
+        config_service = ConfigService(session=session)
+        await update_tracker_message(
+            guild=guild,
+            config=config,
+            verification_service=verification_service,
+            config_service=config_service,
+        )
+        await session.commit()
+
     started_message = config.get(ConfigKey.VERIFICATION_STARTED_MESSAGE) or ""
     await interaction.followup.send(started_message, ephemeral=True)
 
@@ -549,6 +560,16 @@ async def handle_dm_screenshots(
                     )
 
         await session.commit()
+
+        # Actualizar mensaje de tracker
+        if guild:
+            await update_tracker_message(
+                guild=guild,
+                config=config,
+                verification_service=verification_service,
+                config_service=config_service,
+            )
+            await session.commit()
 
 
 async def update_mod_message_for_review(
@@ -1110,6 +1131,16 @@ async def handle_accept(
 
         await session.commit()
 
+        # Actualizar mensaje de tracker
+        config_service = ConfigService(session=session)
+        await update_tracker_message(
+            guild=interaction.guild,
+            config=config,
+            verification_service=verification_service,
+            config_service=config_service,
+        )
+        await session.commit()
+
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_APPROVED_CONFIRMATION)
             or "Verificacion aprobada para {username}.",
@@ -1327,6 +1358,16 @@ async def handle_reject(
 
         await session.commit()
 
+        # Actualizar mensaje de tracker
+        config_service = ConfigService(session=session)
+        await update_tracker_message(
+            guild=interaction.guild,
+            config=config,
+            verification_service=verification_service,
+            config_service=config_service,
+        )
+        await session.commit()
+
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_REJECTED_CONFIRMATION)
             or "Verificación rechazada para {username}.",
@@ -1417,6 +1458,15 @@ async def handle_review(
         # Actualizar mensaje de moderación con botones de aceptar/rechazar
         await _update_mod_message_for_review(interaction.guild, request, config, request_id)
 
+        await session.commit()
+
+        # Actualizar mensaje de tracker (la verificación vuelve a estar pendiente)
+        await update_tracker_message(
+            guild=interaction.guild,
+            config=config,
+            verification_service=verification_service,
+            config_service=config_service,
+        )
         await session.commit()
 
         await interaction.response.send_message(
@@ -1559,3 +1609,113 @@ async def update_mod_message_cancelled(
     all_embeds = [main_embed, *screenshot_embeds]
 
     await mod_message.edit(embeds=all_embeds, view=None)
+
+
+async def update_tracker_message(
+    guild: discord.Guild,
+    config: dict[str, Any],
+    verification_service: VerificationService,
+    config_service: ConfigService,
+) -> None:
+    """Actualizar o crear el mensaje de seguimiento de verificaciones pendientes.
+
+    Este mensaje siempre debe ser el último en el canal de moderación y
+    muestra una lista de todas las verificaciones pendientes.
+
+    Args:
+        guild: Guild donde está el canal de moderación
+        config: Configuración del cog
+        verification_service: Servicio de verificación para obtener solicitudes
+        config_service: Servicio de configuración para guardar/obtener mensaje ID
+    """
+    from discord_bot.verification.config import COG_NAME
+
+    # 1. Verificar si el tracker está habilitado (título no vacío)
+    tracker_title = config.get(ConfigKey.TRACKER_TITLE)
+    tracker_enabled = bool(tracker_title)
+
+    # 2. Obtener canal de moderación
+    mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
+    if not mod_channel_id:
+        return
+
+    mod_channel = guild.get_channel(mod_channel_id)
+    if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
+        return
+
+    # 3. Obtener todas las verificaciones pendientes
+    pending_requests = await verification_service.get_pending_for_guild(guild.id)
+
+    # 4. Obtener ID del mensaje de tracker existente
+    tracker_message_id = config.get(ConfigKey.TRACKER_MESSAGE_ID)
+    tracker_message: discord.Message | None = None
+
+    if tracker_message_id:
+        try:
+            tracker_message = await mod_channel.fetch_message(tracker_message_id)
+        except discord.NotFound:
+            tracker_message = None
+            # Limpiar ID del mensaje eliminado
+            await config_service.set_value(
+                guild_id=guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.TRACKER_MESSAGE_ID,
+                value=None,
+            )
+
+    # 5. Si tracker deshabilitado o no hay verificaciones pendientes, eliminar tracker
+    if not tracker_enabled or not pending_requests:
+        if tracker_message:
+            try:
+                await tracker_message.delete()
+            except discord.NotFound:
+                pass
+            await config_service.set_value(
+                guild_id=guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.TRACKER_MESSAGE_ID,
+                value=None,
+            )
+        return
+
+    # 6. Crear embed del tracker
+    tracker_embed = create_tracker_embed(
+        pending_requests=pending_requests,
+        config=config,
+        guild_id=guild.id,
+        channel_id=mod_channel_id,
+    )
+
+    # 7. Verificar si el mensaje del tracker es el último en el canal
+    if tracker_message:
+        # Obtener el último mensaje del canal
+        async for last_message in mod_channel.history(limit=1):
+            if last_message.id != tracker_message.id:
+                # El tracker no es el último mensaje, eliminarlo y crear uno nuevo
+                try:
+                    await tracker_message.delete()
+                except discord.NotFound:
+                    pass
+                tracker_message = None
+            break
+
+    # 8. Actualizar o crear el mensaje
+    if tracker_message:
+        # Editar el mensaje existente
+        try:
+            await tracker_message.edit(embed=tracker_embed)
+        except discord.NotFound:
+            tracker_message = None
+
+    if not tracker_message:
+        # Enviar nuevo mensaje
+        try:
+            new_message = await mod_channel.send(embed=tracker_embed)
+            await config_service.set_value(
+                guild_id=guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.TRACKER_MESSAGE_ID,
+                value=new_message.id,
+            )
+        except discord.Forbidden:
+            logger.warning(f"No se pudo enviar mensaje de tracker en {mod_channel.name}")

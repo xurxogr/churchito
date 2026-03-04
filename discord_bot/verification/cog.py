@@ -28,6 +28,7 @@ from discord_bot.verification.handlers import (
     handle_verification_start,
     show_rejection_select,
     update_mod_message_cancelled,
+    update_tracker_message,
 )
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
 from discord_bot.verification.service import VerificationService
@@ -205,6 +206,8 @@ class VerificationCog(commands.Cog):
         await self.bot.wait_until_ready()
         # Limpiar verificaciones de usuarios que salieron mientras el bot estaba offline
         await self._cleanup_stale_verifications()
+        # Inicializar trackers para guilds con verificaciones pendientes
+        await self._initialize_trackers()
         # Ejecutar inmediatamente al iniciar para todos los guilds
         await self._run_health_check(force_all=True)
 
@@ -221,6 +224,7 @@ class VerificationCog(commands.Cog):
             logger.info(f"Verificando {len(pending)} solicitudes pendientes...")
             config_service = ConfigService(session=session)
             cancelled_count = 0
+            guilds_with_changes: dict[int, tuple[discord.Guild, dict[str, Any]]] = {}
 
             for request in pending:
                 guild = self.bot.get_guild(request.guild_id)
@@ -255,6 +259,9 @@ class VerificationCog(commands.Cog):
                 except Exception as e:
                     logger.error(f"Error actualizando mensaje de mod: {e}")
 
+                # Marcar guild para actualizar tracker
+                guilds_with_changes[guild.id] = (guild, config)
+
                 cancelled_count += 1
                 logger.info(
                     f"[{guild.name}] Verificacion {request.id} cancelada "
@@ -263,9 +270,67 @@ class VerificationCog(commands.Cog):
 
             if cancelled_count > 0:
                 await session.commit()
+
+                # Actualizar trackers de guilds afectados
+                for guild, config in guilds_with_changes.values():
+                    try:
+                        await update_tracker_message(
+                            guild=guild,
+                            config=config,
+                            verification_service=service,
+                            config_service=config_service,
+                        )
+                    except Exception as e:
+                        logger.error(f"Error actualizando tracker en {guild.name}: {e}")
+                await session.commit()
+
             logger.info(
                 f"Limpieza completada: {cancelled_count}/{len(pending)} verificaciones canceladas"
             )
+
+    async def _initialize_trackers(self) -> None:
+        """Inicializar mensajes de tracker para guilds con verificaciones pendientes.
+
+        Se ejecuta al iniciar el bot para asegurar que los trackers existan
+        para todos los guilds que tienen verificaciones pendientes.
+        """
+        async with self.bot.database.session() as session:
+            service = VerificationService(session=session)
+            config_service = ConfigService(session=session)
+
+            # Obtener todos los guild_ids únicos con verificaciones pendientes
+            pending = await service.get_all_pending()
+            if not pending:
+                logger.debug("No hay verificaciones pendientes para inicializar trackers")
+                return
+
+            # Agrupar por guild_id
+            guild_ids = {request.guild_id for request in pending}
+            logger.info(f"Inicializando trackers para {len(guild_ids)} guilds...")
+
+            for guild_id in guild_ids:
+                guild = self.bot.get_guild(guild_id)
+                if not guild:
+                    continue
+
+                # Verificar si el cog está habilitado
+                if not await self._is_cog_enabled(guild_id):
+                    continue
+
+                config = await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+
+                try:
+                    await update_tracker_message(
+                        guild=guild,
+                        config=config,
+                        verification_service=service,
+                        config_service=config_service,
+                    )
+                except Exception as e:
+                    logger.error(f"Error inicializando tracker en {guild.name}: {e}")
+
+            await session.commit()
+            logger.info("Inicialización de trackers completada")
 
     async def _rebuild_pending_embeds_for_guild(self, guild: discord.Guild) -> None:
         """Reconstruir embeds de verificaciones pendientes para un guild específico.
@@ -830,6 +895,15 @@ class VerificationCog(commands.Cog):
                     request=pending,
                     config=config,
                 )
+
+                # Actualizar mensaje de tracker
+                await update_tracker_message(
+                    guild=member.guild,
+                    config=config,
+                    verification_service=verification_service,
+                    config_service=config_service,
+                )
+                await session.commit()
 
                 logger.info(
                     f"Verificacion cancelada para {member.name} "

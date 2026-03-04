@@ -160,6 +160,33 @@ class VerificationService:
         )
         return list(result.scalars().all())
 
+    async def get_pending_for_guild(self, guild_id: int) -> list[VerificationRequest]:
+        """Obtener todas las solicitudes pendientes para un guild.
+
+        Incluye tanto PENDING_SCREENSHOTS como PENDING_REVIEW.
+        Ordenadas por fecha de creación (más antiguas primero).
+
+        Args:
+            guild_id (int): ID del guild
+
+        Returns:
+            list[VerificationRequest]: Lista de solicitudes pendientes
+        """
+        result = await self._session.execute(
+            select(VerificationRequest)
+            .where(
+                VerificationRequest.guild_id == guild_id,
+                VerificationRequest.status.in_(
+                    [
+                        VerificationStatus.PENDING_SCREENSHOTS,
+                        VerificationStatus.PENDING_REVIEW,
+                    ]
+                ),
+            )
+            .order_by(VerificationRequest.created_at.asc())
+        )
+        return list(result.scalars().all())
+
     async def get_pending_with_mod_messages(self) -> list[VerificationRequest]:
         """Obtener solicitudes pendientes que tienen mensaje de moderación.
 

@@ -326,3 +326,88 @@ def get_verification_type_display(
     if verification_type == VerificationType.REGULAR:
         return config.get(ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY) or "Normal"
     return config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Aliado"
+
+
+def create_tracker_embed(
+    pending_requests: list[Any],
+    config: dict[str, Any],
+    guild_id: int,
+    channel_id: int,
+) -> discord.Embed:
+    """Crear embed mostrando todas las verificaciones pendientes.
+
+    Para cada solicitud muestra en formato compacto:
+    - Emoji de estado, username, tipo, estado, tiempo relativo y link
+
+    Args:
+        pending_requests: Lista de VerificationRequest pendientes.
+        config: Configuración del cog.
+        guild_id: ID del guild para construir links.
+        channel_id: ID del canal de moderación para construir links.
+
+    Returns:
+        discord.Embed: Embed con la lista de verificaciones pendientes.
+    """
+    title = config.get(ConfigKey.TRACKER_TITLE) or "📋 Verificaciones Pendientes"
+    embed = discord.Embed(
+        title=title,
+        color=discord.Color.blue(),
+    )
+
+    lines = []
+    for request in pending_requests:
+        # Determinar emoji e indicador de estado
+        if request.status == VerificationStatus.PENDING_SCREENSHOTS:
+            emoji = "🟡"
+            status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "Esperando capturas"
+            status_text = _clean_status_text(status_text)
+        else:
+            emoji = "🟠"
+            status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "Pendiente de revisión"
+            status_text = _clean_status_text(status_text)
+
+        # Obtener tipo de verificación
+        verification_type = VerificationType(request.verification_type)
+        type_display = get_verification_type_display(verification_type, config)
+
+        # Timestamp relativo de Discord
+        unix_timestamp = int(request.created_at.timestamp())
+        relative_time = f"<t:{unix_timestamp}:R>"
+
+        # Link al mensaje de moderación usando ID de verificación
+        if request.mod_message_id:
+            message_link = (
+                f"https://discord.com/channels/{guild_id}/{channel_id}/{request.mod_message_id}"
+            )
+            id_text = f"[#{request.id}]({message_link})"
+        else:
+            id_text = f"#{request.id}"
+
+        # Construir línea compacta: id - emoji username - tipo - estado - tiempo
+        line = (
+            f"{id_text} {emoji} **{request.username}** - "
+            f"{type_display} - {status_text} - {relative_time}"
+        )
+        lines.append(line)
+
+    embed.description = "\n".join(lines)
+    return embed
+
+
+def _clean_status_text(status_text: str) -> str:
+    """Limpiar texto de estado quitando emojis y formato de negrita.
+
+    Args:
+        status_text: Texto de estado desde config (puede incluir emoji y markdown).
+
+    Returns:
+        Texto limpio sin emojis iniciales ni formato.
+    """
+    # Quitar patrones comunes como "⏳ **Estado:** " o "🔍 **Estado:** "
+    import re
+
+    # Quitar emoji al inicio
+    cleaned = re.sub(r"^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF\s]+", "", status_text)
+    # Quitar **Estado:** o similar
+    cleaned = re.sub(r"\*\*[^*]+:\*\*\s*", "", cleaned)
+    return cleaned.strip()

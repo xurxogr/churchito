@@ -16,6 +16,24 @@ from discord_bot.verification.enums import ConfigKey, VerificationStatus, Verifi
 from discord_bot.verification.service import VerificationService
 
 
+class AsyncIteratorMock:
+    """Mock for async iterators like channel.history()."""
+
+    def __init__(self, items: list[Any]) -> None:  # noqa: D107
+        self.items = items
+
+    def __aiter__(self) -> "AsyncIteratorMock":  # noqa: D105
+        self._index = 0
+        return self
+
+    async def __anext__(self) -> Any:  # noqa: D105
+        if self._index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self._index]
+        self._index += 1
+        return item
+
+
 @pytest.fixture
 def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
     """Crear mock del bot con database."""
@@ -1023,6 +1041,116 @@ class TestCleanupStaleVerifications:
             updated = await service.get_request(request_id)
             assert updated is not None
             assert updated.status == VerificationStatus.CANCELLED
+
+
+class TestInitializeTrackers:
+    """Tests para inicialización de trackers al iniciar."""
+
+    async def test_initializes_tracker_for_guild_with_pending(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que inicializa tracker para guilds con verificaciones pendientes."""
+        # Crear solicitud pendiente y configuración
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Guardar configuración con mod_notification_channel
+            config_service = ConfigService(session)
+            await config_service.set_value(123, "verification", "mod_notification_channel", 888)
+            await config_service.set_value(
+                123, "verification", "tracker_title", "📋 Verificaciones Pendientes"
+            )
+            await session.commit()
+
+        # Mock guild
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 9999
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.send = AsyncMock(return_value=mock_tracker_message)
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([]))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+
+        await verification_cog._initialize_trackers()
+
+        # Verificar que se envió el mensaje del tracker
+        mock_mod_channel.send.assert_called_once()
+
+    async def test_skips_guild_not_found(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que ignora guilds no encontrados."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=999,
+                user_id=456,
+                username="TestUser",
+                guild_name="Unknown Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        # Bot no encuentra el guild
+        verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
+
+        # No debe lanzar excepción
+        await verification_cog._initialize_trackers()
+
+    async def test_skips_disabled_cog(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que ignora guilds con cog deshabilitado."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+
+        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+
+        # Cog deshabilitado
+        with patch.object(
+            verification_cog, "_is_cog_enabled", new_callable=AsyncMock
+        ) as mock_enabled:
+            mock_enabled.return_value = False
+
+            await verification_cog._initialize_trackers()
+
+            # No debe llamar a get_all_config (porque el cog está deshabilitado)
+            mock_guild.get_channel.assert_not_called()
+
+    async def test_no_pending_returns_early(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que retorna temprano si no hay verificaciones pendientes."""
+        # Sin verificaciones pendientes
+
+        # No debe lanzar excepción
+        await verification_cog._initialize_trackers()
 
 
 class TestOnMessage:
@@ -2792,8 +2920,8 @@ class TestHandleVerificationStartHappyPath:
 
             # DM enviado
             mock_user.send.assert_called_once()
-            # Mensaje a mods enviado
-            mock_mod_channel.send.assert_called_once()
+            # Mensaje a mods enviado (+ tracker message)
+            assert mock_mod_channel.send.call_count >= 1
             # Confirmacion
             interaction.followup.send.assert_called()
 
@@ -3970,6 +4098,12 @@ class TestOnMessageUpdateModMessage:
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        # Mock for tracker message
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 9999
+        mock_mod_channel.send = AsyncMock(return_value=mock_tracker_message)
+        # Mock history for tracker positioning
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([]))
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -4003,6 +4137,7 @@ class TestOnMessageUpdateModMessage:
             "verification_type_ally_display": "Aliado",
             "accept_button_text": "Aceptar",
             "reject_button_text": "Rechazar",
+            "tracker_title": "📋 Verificaciones Pendientes",
         }
 
         with patch.object(
@@ -5536,6 +5671,12 @@ class TestHandleReview:
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.id = 888
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        # Mock for tracker message
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 9999
+        mock_mod_channel.send = AsyncMock(return_value=mock_tracker_message)
+        # Mock history for tracker positioning
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([]))
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -5569,6 +5710,7 @@ class TestHandleReview:
             "status_rejected": "❌ Auto-rechazado",
             "accept_button_text": "Aceptar",
             "reject_button_text": "Rechazar",
+            "tracker_title": "📋 Verificaciones Pendientes",
         }
 
         # Guardar mod_message_id en la solicitud

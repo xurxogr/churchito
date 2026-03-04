@@ -8,11 +8,13 @@ import discord
 
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
+    _clean_status_text,
     _parse_hex_color,
     build_history_section,
     build_mod_embed_sections,
     create_mod_embeds,
     create_panel_embed,
+    create_tracker_embed,
     format_message,
     get_verification_type_display,
 )
@@ -846,3 +848,191 @@ class TestBuildModEmbedSections:
 
         assert additional_sections == []
         assert sections_context is None
+
+
+class TestCreateTrackerEmbed:
+    """Tests para create_tracker_embed."""
+
+    def test_creates_embed_with_pending_requests(self) -> None:
+        """Probar que crea embed con solicitudes pendientes."""
+        request = MagicMock()
+        request.username = "TestUser"
+        request.status = VerificationStatus.PENDING_SCREENSHOTS
+        request.verification_type = VerificationType.REGULAR
+        request.mod_message_id = 12345
+        request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Test Title",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
+            ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pendiente de revisión",
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+        }
+
+        embed = create_tracker_embed(
+            pending_requests=[request],
+            config=config,
+            guild_id=123,
+            channel_id=456,
+        )
+
+        assert embed.title == "📋 Test Title"
+        assert embed.description is not None
+        assert "TestUser" in embed.description
+        assert "Normal" in embed.description
+        assert "[#" in embed.description  # Link with ID
+
+    def test_creates_embed_without_mod_message_id(self) -> None:
+        """Probar que crea embed sin link cuando no hay mod_message_id."""
+        request = MagicMock()
+        request.id = 42
+        request.username = "TestUser"
+        request.status = VerificationStatus.PENDING_REVIEW
+        request.verification_type = VerificationType.ALLY
+        request.mod_message_id = None  # No mod message
+        request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+
+        config: dict[str, Any] = {
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
+            ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pendiente de revisión",
+            ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY: "Aliado",
+        }
+
+        embed = create_tracker_embed(
+            pending_requests=[request],
+            config=config,
+            guild_id=123,
+            channel_id=456,
+        )
+
+        assert embed.description is not None
+        assert "TestUser" in embed.description
+        assert "Aliado" in embed.description
+        assert "#42" in embed.description  # ID shown without link
+        assert "discord.com" not in embed.description  # No link URL
+        assert "<t:" in embed.description  # Still has timestamp
+
+    def test_uses_emoji_for_pending_review(self) -> None:
+        """Probar que usa emoji naranja para pendiente de revisión."""
+        request = MagicMock()
+        request.username = "TestUser"
+        request.status = VerificationStatus.PENDING_REVIEW
+        request.verification_type = VerificationType.REGULAR
+        request.mod_message_id = 12345
+        request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+
+        config: dict[str, Any] = {
+            ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pendiente de revisión",
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+        }
+
+        embed = create_tracker_embed(
+            pending_requests=[request],
+            config=config,
+            guild_id=123,
+            channel_id=456,
+        )
+
+        assert embed.description is not None
+        assert "🟠" in embed.description  # Orange for pending review
+
+
+class TestCleanStatusText:
+    """Tests para _clean_status_text."""
+
+    def test_removes_bold_label(self) -> None:
+        """Probar que quita etiqueta en negrita."""
+        result = _clean_status_text("**Estado:** Esperando capturas")
+        assert result == "Esperando capturas"
+
+    def test_handles_plain_text(self) -> None:
+        """Probar que maneja texto sin formato."""
+        result = _clean_status_text("Esperando capturas")
+        assert result == "Esperando capturas"
+
+    def test_removes_bold_label_only(self) -> None:
+        """Probar que quita solo la etiqueta en negrita."""
+        result = _clean_status_text("**Pendiente:** Revisión manual")
+        assert result == "Revisión manual"
+
+
+class TestCreateModEmbedsInvalidSections:
+    """Tests para create_mod_embeds con secciones inválidas."""
+
+    def test_skips_non_dict_sections(self) -> None:
+        """Probar que ignora secciones que no son diccionarios."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "#FF0000",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+        }
+
+        # Secciones adicionales con valor no-dict (cast to bypass type check)
+        additional_sections: list[dict[str, Any]] = [
+            {"type": "text", "content": "Valid section"},
+        ]
+        # Inject invalid section for test
+        additional_sections.insert(0, "not a dict")  # type: ignore[arg-type]
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+            status="Pending",
+            additional_sections=additional_sections,
+        )
+
+        # Should still create embeds, skipping invalid section
+        assert len(embeds) >= 1
+
+    def test_skips_sections_without_type(self) -> None:
+        """Probar que ignora secciones sin campo type."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "#FF0000",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+        }
+
+        additional_sections: list[dict[str, Any]] = [
+            {"content": "No type field"},  # Missing type
+            {"type": "text", "content": "Valid section"},
+        ]
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+            status="Pending",
+            additional_sections=additional_sections,
+        )
+
+        assert len(embeds) >= 1
+
+    def test_skips_sections_with_invalid_embed_section(self) -> None:
+        """Probar que ignora secciones que no pueden crear EmbedSection."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "color": "#FF0000",
+                "sections": [{"type": "text", "content": "Test"}],
+            },
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+        }
+
+        additional_sections: list[dict[str, Any]] = [
+            {"type": "invalid_type", "content": "Bad type"},  # Invalid type
+            {"type": "text", "content": "Valid section"},
+        ]
+
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            username="TestUser",
+            status="Pending",
+            additional_sections=additional_sections,
+        )
+
+        assert len(embeds) >= 1

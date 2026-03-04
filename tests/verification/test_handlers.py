@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from discord_bot.verification.enums import VerificationType
+from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
@@ -15,6 +15,7 @@ from discord_bot.verification.handlers import (
     _send_mod_ping_message,
     _update_mod_message_for_review,
     update_mod_message_cancelled,
+    update_tracker_message,
 )
 from discord_bot.verification.models import VerificationRequest
 
@@ -553,3 +554,343 @@ class TestSendModPingMessage:
         call_args = mock_channel.send.call_args
         assert "<@&111>" in call_args.kwargs["content"]
         assert "<@&222>" in call_args.kwargs["content"]
+
+
+class AsyncIteratorMock:
+    """Mock for async iterators like channel.history()."""
+
+    def __init__(self, items: list[Any]) -> None:  # noqa: D107
+        self.items = items
+
+    def __aiter__(self) -> "AsyncIteratorMock":  # noqa: D105
+        self._index = 0
+        return self
+
+    async def __anext__(self) -> Any:  # noqa: D105
+        if self._index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self._index]
+        self._index += 1
+        return item
+
+
+class TestUpdateTrackerMessage:
+    """Tests para update_tracker_message."""
+
+    async def test_returns_early_when_channel_not_text_channel(self) -> None:
+        """Probar que retorna temprano si canal no es TextChannel."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        # Return a VoiceChannel instead of TextChannel
+        mock_voice_channel = MagicMock(spec=discord.VoiceChannel)
+        mock_guild.get_channel = MagicMock(return_value=mock_voice_channel)
+
+        mock_verification_service = MagicMock()
+        mock_config_service = MagicMock()
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        # Should not call any service methods
+        mock_verification_service.get_pending_for_guild.assert_not_called()
+
+    async def test_fetches_existing_tracker_and_handles_not_found(self) -> None:
+        """Probar que maneja NotFound al buscar mensaje de tracker existente."""
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([]))
+        mock_tracker_msg = MagicMock()
+        mock_tracker_msg.id = 9999
+        mock_mod_channel.send = AsyncMock(return_value=mock_tracker_msg)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,  # Existing tracker ID
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        # Should have called set_value to clear the old tracker ID
+        assert mock_config_service.set_value.call_count >= 1
+
+    async def test_deletes_tracker_when_no_pending_requests(self) -> None:
+        """Probar que elimina tracker cuando no hay solicitudes pendientes."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.delete = AsyncMock()
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_tracker_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        mock_tracker_message.delete.assert_called_once()
+
+    async def test_handles_not_found_when_deleting_tracker(self) -> None:
+        """Probar que maneja NotFound al eliminar tracker."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_tracker_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        # Should not raise
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+    async def test_repositions_tracker_when_not_last_message(self) -> None:
+        """Probar que reposiciona tracker cuando no es el último mensaje."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 888
+        mock_tracker_message.delete = AsyncMock()
+
+        # Last message is different from tracker
+        mock_last_message = MagicMock()
+        mock_last_message.id = 999
+
+        mock_new_tracker = MagicMock()
+        mock_new_tracker.id = 1000
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_tracker_message)
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_last_message]))
+        mock_mod_channel.send = AsyncMock(return_value=mock_new_tracker)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        # Should delete old tracker and send new one
+        mock_tracker_message.delete.assert_called_once()
+        mock_mod_channel.send.assert_called_once()
+
+    async def test_edits_existing_tracker_when_last_message(self) -> None:
+        """Probar que edita tracker existente cuando es el último mensaje."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 888
+        mock_tracker_message.edit = AsyncMock()
+
+        # Tracker is the last message
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_tracker_message)
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        mock_config_service = MagicMock()
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        mock_tracker_message.edit.assert_called_once()
+
+    async def test_handles_not_found_when_editing_tracker(self) -> None:
+        """Probar que maneja NotFound al editar tracker y crea uno nuevo."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 888
+        mock_tracker_message.edit = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
+
+        mock_new_tracker = MagicMock()
+        mock_new_tracker.id = 1000
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_tracker_message)
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+        mock_mod_channel.send = AsyncMock(return_value=mock_new_tracker)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )
+
+        # Should send new message after edit fails
+        mock_mod_channel.send.assert_called_once()
+
+    async def test_handles_forbidden_when_sending_tracker(self) -> None:
+        """Probar que maneja Forbidden al enviar nuevo tracker."""
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.name = "mod-channel"
+        mock_mod_channel.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
+        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([]))
+        mock_mod_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(return_value=(True, None))
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Verificaciones Pendientes",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        # Should not raise
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=mock_config_service,
+        )

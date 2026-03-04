@@ -220,6 +220,18 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Panel de moderación",
         ),
         ConfigOption(
+            key=ConfigKey.TRACKER_TITLE,
+            name="Título del tracker",
+            description=(
+                "Título del mensaje con la lista de verificaciones pendientes. "
+                "Dejar vacío para desactivar el tracker."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="📋 Verificaciones Pendientes",
+            max_length=100,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
             key=ConfigKey.MOD_ROLES,
             name="Roles de moderador",
             description="Roles que pueden aprobar/rechazar verificaciones",

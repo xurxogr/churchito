@@ -98,6 +98,10 @@ class ConfigKey(StrEnum):
     VERIFICATION_VALID_REGIMENT = "verification_valid_regiment"
     PLAYER_INFO_SECTIONS = "player_info_sections"
 
+    # Tracker de verificaciones pendientes
+    TRACKER_TITLE = "tracker_title"
+
     # Claves internas (prefijo _ indica que no son configurables por usuario)
     PANEL_MESSAGE_ID = "_panel_message_id"
     PANEL_CHANNEL_ID = "_panel_channel_id"
+    TRACKER_MESSAGE_ID = "_tracker_message_id"
