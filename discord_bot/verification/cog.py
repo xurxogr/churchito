@@ -266,6 +266,8 @@ class VerificationCog(commands.Cog):
                 reviewer_username="Auto",
                 reason=reason,
             )
+            # Flush para que los cambios sean visibles en consultas posteriores
+            await session.flush()
 
             # Limpiar de memoria
             if user_id in self._pending_dm_verifications:

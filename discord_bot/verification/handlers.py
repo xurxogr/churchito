@@ -564,7 +564,7 @@ async def handle_dm_screenshots(
             if mod_channel_id:
                 mod_channel = guild.get_channel(mod_channel_id)
                 if mod_channel and isinstance(mod_channel, discord.TextChannel):
-                    await update_mod_message_for_review(
+                    auto_processed = await update_mod_message_for_review(
                         cog=cog,
                         channel=mod_channel,
                         request=request,
@@ -572,6 +572,16 @@ async def handle_dm_screenshots(
                         config=config,
                         api_result=api_result,
                     )
+                    if auto_processed:
+                        # Si hubo auto-procesamiento, commit y actualizar tracker
+                        await session.commit()
+                        await update_tracker_message(
+                            guild=guild,
+                            config=config,
+                            verification_service=verification_service,
+                            config_service=config_service,
+                        )
+                        return
 
         await session.commit()
 
@@ -593,7 +603,7 @@ async def update_mod_message_for_review(
     verification_service: VerificationService,
     config: dict[str, Any],
     api_result: VerificationAPIResult | None = None,
-) -> None:
+) -> bool:
     """Actualizar mensaje de moderacion cuando se reciben las capturas.
 
     Args:
@@ -603,15 +613,18 @@ async def update_mod_message_for_review(
         verification_service (VerificationService): Servicio de verificacion.
         config (dict[str, Any]): Configuracion del cog.
         api_result (VerificationAPIResult | None): Resultado de la API de verificación.
+
+    Returns:
+        bool: True si se realizó auto-aprobación/rechazo, False si requiere revisión manual.
     """
     if not request.mod_message_id:
-        return
+        return False
 
     try:
         mod_message = await channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
         logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
-        return
+        return False
 
     verification_type = VerificationType(request.verification_type)
     type_display = get_verification_type_display(verification_type=verification_type, config=config)
@@ -699,7 +712,7 @@ async def update_mod_message_for_review(
                 additional_sections=additional_sections,
                 sections_context=sections_context,
             )
-            return
+            return True
 
         # Manejar respuesta exitosa de API (200)
         if api_result.success and api_result.response:
@@ -729,7 +742,7 @@ async def update_mod_message_for_review(
                     additional_sections=additional_sections,
                     sections_context=sections_context,
                 )
-                return
+                return True
             elif not should_approve and auto_reject:
                 # Auto-rechazar
                 await _handle_auto_rejection(
@@ -745,7 +758,7 @@ async def update_mod_message_for_review(
                     additional_sections=additional_sections,
                     sections_context=sections_context,
                 )
-                return
+                return True
             elif should_approve and not auto_approve:
                 # Listo para aprobar manualmente - actualizar estado
                 # El status_text se actualizará al construir el embed
@@ -783,6 +796,7 @@ async def update_mod_message_for_review(
 
     # Enviar mensaje de ping a moderadores (las menciones solo funcionan en mensajes nuevos)
     await _send_mod_ping_message(channel=channel, config=config)
+    return False
 
 
 async def _send_mod_ping_message(
