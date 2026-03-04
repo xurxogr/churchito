@@ -97,7 +97,7 @@ def _get_api_error_message(status_code: int) -> str:
 def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discord.Embed]:
     """Crear embeds para mostrar las capturas de pantalla.
 
-    Crea embeds vacíos con las imágenes para que se muestren
+    Crea embeds con la misma URL base para que Discord los muestre
     como miniaturas en una fila en lugar de imágenes grandes apiladas.
 
     Args:
@@ -108,14 +108,17 @@ def _create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discor
         list[discord.Embed]: Lista de embeds con las imágenes
     """
     embeds = []
+    # Usar una URL común para que Discord muestre las imágenes en fila
+    # Esto es un truco de Discord: embeds con la misma url se agrupan visualmente
+    common_url = "https://discord.com"
 
     if url1:
-        embed1 = discord.Embed()
+        embed1 = discord.Embed(url=common_url)
         embed1.set_image(url=url1)
         embeds.append(embed1)
 
     if url2:
-        embed2 = discord.Embed()
+        embed2 = discord.Embed(url=common_url)
         embed2.set_image(url=url2)
         embeds.append(embed2)
 
