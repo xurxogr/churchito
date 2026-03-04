@@ -1113,41 +1113,18 @@ async def handle_accept(
             except discord.Forbidden:
                 pass
 
-        # Actualizar o eliminar mensaje de moderación
-        if request.mod_message_id:
-            mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
-            delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
-            if mod_channel_id:
-                mod_channel = interaction.guild.get_channel(mod_channel_id)
-                if mod_channel and isinstance(mod_channel, discord.TextChannel):
-                    try:
-                        mod_message = await mod_channel.fetch_message(request.mod_message_id)
-                        if delete_messages:
-                            await mod_message.delete()
-                        else:
-                            # Obtener contenido del embed principal
-                            current_content = ""
-                            if mod_message.embeds:
-                                current_content = mod_message.embeds[0].description or ""
-                            approved_status = format_message(
-                                template=config.get(ConfigKey.STATUS_APPROVED),
-                                moderator=interaction.user.name,
-                            )
-                            new_content = _replace_status_in_content(
-                                content=current_content,
-                                new_status=approved_status,
-                                config=config,
-                            )
-                            # Actualizar el embed existente con el nuevo contenido
-                            main_embed = mod_message.embeds[0].copy()
-                            main_embed.description = new_content
-                            main_embed.color = discord.Color.green()
-                            # Mantener embeds de capturas (todos excepto el primero)
-                            screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
-                            all_embeds = [main_embed, *screenshot_embeds]
-                            await mod_message.edit(embeds=all_embeds, view=None)
-                    except discord.NotFound:
-                        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        # Actualizar mensaje de moderación
+        approved_status = format_message(
+            template=config.get(ConfigKey.STATUS_APPROVED),
+            moderator=interaction.user.name,
+        )
+        await update_mod_message_status(
+            guild=interaction.guild,
+            request=request,
+            config=config,
+            status=approved_status,
+            color=discord.Color.green(),
+        )
 
         await session.commit()
 
@@ -1339,42 +1316,19 @@ async def handle_reject(
             except discord.Forbidden:
                 pass
 
-        # Actualizar o eliminar mensaje de moderación
-        if request.mod_message_id:
-            mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
-            delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
-            if mod_channel_id:
-                mod_channel = interaction.guild.get_channel(mod_channel_id)
-                if mod_channel and isinstance(mod_channel, discord.TextChannel):
-                    try:
-                        mod_message = await mod_channel.fetch_message(request.mod_message_id)
-                        if delete_messages:
-                            await mod_message.delete()
-                        else:
-                            # Obtener contenido del embed principal
-                            current_content = ""
-                            if mod_message.embeds:
-                                current_content = mod_message.embeds[0].description or ""
-                            rejected_status = format_message(
-                                template=config.get(ConfigKey.STATUS_REJECTED),
-                                moderator=interaction.user.name,
-                                reason=reason,
-                            )
-                            new_content = _replace_status_in_content(
-                                content=current_content,
-                                new_status=rejected_status,
-                                config=config,
-                            )
-                            # Actualizar el embed existente con el nuevo contenido
-                            main_embed = mod_message.embeds[0].copy()
-                            main_embed.description = new_content
-                            main_embed.color = discord.Color.red()
-                            # Mantener embeds de capturas (todos excepto el primero)
-                            screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
-                            all_embeds = [main_embed, *screenshot_embeds]
-                            await mod_message.edit(embeds=all_embeds, view=None)
-                    except discord.NotFound:
-                        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        # Actualizar mensaje de moderación
+        rejected_status = format_message(
+            template=config.get(ConfigKey.STATUS_REJECTED),
+            moderator=interaction.user.name,
+            reason=reason,
+        )
+        await update_mod_message_status(
+            guild=interaction.guild,
+            request=request,
+            config=config,
+            status=rejected_status,
+            color=discord.Color.red(),
+        )
 
         await session.commit()
 
