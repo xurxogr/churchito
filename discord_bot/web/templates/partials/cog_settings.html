@@ -1235,14 +1235,46 @@ function moveRowDown(btn) {
 function trackEmbedChange(optionKey) {
     const container = document.getElementById('embed-' + optionKey);
     const original = container.dataset.original || '{}';
-    const current = JSON.stringify(getEmbedData(optionKey));
+    const embedData = getEmbedData(optionKey);
 
+    // If validation failed, don't track the change
+    if (embedData === null) {
+        window.changedOptions.delete(optionKey);
+        updateSaveBar();
+        return;
+    }
+
+    const current = JSON.stringify(embedData);
     if (current !== original) {
         window.changedOptions.set(optionKey, { type: 'embed', value: current });
     } else {
         window.changedOptions.delete(optionKey);
     }
     updateSaveBar();
+}
+
+function isValidEmbedUrl(url) {
+    // Valid: empty, placeholder {xxx}, or http(s) URL
+    if (!url || url.trim() === '') return true;
+    url = url.trim();
+    const isPlaceholder = url.startsWith('{') && url.endsWith('}');
+    const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
+    return isPlaceholder || isHttpUrl;
+}
+
+function validateEmbedUrlField(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return true;
+    const value = input.value;
+    const isValid = isValidEmbedUrl(value);
+    if (!isValid) {
+        input.classList.add('input-error');
+        input.title = 'Debe ser un placeholder {xxx} o una URL http(s)';
+    } else {
+        input.classList.remove('input-error');
+        input.title = '';
+    }
+    return isValid;
 }
 
 function getEmbedData(optionKey) {
@@ -1257,6 +1289,20 @@ function getEmbedData(optionKey) {
         footer_icon_url: document.getElementById('embed-footer-icon-' + optionKey)?.value || '',
         sections: []
     };
+
+    // Validate URL fields
+    const urlFields = ['thumbnail', 'image', 'footer-icon'];
+    let hasInvalidUrl = false;
+    urlFields.forEach(field => {
+        const inputId = 'embed-' + field + '-' + optionKey;
+        if (!validateEmbedUrlField(inputId)) {
+            hasInvalidUrl = true;
+        }
+    });
+
+    if (hasInvalidUrl) {
+        return null; // Return null to indicate validation failure
+    }
 
     // Get sections
     const tbody = document.getElementById('embed-tbody-' + optionKey);
@@ -1549,6 +1595,7 @@ function updateEmbedPreview(optionKey) {
     if (!previewEl) return;
 
     const data = getEmbedData(optionKey);
+    if (!data) return; // Validation failed, don't update preview
     const color = data.color || '#5865F2';
 
     // Split sections into embed groups
@@ -1605,12 +1652,32 @@ function renderSingleEmbed(data, sections) {
 }
 
 // Render embed content (used by both single and multi-embed modes)
+function resolveUrlPlaceholder(url) {
+    // Resolve placeholder URLs using previewData, return null if unresolvable
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    // Check if it's a placeholder like {user_avatar_url}
+    const match = url.match(/^\{(\w+)\}$/);
+    if (match) {
+        const key = match[1];
+        const value = window.previewData && window.previewData[key];
+        if (value && value.startsWith('http')) {
+            return value;
+        }
+    }
+    return null;
+}
+
 function renderEmbedContent(data) {
     let html = '';
 
+    // Resolve placeholder URLs
+    const thumbnailUrl = resolveUrlPlaceholder(data.thumbnail_url);
+    const imageUrl = resolveUrlPlaceholder(data.image_url);
+    const footerIconUrl = resolveUrlPlaceholder(data.footer_icon_url);
+
     // Header with thumbnail
-    const hasThumbnail = data.thumbnail_url;
-    if (data.title || hasThumbnail) {
+    if (data.title || thumbnailUrl) {
         html += '<div class="discord-embed-header">';
         html += '<div class="discord-embed-content">';
         if (data.title) {
@@ -1632,24 +1699,24 @@ function renderEmbedContent(data) {
         html += '</div>';
     }
 
-    if (data.title || hasThumbnail) {
+    if (data.title || thumbnailUrl) {
         html += '</div>'; // Close discord-embed-content
-        if (hasThumbnail) {
-            html += `<img class="discord-embed-thumbnail" src="${escapeHtml(data.thumbnail_url)}" alt="Thumbnail" onerror="this.style.display='none'">`;
+        if (thumbnailUrl) {
+            html += `<img class="discord-embed-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="Thumbnail" onerror="this.style.display='none'">`;
         }
         html += '</div>'; // Close discord-embed-header
     }
 
     // Main image
-    if (data.image_url) {
-        html += `<img class="discord-embed-image" src="${escapeHtml(data.image_url)}" alt="Image" onerror="this.style.display='none'">`;
+    if (imageUrl) {
+        html += `<img class="discord-embed-image" src="${escapeHtml(imageUrl)}" alt="Image" onerror="this.style.display='none'">`;
     }
 
     // Footer
-    if (data.footer_text || data.footer_icon_url) {
+    if (data.footer_text || footerIconUrl) {
         html += '<div class="discord-embed-footer">';
-        if (data.footer_icon_url) {
-            html += `<img class="discord-embed-footer-icon" src="${escapeHtml(data.footer_icon_url)}" alt="" onerror="this.style.display='none'">`;
+        if (footerIconUrl) {
+            html += `<img class="discord-embed-footer-icon" src="${escapeHtml(footerIconUrl)}" alt="" onerror="this.style.display='none'">`;
         }
         if (data.footer_text) {
             html += `<span>${formatDiscordText(data.footer_text)}</span>`;

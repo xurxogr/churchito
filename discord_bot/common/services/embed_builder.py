@@ -267,24 +267,29 @@ def build_embed(
                 inline=field_data["inline"],
             )
 
-    # Thumbnail
+    # Thumbnail (skip if placeholder unresolved)
     if config.thumbnail_url:
         url = format_placeholders(config.thumbnail_url, context)
-        embed.set_thumbnail(url=url)
+        if "{" not in url:
+            embed.set_thumbnail(url=url)
 
-    # Imagen principal
+    # Imagen principal (skip if placeholder unresolved)
     if config.image_url:
         url = format_placeholders(config.image_url, context)
-        embed.set_image(url=url)
+        if "{" not in url:
+            embed.set_image(url=url)
 
     # Footer (icon can be shown without text using zero-width space)
     if config.footer_text or config.footer_icon_url:
         footer_text = (
             format_placeholders(config.footer_text, context) if config.footer_text else "\u200b"
         )
-        footer_icon = (
-            format_placeholders(config.footer_icon_url, context) if config.footer_icon_url else None
-        )
+        footer_icon = None
+        if config.footer_icon_url:
+            icon_url = format_placeholders(config.footer_icon_url, context)
+            # Only use icon if placeholder was resolved (no { remaining)
+            if "{" not in icon_url:
+                footer_icon = icon_url
         embed.set_footer(text=footer_text, icon_url=footer_icon)
 
     return embed

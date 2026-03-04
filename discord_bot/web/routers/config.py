@@ -876,6 +876,21 @@ def _convert_form_value(
             }
             embed_data: dict[str, Any] = {k: v for k, v in data.items() if k in valid_embed_keys}
 
+            # Validar URLs: deben ser placeholder {xxx} o empezar con http
+            for url_key in ["thumbnail_url", "image_url", "footer_icon_url"]:
+                url_value = embed_data.get(url_key)
+                if not url_value or not isinstance(url_value, str):
+                    continue
+                url_value = url_value.strip()
+                if not url_value:
+                    continue
+                is_placeholder = url_value.startswith("{") and url_value.endswith("}")
+                is_http_url = url_value.startswith(("http://", "https://"))
+                if is_placeholder or is_http_url:
+                    continue
+                embed_data.pop(url_key, None)
+                logger.warning(f"URL inválida en {url_key}: debe ser placeholder o URL http")
+
             # Validar que sections es una lista si existe
             if "sections" in embed_data:
                 if not isinstance(embed_data["sections"], list):
