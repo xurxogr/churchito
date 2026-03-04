@@ -225,10 +225,6 @@ def create_mod_embeds(
         current_desc = last_embed.description or ""
         last_embed.description = current_desc + additional_content
 
-    # Footer con nombre de usuario en el último embed
-    if username and embeds:
-        embeds[-1].set_footer(text=f"Usuario: {username}")
-
     # Fallback para thumbnail si no está configurado (primer embed)
     if embeds and not embeds[0].thumbnail.url and user_id:
         embeds[0].set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")

@@ -277,12 +277,14 @@ def build_embed(
         url = format_placeholders(config.image_url, context)
         embed.set_image(url=url)
 
-    # Footer
-    if config.footer_text:
-        footer_text = format_placeholders(config.footer_text, context)
-        footer_icon = None
-        if config.footer_icon_url:
-            footer_icon = format_placeholders(config.footer_icon_url, context)
+    # Footer (icon can be shown without text using zero-width space)
+    if config.footer_text or config.footer_icon_url:
+        footer_text = (
+            format_placeholders(config.footer_text, context) if config.footer_text else "\u200b"
+        )
+        footer_icon = (
+            format_placeholders(config.footer_icon_url, context) if config.footer_icon_url else None
+        )
         embed.set_footer(text=footer_text, icon_url=footer_icon)
 
     return embed
