@@ -4508,9 +4508,7 @@ class TestHandleVerificationStartExtended:
 
         config_values: dict[str, object] = {
             "verification_enabled": True,
-            "block_already_verified": True,
-            "regular_roles_add": [100],
-            "ally_roles_add": [200],
+            "blocking_roles": [100, 200],
             "already_verified_message": "Ya estas verificado",
         }
 
@@ -4551,9 +4549,7 @@ class TestHandleVerificationStartExtended:
 
         config_values: dict[str, object] = {
             "verification_enabled": True,
-            "block_already_verified": True,
-            "regular_roles_add": [100],
-            "ally_roles_add": [200],
+            "blocking_roles": [100, 200],
             "already_verified_message": "Ya estas verificado como aliado",
         }
 
@@ -4596,9 +4592,7 @@ class TestHandleVerificationStartExtended:
 
         config_values: dict[str, object] = {
             "verification_enabled": True,
-            "block_already_verified": True,
-            "regular_roles_add": [100],
-            "ally_roles_add": [200],
+            "blocking_roles": [100, 200],
             "already_verified_message": "Ya estas verificado",
         }
 
@@ -4642,9 +4636,7 @@ class TestHandleVerificationStartExtended:
 
         config_values: dict[str, object] = {
             "verification_enabled": True,
-            "block_already_verified": True,
-            "regular_roles_add": [100],
-            "ally_roles_add": [200],
+            "blocking_roles": [100, 200],
             "already_verified_message": "Ya estas verificado",
         }
 

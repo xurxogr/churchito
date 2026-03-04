@@ -23,11 +23,14 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Opciones",
         ),
         ConfigOption(
-            key=ConfigKey.BLOCK_ALREADY_VERIFIED,
-            name="Bloquear usuarios verificados",
-            description="Impedir que usuarios con roles de verificado inicien nueva verificación",
-            option_type=ConfigOptionType.BOOLEAN,
-            default=True,
+            key=ConfigKey.BLOCKING_ROLES,
+            name="Roles que bloquean verificación",
+            description=(
+                "Usuarios con alguno de estos roles no podrán iniciar verificación. "
+                "Usar para evitar que usuarios ya verificados vuelvan a verificarse."
+            ),
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
             group="Opciones",
         ),
         ConfigOption(

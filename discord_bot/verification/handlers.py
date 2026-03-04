@@ -346,20 +346,16 @@ async def handle_verification_start(
     # Obtener nombre del tipo de verificacion para mensajes
     type_display = get_verification_type_display(verification_type=verification_type, config=config)
 
-    # Verificar si el usuario ya tiene alguno de los roles de verificacion (miembro o aliado)
-    if config.get(ConfigKey.BLOCK_ALREADY_VERIFIED) and isinstance(user, discord.Member):
-        regular_roles = config.get(ConfigKey.REGULAR_ROLES_ADD) or []
-        ally_roles = config.get(ConfigKey.ALLY_ROLES_ADD) or []
-        all_verification_roles = set(regular_roles) | set(ally_roles)
-
-        if all_verification_roles:
-            user_role_ids = {role.id for role in user.roles}
-            has_any_verification_role = bool(user_role_ids & all_verification_roles)
-            if has_any_verification_role:
-                await interaction.followup.send(
-                    config.get(ConfigKey.ALREADY_VERIFIED_MESSAGE) or "", ephemeral=True
-                )
-                return
+    # Verificar si el usuario tiene roles que bloquean la verificación
+    blocking_roles = config.get(ConfigKey.BLOCKING_ROLES) or []
+    if blocking_roles and isinstance(user, discord.Member):
+        blocking_role_ids = set(blocking_roles)
+        user_role_ids = {role.id for role in user.roles}
+        if user_role_ids & blocking_role_ids:
+            await interaction.followup.send(
+                config.get(ConfigKey.ALREADY_VERIFIED_MESSAGE) or "", ephemeral=True
+            )
+            return
 
     async with cog.bot.database.session() as session:
         verification_service = VerificationService(session=session)

@@ -83,7 +83,7 @@ class ConfigKey(StrEnum):
 
     # Opciones
     DELETE_PROCESSED_MESSAGES = "delete_processed_messages"
-    BLOCK_ALREADY_VERIFIED = "block_already_verified"
+    BLOCKING_ROLES = "blocking_roles"
     AUTO_REJECT_REVIEW_WINDOW = "auto_reject_review_window"
 
     # Botón de revisión
