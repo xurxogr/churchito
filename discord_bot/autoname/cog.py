@@ -323,22 +323,23 @@ class AutonameCog(commands.Cog):
         else:
             logger.info(f"[{guild.name}] Autoname deshabilitado")
 
-    async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
+    async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
         """Callback cuando cambia la configuracion del cog.
 
         Args:
             guild (discord.Guild): Guild donde cambio la config
-            key (str): Clave de configuracion que cambio
+            keys (list[str]): Lista de claves de configuracion que cambiaron
         """
         # Re-sincronizar si cambia la configuracion de roles, prefijos, formato o rol requerido
-        resync_keys = (
+        resync_keys = {
             ConfigKey.ROLE_TAGS,
             ConfigKey.ROLE_PREFIXES,
             ConfigKey.TAG_FORMAT,
             ConfigKey.REQUIRED_ROLES,
-        )
-        if key in resync_keys:
-            logger.info(f"[{guild.name}] Configuración '{key}' cambió, re-sincronizando")
+        }
+        if set(keys) & resync_keys:
+            changed = set(keys) & resync_keys
+            logger.info(f"[{guild.name}] Configuración {changed} cambió, re-sincronizando")
             await self._sync_guild(guild)
 
 

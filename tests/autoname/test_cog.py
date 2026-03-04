@@ -651,7 +651,7 @@ class TestOnConfigChanged:
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.ROLE_TAGS)
+            await autoname_cog.on_config_changed(mock_guild, [ConfigKey.ROLE_TAGS])
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_prefixes_change(self, autoname_cog: AutonameCog) -> None:
@@ -660,7 +660,7 @@ class TestOnConfigChanged:
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.ROLE_PREFIXES)
+            await autoname_cog.on_config_changed(mock_guild, [ConfigKey.ROLE_PREFIXES])
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_format_change(self, autoname_cog: AutonameCog) -> None:
@@ -669,7 +669,7 @@ class TestOnConfigChanged:
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.TAG_FORMAT)
+            await autoname_cog.on_config_changed(mock_guild, [ConfigKey.TAG_FORMAT])
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_required_roles_change(self, autoname_cog: AutonameCog) -> None:
@@ -678,7 +678,7 @@ class TestOnConfigChanged:
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.REQUIRED_ROLES)
+            await autoname_cog.on_config_changed(mock_guild, [ConfigKey.REQUIRED_ROLES])
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_ignores_interval_change(self, autoname_cog: AutonameCog) -> None:
@@ -687,7 +687,7 @@ class TestOnConfigChanged:
         mock_guild.name = "Test"
 
         with patch.object(autoname_cog, "_sync_guild") as mock_sync:
-            await autoname_cog.on_config_changed(mock_guild, ConfigKey.SYNC_INTERVAL)
+            await autoname_cog.on_config_changed(mock_guild, [ConfigKey.SYNC_INTERVAL])
             mock_sync.assert_not_called()
 
 

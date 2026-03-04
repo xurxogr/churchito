@@ -132,19 +132,27 @@ class VerificationCog(commands.Cog):
         }
     )
 
-    async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
+    async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
         """Manejar cambios de configuración desde el dashboard web.
+
+        Solo actualiza panel y embeds una vez aunque cambien múltiples opciones.
 
         Args:
             guild (discord.Guild): Guild donde cambió la configuración
-            key (str): Clave de configuración que cambió
+            keys (list[str]): Lista de claves de configuración que cambiaron
         """
-        if key in self._PANEL_UPDATE_KEYS:
-            logger.info(f"[{guild.name}] Configuración '{key}' cambió, actualizando panel")
+        keys_set = set(keys)
+
+        # Check if any panel key changed
+        if keys_set & self._PANEL_UPDATE_KEYS:
+            changed_panel_keys = keys_set & self._PANEL_UPDATE_KEYS
+            logger.info(f"[{guild.name}] Config cambió {changed_panel_keys}, actualizando panel")
             await self._check_verification_message(guild=guild, recreate=True)
 
-        if key in self._MOD_EMBED_UPDATE_KEYS:
-            logger.info(f"[{guild.name}] Configuración '{key}' cambió, actualizando embeds de mod")
+        # Check if any mod embed key changed
+        if keys_set & self._MOD_EMBED_UPDATE_KEYS:
+            changed_embed_keys = keys_set & self._MOD_EMBED_UPDATE_KEYS
+            logger.info(f"[{guild.name}] Config cambió {changed_embed_keys}, actualizando embeds")
             await self._rebuild_pending_embeds_for_guild(guild)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:

@@ -1176,24 +1176,28 @@ async function saveAllChanges() {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
     try {
+        // Collect all changed options into a single object
+        const options = {};
         for (const [key, data] of window.changedOptions) {
-            const formData = new FormData();
-            formData.append('value', data.value);
+            options[key] = data.value;
+        }
 
-            const headers = {};
-            if (csrfToken) {
-                headers['X-CSRF-Token'] = csrfToken;
-            }
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+        if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
 
-            const response = await fetch(`${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}/option/${key}`, {
-                method: 'POST',
-                body: formData,
-                headers: headers
-            });
+        // Send all options in a single batch request
+        const response = await fetch(`${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}/options`, {
+            method: 'POST',
+            body: JSON.stringify({ options }),
+            headers: headers
+        });
 
-            if (!response.ok) {
-                throw new Error(`Error saving ${key}`);
-            }
+        if (!response.ok) {
+            throw new Error('Error saving options');
         }
 
         // Reload the panel to show updated values

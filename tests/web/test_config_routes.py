@@ -816,7 +816,7 @@ class TestNotifyCogConfigChanged:
             request=mock_config_request,
             guild_id=123,
             cog_name="test_cog",
-            key="test_key",
+            keys=["test_key"],
         )
 
     async def test_guild_not_found(
@@ -833,7 +833,7 @@ class TestNotifyCogConfigChanged:
             request=mock_config_request,
             guild_id=123,
             cog_name="test_cog",
-            key="test_key",
+            keys=["test_key"],
         )
 
     async def test_calls_on_config_changed(
@@ -854,10 +854,10 @@ class TestNotifyCogConfigChanged:
             request=mock_config_request,
             guild_id=123,
             cog_name="test_cog",
-            key="test_key",
+            keys=["test_key"],
         )
 
-        mock_cog.on_config_changed.assert_called_once_with(guild=mock_guild, key="test_key")
+        mock_cog.on_config_changed.assert_called_once_with(guild=mock_guild, keys=["test_key"])
 
     async def test_handles_exception_in_on_config_changed(
         self,
@@ -879,7 +879,7 @@ class TestNotifyCogConfigChanged:
                 request=mock_config_request,
                 guild_id=123,
                 cog_name="test_cog",
-                key="test_key",
+                keys=["test_key"],
             )
 
             mock_logger.error.assert_called_once()
@@ -900,7 +900,7 @@ class TestNotifyCogConfigChanged:
             request=mock_config_request,
             guild_id=123,
             cog_name="test_cog",
-            key="test_key",
+            keys=["test_key"],
         )
 
 

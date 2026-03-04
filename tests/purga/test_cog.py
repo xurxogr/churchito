@@ -1542,7 +1542,7 @@ class TestOnConfigChanged:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.WAR_COMMAND_NAME)
+            await purga_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
             mock_register.assert_called_once_with(mock_guild)
 
 
@@ -1878,7 +1878,7 @@ class TestOnConfigChangedExtended:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.WAR_COMMAND_NAME)
+            await purga_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
             mock_register.assert_called_once_with(mock_guild)
 
     async def test_ignores_non_essential_key(
@@ -1888,7 +1888,7 @@ class TestOnConfigChangedExtended:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.TEST_MODE)
+            await purga_cog.on_config_changed(mock_guild, [ConfigKey.TEST_MODE])
             mock_register.assert_not_called()
 
     async def test_triggers_resync_on_global_command_name(
@@ -1898,7 +1898,7 @@ class TestOnConfigChangedExtended:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.GLOBAL_COMMAND_NAME)
+            await purga_cog.on_config_changed(mock_guild, [ConfigKey.GLOBAL_COMMAND_NAME])
             mock_register.assert_called_once_with(mock_guild)
 
     async def test_triggers_resync_on_global_admin_roles(
@@ -1908,7 +1908,7 @@ class TestOnConfigChangedExtended:
         with patch.object(
             purga_cog, "_debounced_register_and_sync", new_callable=AsyncMock
         ) as mock_register:
-            await purga_cog.on_config_changed(mock_guild, ConfigKey.GLOBAL_ADMIN_ROLES)
+            await purga_cog.on_config_changed(mock_guild, [ConfigKey.GLOBAL_ADMIN_ROLES])
             mock_register.assert_called_once_with(mock_guild)
 
 

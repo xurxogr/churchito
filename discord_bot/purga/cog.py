@@ -1561,12 +1561,12 @@ class PurgaCog(commands.Cog):
             await self._unregister_guild_commands(guild)
             await self._sync_guild_commands(guild)
 
-    async def on_config_changed(self, guild: discord.Guild, key: str) -> None:
+    async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
         """Callback cuando cambia la configuración del cog.
 
         Args:
             guild (discord.Guild): Guild donde cambió la configuración.
-            key (str): Clave de configuración que cambió.
+            keys (list[str]): Lista de claves de configuración que cambiaron.
         """
         # Keys that affect command registration
         essential_keys = {
@@ -1582,9 +1582,10 @@ class PurgaCog(commands.Cog):
             ConfigKey.GLOBAL_ADMIN_ROLES,
         }
 
-        if key in essential_keys:
+        if set(keys) & essential_keys:
+            changed = set(keys) & essential_keys
             logger.debug(
-                f"Configuración esencial '{key}' cambiada en {guild.name}, "
+                f"Configuración esencial {changed} cambiada en {guild.name}, "
                 "programando re-evaluación de comandos..."
             )
             # Use debounced sync to batch multiple config changes

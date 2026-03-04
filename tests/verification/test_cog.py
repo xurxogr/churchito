@@ -4241,7 +4241,7 @@ class TestOnConfigChanged:
         with patch.object(
             verification_cog, "_check_verification_message", new_callable=AsyncMock
         ) as mock_check:
-            await verification_cog.on_config_changed(mock_guild, "verification_channel")
+            await verification_cog.on_config_changed(mock_guild, ["verification_channel"])
 
             mock_check.assert_called_once_with(guild=mock_guild, recreate=True)
 
@@ -4252,7 +4252,7 @@ class TestOnConfigChanged:
         with patch.object(
             verification_cog, "_check_verification_message", new_callable=AsyncMock
         ) as mock_check:
-            await verification_cog.on_config_changed(mock_guild, "some_other_key")
+            await verification_cog.on_config_changed(mock_guild, ["some_other_key"])
 
             mock_check.assert_not_called()
 
@@ -8638,7 +8638,7 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_REGULAR)
+            await verification_cog.on_config_changed(mock_guild, [ConfigKey.MOD_EMBED_REGULAR])
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_rebuilds_on_mod_embed_icon_change(
@@ -8654,7 +8654,7 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, ConfigKey.MOD_EMBED_ALLY)
+            await verification_cog.on_config_changed(mock_guild, [ConfigKey.MOD_EMBED_ALLY])
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_rebuilds_on_accept_button_change(
@@ -8670,7 +8670,7 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, ConfigKey.ACCEPT_BUTTON_TEXT)
+            await verification_cog.on_config_changed(mock_guild, [ConfigKey.ACCEPT_BUTTON_TEXT])
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_no_rebuild_on_unrelated_key(self, verification_cog: VerificationCog) -> None:
@@ -8684,5 +8684,5 @@ class TestOnConfigChangedModEmbed:
             "_rebuild_pending_embeds_for_guild",
             new_callable=AsyncMock,
         ) as mock_rebuild:
-            await verification_cog.on_config_changed(mock_guild, "some_unrelated_key")
+            await verification_cog.on_config_changed(mock_guild, ["some_unrelated_key"])
             mock_rebuild.assert_not_called()

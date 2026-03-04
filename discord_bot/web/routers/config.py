@@ -565,7 +565,9 @@ async def update_option(
     await session.commit()
 
     # Notificar al cog que una configuración cambió
-    await _notify_cog_config_changed(request=request, guild_id=guild_id, cog_name=cog_name, key=key)
+    await _notify_cog_config_changed(
+        request=request, guild_id=guild_id, cog_name=cog_name, keys=[key]
+    )
 
     return await _render_cog_settings(
         request=request,
@@ -573,6 +575,100 @@ async def update_option(
         cog_name=cog_name,
         session=session,
         user=user,
+    )
+
+
+@router.post("/{guild_id}/cog/{cog_name}/options", response_class=HTMLResponse)
+async def update_options_batch(
+    request: Request,
+    guild_id: int,
+    cog_name: str,
+    user: GuildAccess,
+    session: DbSession,
+) -> HTMLResponse:
+    """Actualizar múltiples opciones de configuración en batch.
+
+    Guarda todas las opciones a la DB primero, luego notifica al cog una sola vez.
+
+    Args:
+        request (Request): Request de FastAPI
+        guild_id (int): ID del guild
+        cog_name (str): Nombre del cog
+        user (GuildAccess): Usuario con acceso verificado
+        session (DbSession): Sesión de base de datos
+
+    Returns:
+        HTMLResponse: Partial actualizado
+    """
+    schema_service = get_config_schema_service()
+    config_service = ConfigService(session)
+
+    # Parse JSON body
+    try:
+        body = await request.json()
+        options_to_save: dict[str, str] = body.get("options", {})
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON inválido") from None
+
+    if not options_to_save:
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            user=user,
+        )
+
+    saved_keys: list[str] = []
+    errors: list[str] = []
+
+    # Save all options to DB first
+    for key, value in options_to_save.items():
+        option = schema_service.get_option(cog_name, key)
+        if not option:
+            errors.append(f"Opción '{key}' no encontrada")
+            continue
+
+        converted_value = _convert_form_value(value, option.option_type, option=option)
+
+        # Validate channel permissions
+        if converted_value and option.option_type == ConfigOptionType.CHANNEL:
+            permission_error = _validate_channel_permissions(
+                request=request, guild_id=guild_id, channel_id=converted_value
+            )
+            if permission_error:
+                errors.append(permission_error)
+                continue
+
+        success, validation_error = await config_service.set_value(
+            guild_id=guild_id, cog_name=cog_name, key=key, value=converted_value
+        )
+
+        if success:
+            saved_keys.append(key)
+        else:
+            errors.append(f"{key}: {validation_error}")
+
+    # Commit all changes at once
+    await session.commit()
+
+    # Notify cog once with all changed keys
+    if saved_keys:
+        await _notify_cog_config_changed(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            keys=saved_keys,
+        )
+
+    error_message = "; ".join(errors) if errors else None
+    return await _render_cog_settings(
+        request=request,
+        guild_id=guild_id,
+        cog_name=cog_name,
+        session=session,
+        user=user,
+        error=error_message,
     )
 
 
@@ -648,18 +744,18 @@ async def reload_cog(
 
 
 async def _notify_cog_config_changed(
-    request: Request, guild_id: int, cog_name: str, key: str
+    request: Request, guild_id: int, cog_name: str, keys: list[str]
 ) -> None:
-    """Notificar a un cog que una configuración cambió.
+    """Notificar a un cog que configuraciones cambiaron.
 
     Si el cog implementa el método `on_config_changed`, se llamará con
-    el guild_id y la key que cambió. El cog decide qué hacer.
+    el guild_id y las keys que cambiaron. El cog decide qué hacer.
 
     Args:
         request (Request): Request de FastAPI
         guild_id (int): ID del guild
         cog_name (str): Nombre del cog
-        key (str): Clave de configuración que cambió
+        keys (list[str]): Lista de claves de configuración que cambiaron
     """
     bot = request.app.state.bot
     if not bot:
@@ -678,7 +774,7 @@ async def _notify_cog_config_changed(
         return
 
     try:
-        await cog.on_config_changed(guild=guild, key=key)
+        await cog.on_config_changed(guild=guild, keys=keys)
     except Exception as e:
         logger.error(f"Error en on_config_changed de {cog_name}: {e}")
 
@@ -868,6 +964,7 @@ def _convert_form_value(
             # Validar estructura del embed
             valid_embed_keys = {
                 "title",
+                "description",
                 "color",
                 "thumbnail_url",
                 "image_url",
