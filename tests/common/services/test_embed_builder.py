@@ -10,6 +10,9 @@ import pytest
 from discord_bot.common.enums.embed_section_type import EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
 from discord_bot.common.services.embed_builder import (
+    ANSI_COLORS,
+    COLOR_TAGS,
+    DOT_EMOJIS,
     GLOBAL_PLACEHOLDERS,
     EmbedFieldLimitError,
     PlaceholderContext,
@@ -17,6 +20,7 @@ from discord_bot.common.services.embed_builder import (
     build_embed_from_rows,
     create_progress_bar,
     format_placeholders,
+    format_with_colors,
 )
 
 
@@ -527,3 +531,167 @@ class TestGlobalPlaceholders:
         assert "user_name" in keys
         assert "user_mention" in keys
         assert "user_joined_server" in keys
+
+    def test_dot_emoji_placeholders_exist(self) -> None:
+        """Test que existen placeholders de emojis de puntos."""
+        keys = [p["key"] for p in GLOBAL_PLACEHOLDERS]
+        assert "dot_red" in keys
+        assert "dot_green" in keys
+        assert "dot_yellow" in keys
+        assert "dot_blue" in keys
+
+
+class TestDotEmojiPlaceholders:
+    """Tests para placeholders de emojis de puntos de colores."""
+
+    def test_dot_emojis_mapping(self) -> None:
+        """Test que el mapeo de emojis está completo."""
+        assert DOT_EMOJIS["dot_red"] == "🔴"
+        assert DOT_EMOJIS["dot_green"] == "🟢"
+        assert DOT_EMOJIS["dot_yellow"] == "🟡"
+        assert DOT_EMOJIS["dot_blue"] == "🔵"
+        assert DOT_EMOJIS["dot_white"] == "⚪"
+        assert DOT_EMOJIS["dot_black"] == "⚫"
+        assert DOT_EMOJIS["dot_orange"] == "🟠"
+        assert DOT_EMOJIS["dot_purple"] == "🟣"
+        assert DOT_EMOJIS["dot_brown"] == "🟤"
+
+    def test_resolve_dot_red(self) -> None:
+        """Test resolver dot_red placeholder."""
+        context = PlaceholderContext()
+        assert context.resolve("dot_red") == "🔴"
+
+    def test_resolve_dot_green(self) -> None:
+        """Test resolver dot_green placeholder."""
+        context = PlaceholderContext()
+        assert context.resolve("dot_green") == "🟢"
+
+    def test_format_with_dot_emojis(self) -> None:
+        """Test usar dot emojis en plantillas."""
+        context = PlaceholderContext()
+        result = format_placeholders("{dot_green} Online {dot_red} Offline", context)
+        assert result == "🟢 Online 🔴 Offline"
+
+    def test_dot_emojis_in_embed_field(self) -> None:
+        """Test usar dot emojis en campos de embed."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(
+                    type=EmbedSectionType.TEXT,
+                    title="Status",
+                    content="{dot_green} Active",
+                )
+            ]
+        )
+        context = PlaceholderContext()
+        embed = build_embed(config, context)
+
+        assert embed.fields[0].value == "🟢 Active"
+
+
+class TestAnsiColors:
+    """Tests para soporte de colores ANSI en texto."""
+
+    def test_ansi_colors_mapping(self) -> None:
+        """Test que el mapeo de colores ANSI está completo."""
+        assert "red" in ANSI_COLORS
+        assert "green" in ANSI_COLORS
+        assert "yellow" in ANSI_COLORS
+        assert "blue" in ANSI_COLORS
+        assert "pink" in ANSI_COLORS
+        assert "cyan" in ANSI_COLORS
+        assert "white" in ANSI_COLORS
+        assert "gray" in ANSI_COLORS
+
+    def test_color_tags_documentation(self) -> None:
+        """Test que la documentación de color tags existe."""
+        assert len(COLOR_TAGS) > 0
+        for tag_info in COLOR_TAGS:
+            assert "tag" in tag_info
+            assert "description" in tag_info
+
+    def test_format_with_colors_no_colors(self) -> None:
+        """Test que texto sin colores no se modifica."""
+        context = PlaceholderContext(extra_data={"name": "Test"})
+        result = format_with_colors("Hello {name}!", context)
+        assert result == "Hello Test!"
+        assert "```ansi" not in result
+
+    def test_format_with_colors_single_color(self) -> None:
+        """Test que texto con un color se envuelve en bloque ANSI."""
+        context = PlaceholderContext()
+        result = format_with_colors("{red}Error{/red}", context)
+        assert "```ansi" in result
+        assert "\u001b[2;31m" in result  # Red ANSI code
+        assert "\u001b[0m" in result  # Reset code
+
+    def test_format_with_colors_multiple_colors(self) -> None:
+        """Test que texto con múltiples colores funciona."""
+        context = PlaceholderContext()
+        result = format_with_colors("{green}OK{/green} - {red}Error{/red}", context)
+        assert "```ansi" in result
+        assert "\u001b[2;32m" in result  # Green
+        assert "\u001b[2;31m" in result  # Red
+
+    def test_format_with_colors_and_placeholders(self) -> None:
+        """Test combinar colores con placeholders."""
+        context = PlaceholderContext(extra_data={"status": "Active"})
+        result = format_with_colors("{green}{status}{/green}", context)
+        assert "```ansi" in result
+        assert "Active" in result
+
+    def test_ansi_colors_in_embed_field(self) -> None:
+        """Test usar colores ANSI en campos de embed."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(
+                    type=EmbedSectionType.TEXT,
+                    title="Status",
+                    content="{green}Online{/green}",
+                )
+            ]
+        )
+        context = PlaceholderContext()
+        embed = build_embed(config, context)
+
+        assert embed.fields[0].value is not None
+        assert "```ansi" in embed.fields[0].value
+        assert "\u001b[2;32m" in embed.fields[0].value
+
+    def test_field_name_does_not_use_ansi(self) -> None:
+        """Test que los nombres de campo no usan ANSI (quedaría feo)."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(
+                    type=EmbedSectionType.TEXT,
+                    title="{red}Title{/red}",
+                    content="Normal content",
+                )
+            ]
+        )
+        context = PlaceholderContext()
+        embed = build_embed(config, context)
+
+        # Field name should NOT have ANSI code block
+        assert embed.fields[0].name is not None
+        assert "```ansi" not in embed.fields[0].name
+        # But the tags remain unprocessed in name
+        assert "{red}" in embed.fields[0].name
+
+    def test_inline_fields_support_ansi(self) -> None:
+        """Test que campos inline soportan colores ANSI."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(
+                    type=EmbedSectionType.FIELDS,
+                    inline=True,
+                    field_1_name="Status",
+                    field_1_value="{green}OK{/green}",
+                )
+            ]
+        )
+        context = PlaceholderContext()
+        embed = build_embed(config, context)
+
+        assert embed.fields[0].value is not None
+        assert "```ansi" in embed.fields[0].value

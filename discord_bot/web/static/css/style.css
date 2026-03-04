@@ -1044,6 +1044,19 @@ a:hover {
     color: #dcddde;
 }
 
+/* ANSI code block style (for colored text) */
+.ansi-code-block {
+    background-color: #2f3136;
+    border: 1px solid #202225;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    color: #dcddde;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .discord-embed-image {
     width: 100%;
     max-width: 400px;

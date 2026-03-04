@@ -14,6 +14,33 @@ if TYPE_CHECKING:
     from discord import Guild, Member
 
 
+# Dot emoji mappings (colored circle emojis)
+DOT_EMOJIS: dict[str, str] = {
+    "dot_red": "🔴",
+    "dot_green": "🟢",
+    "dot_yellow": "🟡",
+    "dot_blue": "🔵",
+    "dot_white": "⚪",
+    "dot_black": "⚫",
+    "dot_orange": "🟠",
+    "dot_purple": "🟣",
+    "dot_brown": "🟤",
+}
+
+# ANSI color codes for Discord code blocks
+ANSI_COLORS: dict[str, str] = {
+    "gray": "\u001b[2;30m",
+    "red": "\u001b[2;31m",
+    "green": "\u001b[2;32m",
+    "yellow": "\u001b[2;33m",
+    "blue": "\u001b[2;34m",
+    "pink": "\u001b[2;35m",
+    "cyan": "\u001b[2;36m",
+    "white": "\u001b[2;37m",
+}
+ANSI_RESET = "\u001b[0m"
+
+
 @dataclass
 class PlaceholderContext:
     """Contexto con datos para resolver placeholders.
@@ -40,6 +67,10 @@ class PlaceholderContext:
         if key in self.extra_data:
             value = self.extra_data[key]
             return str(value) if value is not None else None
+
+        # Dot emoji placeholders
+        if key in DOT_EMOJIS:
+            return DOT_EMOJIS[key]
 
         # Placeholders de servidor
         if self.guild:
@@ -93,7 +124,65 @@ GLOBAL_PLACEHOLDERS: list[dict[str, str]] = [
     {"key": "user_joined_server_relative", "description": "Tiempo desde que entró (relativo)"},
     {"key": "user_joined_discord", "description": "Fecha de creación de cuenta"},
     {"key": "user_joined_discord_relative", "description": "Antigüedad de cuenta (relativo)"},
+    # Dot emojis (colored circles)
+    {"key": "dot_red", "description": "🔴 Círculo rojo"},
+    {"key": "dot_green", "description": "🟢 Círculo verde"},
+    {"key": "dot_yellow", "description": "🟡 Círculo amarillo"},
+    {"key": "dot_blue", "description": "🔵 Círculo azul"},
+    {"key": "dot_white", "description": "⚪ Círculo blanco"},
+    {"key": "dot_black", "description": "⚫ Círculo negro"},
+    {"key": "dot_orange", "description": "🟠 Círculo naranja"},
+    {"key": "dot_purple", "description": "🟣 Círculo morado"},
+    {"key": "dot_brown", "description": "🟤 Círculo marrón"},
 ]
+
+# Color tags available for ANSI formatting
+COLOR_TAGS: list[dict[str, str]] = [
+    {"tag": "{red}...{/red}", "description": "Texto en rojo (ANSI)"},
+    {"tag": "{green}...{/green}", "description": "Texto en verde (ANSI)"},
+    {"tag": "{yellow}...{/yellow}", "description": "Texto en amarillo (ANSI)"},
+    {"tag": "{blue}...{/blue}", "description": "Texto en azul (ANSI)"},
+    {"tag": "{pink}...{/pink}", "description": "Texto en rosa (ANSI)"},
+    {"tag": "{cyan}...{/cyan}", "description": "Texto en cian (ANSI)"},
+    {"tag": "{white}...{/white}", "description": "Texto en blanco (ANSI)"},
+    {"tag": "{gray}...{/gray}", "description": "Texto en gris (ANSI)"},
+]
+
+
+def _has_color_tags(text: str) -> bool:
+    """Check if text contains any ANSI color tags.
+
+    Args:
+        text: Text to check.
+
+    Returns:
+        True if text contains color tags like {red}, {/red}, etc.
+    """
+    import re
+
+    # Match opening tags like {red}, {green}, etc.
+    pattern = r"\{(" + "|".join(ANSI_COLORS.keys()) + r")\}"
+    return bool(re.search(pattern, text))
+
+
+def _apply_ansi_colors(text: str) -> str:
+    """Convert color tags to ANSI codes and wrap in code block.
+
+    Args:
+        text: Text with color tags like {red}text{/red}.
+
+    Returns:
+        Text wrapped in ANSI code block with color codes applied.
+    """
+    result = text
+
+    # Replace opening color tags with ANSI codes
+    for color, code in ANSI_COLORS.items():
+        result = result.replace(f"{{{color}}}", code)
+        result = result.replace(f"{{/{color}}}", ANSI_RESET)
+
+    # Wrap in ANSI code block
+    return f"```ansi\n{result}\n```"
 
 
 def format_placeholders(template: str, context: PlaceholderContext) -> str:
@@ -119,6 +208,26 @@ def format_placeholders(template: str, context: PlaceholderContext) -> str:
 
     # Convert literal \n to actual newlines
     result = result.replace("\\n", "\n")
+
+    return result
+
+
+def format_with_colors(text: str, context: PlaceholderContext) -> str:
+    """Format text with placeholders and apply ANSI colors if present.
+
+    Args:
+        text: Text with placeholders and optional color tags.
+        context: Context for placeholder resolution.
+
+    Returns:
+        Formatted text. If color tags were present, wrapped in ANSI code block.
+    """
+    # First resolve placeholders
+    result = format_placeholders(text, context)
+
+    # Then check for and apply ANSI colors
+    if _has_color_tags(result):
+        result = _apply_ansi_colors(result)
 
     return result
 
@@ -176,8 +285,10 @@ def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[
     match section.type:
         case EmbedSectionType.TEXT:
             # Full-width field with title + content
+            # Title uses regular placeholders (no ANSI - would look bad in field name)
             title = format_placeholders(section.title, context) if section.title else EMPTY
-            content = format_placeholders(section.content, context) if section.content else EMPTY
+            # Content supports ANSI colors
+            content = format_with_colors(section.content, context) if section.content else EMPTY
             result["fields"].append(
                 {
                     "name": title,
@@ -192,8 +303,10 @@ def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[
             for field_item in fields:
                 result["fields"].append(
                     {
+                        # Field names use regular placeholders (no ANSI)
                         "name": format_placeholders(field_item.name, context),
-                        "value": format_placeholders(field_item.value, context),
+                        # Field values support ANSI colors
+                        "value": format_with_colors(field_item.value, context),
                         "inline": section.inline,
                     }
                 )

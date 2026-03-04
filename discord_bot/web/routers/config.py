@@ -12,7 +12,7 @@ from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.services.embed_builder import GLOBAL_PLACEHOLDERS
+from discord_bot.common.services.embed_builder import COLOR_TAGS, GLOBAL_PLACEHOLDERS
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
 from discord_bot.web.middleware import get_csrf_token
 
@@ -416,6 +416,7 @@ async def _render_cog_settings(
             "ConfigOptionType": ConfigOptionType,
             "error": error,
             "global_placeholders": GLOBAL_PLACEHOLDERS,
+            "color_tags": COLOR_TAGS,
             "preview_data": preview_data,
         },
     )

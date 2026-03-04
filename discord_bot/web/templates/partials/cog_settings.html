@@ -145,6 +145,124 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="placeholders-section">
+                    <h4>🎨 Emojis de Color</h4>
+                    <table class="placeholders-table">
+                        <thead>
+                            <tr>
+                                <th>Placeholder</th>
+                                <th>Descripción</th>
+                                <th>Ejemplo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{dot_red}</code></td>
+                                <td>Círculo rojo</td>
+                                <td class="example">🔴</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_green}</code></td>
+                                <td>Círculo verde</td>
+                                <td class="example">🟢</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_yellow}</code></td>
+                                <td>Círculo amarillo</td>
+                                <td class="example">🟡</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_blue}</code></td>
+                                <td>Círculo azul</td>
+                                <td class="example">🔵</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_orange}</code></td>
+                                <td>Círculo naranja</td>
+                                <td class="example">🟠</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_purple}</code></td>
+                                <td>Círculo morado</td>
+                                <td class="example">🟣</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_white}</code></td>
+                                <td>Círculo blanco</td>
+                                <td class="example">⚪</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_black}</code></td>
+                                <td>Círculo negro</td>
+                                <td class="example">⚫</td>
+                            </tr>
+                            <tr>
+                                <td><code>{dot_brown}</code></td>
+                                <td>Círculo marrón</td>
+                                <td class="example">🟤</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="placeholders-section">
+                    <h4>🌈 Colores ANSI (solo valores)</h4>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                        Usar en valores de campos. El texto se mostrará en bloque de código con color.
+                    </p>
+                    <table class="placeholders-table">
+                        <thead>
+                            <tr>
+                                <th>Etiqueta</th>
+                                <th>Descripción</th>
+                                <th>Vista previa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{red}...{/red}</code></td>
+                                <td>Texto en rojo</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #f04747;">Error</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{green}...{/green}</code></td>
+                                <td>Texto en verde</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #43b581;">OK</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{yellow}...{/yellow}</code></td>
+                                <td>Texto en amarillo</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #faa61a;">Aviso</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{blue}...{/blue}</code></td>
+                                <td>Texto en azul</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #7289da;">Info</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{pink}...{/pink}</code></td>
+                                <td>Texto en rosa</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ff73fa;">Texto</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{cyan}...{/cyan}</code></td>
+                                <td>Texto en cian</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #00b8d4;">Texto</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{white}...{/white}</code></td>
+                                <td>Texto en blanco</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ffffff;">Texto</span></span></td>
+                            </tr>
+                            <tr>
+                                <td><code>{gray}...{/gray}</code></td>
+                                <td>Texto en gris</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #99aab5;">Texto</span></span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <p class="placeholders-help-note">
@@ -1742,10 +1860,12 @@ function renderSectionPreview(section) {
         let html = '<div class="discord-embed-fields">';
         html += '<div class="discord-embed-field" style="width: 100%;">';
         if (title) {
-            html += `<div class="discord-embed-field-name">${escapeHtml(title)}</div>`;
+            // Field names: process placeholders but not ANSI colors
+            html += `<div class="discord-embed-field-name">${formatDiscordText(title, false)}</div>`;
         }
         if (content) {
-            html += `<div class="discord-embed-field-value">${formatDiscordText(content)}</div>`;
+            // Field values: process placeholders and ANSI colors
+            html += `<div class="discord-embed-field-value">${formatDiscordText(content, true)}</div>`;
         }
         if (!title && !content) {
             html += '<div style="color: #72767d; font-style: italic;">Campo vacío</div>';
@@ -1760,8 +1880,10 @@ function renderSectionPreview(section) {
             if (name || value) {
                 const inlineClass = section.inline !== false ? ' inline' : '';
                 fieldsHtml += `<div class="discord-embed-field${inlineClass}">`;
-                if (name) fieldsHtml += `<div class="discord-embed-field-name">${escapeHtml(name)}</div>`;
-                if (value) fieldsHtml += `<div class="discord-embed-field-value">${formatDiscordText(value)}</div>`;
+                // Field names: process placeholders but not ANSI colors
+                if (name) fieldsHtml += `<div class="discord-embed-field-name">${formatDiscordText(name, false)}</div>`;
+                // Field values: process placeholders and ANSI colors
+                if (value) fieldsHtml += `<div class="discord-embed-field-value">${formatDiscordText(value, true)}</div>`;
                 fieldsHtml += '</div>';
             }
         }
@@ -1771,8 +1893,77 @@ function renderSectionPreview(section) {
     return '';
 }
 
-function formatDiscordText(text) {
+// Dot emoji mappings
+const DOT_EMOJIS = {
+    'dot_red': '🔴',
+    'dot_green': '🟢',
+    'dot_yellow': '🟡',
+    'dot_blue': '🔵',
+    'dot_white': '⚪',
+    'dot_black': '⚫',
+    'dot_orange': '🟠',
+    'dot_purple': '🟣',
+    'dot_brown': '🟤'
+};
+
+// ANSI color CSS classes
+const ANSI_COLORS = {
+    'red': '#f04747',
+    'green': '#43b581',
+    'yellow': '#faa61a',
+    'blue': '#7289da',
+    'pink': '#ff73fa',
+    'cyan': '#00b8d4',
+    'white': '#ffffff',
+    'gray': '#99aab5'
+};
+
+function hasAnsiColorTags(text) {
+    return /\{(red|green|yellow|blue|pink|cyan|white|gray)\}/.test(text);
+}
+
+function formatAnsiColors(text) {
+    // Convert color tags to styled spans within an ANSI code block
+    let html = escapeHtml(text);
+
+    // Replace opening and closing color tags with styled spans
+    for (const [color, cssColor] of Object.entries(ANSI_COLORS)) {
+        const openRegex = new RegExp(`\\{${color}\\}`, 'g');
+        const closeRegex = new RegExp(`\\{/${color}\\}`, 'g');
+        html = html.replace(openRegex, `<span style="color: ${cssColor};">`);
+        html = html.replace(closeRegex, '</span>');
+    }
+
+    // Handle newlines
+    html = html.replace(/\\n/g, '<br>');
+    html = html.replace(/\n/g, '<br>');
+
+    // Wrap in ANSI code block style
+    return `<div class="ansi-code-block">${html}</div>`;
+}
+
+function formatDiscordText(text, allowAnsiColors = true) {
     if (!text) return '';
+
+    // Check for ANSI color tags first (only in field values, not titles)
+    if (allowAnsiColors && hasAnsiColorTags(text)) {
+        // First resolve placeholders, then apply ANSI formatting
+        let resolved = text;
+        resolved = resolved.replace(/\{([^}/]+)\}/g, function(match, key) {
+            // Skip color tags
+            if (ANSI_COLORS[key]) return match;
+            // Check dot emojis
+            if (DOT_EMOJIS[key]) return DOT_EMOJIS[key];
+            // Check previewData
+            const value = window.previewData && window.previewData[key];
+            if (value !== undefined && value !== null && value !== '') {
+                return value;
+            }
+            return match;
+        });
+        return formatAnsiColors(resolved);
+    }
+
     let html = escapeHtml(text);
     // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -1784,6 +1975,10 @@ function formatDiscordText(text) {
     html = html.replace(/__(.+?)__/g, '<u>$1</u>');
     // Replace placeholders with actual values from previewData, or highlight if no value
     html = html.replace(/\{([^}]+)\}/g, function(match, key) {
+        // Check dot emojis first
+        if (DOT_EMOJIS[key]) {
+            return DOT_EMOJIS[key];
+        }
         const value = window.previewData && window.previewData[key];
         if (value !== undefined && value !== null && value !== '') {
             // Replace with actual value (styled to show it's a placeholder value)
