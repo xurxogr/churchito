@@ -1,183 +1,179 @@
-# Esqueleto del Bot
+# Discord Bot
 
-Un esqueleto de bot de Discord listo para producción con arquitectura basada en características, SQLAlchemy 2.0 y pruebas exhaustivas.
+Bot de Discord con sistema de verificación, gestión de roles y panel de administración web.
 
 ## Características
 
-- 🏗️ **Arquitectura limpia** - Separación de responsabilidades con servicios, modelos y cogs
-- 💾 **SQLAlchemy 2.0** - ORM asíncrono moderno con SQLite
-- ⚙️ **Configuración con Pydantic** - Gestión de configuración con tipado seguro
-- 🧪 **Alta cobertura de tests** - Suite de pruebas exhaustiva con pytest
-- 📝 **Docstrings estilo Google** - Documentación profesional
-- 🔍 **Type checking estricto** - MyPy con modo estricto
-- 🎨 **Calidad de código** - Linting y formateo con Ruff
-- 🪝 **Pre-commit hooks** - Comprobaciones automáticas de calidad de código
-- 🚌 **Event bus** - Comunicación desacoplada entre servicios
-- 📊 **Monitoreo del event loop** - Detecta operaciones bloqueantes en producción
-- 🔌 **Multi-interfaz** - Servicios agnósticos del framework para futuro soporte de API
+- **Verificación de usuarios** - Sistema de verificación con capturas de pantalla y OCR
+- **Purga de usuarios** - Gestión masiva de roles y limpieza de usuarios inactivos
+- **Auto-nombre** - Gestión automática de nombres de usuario
+- **Panel web** - Interfaz de configuración basada en FastAPI con autenticación OAuth2
+- **Base de datos** - SQLAlchemy 2.0 asíncrono (SQLite o PostgreSQL)
+- **Arquitectura limpia** - Servicios agnósticos del framework, cogs delgados
+- **Event bus** - Comunicación desacoplada entre servicios
+- **Alta cobertura de tests** - Suite de pruebas exhaustiva con pytest
 
 ## Inicio Rápido
 
 ```bash
-# Instalar
+# Clonar e instalar
+git clone <repo>
+cd discord-bot
 python3.12 -m venv venv && source venv/bin/activate
 pip install -e ".[dev]"
 
-# Configurar (ver docs/setup.md para detalles)
+# Configurar (opción 1: variables de entorno)
 export BOT__TOKEN="TU_TOKEN_DEL_BOT"
 
-# Ejecutar
-7hpbot
+# Configurar (opción 2: archivo JSON)
+mkdir -p ~/.config/discord-bot
+cp docs/config/config.example.json ~/.config/discord-bot/config.json
+# Editar config.json con tu token
+
+# Para el panel web (opcional)
+export WEB__ENABLED="true"
+export WEB__SECRET_KEY="clave-secreta-aleatoria"
+export WEB__CLIENT_ID="TU_CLIENT_ID"
+export WEB__CLIENT_SECRET="TU_CLIENT_SECRET"
+
+# Ejecutar migraciones
+alembic upgrade head
+
+# Ejecutar el bot
+discord-bot
 ```
 
-**Para instrucciones completas de instalación, configuración y solución de problemas, consulta [docs/setup.md](docs/setup.md)**
+## Configuración
+
+La configuración se puede hacer mediante:
+1. **Variables de entorno** (mayor prioridad)
+2. **Archivo `.env`** en el directorio de trabajo
+3. **Archivo JSON** en `~/.config/discord-bot/config.json`
+
+Ver [docs/config/config.example.json](docs/config/config.example.json) para un ejemplo completo.
+
+### Variables de Entorno
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `BOT__TOKEN` | Token del bot de Discord | (requerido) |
+| `BOT__COMMAND_PREFIX` | Prefijo para comandos | `!` |
+| `BOT__OWNER_ID` | ID del propietario del bot | `null` |
+| `DATABASE__URL` | URL de conexión a la base de datos | `sqlite+aiosqlite:///data/bot.db` |
+| `DATABASE__ECHO` | Mostrar queries SQL | `false` |
+| `WEB__ENABLED` | Habilitar panel web | `false` |
+| `WEB__HOST` | Host del servidor web | `0.0.0.0` |
+| `WEB__PORT` | Puerto del servidor web | `8000` |
+| `WEB__SECRET_KEY` | Clave secreta para sesiones | (requerido si web) |
+| `WEB__CLIENT_ID` | Client ID de OAuth2 de Discord | (requerido si web) |
+| `WEB__CLIENT_SECRET` | Client Secret de OAuth2 | (requerido si web) |
+| `WEB__REDIRECT_URI` | URI de callback OAuth2 | `http://localhost:8000/auth/callback` |
+| `WEB__OWNER_IDS` | IDs con acceso admin (JSON array) | `[]` |
+| `WEB__HTTPS_ONLY` | Cookie solo sobre HTTPS | `true` |
+| `VERIFICATION__API_URL` | URL de la API de verificación OCR | (vacío) |
+| `VERIFICATION__API_KEY` | API key para verificación OCR | (vacío) |
+| `VERIFICATION__API_TIMEOUT` | Timeout en segundos | `30` |
+| `LOGGING__LOG_LEVEL` | Nivel de log | `INFO` |
+| `LOGGING__LOG_FILE` | Archivo de log | `null` |
+
+### Base de Datos
+
+Por defecto usa SQLite. Para PostgreSQL:
+
+```bash
+export DATABASE__URL="postgresql+asyncpg://user:pass@localhost/dbname"
+```
+
+## Módulos
+
+### Verificación
+
+Sistema de verificación de usuarios mediante capturas de pantalla:
+
+- Panel de verificación con botones (miembro/aliado)
+- Instrucciones por DM al usuario
+- Canal de moderación con embeds configurables
+- Integración opcional con API OCR para verificación automática
+- Historial de verificaciones por usuario
+- Tracker de verificaciones pendientes
+
+### Purga
+
+Gestión masiva de usuarios y roles:
+
+- Purga de usuarios sin roles específicos
+- Purga por inactividad
+- Confirmación de moderadores antes de ejecutar
+- Registro de resultados
+
+### Auto-nombre
+
+Gestión automática de nombres de usuario:
+
+- Renombrado automático basado en reglas
+- Configuración por servidor
+
+### Panel Web
+
+Interfaz de administración accesible en `http://localhost:8000`:
+
+- Autenticación OAuth2 con Discord
+- Configuración de cada módulo por servidor
+- Editor de embeds con vista previa
+- Gestión de roles y canales
 
 ## Arquitectura
 
-### Principios Clave
+```
+discord_bot/
+├── common/           # Infraestructura compartida
+│   ├── database/     # Conexión y modelos base
+│   ├── services/     # Servicios comunes (config, embed builder)
+│   ├── schemas/      # Esquemas Pydantic
+│   └── enums/        # Enumeraciones
+├── verification/     # Módulo de verificación
+│   ├── cog.py        # Cog de Discord
+│   ├── handlers.py   # Lógica de manejo de eventos
+│   ├── service.py    # Servicio de base de datos
+│   ├── formatters.py # Construcción de embeds
+│   └── config.py     # Esquema de configuración
+├── purga/            # Módulo de purga
+├── autoname/         # Módulo de auto-nombre
+└── web/              # Panel de administración
+    ├── app.py        # Aplicación FastAPI
+    ├── routers/      # Endpoints
+    ├── auth/         # Autenticación OAuth2
+    └── templates/    # Plantillas Jinja2
+```
 
-- **Servicios agnósticos del framework** - Pueden ser usados por Discord, FastAPI, CLI, etc.
-- **Event bus** - Comunicación desacoplada entre servicios
+### Principios
+
+- **Servicios agnósticos** - La lógica de negocio no depende de Discord
 - **Cogs delgados** - Solo manejan I/O de Discord, delegan a servicios
-- **Carpeta common** - Infraestructura compartida (settings, database, event bus)
-- **Carpetas de características** - Código específico (models, services, cog)
+- **Event bus** - Comunicación desacoplada entre módulos
+- **Configuración tipada** - Pydantic para validación y settings
 
-## Añadir Nuevas Características
+## Desarrollo
 
-**Antes de empezar, revisa [docs/contributing.md](docs/contributing.md) para conocer las reglas críticas sobre operaciones bloqueantes, arquitectura y mejores prácticas.**
+```bash
+# Instalar dependencias de desarrollo
+pip install -e ".[dev]"
 
-### Característica Simple (Solo Comandos)
+# Ejecutar tests
+pytest
 
-1. Crear `discord_bot/micaracteristica/cog.py`:
+# Ejecutar tests con cobertura
+pytest --cov=discord_bot
 
-```python
-from discord.ext import commands
-import logging
+# Linting
+ruff check .
 
-logger = logging.getLogger(__name__)
+# Type checking
+mypy discord_bot
 
-class MiCaracteristicaCog(commands.Cog):
-    """Cog de mi característica."""
-
-    def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-
-    @commands.command()
-    async def micomando(self, ctx: commands.Context) -> None:
-        """Mi comando."""
-        await ctx.send("¡Hola!")
-        logger.info(f"Comando ejecutado por {ctx.author}")
-
-async def setup(bot: commands.Bot) -> None:
-    """Cargar el cog."""
-    await bot.add_cog(MiCaracteristicaCog(bot))
+# Formateo
+ruff format .
 ```
-
-2. Cargar en `bot.py`: Añadir `"discord_bot.micaracteristica.cog"` a la lista `cogs_to_load`
-
-### Característica Compleja (Con Lógica de Negocio y Event Bus)
-
-Para características con lógica de negocio, usa el **patrón híbrido**:
-- **Llamadas directas** para petición/respuesta (cog → servicio)
-- **Event bus** para efectos secundarios y comunicación entre servicios
-
-#### 1. Crear el Servicio (Agnóstico del Framework)
-
-```python
-# discord_bot/micaracteristica/services/mi_servicio.py
-from discord_bot.common.services.event_bus import get_event_bus
-from discord_bot.common.enums.event_type import EventType
-
-class MiServicio:
-    """Lógica de negocio para mi característica."""
-
-    def __init__(self, database):
-        self.db = database
-        self.event_bus = get_event_bus()
-
-    async def procesar_item(self, user_id: str, item_data: dict) -> dict:
-        """Procesar un item (agnóstico del framework)."""
-        # Lógica de negocio principal
-        resultado = await self._hacer_procesamiento(item_data)
-
-        # Emitir evento para efectos secundarios
-        self.event_bus.emit(EventType.ITEM_PROCESSED, {
-            "user_id": user_id,
-            "item_id": resultado["id"],
-        })
-
-        return resultado
-```
-
-#### 2. Crear el Cog (Adaptador Delgado de Discord)
-
-```python
-# discord_bot/micaracteristica/cog.py
-from discord.ext import commands
-from discord_bot.micaracteristica.services import MiServicio
-
-class MiCaracteristicaCog(commands.Cog):
-    """Adaptador delgado - solo maneja I/O de Discord."""
-
-    def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-
-    @commands.command()
-    async def procesar(self, ctx: commands.Context, item: str) -> None:
-        """Procesar un item."""
-        # Llamar al servicio (directo)
-        servicio = MiServicio(self.bot.database)
-        resultado = await servicio.procesar_item(
-            user_id=str(ctx.author.id),
-            item_data={"name": item}
-        )
-
-        # Responder al usuario
-        await ctx.send(f"Procesado: {resultado['id']}")
-
-async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(MiCaracteristicaCog(bot))
-```
-
-#### 3. Crear Servicios de Efectos Secundarios (Opcional)
-
-```python
-# discord_bot/notificaciones/services/servicio_notificaciones.py
-from discord_bot.common.services.event_bus import get_event_bus
-from discord_bot.common.enums.event_type import EventType
-
-class ServicioNotificaciones:
-    """Escucha eventos y envía notificaciones."""
-
-    def __init__(self, discord_client):
-        self.client = discord_client
-        event_bus = get_event_bus()
-        event_bus.subscribe(EventType.ITEM_PROCESSED, self.on_item_procesado)
-
-    async def on_item_procesado(self, data: dict) -> None:
-        """Reaccionar al procesamiento de items."""
-        await self.client.send_notification(
-            f"¡El item {data['item_id']} fue procesado!"
-        )
-```
-
-#### 4. Añadir Tests
-
-```python
-# tests/micaracteristica/test_servicio.py
-async def test_procesar_item():
-    servicio = MiServicio(mock_db)
-    resultado = await servicio.procesar_item("usuario123", {"name": "test"})
-    assert resultado["id"] is not None
-```
-
-**Para estrategias de testing completas, objetivos de cobertura y mejores prácticas, consulta [docs/testing.md](docs/testing.md)**
-
-## Documentación
-
-- **[Guía de Configuración](docs/setup.md)** - Instalación y configuración
-- **[Guía de Testing](docs/testing.md)** - Filosofía de testing y mejores prácticas
-- **[Guía de Contribución](docs/contributing.md)** - Calidad de código y mejores prácticas
 
 ## Licencia
 

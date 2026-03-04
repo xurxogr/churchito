@@ -3,7 +3,8 @@
     "token": "YOUR_DISCORD_BOT_TOKEN_HERE",
     "command_prefix": "!",
     "owner_id": null,
-    "description": "A Discord bot with cog-based architecture"
+    "description": "Un bot de Discord con arquitectura basada en cogs",
+    "event_loop_warning_threshold": 0.5
   },
   "logging": {
     "loggers": {
@@ -20,5 +21,23 @@
     "url": "sqlite+aiosqlite:///data/bot.db",
     "echo": false,
     "pool_recycle": 3600
+  },
+  "web": {
+    "enabled": false,
+    "host": "0.0.0.0",
+    "port": 8000,
+    "root_path": "",
+    "secret_key": "",
+    "client_id": "",
+    "client_secret": "",
+    "redirect_uri": "http://localhost:8000/auth/callback",
+    "owner_ids": [],
+    "https_only": true,
+    "session_max_age": 7200
+  },
+  "verification": {
+    "api_url": "",
+    "api_key": "",
+    "api_timeout": 30
   }
 }
