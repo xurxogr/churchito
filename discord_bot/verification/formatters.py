@@ -336,8 +336,8 @@ def create_tracker_embed(
 ) -> discord.Embed:
     """Crear embed mostrando todas las verificaciones pendientes.
 
-    Para cada solicitud muestra en formato compacto:
-    - Emoji de estado, username, tipo, estado, tiempo relativo y link
+    Agrupa las solicitudes por tipo de verificación y muestra cada una
+    en formato compacto: id, username, estado y tiempo relativo.
 
     Args:
         pending_requests: Lista de VerificationRequest pendientes.
@@ -354,43 +354,51 @@ def create_tracker_embed(
         color=discord.Color.blue(),
     )
 
-    lines = []
+    # Group requests by verification type
+    grouped: dict[str, list[Any]] = {}
     for request in pending_requests:
-        # Determinar emoji e indicador de estado
-        if request.status == VerificationStatus.PENDING_SCREENSHOTS:
-            emoji = "🟡"
-            status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "Esperando capturas"
-            status_text = _clean_status_text(status_text)
-        else:
-            emoji = "🟠"
-            status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "Pendiente de revisión"
-            status_text = _clean_status_text(status_text)
+        v_type = request.verification_type
+        if v_type not in grouped:
+            grouped[v_type] = []
+        grouped[v_type].append(request)
 
-        # Obtener tipo de verificación
-        verification_type = VerificationType(request.verification_type)
+    sections = []
+    for v_type, requests in grouped.items():
+        # Get type display name for header
+        verification_type = VerificationType(v_type)
         type_display = get_verification_type_display(verification_type, config)
 
-        # Timestamp relativo de Discord
-        unix_timestamp = int(request.created_at.timestamp())
-        relative_time = f"<t:{unix_timestamp}:R>"
+        lines = [f"**{type_display}**"]
+        for request in requests:
+            # Get status text
+            if request.status == VerificationStatus.PENDING_SCREENSHOTS:
+                status_text = (
+                    config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "Esperando capturas"
+                )
+            else:
+                status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "Pendiente de revisión"
+            status_text = _clean_status_text(status_text)
 
-        # Link al mensaje de moderación usando ID de verificación
-        if request.mod_message_id:
-            message_link = (
-                f"https://discord.com/channels/{guild_id}/{channel_id}/{request.mod_message_id}"
-            )
-            id_text = f"[#{request.id}]({message_link})"
-        else:
-            id_text = f"#{request.id}"
+            # Timestamp relativo de Discord
+            unix_timestamp = int(request.created_at.timestamp())
+            relative_time = f"<t:{unix_timestamp}:R>"
 
-        # Construir línea compacta: id - emoji username - tipo - estado - tiempo
-        line = (
-            f"{id_text} {emoji} **{request.username}** - "
-            f"{type_display} - {status_text} - {relative_time}"
-        )
-        lines.append(line)
+            # Link al mensaje de moderación usando ID de verificación
+            if request.mod_message_id:
+                message_link = (
+                    f"https://discord.com/channels/{guild_id}/{channel_id}/{request.mod_message_id}"
+                )
+                id_text = f"[#{request.id}]({message_link})"
+            else:
+                id_text = f"#{request.id}"
 
-    embed.description = "\n".join(lines)
+            # Compact line: id username - status - time
+            line = f"{id_text} {request.username} - {status_text} - {relative_time}"
+            lines.append(line)
+
+        sections.append("\n".join(lines))
+
+    embed.description = "\n\n".join(sections)
     return embed
 
 

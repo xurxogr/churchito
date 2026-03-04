@@ -912,29 +912,45 @@ class TestCreateTrackerEmbed:
         assert "discord.com" not in embed.description  # No link URL
         assert "<t:" in embed.description  # Still has timestamp
 
-    def test_uses_emoji_for_pending_review(self) -> None:
-        """Probar que usa emoji naranja para pendiente de revisión."""
-        request = MagicMock()
-        request.username = "TestUser"
-        request.status = VerificationStatus.PENDING_REVIEW
-        request.verification_type = VerificationType.REGULAR
-        request.mod_message_id = 12345
-        request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+    def test_groups_by_type(self) -> None:
+        """Probar que agrupa por tipo de verificación."""
+        request1 = MagicMock()
+        request1.id = 1
+        request1.username = "User1"
+        request1.status = VerificationStatus.PENDING_REVIEW
+        request1.verification_type = VerificationType.REGULAR
+        request1.mod_message_id = 12345
+        request1.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+
+        request2 = MagicMock()
+        request2.id = 2
+        request2.username = "User2"
+        request2.status = VerificationStatus.PENDING_SCREENSHOTS
+        request2.verification_type = VerificationType.ALLY
+        request2.mod_message_id = 12346
+        request2.created_at = datetime(2024, 1, 15, 11, 30, tzinfo=UTC)
 
         config: dict[str, Any] = {
             ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pendiente de revisión",
-            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Normal",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Miembro",
+            ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY: "Aliado",
         }
 
         embed = create_tracker_embed(
-            pending_requests=[request],
+            pending_requests=[request1, request2],
             config=config,
             guild_id=123,
             channel_id=456,
         )
 
         assert embed.description is not None
-        assert "🟠" in embed.description  # Orange for pending review
+        # Type headers should be bold
+        assert "**Miembro**" in embed.description
+        assert "**Aliado**" in embed.description
+        # Usernames present
+        assert "User1" in embed.description
+        assert "User2" in embed.description
 
 
 class TestCleanStatusText:
