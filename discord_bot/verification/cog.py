@@ -293,6 +293,7 @@ class VerificationCog(commands.Cog):
                 config=config,
                 status=rejected_status,
                 color=discord.Color.red(),
+                verification_service=verification_service,
             )
 
             # Notificar al usuario
@@ -496,6 +497,7 @@ class VerificationCog(commands.Cog):
                         guild=guild,
                         request=request,
                         config=config,
+                        verification_service=service,
                     )
                 except Exception as e:
                     logger.error(f"Error actualizando mensaje de mod: {e}")
@@ -1144,6 +1146,7 @@ class VerificationCog(commands.Cog):
                     guild=member.guild,
                     request=pending,
                     config=config,
+                    verification_service=verification_service,
                 )
 
                 # Actualizar mensaje de tracker

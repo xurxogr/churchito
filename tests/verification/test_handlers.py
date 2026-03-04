@@ -11,7 +11,6 @@ from discord_bot.verification.handlers import (
     _create_screenshot_embeds,
     _get_api_error_message,
     _is_valid_discord_url,
-    _replace_status_in_content,
     _send_mod_ping_message,
     _update_mod_message_for_review,
     update_mod_message_cancelled,
@@ -228,104 +227,6 @@ class TestUpdateModMessageForReview:
 
         # No debería fallar
         await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
-
-
-class TestReplaceStatusInContent:
-    """Tests para _replace_status_in_content."""
-
-    def test_replaces_pending_review_status(self) -> None:
-        """Probar que reemplaza STATUS_PENDING_REVIEW."""
-        config = {
-            "status_pending_review": "🔍 Pendiente",
-            "status_ready_for_approval": "✅ Listo - {roles}",
-        }
-        content = "Mensaje\n\n🔍 Pendiente\n\nMás info"
-        new_status = "✅ Aprobado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert "✅ Aprobado" in result
-        assert "🔍 Pendiente" not in result
-
-    def test_replaces_ready_for_approval_status_with_roles(self) -> None:
-        """Probar que reemplaza STATUS_READY_FOR_APPROVAL con menciones de roles."""
-        config = {
-            "status_pending_review": "🔍 Pendiente",
-            "status_ready_for_approval": "✅ Listo - {roles}",
-        }
-        # El contenido tiene el estado con roles ya formateados
-        content = "Mensaje\n\n✅ Listo - <@&123>, <@&456>\n\nMás info"
-        new_status = "✅ Aprobado por moderador"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert "✅ Aprobado por moderador" in result
-        assert "✅ Listo - <@&123>" not in result
-
-    def test_appends_when_no_status_found(self) -> None:
-        """Probar que añade al final si no hay estado conocido."""
-        config = {
-            "status_pending_review": "🔍 Pendiente",
-            "status_ready_for_approval": "✅ Listo - {roles}",
-        }
-        content = "Mensaje sin estado"
-        new_status = "✅ Aprobado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert result == "Mensaje sin estado\n\n✅ Aprobado"
-
-    def test_handles_empty_config(self) -> None:
-        """Probar con configuración vacía."""
-        config: dict[str, Any] = {}
-        content = "Mensaje"
-        new_status = "✅ Aprobado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert result == "Mensaje\n\n✅ Aprobado"
-
-    def test_handles_template_without_roles_placeholder(self) -> None:
-        """Probar con template sin {roles}."""
-        config = {
-            "status_pending_review": "🔍 Pendiente",
-            "status_ready_for_approval": "✅ Listo para aprobar",  # Sin {roles}
-        }
-        content = "Mensaje\n\n🔍 Pendiente"
-        new_status = "✅ Aprobado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert "✅ Aprobado" in result
-
-    def test_handles_template_starting_with_placeholder(self) -> None:
-        """Probar con template que empieza con placeholder (sin prefijo)."""
-        config = {
-            "status_pending_review": "{placeholder} Pendiente",  # Empieza con {
-            "status_ready_for_approval": "",
-        }
-        content = "Mensaje sin estado"
-        new_status = "✅ Aprobado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        # Debe añadir al final porque no puede extraer prefijo
-        assert result == "Mensaje sin estado\n\n✅ Aprobado"
-
-    def test_replaces_awaiting_screenshots_status(self) -> None:
-        """Probar que reemplaza STATUS_AWAITING_SCREENSHOTS."""
-        config = {
-            "status_awaiting_screenshots": "⏳ Esperando capturas...",
-            "status_pending_review": "🔍 Pendiente",
-            "status_ready_for_approval": "✅ Listo - {roles}",
-        }
-        content = "Mensaje\n\n⏳ Esperando capturas...\n\nMás info"
-        new_status = "🚫 Cancelado"
-
-        result = _replace_status_in_content(content, new_status, config)
-
-        assert "🚫 Cancelado" in result
-        assert "⏳ Esperando capturas..." not in result
 
 
 class TestUpdateModMessageCancelled:

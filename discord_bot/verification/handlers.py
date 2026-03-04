@@ -14,6 +14,7 @@ from discord_bot.verification.api_client import (
     call_verification_api,
 )
 from discord_bot.verification.auto_processor import process_verification
+from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import (
     AutoProcessMode,
     ConfigKey,
@@ -154,79 +155,37 @@ def _get_ready_for_approval_status(
     return format_message(status_template, roles=roles_text)
 
 
-def _try_replace_status(
-    content: str,
-    template: str,
-    new_status: str,
-) -> str | None:
-    """Intentar reemplazar un estado en el contenido.
-
-    Maneja tanto strings literales como templates con placeholders.
-
-    Args:
-        content: Contenido del mensaje
-        template: Template del estado a buscar (puede tener placeholders como {roles})
-        new_status: Nuevo estado a establecer
-
-    Returns:
-        Contenido actualizado si se encontró el estado, None si no
-    """
-    if not template:
-        return None
-
-    # Si el template no tiene placeholders, buscar literal
-    if "{" not in template:
-        if template in content:
-            return content.replace(template, new_status)
-        return None
-
-    # Template tiene placeholders - extraer prefijo antes del primer placeholder
-    prefix = template.split("{")[0]
-    if not prefix:
-        return None
-
-    escaped_prefix = re.escape(prefix)
-    pattern = escaped_prefix + r"[^\n]*"
-    if re.search(pattern, content):
-        return re.sub(pattern, new_status, content)
-
-    return None
-
-
-# Estados que pueden aparecer en un mensaje pendiente (en orden de prioridad)
-_PENDING_STATUS_KEYS = (
-    ConfigKey.STATUS_AWAITING_SCREENSHOTS,
-    ConfigKey.STATUS_PENDING_REVIEW,
-    ConfigKey.STATUS_READY_FOR_APPROVAL,
-)
-
-
-def _replace_status_in_content(
-    content: str,
-    new_status: str,
+async def _get_embed_additional_sections(
+    request: "VerificationRequest",
     config: dict[str, Any],
-) -> str:
-    """Reemplazar cualquier estado pendiente en el contenido del mensaje.
-
-    Busca y reemplaza cualquier estado de verificación pendiente
-    (awaiting screenshots, pending review, ready for approval).
+    verification_service: "VerificationService",
+    player_info: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Obtener secciones adicionales (player info + historial) para el embed.
 
     Args:
-        content: Contenido actual del mensaje
-        new_status: Nuevo estado a establecer
+        request: Solicitud de verificación
         config: Configuración del cog
+        verification_service: Servicio de verificación
+        player_info: Info del jugador (si None, se lee de request.player_info)
 
     Returns:
-        Contenido con el estado actualizado
+        Tupla de (additional_sections, sections_context)
     """
-    for key in _PENDING_STATUS_KEYS:
-        template = config.get(key) or ""
-        result = _try_replace_status(content, template, new_status)
-        if result is not None:
-            return result
+    if player_info is None:
+        player_info = request.player_info
 
-    # Si no se encontró ningún estado conocido, añadir al final
-    return content + f"\n\n{new_status}"
+    history = await verification_service.get_user_history(
+        guild_id=request.guild_id,
+        user_id=request.user_id,
+    )
+    past_requests = [r for r in history if r.id != request.id]
+
+    return build_mod_embed_sections(
+        config=config,
+        player_info=player_info,
+        past_requests=past_requests,
+    )
 
 
 class ModActionContext(NamedTuple):
@@ -671,15 +630,11 @@ async def update_mod_message_for_review(
     embeds = _create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
 
     # Build additional sections (player info + history)
-    history = await verification_service.get_user_history(
-        guild_id=request.guild_id,
-        user_id=request.user_id,
-    )
-    past_requests = [r for r in history if r.id != request.id]
-    additional_sections, sections_context = build_mod_embed_sections(
+    additional_sections, sections_context = await _get_embed_additional_sections(
+        request=request,
         config=config,
+        verification_service=verification_service,
         player_info=player_info,
-        past_requests=past_requests,
     )
 
     # Comprobar si debemos auto-procesar
@@ -1138,6 +1093,7 @@ async def handle_accept(
             config=config,
             status=approved_status,
             color=discord.Color.green(),
+            verification_service=verification_service,
         )
 
         await session.commit()
@@ -1342,6 +1298,7 @@ async def handle_reject(
             config=config,
             status=rejected_status,
             color=discord.Color.red(),
+            verification_service=verification_service,
         )
 
         await session.commit()
@@ -1507,8 +1464,6 @@ async def _update_mod_message_for_review(
         new_content = current_content.replace(rejected_status, pending_status)
     else:
         # Si no encuentra el estado, buscar el patrón común
-        import re
-
         pattern = r"❌[^\n]*(?:Auto|rechazo)[^\n]*"
         new_content = re.sub(pattern, pending_status, current_content)
         if new_content == current_content:
@@ -1546,10 +1501,11 @@ async def update_mod_message_status(
     config: dict[str, Any],
     status: str,
     color: discord.Color,
+    verification_service: VerificationService | None = None,
 ) -> None:
     """Actualizar el mensaje de moderación con un nuevo estado.
 
-    Función genérica para actualizar el estado del mensaje de moderación.
+    Regenera el embed completo usando los datos de la request.
 
     Args:
         guild: Guild donde está el canal de moderación
@@ -1557,6 +1513,7 @@ async def update_mod_message_status(
         config: Configuración del cog
         status: Nuevo texto de estado
         color: Color del embed
+        verification_service: Servicio de verificación (para historial)
     """
     if not request.mod_message_id:
         return
@@ -1579,25 +1536,46 @@ async def update_mod_message_status(
         await mod_message.delete()
         return
 
-    # Obtener contenido del embed principal
-    current_content = ""
-    if mod_message.embeds:
-        current_content = mod_message.embeds[0].description or ""
+    # Regenerar el embed completo con los datos de la request
+    verification_type = VerificationType(request.verification_type)
+    created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+    created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+    member = guild.get_member(request.user_id)
 
-    new_content = _replace_status_in_content(
-        content=current_content,
-        new_status=status,
+    # Construir secciones adicionales (player info + historial)
+    additional_sections: list[dict[str, Any]] | None = None
+    sections_context: dict[str, Any] | None = None
+
+    if verification_service:
+        additional_sections, sections_context = await _get_embed_additional_sections(
+            request=request,
+            config=config,
+            verification_service=verification_service,
+        )
+
+    # Crear embeds principales
+    main_embeds = create_mod_embeds(
+        verification_type=verification_type,
         config=config,
+        username=request.username,
+        user_mention=f"<@{request.user_id}>",
+        user_id=request.user_id,
+        status=status,
+        created_at=created_at_str,
+        created_at_relative=created_at_relative,
+        guild=guild,
+        member=member,
+        additional_sections=additional_sections,
+        sections_context=sections_context,
     )
 
-    # Actualizar el embed existente con el nuevo contenido y color
-    main_embed = mod_message.embeds[0].copy() if mod_message.embeds else discord.Embed()
-    main_embed.description = new_content
-    main_embed.color = color
+    # Aplicar color a todos los embeds principales
+    for embed in main_embeds:
+        embed.color = color
 
-    # Mantener embeds de capturas (todos excepto el primero)
-    screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
-    all_embeds = [main_embed, *screenshot_embeds]
+    # Mantener embeds de capturas (todos excepto el principal)
+    screenshot_embeds = mod_message.embeds[1:] if len(mod_message.embeds) > 1 else []
+    all_embeds = [*main_embeds, *screenshot_embeds]
 
     await mod_message.edit(
         embeds=all_embeds,
@@ -1609,6 +1587,7 @@ async def update_mod_message_cancelled(
     guild: discord.Guild,
     request: "VerificationRequest",
     config: dict[str, Any],
+    verification_service: VerificationService | None = None,
 ) -> None:
     """Actualizar el mensaje de moderación cuando una verificación es cancelada.
 
@@ -1618,6 +1597,7 @@ async def update_mod_message_cancelled(
         guild: Guild donde está el canal de moderación
         request: Solicitud de verificación cancelada
         config: Configuración del cog
+        verification_service: Servicio de verificación (para historial)
     """
     cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Estado:** Cancelado"
     await update_mod_message_status(
@@ -1626,6 +1606,7 @@ async def update_mod_message_cancelled(
         config=config,
         status=cancelled_status,
         color=discord.Color.dark_grey(),
+        verification_service=verification_service,
     )
 
 
@@ -1646,8 +1627,6 @@ async def update_tracker_message(
         verification_service: Servicio de verificación para obtener solicitudes
         config_service: Servicio de configuración para guardar/obtener mensaje ID
     """
-    from discord_bot.verification.config import COG_NAME
-
     # 1. Verificar si el tracker está habilitado (título no vacío)
     tracker_title = config.get(ConfigKey.TRACKER_TITLE)
     tracker_enabled = bool(tracker_title)
