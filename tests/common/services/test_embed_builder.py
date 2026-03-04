@@ -106,7 +106,7 @@ class TestPlaceholderContext:
         member = MagicMock(spec=discord.Member)
         member.joined_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
         context = PlaceholderContext(member=member)
-        assert context.resolve("user_joined_server") == "15/01/2024 10:30"
+        assert context.resolve("user_joined_server") == "2024-01-15 10:30"
 
     def test_resolve_user_joined_server_none(self) -> None:
         """Test resolver user_joined_server cuando es None."""
@@ -177,7 +177,7 @@ class TestPlaceholderContext:
         member = MagicMock(spec=discord.Member)
         member.created_at = datetime(2020, 6, 1, 15, 0, tzinfo=UTC)
         context = PlaceholderContext(member=member)
-        assert context.resolve("user_joined_discord") == "01/06/2020 15:00"
+        assert context.resolve("user_joined_discord") == "2020-06-01 15:00"
 
     def test_resolve_user_joined_discord_relative(self) -> None:
         """Test resolver user_joined_discord_relative desde member."""
