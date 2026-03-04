@@ -1318,3 +1318,264 @@ class TestConvertFormValueEmbed:
         assert result["sections"][0]["type"] == "header"
         assert result["sections"][1]["type"] == "text"
         assert result["sections"][2]["type"] == "progress"
+
+    def test_embed_url_empty_after_strip(self) -> None:
+        """Probar que URL vacía después de strip se ignora."""
+        value = '{"title": "Test", "thumbnail_url": "   "}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        # Should not have thumbnail_url since it's empty after strip
+        assert "thumbnail_url" not in result or result.get("thumbnail_url") == "   "
+
+    def test_embed_url_invalid_removed(self) -> None:
+        """Probar que URL inválida (no placeholder ni http) se elimina."""
+        value = '{"title": "Test", "thumbnail_url": "invalid_url", "image_url": "https://valid.com/img.png"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        # Invalid URL should be removed
+        assert "thumbnail_url" not in result
+        # Valid URL should be kept
+        assert result["image_url"] == "https://valid.com/img.png"
+
+    def test_embed_url_placeholder_valid(self) -> None:
+        """Probar que URL placeholder es válida."""
+        value = '{"title": "Test", "thumbnail_url": "{user_avatar}"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED)
+        assert result["thumbnail_url"] == "{user_avatar}"
+
+
+class TestConvertFormValueEmbedSections:
+    """Tests para _convert_form_value con tipo EMBED_SECTIONS."""
+
+    def test_embed_sections_list(self) -> None:
+        """Probar conversión de lista directa."""
+        value = '[{"type": "text", "content": "Hello"}]'
+        result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+        assert result == [{"type": "text", "content": "Hello"}]
+
+    def test_embed_sections_dict_with_sections_key(self) -> None:
+        """Probar conversión de dict con clave 'sections'."""
+        value = '{"sections": [{"type": "text", "content": "Hello"}]}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+        assert result == [{"type": "text", "content": "Hello"}]
+
+    def test_embed_sections_not_list(self) -> None:
+        """Probar que valor que no es lista retorna None."""
+        value = '{"type": "text"}'
+        result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+        assert result is None
+
+
+class TestConvertFormValueDefault:
+    """Tests para _convert_form_value con tipos desconocidos."""
+
+    def test_unknown_type_returns_value_as_is(self) -> None:
+        """Probar que tipo desconocido retorna valor sin cambios."""
+        # Use a mock type that doesn't match any case
+        from unittest.mock import MagicMock
+
+        unknown_type = MagicMock()
+        unknown_type.value = "unknown"
+        result = _convert_form_value("test_value", unknown_type)
+        assert result == "test_value"
+
+
+class TestUpdateOptionsBatch:
+    """Tests para update_options_batch."""
+
+    async def test_empty_options_returns_early(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que opciones vacías retorna sin guardar."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(return_value={"options": {}})
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.set_value = AsyncMock(return_value=(True, None))
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+            # set_value should not be called since options is empty
+            mock_config_service.set_value.assert_not_called()
+
+    async def test_invalid_json_raises_400(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que JSON inválido retorna 400."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(side_effect=Exception("Invalid JSON"))
+
+        with pytest.raises(HTTPException) as exc_info:
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "JSON inválido" in exc_info.value.detail
+
+    async def test_option_not_found_adds_error(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que opción no encontrada agrega error."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(
+            return_value={"options": {"nonexistent_option": "value"}}
+        )
+
+        empty_service = ConfigSchemaService()
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=empty_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings",
+                new_callable=AsyncMock,
+            ) as mock_render,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+            # Should be called with error message
+            mock_render.assert_called_once()
+            call_kwargs = mock_render.call_args.kwargs
+            assert "nonexistent_option" in call_kwargs["error"]
+
+    async def test_successful_batch_save(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar guardado batch exitoso."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(
+            return_value={"options": {"string_option": "new_value"}}
+        )
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed", new_callable=AsyncMock
+            ) as mock_notify,
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.set_value = AsyncMock(return_value=(True, None))
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+            # set_value should be called once
+            mock_config_service.set_value.assert_called_once()
+
+            # Notify should be called once with the key
+            mock_notify.assert_called_once()
+            call_kwargs = mock_notify.call_args.kwargs
+            assert "string_option" in call_kwargs["keys"]
+
+    async def test_validation_error_adds_to_errors(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que error de validación se agrega a la lista de errores."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(return_value={"options": {"string_option": "value"}})
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings",
+                new_callable=AsyncMock,
+            ) as mock_render,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.set_value = AsyncMock(return_value=(False, "Validation failed"))
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+            # Should be called with error message
+            mock_render.assert_called_once()
+            call_kwargs = mock_render.call_args.kwargs
+            assert "Validation failed" in call_kwargs["error"]
