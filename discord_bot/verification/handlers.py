@@ -589,24 +589,29 @@ async def update_mod_message_for_review(
 
     if api_result:
         if api_result.success and api_result.response:
+            # Build player info context from OCR results
+            sections_context = {
+                "name": api_result.response.name or "N/A",
+                "regiment": api_result.response.regiment or "N/A",
+                "level": str(api_result.response.level)
+                if api_result.response.level is not None
+                else "N/A",
+                "faction": api_result.response.faction or "N/A",
+                "shard": api_result.response.shard or "N/A",
+                "time": api_result.response.ingame_time or "N/A",
+                "war": str(api_result.response.war)
+                if api_result.response.war is not None
+                else "N/A",
+                "war_time": api_result.response.current_ingame_time or "N/A",
+            }
+
+            # Persist player info to database for rebuild support
+            await verification_service.set_player_info(request.id, sections_context)
+
             # Get player info sections config
             player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
             if player_info_sections and isinstance(player_info_sections, list):
                 additional_sections = player_info_sections
-                sections_context = {
-                    "name": api_result.response.name or "N/A",
-                    "regiment": api_result.response.regiment or "N/A",
-                    "level": str(api_result.response.level)
-                    if api_result.response.level is not None
-                    else "N/A",
-                    "faction": api_result.response.faction or "N/A",
-                    "shard": api_result.response.shard or "N/A",
-                    "time": api_result.response.ingame_time or "N/A",
-                    "war": str(api_result.response.war)
-                    if api_result.response.war is not None
-                    else "N/A",
-                    "war_time": api_result.response.current_ingame_time or "N/A",
-                }
         elif api_result.status_code == 422:
             # 422 means images are invalid/unreadable - show configured message
             reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"

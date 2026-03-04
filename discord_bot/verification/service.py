@@ -249,6 +249,24 @@ class VerificationService:
         request.mod_message_id = message_id
         await self._session.flush()
 
+    async def set_player_info(
+        self,
+        request_id: int,
+        player_info: dict[str, str],
+    ) -> None:
+        """Guardar información del jugador extraída por OCR.
+
+        Args:
+            request_id (int): ID de la solicitud
+            player_info (dict[str, str]): Datos del jugador (name, regiment, level, etc.)
+        """
+        request = await self.get_request(request_id)
+        if not request:
+            return
+
+        request.player_info = player_info
+        await self._session.flush()
+
     async def approve(
         self, request_id: int, reviewer_id: int, reviewer_username: str
     ) -> VerificationRequest | None:

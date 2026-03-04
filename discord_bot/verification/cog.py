@@ -278,7 +278,7 @@ class VerificationCog(commands.Cog):
 
             # Filtrar solo las de este guild
             guild_requests = [r for r in pending if r.guild_id == guild.id]
-            logger.info(
+            logger.debug(
                 f"[{guild.name}] Verificaciones con embed de mod: "
                 f"{len(guild_requests)} de {len(pending)} totales"
             )
@@ -313,7 +313,7 @@ class VerificationCog(commands.Cog):
                         f"solicitud {request.id}: {e}"
                     )
 
-            logger.info(
+            logger.debug(
                 f"[{guild.name}] Reconstrucción completada: "
                 f"{rebuilt_count}/{len(guild_requests)} embeds"
             )
@@ -391,6 +391,15 @@ class VerificationCog(commands.Cog):
         member = guild.get_member(request.user_id)
         user_mention = member.mention if member else f"<@{request.user_id}>"
 
+        # Recuperar secciones de player info si hay datos OCR almacenados
+        additional_sections = None
+        sections_context = None
+        if request.player_info:
+            player_info_sections = config.get(ConfigKey.PLAYER_INFO_SECTIONS)
+            if player_info_sections and isinstance(player_info_sections, list):
+                additional_sections = player_info_sections
+                sections_context = request.player_info
+
         # Crear nuevos embeds con la configuración actual
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         main_embeds = create_mod_embeds(
@@ -404,6 +413,8 @@ class VerificationCog(commands.Cog):
             guild=guild,
             member=member,
             additional_content=extra_content,
+            additional_sections=additional_sections,
+            sections_context=sections_context,
         )
 
         # Mantener embeds de capturas (identificados por tener imagen)

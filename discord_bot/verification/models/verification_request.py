@@ -1,8 +1,9 @@
 """Modelo para solicitudes de verificacion de usuarios."""
 
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, String, Text
+from sqlalchemy import JSON, BigInteger, DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
@@ -37,6 +38,9 @@ class VerificationRequest(Base):
     # URLs de las capturas de pantalla
     screenshot_1_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     screenshot_2_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Información del jugador extraída por OCR (name, regiment, level, faction, shard, etc.)
+    player_info: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # Informacion del moderador que reviso
     reviewed_by_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
