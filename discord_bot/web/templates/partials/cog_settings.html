@@ -273,16 +273,19 @@
     {% endif %}
 
     {# Macro para renderizar el contenido de una sección de embed según su tipo #}
-    {% macro renderSectionContent(row, optionKey, rowIndex) %}
+    {% macro renderSectionContent(row, optionKey, rowIndex, isSections=false) %}
     {% set sectionType = row.type or 'text' %}
+    {% set trackFn = 'trackEmbedSectionsChange' if isSections else 'trackEmbedChange' %}
+    {% set previewFn = 'updateEmbedSectionsPreview' if isSections else 'updateEmbedPreview' %}
+    {% set handler = trackFn ~ "('" ~ optionKey ~ "'); " ~ previewFn ~ "('" ~ optionKey ~ "')" %}
     {% if sectionType == 'text' %}
         <div style="display: flex; flex-direction: column; gap: 6px;">
             <input type="text" class="input input-sm" data-col="title"
                    value="{{ row.title or '' }}" placeholder="Título (se muestra en negrita)"
-                   oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                   oninput="{{ handler }}">
             <textarea class="textarea" data-col="content" rows="2"
                       placeholder="Contenido (soporta placeholders y Markdown)"
-                      oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')"
+                      oninput="{{ handler }}"
                       style="width: 100%; resize: vertical;">{{ row.content or '' }}</textarea>
         </div>
     {% elif sectionType == 'fields' %}
@@ -290,7 +293,7 @@
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px;">
                 <label style="font-size: 11px; color: var(--text-muted);">
                     <input type="checkbox" data-col="inline" {% if row.inline != false %}checked{% endif %}
-                           onchange="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                           onchange="{{ handler }}">
                     En línea (horizontal)
                 </label>
             </div>
@@ -300,11 +303,11 @@
                 <input type="text" class="input input-sm" data-col="field_{{ i }}_name"
                        value="{{ row['field_' ~ i ~ '_name'] or '' }}" placeholder="Nombre"
                        style="width: 120px;"
-                       oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                       oninput="{{ handler }}">
                 <input type="text" class="input input-sm" data-col="field_{{ i }}_value"
                        value="{{ row['field_' ~ i ~ '_value'] or '' }}" placeholder="Valor (soporta placeholders)"
                        style="flex: 1;"
-                       oninput="trackEmbedChange('{{ optionKey }}'); updateEmbedPreview('{{ optionKey }}')">
+                       oninput="{{ handler }}">
             </div>
             {% endfor %}
         </div>
@@ -778,7 +781,7 @@
                                             </select>
                                         </td>
                                         <td class="embed-section-content-cell">
-                                            {{ renderSectionContent(row, option.key, loop.index0) }}
+                                            {{ renderSectionContent(row, option.key, loop.index0, isSections=true) }}
                                         </td>
                                         <td class="actions-col">
                                             <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Subir">&#9650;</button>
@@ -1200,8 +1203,19 @@ async function saveAllChanges() {
             throw new Error('Error saving options');
         }
 
-        // Reload the panel to show updated values
-        htmx.ajax('GET', `${window.rootPath}/guild/${window.guildId}/cog/${window.cogName}`, '#cog-settings');
+        // El endpoint ya devuelve el HTML actualizado, usarlo directamente
+        // en vez de hacer otra petición GET (evita race condition)
+        const html = await response.text();
+        const target = document.getElementById('cog-settings');
+        target.innerHTML = html;
+        // Ejecutar scripts del nuevo contenido (innerHTML no los ejecuta automáticamente)
+        target.querySelectorAll('script').forEach(oldScript => {
+            const newScript = document.createElement('script');
+            newScript.textContent = oldScript.textContent;
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+        // Procesar atributos htmx en el nuevo contenido
+        htmx.process(target);
     } catch (error) {
         console.error('Error saving:', error);
         alert('Error al guardar los cambios. Por favor, inténtalo de nuevo.');
@@ -1897,8 +1911,8 @@ function renderSectionPreview(section) {
     return '';
 }
 
-// Dot emoji mappings
-const DOT_EMOJIS = {
+// Dot emoji mappings (usar window para permitir re-ejecución del script)
+window.DOT_EMOJIS = {
     'dot_red': '🔴',
     'dot_green': '🟢',
     'dot_yellow': '🟡',
@@ -1910,8 +1924,8 @@ const DOT_EMOJIS = {
     'dot_brown': '🟤'
 };
 
-// ANSI color CSS classes
-const ANSI_COLORS = {
+// ANSI color CSS classes (usar window para permitir re-ejecución del script)
+window.ANSI_COLORS = {
     'red': '#f04747',
     'green': '#43b581',
     'yellow': '#faa61a',
@@ -1931,7 +1945,7 @@ function formatAnsiColors(text) {
     let html = escapeHtml(text);
 
     // Replace opening and closing color tags with styled spans
-    for (const [color, cssColor] of Object.entries(ANSI_COLORS)) {
+    for (const [color, cssColor] of Object.entries(window.ANSI_COLORS)) {
         const openRegex = new RegExp(`\\{${color}\\}`, 'g');
         const closeRegex = new RegExp(`\\{/${color}\\}`, 'g');
         html = html.replace(openRegex, `<span style="color: ${cssColor};">`);
@@ -1955,9 +1969,9 @@ function formatDiscordText(text, allowAnsiColors = true) {
         let resolved = text;
         resolved = resolved.replace(/\{([^}/]+)\}/g, function(match, key) {
             // Skip color tags
-            if (ANSI_COLORS[key]) return match;
+            if (window.ANSI_COLORS[key]) return match;
             // Check dot emojis
-            if (DOT_EMOJIS[key]) return DOT_EMOJIS[key];
+            if (window.DOT_EMOJIS[key]) return window.DOT_EMOJIS[key];
             // Check previewData
             const value = window.previewData && window.previewData[key];
             if (value !== undefined && value !== null && value !== '') {
@@ -1980,8 +1994,8 @@ function formatDiscordText(text, allowAnsiColors = true) {
     // Replace placeholders with actual values from previewData, or highlight if no value
     html = html.replace(/\{([^}]+)\}/g, function(match, key) {
         // Check dot emojis first
-        if (DOT_EMOJIS[key]) {
-            return DOT_EMOJIS[key];
+        if (window.DOT_EMOJIS[key]) {
+            return window.DOT_EMOJIS[key];
         }
         const value = window.previewData && window.previewData[key];
         if (value !== undefined && value !== null && value !== '') {
