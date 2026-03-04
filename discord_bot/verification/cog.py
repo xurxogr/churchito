@@ -1,5 +1,6 @@
 """Cog de verificacion de usuarios."""
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -373,7 +374,11 @@ class VerificationCog(commands.Cog):
                 return
 
             rebuilt_count = 0
-            for request in guild_requests:
+            for i, request in enumerate(guild_requests):
+                # Add delay between edits to avoid rate limiting (5 edits/5s per channel)
+                if i > 0:
+                    await asyncio.sleep(1.2)
+
                 try:
                     rebuilt = await self._rebuild_single_embed(
                         guild=guild,
