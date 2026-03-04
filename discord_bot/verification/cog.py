@@ -29,6 +29,7 @@ from discord_bot.verification.handlers import (
     handle_verification_start,
     show_rejection_select,
     update_mod_message_cancelled,
+    update_mod_message_status,
     update_tracker_message,
 )
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
@@ -51,6 +52,8 @@ class VerificationCog(commands.Cog):
         self._pending_dm_verifications: dict[int, tuple[int, int]] = {}
         self._last_health_check: dict[int, datetime] = {}
         self._health_check_started = False
+        # Timers para timeout de capturas: request_id -> Task
+        self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Obtener opciones bloqueadas por configuración de despliegue.
@@ -76,7 +79,11 @@ class VerificationCog(commands.Cog):
         """Restaurar verificaciones pendientes desde la base de datos."""
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
+            config_service = ConfigService(session=session)
             pending_requests = await service.get_all_pending_screenshots()
+
+            now = datetime.now(UTC)
+            timers_restored = 0
 
             for request in pending_requests:
                 self._pending_dm_verifications[request.user_id] = (
@@ -84,14 +91,236 @@ class VerificationCog(commands.Cog):
                     request.id,
                 )
 
+                # Restaurar timer si esta configurado
+                config = await config_service.get_all_config(
+                    guild_id=request.guild_id,
+                    cog_name=COG_NAME,
+                )
+                timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
+
+                if timeout_minutes <= 0:
+                    continue
+
+                # Calcular tiempo restante
+                created_at = request.created_at
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=UTC)
+                elapsed_minutes = (now - created_at).total_seconds() / 60
+                remaining_minutes = timeout_minutes - elapsed_minutes
+
+                if remaining_minutes <= 0:
+                    # Ya paso el tiempo, rechazar inmediatamente
+                    asyncio.create_task(
+                        self._auto_reject_by_timeout(
+                            request_id=request.id,
+                            guild_id=request.guild_id,
+                            user_id=request.user_id,
+                        )
+                    )
+                    continue
+
+                # Aun hay tiempo, restaurar timer
+                self.start_screenshot_timer(
+                    request_id=request.id,
+                    guild_id=request.guild_id,
+                    user_id=request.user_id,
+                    timeout_minutes=int(remaining_minutes),
+                )
+                timers_restored += 1
+
             if pending_requests:
-                logger.info(f"Restauradas {len(pending_requests)} verificaciones pendientes")
+                logger.info(
+                    f"Restauradas {len(pending_requests)} verificaciones pendientes "
+                    f"({timers_restored} timers)"
+                )
 
     async def cog_unload(self) -> None:
         """Detener tareas al descargar el cog."""
         if self._health_check_started:
             self.health_check_loop.cancel()
             self._health_check_started = False
+
+        # Cancelar todos los timers de capturas pendientes
+        for _, task in list(self._screenshot_timers.items()):
+            if not task.done():
+                task.cancel()
+        self._screenshot_timers.clear()
+
+    def start_screenshot_timer(
+        self,
+        request_id: int,
+        guild_id: int,
+        user_id: int,
+        timeout_minutes: int,
+    ) -> None:
+        """Iniciar timer para timeout de capturas.
+
+        Args:
+            request_id: ID de la solicitud
+            guild_id: ID del servidor
+            user_id: ID del usuario
+            timeout_minutes: Minutos antes del auto-rechazo
+        """
+        # Cancelar timer existente si hay
+        self.cancel_screenshot_timer(request_id)
+
+        # Crear nuevo timer
+        task = asyncio.create_task(
+            self._screenshot_timer_task(
+                request_id=request_id,
+                guild_id=guild_id,
+                user_id=user_id,
+                timeout_minutes=timeout_minutes,
+            )
+        )
+        self._screenshot_timers[request_id] = task
+        logger.info(
+            f"Timer de capturas iniciado para solicitud {request_id} ({timeout_minutes} min)"
+        )
+
+    def cancel_screenshot_timer(self, request_id: int) -> bool:
+        """Cancelar timer de capturas para una solicitud.
+
+        Args:
+            request_id: ID de la solicitud
+
+        Returns:
+            bool: True si se cancelo, False si no existia
+        """
+        task = self._screenshot_timers.pop(request_id, None)
+        if task and not task.done():
+            task.cancel()
+            logger.info(f"Timer de capturas cancelado para solicitud {request_id}")
+            return True
+        return False
+
+    async def _screenshot_timer_task(
+        self,
+        request_id: int,
+        guild_id: int,
+        user_id: int,
+        timeout_minutes: int,
+    ) -> None:
+        """Tarea que auto-rechaza la solicitud tras el timeout.
+
+        Args:
+            request_id: ID de la solicitud
+            guild_id: ID del servidor
+            user_id: ID del usuario
+            timeout_minutes: Minutos de timeout
+        """
+        try:
+            await asyncio.sleep(timeout_minutes * 60)
+            await self._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=guild_id,
+                user_id=user_id,
+            )
+        except asyncio.CancelledError:
+            logger.debug(f"Timer de capturas cancelado para solicitud {request_id}")
+        except Exception as e:
+            logger.error(f"Error en timer de capturas para solicitud {request_id}: {e}")
+        finally:
+            self._screenshot_timers.pop(request_id, None)
+
+    async def _auto_reject_by_timeout(
+        self,
+        request_id: int,
+        guild_id: int,
+        user_id: int,
+    ) -> None:
+        """Rechazar automaticamente una solicitud por timeout de capturas.
+
+        Args:
+            request_id: ID de la solicitud
+            guild_id: ID del servidor
+            user_id: ID del usuario
+        """
+        async with self.bot.database.session() as session:
+            verification_service = VerificationService(session=session)
+            config_service = ConfigService(session=session)
+
+            request = await verification_service.get_request(request_id)
+            if not request:
+                logger.warning(f"Solicitud {request_id} no encontrada para auto-rechazo")
+                return
+
+            # Solo rechazar si sigue esperando capturas
+            if request.status != VerificationStatus.PENDING_SCREENSHOTS:
+                logger.debug(
+                    f"Solicitud {request_id} ya no espera capturas (status={request.status})"
+                )
+                return
+
+            # Obtener config para el motivo de rechazo
+            config = await config_service.get_all_config(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+            )
+
+            # Rechazar la solicitud
+            reason = config.get(ConfigKey.REJECT_SCREENSHOT_TIMEOUT) or "Screenshot timeout"
+            await verification_service.reject(
+                request_id=request_id,
+                reviewer_id=self.bot.user.id if self.bot.user else 0,
+                reviewer_username="Auto",
+                reason=reason,
+            )
+
+            # Limpiar de memoria
+            if user_id in self._pending_dm_verifications:
+                del self._pending_dm_verifications[user_id]
+
+            logger.info(f"Solicitud {request_id} auto-rechazada por timeout de capturas")
+
+            # Obtener guild para actualizar mensajes
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                await session.commit()
+                return
+
+            # Actualizar mensaje de moderacion
+            rejected_status = format_message(
+                template=config.get(ConfigKey.STATUS_REJECTED),
+                moderator="Auto",
+                reason=reason,
+            )
+            await update_mod_message_status(
+                guild=guild,
+                request=request,
+                config=config,
+                status=rejected_status,
+                color=discord.Color.red(),
+            )
+
+            # Notificar al usuario
+            member = guild.get_member(user_id)
+            if member:
+                verification_type = VerificationType(request.verification_type)
+                type_display = get_verification_type_display(
+                    verification_type=verification_type,
+                    config=config,
+                )
+                rejection_msg = format_message(
+                    template=config.get(ConfigKey.REJECTION_MESSAGE),
+                    username=request.username,
+                    server_name=guild.name,
+                    verification_type=type_display,
+                    reason=reason,
+                )
+                try:
+                    await member.send(rejection_msg)
+                except discord.Forbidden:
+                    pass
+
+            # Actualizar tracker
+            await update_tracker_message(
+                guild=guild,
+                config=config,
+                verification_service=verification_service,
+                config_service=config_service,
+            )
+            await session.commit()
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
         """Verificar si el cog esta habilitado para un guild.
@@ -257,7 +486,8 @@ class VerificationCog(commands.Cog):
 
                 # Actualizar mensaje de moderación
                 config = await config_service.get_all_config(
-                    guild_id=request.guild_id, cog_name=COG_NAME
+                    guild_id=request.guild_id,
+                    cog_name=COG_NAME,
                 )
                 try:
                     await update_mod_message_cancelled(
@@ -326,7 +556,10 @@ class VerificationCog(commands.Cog):
                 if not await self._is_cog_enabled(guild_id):
                     continue
 
-                config = await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+                config = await config_service.get_all_config(
+                    guild_id=guild_id,
+                    cog_name=COG_NAME,
+                )
 
                 try:
                     await update_tracker_message(

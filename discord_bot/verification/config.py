@@ -46,6 +46,19 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             max_value=1440,
             group="Opciones",
         ),
+        ConfigOption(
+            key=ConfigKey.SCREENSHOT_TIMEOUT_MINUTES,
+            name="Tiempo límite para capturas (minutos)",
+            description=(
+                "Minutos que tiene el usuario para enviar las capturas antes de que "
+                "la solicitud sea rechazada automáticamente. 0 para desactivar."
+            ),
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=1440,
+            group="Opciones",
+        ),
         # ===== 2. PANEL DE VERIFICACIÓN =====
         ConfigOption(
             key=ConfigKey.VERIFICATION_CHANNEL,
@@ -421,6 +434,15 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             description="Texto del estado cuando la verificación fue cancelada",
             option_type=ConfigOptionType.STRING,
             default="🚫 **Estado:** Cancelado (el usuario salió del servidor)",
+            max_length=200,
+            group="Panel de moderación",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECT_SCREENSHOT_TIMEOUT,
+            name="Rechazo: Timeout de capturas",
+            description="Motivo cuando el usuario no envía las capturas a tiempo",
+            option_type=ConfigOptionType.STRING,
+            default="Tiempo de espera agotado para enviar capturas",
             max_length=200,
             group="Panel de moderación",
         ),

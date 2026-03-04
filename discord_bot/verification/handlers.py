@@ -411,6 +411,16 @@ async def handle_verification_start(
 
         cog._pending_dm_verifications[user.id] = (guild.id, request.id)
 
+        # Iniciar timer de capturas si esta configurado
+        timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
+        if timeout_minutes > 0:
+            cog.start_screenshot_timer(
+                request_id=request.id,
+                guild_id=guild.id,
+                user_id=user.id,
+                timeout_minutes=timeout_minutes,
+            )
+
         # Enviar notificacion al canal de moderacion
         status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
@@ -495,6 +505,9 @@ async def handle_dm_screenshots(
             return
 
         del cog._pending_dm_verifications[message.author.id]
+
+        # Cancelar timer de capturas ya que se recibieron
+        cog.cancel_screenshot_timer(request_id)
 
         guild = cog.bot.get_guild(guild_id)
         guild_name = guild.name if guild else "Unknown"
@@ -1559,19 +1572,23 @@ async def _update_mod_message_for_review(
     await mod_message.edit(embeds=all_embeds, view=view)
 
 
-async def update_mod_message_cancelled(
+async def update_mod_message_status(
     guild: discord.Guild,
     request: "VerificationRequest",
     config: dict[str, Any],
+    status: str,
+    color: discord.Color,
 ) -> None:
-    """Actualizar el mensaje de moderación cuando una verificación es cancelada.
+    """Actualizar el mensaje de moderación con un nuevo estado.
 
-    Se usa cuando un usuario sale del servidor mientras tiene una verificación pendiente.
+    Función genérica para actualizar el estado del mensaje de moderación.
 
     Args:
         guild: Guild donde está el canal de moderación
-        request: Solicitud de verificación cancelada
+        request: Solicitud de verificación
         config: Configuración del cog
+        status: Nuevo texto de estado
+        color: Color del embed
     """
     if not request.mod_message_id:
         return
@@ -1599,23 +1616,49 @@ async def update_mod_message_cancelled(
     if mod_message.embeds:
         current_content = mod_message.embeds[0].description or ""
 
-    cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Estado:** Cancelado"
     new_content = _replace_status_in_content(
         content=current_content,
-        new_status=cancelled_status,
+        new_status=status,
         config=config,
     )
 
-    # Actualizar el embed existente con el nuevo contenido y color gris
+    # Actualizar el embed existente con el nuevo contenido y color
     main_embed = mod_message.embeds[0].copy() if mod_message.embeds else discord.Embed()
     main_embed.description = new_content
-    main_embed.color = discord.Color.dark_grey()
+    main_embed.color = color
 
     # Mantener embeds de capturas (todos excepto el primero)
     screenshot_embeds = mod_message.embeds[1:] if mod_message.embeds else []
     all_embeds = [main_embed, *screenshot_embeds]
 
-    await mod_message.edit(embeds=all_embeds, view=None)
+    await mod_message.edit(
+        embeds=all_embeds,
+        view=None,
+    )
+
+
+async def update_mod_message_cancelled(
+    guild: discord.Guild,
+    request: "VerificationRequest",
+    config: dict[str, Any],
+) -> None:
+    """Actualizar el mensaje de moderación cuando una verificación es cancelada.
+
+    Se usa cuando un usuario sale del servidor mientras tiene una verificación pendiente.
+
+    Args:
+        guild: Guild donde está el canal de moderación
+        request: Solicitud de verificación cancelada
+        config: Configuración del cog
+    """
+    cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Estado:** Cancelado"
+    await update_mod_message_status(
+        guild=guild,
+        request=request,
+        config=config,
+        status=cancelled_status,
+        color=discord.Color.dark_grey(),
+    )
 
 
 async def update_tracker_message(

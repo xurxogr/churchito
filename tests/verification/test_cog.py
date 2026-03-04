@@ -8678,3 +8678,583 @@ class TestOnConfigChangedModEmbed:
         ) as mock_rebuild:
             await verification_cog.on_config_changed(mock_guild, ["some_unrelated_key"])
             mock_rebuild.assert_not_called()
+
+
+class TestScreenshotTimer:
+    """Tests para el timer de timeout de capturas."""
+
+    async def test_start_screenshot_timer_creates_task(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que start_screenshot_timer crea una tarea."""
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=5,
+        )
+
+        assert 123 in verification_cog._screenshot_timers
+        task = verification_cog._screenshot_timers[123]
+        assert not task.done()
+
+        # Limpiar
+        task.cancel()
+
+    async def test_start_screenshot_timer_cancels_existing(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que start_screenshot_timer cancela timer existente."""
+        import asyncio
+
+        # Crear primer timer
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=5,
+        )
+        first_task = verification_cog._screenshot_timers[123]
+
+        # Crear segundo timer para el mismo request
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=10,
+        )
+        second_task = verification_cog._screenshot_timers[123]
+
+        # Esperar a que se procese la cancelación
+        await asyncio.sleep(0)
+
+        assert first_task.cancelled() or first_task.done()
+        assert not second_task.done()
+
+        # Limpiar
+        second_task.cancel()
+
+    async def test_cancel_screenshot_timer_returns_true(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que cancel_screenshot_timer retorna True si cancela."""
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=5,
+        )
+
+        result = verification_cog.cancel_screenshot_timer(123)
+
+        assert result is True
+        assert 123 not in verification_cog._screenshot_timers
+
+    def test_cancel_screenshot_timer_returns_false_if_not_exists(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que cancel_screenshot_timer retorna False si no existe."""
+        result = verification_cog.cancel_screenshot_timer(999)
+
+        assert result is False
+
+    async def test_cog_unload_cancels_all_timers(self, verification_cog: VerificationCog) -> None:
+        """Probar que cog_unload cancela todos los timers."""
+        import asyncio
+
+        verification_cog.start_screenshot_timer(
+            request_id=1,
+            guild_id=100,
+            user_id=200,
+            timeout_minutes=5,
+        )
+        verification_cog.start_screenshot_timer(
+            request_id=2,
+            guild_id=100,
+            user_id=201,
+            timeout_minutes=5,
+        )
+
+        task1 = verification_cog._screenshot_timers[1]
+        task2 = verification_cog._screenshot_timers[2]
+
+        await verification_cog.cog_unload()
+
+        # Esperar a que se procesen las cancelaciones
+        await asyncio.sleep(0)
+
+        assert task1.cancelled() or task1.done()
+        assert task2.cancelled() or task2.done()
+        assert len(verification_cog._screenshot_timers) == 0
+
+
+class TestAutoRejectByTimeout:
+    """Tests para auto-rechazo por timeout de capturas."""
+
+    async def test_auto_reject_updates_status(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-rechazo cambia el estado a REJECTED."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Ejecutar auto-rechazo
+        with patch.object(verification_cog, "bot") as mock_bot:
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = None
+
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+        # Verificar estado
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated_request = await service.get_request(request_id)
+            assert updated_request is not None
+            assert updated_request.status == VerificationStatus.REJECTED
+
+    async def test_auto_reject_skips_if_not_pending_screenshots(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no rechaza si ya no está esperando capturas."""
+        # Crear solicitud y actualizarla a PENDING_REVIEW
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id,
+                url1="http://example.com/1.png",
+                url2="http://example.com/2.png",
+                guild_name="Test Guild",
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Ejecutar auto-rechazo
+        with patch.object(verification_cog, "bot") as mock_bot:
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+        # Verificar que sigue en PENDING_REVIEW
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated_request = await service.get_request(request_id)
+            assert updated_request is not None
+            assert updated_request.status == VerificationStatus.PENDING_REVIEW
+
+    async def test_auto_reject_clears_pending_dm(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que limpia _pending_dm_verifications."""
+        # Crear solicitud
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        # Añadir a pending
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        # Ejecutar auto-rechazo
+        with patch.object(verification_cog, "bot") as mock_bot:
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = None
+
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+        assert 456 not in verification_cog._pending_dm_verifications
+
+    async def test_auto_reject_request_not_found(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no falla si la solicitud no existe."""
+        with patch.object(verification_cog, "bot") as mock_bot:
+            mock_bot.database = test_database
+
+            # No debe lanzar excepción
+            await verification_cog._auto_reject_by_timeout(
+                request_id=99999,
+                guild_id=123,
+                user_id=456,
+            )
+
+    async def test_auto_reject_with_guild_updates_mod_message(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que actualiza el mensaje de moderación cuando hay guild."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = None
+
+        with (
+            patch.object(verification_cog, "bot") as mock_bot,
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new_callable=AsyncMock,
+            ) as mock_update_status,
+            patch(
+                "discord_bot.verification.cog.update_tracker_message",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = mock_guild
+
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+            mock_update_status.assert_called_once()
+
+    async def test_auto_reject_notifies_member(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que notifica al usuario por DM."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = mock_member
+
+        with (
+            patch.object(verification_cog, "bot") as mock_bot,
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "discord_bot.verification.cog.update_tracker_message",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = mock_guild
+
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+            mock_member.send.assert_called_once()
+
+    async def test_auto_reject_handles_forbidden_dm(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que maneja error Forbidden al enviar DM."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = mock_member
+
+        with (
+            patch.object(verification_cog, "bot") as mock_bot,
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "discord_bot.verification.cog.update_tracker_message",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_bot.database = test_database
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = mock_guild
+
+            # No debe lanzar excepción
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
+
+
+class TestScreenshotTimerTask:
+    """Tests para la tarea del timer de capturas."""
+
+    async def test_timer_task_calls_auto_reject_on_timeout(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Probar que el timer llama a auto_reject cuando expira."""
+        with patch.object(
+            verification_cog,
+            "_auto_reject_by_timeout",
+            new_callable=AsyncMock,
+        ) as mock_reject:
+            # Ejecutar con timeout muy corto
+            await verification_cog._screenshot_timer_task(
+                request_id=123,
+                guild_id=456,
+                user_id=789,
+                timeout_minutes=0,  # 0 minutos = inmediato
+            )
+
+            mock_reject.assert_called_once_with(
+                request_id=123,
+                guild_id=456,
+                user_id=789,
+            )
+
+    async def test_timer_task_handles_exception(self, verification_cog: VerificationCog) -> None:
+        """Probar que el timer maneja excepciones correctamente."""
+        verification_cog._screenshot_timers[123] = MagicMock()
+
+        with patch.object(
+            verification_cog,
+            "_auto_reject_by_timeout",
+            new_callable=AsyncMock,
+            side_effect=Exception("Test error"),
+        ):
+            # No debe lanzar excepción
+            await verification_cog._screenshot_timer_task(
+                request_id=123,
+                guild_id=456,
+                user_id=789,
+                timeout_minutes=0,
+            )
+
+        # Debe limpiar el timer del dict
+        assert 123 not in verification_cog._screenshot_timers
+
+    async def test_timer_task_cleans_up_on_cancel(self, verification_cog: VerificationCog) -> None:
+        """Probar que el timer limpia al ser cancelado."""
+        import asyncio
+
+        verification_cog._screenshot_timers[123] = MagicMock()
+
+        task = asyncio.create_task(
+            verification_cog._screenshot_timer_task(
+                request_id=123,
+                guild_id=456,
+                user_id=789,
+                timeout_minutes=999,  # Muy largo
+            )
+        )
+
+        await asyncio.sleep(0)
+        task.cancel()
+
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        # Debe limpiar el timer del dict
+        assert 123 not in verification_cog._screenshot_timers
+
+
+class TestRestorePendingVerificationsWithTimer:
+    """Tests para restauración de verificaciones con timer."""
+
+    async def test_restore_starts_timer_if_configured(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que restaura timers si están configurados."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        # Mock config con timeout
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 30},
+        ):
+            await verification_cog._restore_pending_verifications()
+
+        # Verificar que se creó el timer
+        assert 456 in verification_cog._pending_dm_verifications
+        # El timer debería existir (o haberse ejecutado si el tiempo ya pasó)
+
+        # Limpiar timers
+        for task in verification_cog._screenshot_timers.values():
+            task.cancel()
+
+    async def test_restore_no_timer_if_not_configured(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que no crea timer si timeout es 0."""
+        # Crear solicitud pendiente
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        # Mock config sin timeout
+        with patch.object(
+            ConfigService,
+            "get_all_config",
+            new_callable=AsyncMock,
+            return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 0},
+        ):
+            await verification_cog._restore_pending_verifications()
+
+        # Verificar que no se creó timer
+        assert len(verification_cog._screenshot_timers) == 0
+
+    async def test_restore_auto_rejects_if_time_expired(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Probar que auto-rechaza si el tiempo ya expiró."""
+        # Crear solicitud pendiente con fecha antigua
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Modificar created_at para que sea hace 1 hora
+            from datetime import timedelta
+
+            request.created_at = datetime.now(UTC) - timedelta(hours=1)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        # Mock config con timeout de 5 minutos (ya expirado)
+        with (
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 5},
+            ),
+            patch.object(
+                verification_cog,
+                "_auto_reject_by_timeout",
+                new_callable=AsyncMock,
+            ) as mock_reject,
+        ):
+            await verification_cog._restore_pending_verifications()
+
+            # Esperar a que se ejecute el task creado
+            import asyncio
+
+            await asyncio.sleep(0.1)
+
+            # Verificar que se llamó auto_reject
+            mock_reject.assert_called_once_with(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )

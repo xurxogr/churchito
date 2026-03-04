@@ -65,6 +65,7 @@ class ConfigKey(StrEnum):
     MOD_ROLES = "mod_roles"
 
     # Motivos de rechazo (usados tanto en rechazo automático como manual)
+    REJECT_SCREENSHOT_TIMEOUT = "reject_screenshot_timeout"
     REJECT_WRONG_CAPTURES = "reject_wrong_captures"
     REJECT_NAME_MISMATCH = "reject_name_mismatch"
     REJECT_HAS_REGIMENT = "reject_has_regiment"
@@ -85,6 +86,7 @@ class ConfigKey(StrEnum):
     DELETE_PROCESSED_MESSAGES = "delete_processed_messages"
     BLOCKING_ROLES = "blocking_roles"
     AUTO_REJECT_REVIEW_WINDOW = "auto_reject_review_window"
+    SCREENSHOT_TIMEOUT_MINUTES = "screenshot_timeout_minutes"
 
     # Botón de revisión
     REVIEW_BUTTON_TEXT = "review_button_text"
