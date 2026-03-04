@@ -488,6 +488,7 @@ class VerificationCog(commands.Cog):
 
         # Crear nuevos embeds con la configuración actual
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
@@ -496,6 +497,7 @@ class VerificationCog(commands.Cog):
             user_id=request.user_id,
             status=status_text,
             created_at=created_at_str,
+            created_at_relative=created_at_relative,
             guild=guild,
             member=member,
             additional_content=extra_content,

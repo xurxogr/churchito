@@ -414,6 +414,7 @@ async def handle_verification_start(
         # Enviar notificacion al canal de moderacion
         status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         # user es Member en contexto de guild (interaction en guild)
         member = user if isinstance(user, discord.Member) else None
         mod_embeds = create_mod_embeds(
@@ -424,6 +425,7 @@ async def handle_verification_start(
             user_id=user.id,
             status=status_text,
             created_at=created_at_str,
+            created_at_relative=created_at_relative,
             guild=guild,
             member=member,
         )
@@ -602,6 +604,7 @@ async def update_mod_message_for_review(
     type_display = get_verification_type_display(verification_type=verification_type, config=config)
     status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
     created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+    created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
 
     # Build additional content for API errors
     additional_content = ""
@@ -755,6 +758,7 @@ async def update_mod_message_for_review(
         user_id=request.user_id,
         status=status_text,
         created_at=created_at_str,
+        created_at_relative=created_at_relative,
         guild=channel.guild,
         member=member,
         additional_content=additional_content,
@@ -883,6 +887,7 @@ async def _handle_auto_approval(
         )
         verification_type = VerificationType(request.verification_type)
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
@@ -891,6 +896,7 @@ async def _handle_auto_approval(
             user_id=request.user_id,
             status=approved_status,
             created_at=created_at_str,
+            created_at_relative=created_at_relative,
             guild=guild,
             member=member,
             additional_content=additional_content,
@@ -968,6 +974,7 @@ async def _handle_auto_rejection(
             reason=reason,
         )
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
@@ -976,6 +983,7 @@ async def _handle_auto_rejection(
             user_id=request.user_id,
             status=rejected_status,
             created_at=created_at_str,
+            created_at_relative=created_at_relative,
             guild=guild,
             member=member,
             additional_content=additional_content,

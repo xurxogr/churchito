@@ -189,6 +189,7 @@ def create_mod_embeds(
     user_id: int | None = None,
     status: str | None = None,
     created_at: str | None = None,
+    created_at_relative: str | None = None,
     guild: discord.Guild | None = None,
     member: discord.Member | None = None,
     additional_content: str | None = None,
@@ -208,7 +209,8 @@ def create_mod_embeds(
         user_mention: Mención del usuario.
         user_id: ID del usuario (para el thumbnail fallback).
         status: Texto del estado actual.
-        created_at: Fecha de creación formateada.
+        created_at: Fecha de creación formateada (YYYY-MM-DD HH:MM).
+        created_at_relative: Fecha de creación relativa (<t:UNIX:R>).
         guild: Guild de Discord (para placeholders globales).
         member: Miembro de Discord (para placeholders de usuario).
         additional_content: Contenido adicional (errores API, historial de usuario).
@@ -242,6 +244,7 @@ def create_mod_embeds(
         "verification_type": type_display,
         "status": status or "",
         "created_at": created_at or "",
+        "created_at_relative": created_at_relative or "",
         **{k: v or "" for k, v in extra_placeholders.items()},
     }
 

@@ -95,14 +95,14 @@ class PlaceholderContext:
                 return str(self.member.display_avatar.url)
             if key == "user_joined_server":
                 if self.member.joined_at:
-                    return self.member.joined_at.strftime("%d/%m/%Y %H:%M")
+                    return self.member.joined_at.strftime("%Y-%m-%d %H:%M")
                 return "N/A"
             if key == "user_joined_server_relative":
                 if self.member.joined_at:
                     return f"<t:{int(self.member.joined_at.timestamp())}:R>"
                 return "N/A"
             if key == "user_joined_discord":
-                return self.member.created_at.strftime("%d/%m/%Y %H:%M")
+                return self.member.created_at.strftime("%Y-%m-%d %H:%M")
             if key == "user_joined_discord_relative":
                 return f"<t:{int(self.member.created_at.timestamp())}:R>"
 
