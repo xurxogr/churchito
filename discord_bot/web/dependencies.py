@@ -145,7 +145,13 @@ async def require_guild_access(
             if bot:
                 discord_guild = bot.get_guild(guild_id)
                 if discord_guild:
+                    # Try cache first, then fetch from API if not cached
                     member = discord_guild.get_member(user_id)
+                    if not member:
+                        try:
+                            member = await discord_guild.fetch_member(user_id)
+                        except Exception:
+                            member = None
                     if member:
                         user_role_ids = {role.id for role in member.roles}
                         if user_role_ids & admin_role_ids:

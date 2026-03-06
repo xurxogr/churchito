@@ -117,34 +117,27 @@ async def callback(
             guilds_response.raise_for_status()
             guilds_data = guilds_response.json()
 
-        # Only store guilds where user can manage (to avoid cookie size limits)
-        # MANAGE_GUILD = 0x20, ADMINISTRATOR = 0x8
-        manageable_guilds = []
-        for g in guilds_data:
-            perms = int(g.get("permissions", 0))
-            is_owner = g.get("owner", False)
-            can_manage = is_owner or (perms & 0x20) or (perms & 0x8)
-
-            if can_manage:
-                manageable_guilds.append(
-                    {
-                        "id": g["id"],
-                        "name": g["name"],
-                        "icon": g.get("icon"),
-                        "permissions": str(perms),
-                        "owner": is_owner,
-                    }
-                )
+        # Store all guilds - access control is handled in dashboard via admin_roles
+        all_guilds = [
+            {
+                "id": g["id"],
+                "name": g["name"],
+                "icon": g.get("icon"),
+                "permissions": str(g.get("permissions", 0)),
+                "owner": g.get("owner", False),
+            }
+            for g in guilds_data
+        ]
 
         request.session["user"] = {
             "id": user_data["id"],
             "username": user_data["username"],
             "avatar": user_data.get("avatar"),
-            "guilds": manageable_guilds,
+            "guilds": all_guilds,
         }
 
         logger.info(f"Usuario autenticado: {user_data['username']} (ID: {user_data['id']})")
-        logger.debug(f"Guilds con permisos: {len(manageable_guilds)} de {len(guilds_data)}")
+        logger.debug(f"Guilds del usuario: {len(all_guilds)}")
 
         # Use status_code=303 (See Other) to ensure proper redirect after POST-like operation
         return RedirectResponse(url=f"{root_path}/dashboard", status_code=303)

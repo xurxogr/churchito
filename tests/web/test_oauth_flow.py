@@ -99,12 +99,13 @@ class TestOAuthCallbackFlow:
             assert user["username"] == "testuser"
             assert user["avatar"] == "abc123"
 
-            # Verificar que solo se guardaron los guilds con permisos
+            # Verificar que se guardaron TODOS los guilds (el filtro de acceso
+            # se hace en el dashboard, no en OAuth)
             guilds = user["guilds"]
-            assert len(guilds) == 3  # manage, owner, admin
+            assert len(guilds) == 4
             guild_ids = [g["id"] for g in guilds]
             assert "111" in guild_ids
-            assert "222" not in guild_ids
+            assert "222" in guild_ids
             assert "333" in guild_ids
             assert "444" in guild_ids
 
