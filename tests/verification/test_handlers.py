@@ -1,5 +1,6 @@
 """Tests para handlers de verificación."""
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +9,7 @@ import pytest
 
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers import (
+    _calculate_expires_timestamp,
     _create_screenshot_embeds,
     _get_api_error_message,
     _is_valid_discord_url,
@@ -17,6 +19,67 @@ from discord_bot.verification.handlers import (
     update_tracker_message,
 )
 from discord_bot.verification.models import VerificationRequest
+
+
+class TestCalculateExpiresTimestamp:
+    """Tests para _calculate_expires_timestamp."""
+
+    def test_returns_empty_string_when_timeout_is_zero(self) -> None:
+        """Probar que retorna cadena vacía cuando timeout es 0."""
+        created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
+        result = _calculate_expires_timestamp(created_at, 0)
+        assert result == ""
+
+    def test_returns_empty_string_when_timeout_is_negative(self) -> None:
+        """Probar que retorna cadena vacía cuando timeout es negativo."""
+        created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
+        result = _calculate_expires_timestamp(created_at, -5)
+        assert result == ""
+
+    def test_returns_relative_timestamp_format(self) -> None:
+        """Probar que retorna formato de timestamp relativo de Discord."""
+        created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
+        result = _calculate_expires_timestamp(created_at, 60)
+
+        # Verificar que tiene el formato correcto <t:TIMESTAMP:R>
+        assert result.startswith("<t:")
+        assert result.endswith(":R>")
+
+    def test_calculates_correct_expiration_time(self) -> None:
+        """Probar que calcula el tiempo de expiración correcto."""
+        created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
+        timeout_minutes = 60
+
+        result = _calculate_expires_timestamp(created_at, timeout_minutes)
+
+        # Extraer el timestamp del resultado
+        timestamp_str = result[3:-3]  # Quitar "<t:" y ":R>"
+        timestamp = int(timestamp_str)
+
+        # Calcular el timestamp esperado (created_at + 60 minutos)
+        expected_timestamp = int(created_at.timestamp()) + (60 * 60)
+
+        assert timestamp == expected_timestamp
+
+    def test_works_with_different_timeout_values(self) -> None:
+        """Probar con diferentes valores de timeout."""
+        created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
+        base_timestamp = int(created_at.timestamp())
+
+        # 5 minutos
+        result_5 = _calculate_expires_timestamp(created_at, 5)
+        timestamp_5 = int(result_5[3:-3])
+        assert timestamp_5 == base_timestamp + (5 * 60)
+
+        # 30 minutos
+        result_30 = _calculate_expires_timestamp(created_at, 30)
+        timestamp_30 = int(result_30[3:-3])
+        assert timestamp_30 == base_timestamp + (30 * 60)
+
+        # 1440 minutos (24 horas)
+        result_1440 = _calculate_expires_timestamp(created_at, 1440)
+        timestamp_1440 = int(result_1440[3:-3])
+        assert timestamp_1440 == base_timestamp + (1440 * 60)
 
 
 class TestIsValidDiscordUrl:

@@ -2,6 +2,7 @@
 
 import logging
 import re
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import discord
@@ -56,6 +57,23 @@ API_ERROR_MESSAGES: dict[int, str] = {
     429: "Rate limit exceeded",
     500: "Internal processing error",
 }
+
+
+def _calculate_expires_timestamp(created_at: datetime, timeout_minutes: int) -> str:
+    """Calcular el timestamp de expiración para el placeholder {expires}.
+
+    Args:
+        created_at: Fecha de creación de la solicitud.
+        timeout_minutes: Minutos de timeout configurados.
+
+    Returns:
+        Timestamp relativo de Discord (ej: "<t:1234567890:R>") o cadena vacía
+        si el timeout está desactivado (0).
+    """
+    if timeout_minutes <= 0:
+        return ""
+    expires_at = created_at + timedelta(minutes=timeout_minutes)
+    return f"<t:{int(expires_at.timestamp())}:R>"
 
 
 def _is_valid_discord_url(url: str) -> bool:
@@ -345,6 +363,10 @@ async def handle_verification_start(
             verification_type=verification_type,
         )
 
+        # Obtener timeout para calcular expiración
+        timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
+        expires_relative = _calculate_expires_timestamp(request.created_at, timeout_minutes)
+
         dm_template = (
             config.get(ConfigKey.DM_INSTRUCTIONS_MESSAGE)
             if verification_type == VerificationType.REGULAR
@@ -356,6 +378,7 @@ async def handle_verification_start(
             user_mention=user.mention,
             server_name=guild.name,
             verification_type=type_display,
+            expires=expires_relative,
         )
 
         try:
@@ -371,7 +394,6 @@ async def handle_verification_start(
         cog._pending_dm_verifications[user.id] = (guild.id, request.id)
 
         # Iniciar timer de capturas si esta configurado
-        timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
         if timeout_minutes > 0:
             cog.start_screenshot_timer(
                 request_id=request.id,

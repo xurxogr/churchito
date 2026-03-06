@@ -137,7 +137,13 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "envia **2 capturas de pantalla** en un solo mensaje."
             ),
             max_length=4000,
-            placeholders=["username", "user_mention", "server_name", "verification_type"],
+            placeholders=[
+                "username",
+                "user_mention",
+                "server_name",
+                "verification_type",
+                "expires",
+            ],
             group="Verificación (Normal)",
         ),
         ConfigOption(
@@ -191,7 +197,13 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "envia **2 capturas de pantalla** en un solo mensaje."
             ),
             max_length=4000,
-            placeholders=["username", "user_mention", "server_name", "verification_type"],
+            placeholders=[
+                "username",
+                "user_mention",
+                "server_name",
+                "verification_type",
+                "expires",
+            ],
             group="Verificación (Aliado)",
         ),
         ConfigOption(
