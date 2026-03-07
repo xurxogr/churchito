@@ -295,7 +295,11 @@ class VerificationService:
         await self._session.flush()
 
     async def approve(
-        self, request_id: int, reviewer_id: int, reviewer_username: str
+        self,
+        request_id: int,
+        reviewer_id: int,
+        reviewer_username: str,
+        guild_name: str,
     ) -> VerificationRequest | None:
         """Aprobar una solicitud de verificacion.
 
@@ -303,6 +307,7 @@ class VerificationService:
             request_id (int): ID de la solicitud
             reviewer_id (int): ID del moderador
             reviewer_username (str): Nombre del moderador
+            guild_name (str): Nombre del guild
 
         Returns:
             VerificationRequest | None: Solicitud actualizada o None
@@ -317,11 +322,19 @@ class VerificationService:
         request.reviewed_at = datetime.now(UTC)
         await self._session.flush()
 
-        logger.info(f"Solicitud {request_id} aprobada por {reviewer_username} ({reviewer_id})")
+        logger.info(
+            f"[{guild_name}] Solicitud {request_id} aprobada: "
+            f"usuario={request.username}, moderador={reviewer_username}"
+        )
         return request
 
     async def reject(
-        self, request_id: int, reviewer_id: int, reviewer_username: str, reason: str
+        self,
+        request_id: int,
+        reviewer_id: int,
+        reviewer_username: str,
+        reason: str,
+        guild_name: str,
     ) -> VerificationRequest | None:
         """Rechazar una solicitud de verificacion.
 
@@ -330,6 +343,7 @@ class VerificationService:
             reviewer_id (int): ID del moderador
             reviewer_username (str): Nombre del moderador
             reason (str): Motivo del rechazo
+            guild_name (str): Nombre del guild
 
         Returns:
             VerificationRequest | None: Solicitud actualizada o None
@@ -345,16 +359,20 @@ class VerificationService:
         request.reviewed_at = datetime.now(UTC)
         await self._session.flush()
 
-        logger.info(f"Solicitud {request_id} rechazada por {reviewer_username} ({reviewer_id})")
+        logger.info(
+            f"[{guild_name}] Solicitud {request_id} rechazada: "
+            f"usuario={request.username}, moderador={reviewer_username}, razón={reason}"
+        )
         return request
 
-    async def cancel(self, request_id: int) -> VerificationRequest | None:
+    async def cancel(self, request_id: int, guild_name: str) -> VerificationRequest | None:
         """Cancelar una solicitud de verificacion.
 
         Usado cuando el usuario sale del servidor.
 
         Args:
             request_id (int): ID de la solicitud
+            guild_name (str): Nombre del guild
 
         Returns:
             VerificationRequest | None: Solicitud actualizada o None
@@ -366,16 +384,19 @@ class VerificationService:
         request.status = VerificationStatus.CANCELLED
         await self._session.flush()
 
-        logger.info(f"Solicitud {request_id} cancelada")
+        logger.info(f"[{guild_name}] Solicitud {request_id} cancelada: usuario={request.username}")
         return request
 
-    async def revert_to_pending_review(self, request_id: int) -> VerificationRequest | None:
+    async def revert_to_pending_review(
+        self, request_id: int, guild_name: str
+    ) -> VerificationRequest | None:
         """Revertir una solicitud rechazada a pendiente de revisión.
 
         Usado para permitir revisión manual de auto-rechazos.
 
         Args:
             request_id (int): ID de la solicitud
+            guild_name (str): Nombre del guild
 
         Returns:
             VerificationRequest | None: Solicitud actualizada o None
@@ -394,7 +415,10 @@ class VerificationService:
         request.reviewed_at = None
         await self._session.flush()
 
-        logger.info(f"Solicitud {request_id} revertida a revisión pendiente")
+        logger.info(
+            f"[{guild_name}] Solicitud {request_id} revertida a revisión pendiente: "
+            f"usuario={request.username}"
+        )
         return request
 
     async def get_latest_by_user(self, guild_id: int, user_id: int) -> VerificationRequest | None:

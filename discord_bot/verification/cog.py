@@ -209,6 +209,8 @@ class VerificationCog(commands.Cog):
             user_id: ID del usuario
             timeout_minutes: Minutos de timeout
         """
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else f"Guild {guild_id}"
         try:
             await asyncio.sleep(timeout_minutes * 60)
             await self._auto_reject_by_timeout(
@@ -217,9 +219,11 @@ class VerificationCog(commands.Cog):
                 user_id=user_id,
             )
         except asyncio.CancelledError:
-            logger.debug(f"Timer de capturas cancelado para solicitud {request_id}")
+            logger.debug(f"[{guild_name}] Timer de capturas cancelado para solicitud {request_id}")
         except Exception as e:
-            logger.error(f"Error en timer de capturas para solicitud {request_id}: {e}")
+            logger.error(
+                f"[{guild_name}] Error en timer de capturas para solicitud {request_id}: {e}"
+            )
         finally:
             self._screenshot_timers.pop(request_id, None)
 
@@ -236,19 +240,26 @@ class VerificationCog(commands.Cog):
             guild_id: ID del servidor
             user_id: ID del usuario
         """
+        # Obtener guild para logs y actualizar mensajes
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else f"Guild {guild_id}"
+
         async with self.bot.database.session() as session:
             verification_service = VerificationService(session=session)
             config_service = ConfigService(session=session)
 
             request = await verification_service.get_request(request_id)
             if not request:
-                logger.warning(f"Solicitud {request_id} no encontrada para auto-rechazo")
+                logger.warning(
+                    f"[{guild_name}] Solicitud {request_id} no encontrada para auto-rechazo"
+                )
                 return
 
             # Solo rechazar si sigue esperando capturas
             if request.status != VerificationStatus.PENDING_SCREENSHOTS:
                 logger.debug(
-                    f"Solicitud {request_id} ya no espera capturas (status={request.status})"
+                    f"[{guild_name}] Solicitud {request_id} ya no espera capturas "
+                    f"(status={request.status})"
                 )
                 return
 
@@ -265,6 +276,7 @@ class VerificationCog(commands.Cog):
                 reviewer_id=self.bot.user.id if self.bot.user else 0,
                 reviewer_username="Auto",
                 reason=reason,
+                guild_name=guild_name,
             )
             # Flush para que los cambios sean visibles en consultas posteriores
             await session.flush()
@@ -272,11 +284,6 @@ class VerificationCog(commands.Cog):
             # Limpiar de memoria
             if user_id in self._pending_dm_verifications:
                 del self._pending_dm_verifications[user_id]
-
-            logger.info(f"Solicitud {request_id} auto-rechazada por timeout de capturas")
-
-            # Obtener guild para actualizar mensajes
-            guild = self.bot.get_guild(guild_id)
             if not guild:
                 await session.commit()
                 return
@@ -471,7 +478,8 @@ class VerificationCog(commands.Cog):
                 guild = self.bot.get_guild(request.guild_id)
                 if not guild:
                     logger.warning(
-                        f"Guild {request.guild_id} no encontrado para solicitud {request.id}"
+                        f"[Guild ID: {request.guild_id}] Guild no encontrado para "
+                        f"solicitud {request.id} (usuario={request.username})"
                     )
                     continue
 
@@ -481,7 +489,7 @@ class VerificationCog(commands.Cog):
                     continue
 
                 # Usuario no está en el servidor, cancelar verificación
-                await service.cancel(request_id=request.id)
+                await service.cancel(request_id=request.id, guild_name=guild.name)
 
                 # Limpiar de memoria si estaba pendiente
                 if request.user_id in self._pending_dm_verifications:
@@ -500,7 +508,7 @@ class VerificationCog(commands.Cog):
                         verification_service=service,
                     )
                 except Exception as e:
-                    logger.error(f"Error actualizando mensaje de mod: {e}")
+                    logger.error(f"[{guild.name}] Error actualizando mensaje de mod: {e}")
 
                 # Marcar guild para actualizar tracker
                 guilds_with_changes[guild.id] = (guild, config)
@@ -1134,7 +1142,9 @@ class VerificationCog(commands.Cog):
                 guild_id=member.guild.id, user_id=member.id
             )
             if pending:
-                await verification_service.cancel(request_id=pending.id)
+                await verification_service.cancel(
+                    request_id=pending.id, guild_name=member.guild.name
+                )
                 await session.commit()
 
                 # Actualizar el mensaje de moderación
@@ -1159,8 +1169,8 @@ class VerificationCog(commands.Cog):
                 await session.commit()
 
                 logger.info(
-                    f"Verificacion cancelada para {member.name} "
-                    f"(salio del servidor {member.guild.name})"
+                    f"[{member.guild.name}] Verificacion cancelada: "
+                    f"usuario={member.name} (salió del servidor)"
                 )
 
     @commands.Cog.listener()
@@ -1180,13 +1190,15 @@ class VerificationCog(commands.Cog):
 
         custom_id: str = str(interaction.data.get("custom_id", "") if interaction.data else "")
 
+        guild_name = interaction.guild.name if interaction.guild else "DM"
+
         # Manejar boton de aceptar: verification:accept:{request_id}
         if custom_id.startswith("verification:accept:"):
             try:
                 request_id = int(custom_id.split(":")[2])
                 await self.handle_accept(interaction=interaction, request_id=request_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID invalido para accept: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID invalido para accept: {custom_id}")
             return
 
         # Manejar boton de rechazar: verification:reject:{request_id}
@@ -1195,7 +1207,7 @@ class VerificationCog(commands.Cog):
                 request_id = int(custom_id.split(":")[2])
                 await self.show_rejection_select(interaction=interaction, request_id=request_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID invalido para reject: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID invalido para reject: {custom_id}")
             return
 
         # Manejar boton de revisar auto-rechazo: verification:review:{request_id}
@@ -1204,7 +1216,7 @@ class VerificationCog(commands.Cog):
                 request_id = int(custom_id.split(":")[2])
                 await self.handle_review(interaction=interaction, request_id=request_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID invalido para review: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID invalido para review: {custom_id}")
             return
 
 

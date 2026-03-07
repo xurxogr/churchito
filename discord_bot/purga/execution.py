@@ -102,7 +102,7 @@ async def execute_purga(
     """
     guild = cog.bot.get_guild(guild_id)
     if not guild:
-        logger.error(f"Guild {guild_id} no encontrado para ejecutar purga {purga_id}")
+        logger.error(f"[Guild ID: {guild_id}] Guild no encontrado para ejecutar purga {purga_id}")
         return
 
     async with cog.bot.database.session() as session:

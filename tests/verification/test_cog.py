@@ -1980,7 +1980,10 @@ class TestHandleAcceptHappyPath:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await service.approve(
-                request_id=request.id, reviewer_id=111, reviewer_username="OtherMod"
+                request_id=request.id,
+                reviewer_id=111,
+                reviewer_username="OtherMod",
+                guild_name="Test Guild",
             )
             await session.commit()
             request_id = request.id
@@ -3386,7 +3389,12 @@ class TestUpdateModMessageForReview:
                 verification_type=VerificationType.REGULAR,
             )
             await service.update_screenshots(old_request.id, "old1", "old2", "Test Guild")
-            await service.approve(old_request.id, 111, "OldMod")
+            await service.approve(
+                request_id=old_request.id,
+                reviewer_id=111,
+                reviewer_username="OldMod",
+                guild_name="Test Guild",
+            )
 
             # Solicitud actual
             request = await service.create_request(
@@ -3745,6 +3753,7 @@ class TestHandleRejectEdgeCases:
                 reviewer_id=111,
                 reviewer_username="OtherMod",
                 reason="Ya rechazada",
+                guild_name="Test Guild",
             )
             await session.commit()
             request_id = request.id
@@ -4868,7 +4877,9 @@ class TestUpdateModMessageWithRejectionReason:
                 verification_type=VerificationType.REGULAR,
             )
             await service.update_screenshots(old_request.id, "url1", "url2", "Test Guild")
-            await service.reject(old_request.id, 789, "ModUser", "Capturas incorrectas")
+            await service.reject(
+                old_request.id, 789, "ModUser", "Capturas incorrectas", "Test Guild"
+            )
             await session.commit()
 
         # Crear nueva verificacion con mod_message_id
@@ -5354,6 +5365,7 @@ class TestHandleReview:
                 reviewer_id=789,
                 reviewer_username="ModUser",
                 reason="Motivo manual",
+                guild_name="Test Guild",
             )
             await session.commit()
             request_id = request.id
@@ -5410,7 +5422,7 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.reject(request1.id, 0, "Auto", "Razon auto")
+            await service.reject(request1.id, 0, "Auto", "Razon auto", "Test Guild")
 
             request2 = await service.create_request(
                 guild_id=123,
@@ -5419,7 +5431,7 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.reject(request2.id, 0, "Auto", "Otra razon auto")
+            await service.reject(request2.id, 0, "Auto", "Otra razon auto", "Test Guild")
             await session.commit()
             old_request_id = request1.id
 
@@ -5482,6 +5494,7 @@ class TestHandleReview:
                 reviewer_id=0,
                 reviewer_username="Auto",
                 reason="Razon automatica",
+                guild_name="Test Guild",
             )
             await session.commit()
             request_id = request.id
@@ -7462,6 +7475,7 @@ class TestHandleReviewRevertFails:
                 reviewer_id=0,
                 reviewer_username="Auto",
                 reason="Razon auto",
+                guild_name="Test Guild",
             )
             await session.commit()
             request_id = request.id

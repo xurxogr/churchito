@@ -384,7 +384,7 @@ async def handle_verification_start(
         try:
             await user.send(content=formatted_dm)
         except discord.Forbidden:
-            await verification_service.cancel(request.id)
+            await verification_service.cancel(request_id=request.id, guild_name=guild.name)
             await session.commit()
             await interaction.followup.send(
                 config.get(ConfigKey.DM_DISABLED_MESSAGE) or "", ephemeral=True
@@ -476,8 +476,14 @@ async def handle_dm_screenshots(
         url1 = image_attachments[0].url
         url2 = image_attachments[1].url
 
+        guild = cog.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else f"Guild {guild_id}"
+
         if not _is_valid_discord_url(url1) or not _is_valid_discord_url(url2):
-            logger.warning(f"URLs de captura inválidas: {url1[:50]}..., {url2[:50]}...")
+            logger.warning(
+                f"[{guild_name}] URLs de captura inválidas para {message.author.name}: "
+                f"{url1[:50]}..., {url2[:50]}..."
+            )
             formatted = format_message(
                 template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
                 username=message.author.name,
@@ -489,9 +495,6 @@ async def handle_dm_screenshots(
 
         # Cancelar timer de capturas ya que se recibieron
         cog.cancel_screenshot_timer(request_id)
-
-        guild = cog.bot.get_guild(guild_id)
-        guild_name = guild.name if guild else "Unknown"
 
         verification_service = VerificationService(session=session)
 
@@ -604,7 +607,9 @@ async def update_mod_message_for_review(
     try:
         mod_message = await channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        logger.warning(
+            f"[{channel.guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}"
+        )
         return False
 
     verification_type = VerificationType(request.verification_type)
@@ -839,6 +844,7 @@ async def _handle_auto_approval(
         request_id=request.id,
         reviewer_id=cog.bot.user.id if cog.bot.user else 0,
         reviewer_username="Auto",
+        guild_name=guild.name,
     )
 
     # Update member roles
@@ -859,7 +865,9 @@ async def _handle_auto_approval(
                 try:
                     await member.add_roles(role)
                 except discord.Forbidden:
-                    logger.warning(f"Could not add role {role.name} to {member.name}")
+                    logger.warning(
+                        f"[{guild.name}] Sin permisos para añadir rol {role.name} a {member.name}"
+                    )
 
         for role_id in roles_remove or []:
             role = guild.get_role(role_id)
@@ -867,7 +875,9 @@ async def _handle_auto_approval(
                 try:
                     await member.remove_roles(role)
                 except discord.Forbidden:
-                    logger.warning(f"Could not remove role {role.name} from {member.name}")
+                    logger.warning(
+                        f"[{guild.name}] Sin permisos para quitar rol {role.name} de {member.name}"
+                    )
 
         # Send approval DM
         approval_msg = format_message(
@@ -948,6 +958,7 @@ async def _handle_auto_rejection(
         reviewer_id=cog.bot.user.id if cog.bot.user else 0,
         reviewer_username="Auto",
         reason=reason,
+        guild_name=guild.name,
     )
 
     # Send rejection DM
@@ -1050,6 +1061,7 @@ async def handle_accept(
             request_id=request_id,
             reviewer_id=interaction.user.id,
             reviewer_username=interaction.user.name,
+            guild_name=interaction.guild.name,
         )
 
         failed_roles: list[str] = []
@@ -1289,6 +1301,7 @@ async def handle_reject(
             reviewer_id=interaction.user.id,
             reviewer_username=interaction.user.name,
             reason=reason,
+            guild_name=interaction.guild.name,
         )
 
         member = interaction.guild.get_member(request.user_id)
@@ -1414,7 +1427,9 @@ async def handle_review(
             return
 
         # Revertir a estado pendiente de revisión
-        reverted = await verification_service.revert_to_pending_review(request_id)
+        reverted = await verification_service.revert_to_pending_review(
+            request_id=request_id, guild_name=interaction.guild.name
+        )
         if not reverted:
             await interaction.response.send_message(
                 content="No se pudo revertir la verificación.",
@@ -1470,7 +1485,7 @@ async def _update_mod_message_for_review(
     try:
         mod_message = await mod_channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
         return
 
     # Obtener contenido actual y actualizar estado
@@ -1551,7 +1566,7 @@ async def update_mod_message_status(
     try:
         mod_message = await mod_channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(f"Mensaje de mod no encontrado: {request.mod_message_id}")
+        logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
         return
 
     if config.get(ConfigKey.DELETE_PROCESSED_MESSAGES):
@@ -1737,4 +1752,6 @@ async def update_tracker_message(
                 value=new_message.id,
             )
         except discord.Forbidden:
-            logger.warning(f"No se pudo enviar mensaje de tracker en {mod_channel.name}")
+            logger.warning(
+                f"[{guild.name}] No se pudo enviar mensaje de tracker en #{mod_channel.name}"
+            )

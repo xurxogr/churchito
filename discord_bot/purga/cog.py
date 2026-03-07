@@ -1341,21 +1341,24 @@ class PurgaCog(commands.Cog):
 
         for channel_id, message_id in to_delete:
             self._pending_deletions.pop((channel_id, message_id), None)
+            channel = self.bot.get_channel(channel_id)
+            if not channel or not isinstance(channel, discord.TextChannel):
+                continue
+
+            guild = channel.guild
             try:
-                channel = self.bot.get_channel(channel_id)
-                if channel and isinstance(channel, discord.TextChannel):
-                    guild = channel.guild
-                    try:
-                        message = await channel.fetch_message(message_id)
-                        await message.delete()
-                        logger.info(
-                            f"[{guild.name}] Mensaje de moderación eliminado "
-                            f"por retención en #{channel.name}"
-                        )
-                    except discord.NotFound:
-                        pass  # Ya fue eliminado
+                message = await channel.fetch_message(message_id)
+                await message.delete()
+                logger.info(
+                    f"[{guild.name}] Mensaje de moderación eliminado "
+                    f"por retención en #{channel.name}"
+                )
+            except discord.NotFound:
+                pass  # Ya fue eliminado
             except Exception as e:
-                logger.error(f"Error eliminando mensaje de moderación (ID: {message_id}): {e}")
+                logger.error(
+                    f"[{guild.name}] Error eliminando mensaje de moderación (ID: {message_id}): {e}"
+                )
 
     async def _check_expired_purgas(self) -> None:
         """Verificar y expirar purgas pendientes que han pasado su tiempo límite."""
@@ -1396,7 +1399,7 @@ class PurgaCog(commands.Cog):
 
                     await session.commit()
             except Exception as e:
-                logger.error(f"Error expirando purga {purga_id}: {e}")
+                logger.error(f"[{guild_name}] Error expirando purga {purga_id}: {e}")
 
     async def _check_cancel_pending_expired(self) -> None:
         """Verificar y revertir purgas CANCEL_PENDING que han expirado a AUTHORIZED."""
@@ -1439,7 +1442,9 @@ class PurgaCog(commands.Cog):
 
                     await session.commit()
             except Exception as e:
-                logger.error(f"Error revirtiendo cancelación de purga {purga_id}: {e}")
+                logger.error(
+                    f"[{guild_name}] Error revirtiendo cancelación de purga {purga_id}: {e}"
+                )
 
     async def _check_ready_purgas(self) -> None:
         """Verificar y ejecutar purgas autorizadas que han alcanzado su tiempo de ejecución."""
@@ -1461,7 +1466,7 @@ class PurgaCog(commands.Cog):
             try:
                 await self._execute_purga(guild_id=guild_id, purga_id=purga_id)
             except Exception as e:
-                logger.error(f"Error ejecutando purga {purga_id}: {e}")
+                logger.error(f"[{guild_name}] Error ejecutando purga {purga_id}: {e}")
 
     async def _execute_purga(self, guild_id: int, purga_id: int) -> None:
         """Ejecutar una purga.
@@ -1512,6 +1517,7 @@ class PurgaCog(commands.Cog):
             return
 
         custom_id: str = str(interaction.data.get("custom_id", "") if interaction.data else "")
+        guild_name = interaction.guild.name if interaction.guild else "DM"
 
         # Manejar botón de autorizar: purga:authorize:{purga_id}
         if custom_id.startswith("purga:authorize:"):
@@ -1519,7 +1525,7 @@ class PurgaCog(commands.Cog):
                 purga_id = int(custom_id.split(":")[2])
                 await self._handle_authorize(interaction=interaction, purga_id=purga_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID inválido para authorize: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID inválido para authorize: {custom_id}")
             return
 
         # Manejar botón de cancelar: purga:cancel:{purga_id}
@@ -1528,7 +1534,7 @@ class PurgaCog(commands.Cog):
                 purga_id = int(custom_id.split(":")[2])
                 await self._handle_cancel(interaction=interaction, purga_id=purga_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID inválido para cancel: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID inválido para cancel: {custom_id}")
             return
 
         # Manejar botón de confirmar: purga:confirm:{purga_id}
@@ -1537,7 +1543,7 @@ class PurgaCog(commands.Cog):
                 purga_id = int(custom_id.split(":")[2])
                 await self._handle_confirm(interaction=interaction, purga_id=purga_id)
             except (ValueError, IndexError):
-                logger.error(f"Custom ID inválido para confirm: {custom_id}")
+                logger.error(f"[{guild_name}] Custom ID inválido para confirm: {custom_id}")
             return
 
     # =========================================================================

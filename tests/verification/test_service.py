@@ -98,7 +98,12 @@ class TestVerificationService:
             guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
-        await service.approve(request_id=request.id, reviewer_id=789, reviewer_username="Mod")
+        await service.approve(
+            request_id=request.id,
+            reviewer_id=789,
+            reviewer_username="Mod",
+            guild_name="Test Guild",
+        )
 
         pending = await service.get_pending_by_user(guild_id=123, user_id=456)
         assert pending is None
@@ -222,7 +227,12 @@ class TestVerificationService:
             guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
-        await service.approve(request_id=request1.id, reviewer_id=999, reviewer_username="Mod")
+        await service.approve(
+            request_id=request1.id,
+            reviewer_id=999,
+            reviewer_username="Mod",
+            guild_name="Test Guild",
+        )
 
         # Crear solicitud y actualizarla a PENDING_REVIEW
         request2 = await service.create_request(
@@ -260,7 +270,12 @@ class TestVerificationService:
             guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
-        await service.approve(request_id=request1.id, reviewer_id=789, reviewer_username="Mod")
+        await service.approve(
+            request_id=request1.id,
+            reviewer_id=789,
+            reviewer_username="Mod",
+            guild_name="Test Guild",
+        )
 
         await service.create_request(
             guild_id=123,
@@ -351,7 +366,10 @@ class TestVerificationService:
         )
 
         approved = await service.approve(
-            request_id=request.id, reviewer_id=789, reviewer_username="ModUser"
+            request_id=request.id,
+            reviewer_id=789,
+            reviewer_username="ModUser",
+            guild_name="Test Guild",
         )
 
         assert approved is not None
@@ -363,7 +381,12 @@ class TestVerificationService:
     async def test_approve_not_found(self, test_session: AsyncSession) -> None:
         """Probar aprobacion de solicitud inexistente."""
         service = VerificationService(test_session)
-        result = await service.approve(request_id=99999, reviewer_id=789, reviewer_username="Mod")
+        result = await service.approve(
+            request_id=99999,
+            reviewer_id=789,
+            reviewer_username="Mod",
+            guild_name="Test Guild",
+        )
         assert result is None
 
     async def test_reject(self, test_session: AsyncSession) -> None:
@@ -383,6 +406,7 @@ class TestVerificationService:
             reviewer_id=789,
             reviewer_username="ModUser",
             reason="Capturas invalidas",
+            guild_name="Test Guild",
         )
 
         assert rejected is not None
@@ -396,7 +420,11 @@ class TestVerificationService:
         """Probar rechazo de solicitud inexistente."""
         service = VerificationService(test_session)
         result = await service.reject(
-            request_id=99999, reviewer_id=789, reviewer_username="Mod", reason="reason"
+            request_id=99999,
+            reviewer_id=789,
+            reviewer_username="Mod",
+            reason="reason",
+            guild_name="Test Guild",
         )
         assert result is None
 
@@ -412,7 +440,7 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
 
-        cancelled = await service.cancel(request.id)
+        cancelled = await service.cancel(request_id=request.id, guild_name="Test Guild")
 
         assert cancelled is not None
         assert cancelled.status == VerificationStatus.CANCELLED
@@ -420,7 +448,7 @@ class TestVerificationService:
     async def test_cancel_not_found(self, test_session: AsyncSession) -> None:
         """Probar cancelacion de solicitud inexistente."""
         service = VerificationService(test_session)
-        result = await service.cancel(99999)
+        result = await service.cancel(request_id=99999, guild_name="Test Guild")
         assert result is None
 
     async def test_different_guilds_isolated(self, test_session: AsyncSession) -> None:
@@ -469,10 +497,13 @@ class TestVerificationService:
             reviewer_id=789,
             reviewer_username="Auto",
             reason="Razon automatica",
+            guild_name="Test Guild",
         )
 
         # Revertir a pendiente de revision
-        reverted = await service.revert_to_pending_review(request.id)
+        reverted = await service.revert_to_pending_review(
+            request_id=request.id, guild_name="Test Guild"
+        )
 
         assert reverted is not None
         assert reverted.status == VerificationStatus.PENDING_REVIEW
@@ -494,14 +525,16 @@ class TestVerificationService:
         )
 
         # Intentar revertir sin rechazar primero
-        result = await service.revert_to_pending_review(request.id)
+        result = await service.revert_to_pending_review(
+            request_id=request.id, guild_name="Test Guild"
+        )
 
         assert result is None
 
     async def test_revert_to_pending_review_not_found(self, test_session: AsyncSession) -> None:
         """Probar reversion de solicitud inexistente."""
         service = VerificationService(test_session)
-        result = await service.revert_to_pending_review(99999)
+        result = await service.revert_to_pending_review(request_id=99999, guild_name="Test Guild")
         assert result is None
 
     async def test_get_latest_by_user(self, test_session: AsyncSession) -> None:
@@ -516,7 +549,7 @@ class TestVerificationService:
             guild_name="Test Guild",
             verification_type=VerificationType.REGULAR,
         )
-        await service.cancel(request1.id)
+        await service.cancel(request_id=request1.id, guild_name="Test Guild")
 
         # Crear segunda solicitud
         request2 = await service.create_request(
@@ -628,7 +661,12 @@ class TestVerificationService:
             request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
         await service.set_mod_message_id(request_id=request.id, message_id=789)
-        await service.approve(request_id=request.id, reviewer_id=999, reviewer_username="Mod")
+        await service.approve(
+            request_id=request.id,
+            reviewer_id=999,
+            reviewer_username="Mod",
+            guild_name="Test Guild",
+        )
 
         pending = await service.get_pending_with_mod_messages()
         assert pending == []
