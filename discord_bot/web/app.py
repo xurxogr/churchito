@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
@@ -65,6 +66,9 @@ def create_app(
         same_site="lax",
         https_only=settings.web.https_only,
     )
+    # ProxyHeadersMiddleware lee X-Forwarded-Proto y X-Forwarded-For
+    # para que FastAPI sepa el protocolo/IP real cuando está detrás de un proxy
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
     app.state.settings = settings
     app.state.db_service = db_service
