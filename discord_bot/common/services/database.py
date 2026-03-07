@@ -130,6 +130,10 @@ class DatabaseService:
             cursor.execute("PRAGMA journal_mode=WAL")
             # Habilitar foreign keys (deshabilitadas por defecto en SQLite)
             cursor.execute("PRAGMA foreign_keys=ON")
+            # Timeout para esperar cuando la BD está bloqueada (5 segundos)
+            cursor.execute("PRAGMA busy_timeout=5000")
+            # Modo synchronous NORMAL es seguro con WAL y más rápido
+            cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.close()
 
         # El evento se registra en el sync_engine subyacente
