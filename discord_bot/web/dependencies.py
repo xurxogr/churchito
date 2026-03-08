@@ -103,38 +103,29 @@ async def require_guild_access(
     if user_id in owner_ids:
         return user
 
-    # Find the user's guild data from OAuth
-    user_guild = None
-    for g in user.get("guilds", []):
-        if int(g.get("id", 0)) == guild_id:
-            user_guild = g
-            break
-
-    if not user_guild:
+    # 2. Check if bot is in the guild
+    bot = request.app.state.bot
+    discord_guild = bot.get_guild(guild_id) if bot else None
+    if not discord_guild:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No eres miembro de este servidor",
+            detail="No tienes permisos para gestionar este servidor",
         )
+
+    # 3. Check if user is guild owner
+    if discord_guild.owner_id == user_id:
+        return user
 
     # Get database info
     db_service = request.app.state.db_service
     async with db_service.session() as session:
-        # Get guild from database
+        # 4. Check if user is the one who invited the bot
         result = await session.execute(select(GuildModel).where(GuildModel.id == guild_id))
         db_guild = result.scalar_one_or_none()
-
-        # 2. Check if user is the one who invited the bot
         if db_guild and db_guild.invited_by_id == user_id:
             return user
 
-        # 3. Check if user is guild owner
-        # Discord sends owner info in the guild object from OAuth
-        # The "owner" field is True if the user owns the guild
-        if user_guild.get("owner"):
-            return user
-
-        # 4. Check if user has one of the configured admin roles
-        # Get admin_roles config for this guild
+        # 5. Check if user has one of the configured admin roles
         result = await session.execute(
             select(GuildConfig.value).where(
                 GuildConfig.guild_id == guild_id,
@@ -145,24 +136,18 @@ async def require_guild_access(
         admin_roles_config = result.scalar_one_or_none()
 
         if admin_roles_config:
-            admin_role_ids = set(admin_roles_config)  # List of role IDs
-
-            # Get user's roles in this guild from the bot
-            bot = request.app.state.bot
-            if bot:
-                discord_guild = bot.get_guild(guild_id)
-                if discord_guild:
-                    # Try cache first, then fetch from API if not cached
-                    member = discord_guild.get_member(user_id)
-                    if not member:
-                        try:
-                            member = await discord_guild.fetch_member(user_id)
-                        except Exception:
-                            member = None
-                    if member:
-                        user_role_ids = {role.id for role in member.roles}
-                        if user_role_ids & admin_role_ids:
-                            return user
+            admin_role_ids = set(admin_roles_config)
+            # Try cache first, then fetch from API if not cached
+            member = discord_guild.get_member(user_id)
+            if not member:
+                try:
+                    member = await discord_guild.fetch_member(user_id)
+                except Exception:
+                    member = None
+            if member:
+                user_role_ids = {role.id for role in member.roles}
+                if user_role_ids & admin_role_ids:
+                    return user
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

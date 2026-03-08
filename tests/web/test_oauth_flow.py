@@ -47,43 +47,11 @@ class TestOAuthCallbackFlow:
         }
         mock_user_response.raise_for_status = MagicMock()
 
-        mock_guilds_response = MagicMock()
-        mock_guilds_response.json.return_value = [
-            {
-                "id": "111",
-                "name": "Guild with manage",
-                "icon": None,
-                "permissions": str(0x20),
-                "owner": False,
-            },
-            {
-                "id": "222",
-                "name": "Guild without perms",
-                "icon": None,
-                "permissions": "0",
-                "owner": False,
-            },
-            {
-                "id": "333",
-                "name": "Owner guild",
-                "icon": "icon",
-                "permissions": "0",
-                "owner": True,
-            },
-            {
-                "id": "444",
-                "name": "Admin guild",
-                "icon": None,
-                "permissions": str(0x8),
-                "owner": False,
-            },
-        ]
-        mock_guilds_response.raise_for_status = MagicMock()
-
         with patch("discord_bot.web.auth.oauth.httpx.AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.post.return_value = mock_token_response
-            mock_instance.get.side_effect = [mock_user_response, mock_guilds_response]
+            # Only user info is fetched now (no guilds)
+            mock_instance.get.return_value = mock_user_response
             mock_instance.__aenter__.return_value = mock_instance
             mock_instance.__aexit__.return_value = None
             mock_client.return_value = mock_instance
@@ -93,21 +61,12 @@ class TestOAuthCallbackFlow:
             assert response.status_code == 303
             assert response.headers["location"] == "/dashboard"
 
-            # Verificar que se guardó el usuario en sesión
+            # Verificar que se guardó el usuario en sesión (no guilds - too large for cookie)
             user = mock_request.session["user"]
             assert user["id"] == "123456789"
             assert user["username"] == "testuser"
             assert user["avatar"] == "abc123"
-
-            # Verificar que se guardaron TODOS los guilds (el filtro de acceso
-            # se hace en el dashboard, no en OAuth)
-            guilds = user["guilds"]
-            assert len(guilds) == 4
-            guild_ids = [g["id"] for g in guilds]
-            assert "111" in guild_ids
-            assert "222" in guild_ids
-            assert "333" in guild_ids
-            assert "444" in guild_ids
+            assert "guilds" not in user  # Guilds are no longer stored in session
 
     async def test_callback_http_error(self, mock_request: MagicMock, simple_app: FastAPI) -> None:
         """Probar callback con error HTTP."""

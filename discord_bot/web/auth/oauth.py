@@ -39,7 +39,7 @@ async def login(request: Request) -> RedirectResponse:
         "client_id": settings.client_id,
         "redirect_uri": settings.redirect_uri,
         "response_type": "code",
-        "scope": "identify guilds",
+        "scope": "identify",
         "state": state,
     }
 
@@ -110,34 +110,15 @@ async def callback(
             user_response.raise_for_status()
             user_data = user_response.json()
 
-            guilds_response = await client.get(
-                f"{DISCORD_API_BASE}/users/@me/guilds",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            guilds_response.raise_for_status()
-            guilds_data = guilds_response.json()
-
-        # Store all guilds - access control is handled in dashboard via admin_roles
-        all_guilds = [
-            {
-                "id": g["id"],
-                "name": g["name"],
-                "icon": g.get("icon"),
-                "permissions": str(g.get("permissions", 0)),
-                "owner": g.get("owner", False),
-            }
-            for g in guilds_data
-        ]
-
+        # Store only user info in session (small, fits in cookie)
+        # Guild membership is verified via bot when needed
         request.session["user"] = {
             "id": user_data["id"],
             "username": user_data["username"],
             "avatar": user_data.get("avatar"),
-            "guilds": all_guilds,
         }
 
         logger.info(f"Usuario autenticado: {user_data['username']} (ID: {user_data['id']})")
-        logger.debug(f"Guilds del usuario: {len(all_guilds)}")
 
         # Use status_code=303 (See Other) to ensure proper redirect after POST-like operation
         return RedirectResponse(url=f"{root_path}/dashboard", status_code=303)

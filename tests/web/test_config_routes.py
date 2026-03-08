@@ -146,7 +146,7 @@ class TestGuildConfig:
             await guild_config(mock_config_request, 999888777, test_user, test_session)
 
         assert exc_info.value.status_code == 404
-        assert "no está en este servidor" in exc_info.value.detail
+        assert "No tienes permisos" in exc_info.value.detail
 
     async def test_guild_config_no_bot(
         self,

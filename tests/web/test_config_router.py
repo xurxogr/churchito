@@ -62,14 +62,24 @@ class TestGetTemplates:
 class TestGetGuildInfo:
     """Tests para _get_guild_info."""
 
-    def test_returns_guild_when_found(self, test_user: dict[str, Any]) -> None:
+    def test_returns_guild_when_found(self) -> None:
         """Probar que retorna info del guild cuando existe."""
-        result = _get_guild_info(test_user, 111222333)
+        mock_bot = MagicMock()
+        mock_guild = MagicMock()
+        mock_guild.id = 111222333
+        mock_guild.name = "Test Guild"
+        mock_guild.icon = None
+        mock_bot.get_guild.return_value = mock_guild
+
+        result = _get_guild_info(mock_bot, 111222333)
         assert result["name"] == "Test Guild"
 
-    def test_returns_default_when_not_found(self, test_user: dict[str, Any]) -> None:
+    def test_returns_default_when_not_found(self) -> None:
         """Probar que retorna info por defecto cuando no existe."""
-        result = _get_guild_info(test_user, 999999)
+        mock_bot = MagicMock()
+        mock_bot.get_guild.return_value = None
+
+        result = _get_guild_info(mock_bot, 999999)
         assert result["id"] == "999999"
         assert "Servidor" in result["name"]
 

@@ -1,6 +1,5 @@
 """Tests para el router de dashboard."""
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from discord_bot.web.routers.dashboard import (
     _check_guild_access,
-    _get_guild_access,
     get_templates,
     router,
 )
@@ -54,88 +52,6 @@ class TestGetTemplates:
         assert templates is not None
 
 
-class TestGetGuildAccess:
-    """Tests para _get_guild_access."""
-
-    def test_owner_has_access_to_any_guild_bot_is_in(
-        self, simple_app: FastAPI, test_user: dict[str, Any]
-    ) -> None:
-        """Probar que owner tiene acceso a cualquier guild donde está el bot."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = [123456789]
-
-        # Mock bot with guild
-        mock_guild = MagicMock()
-        mock_guild.id = 999999
-        mock_guild.name = "Bot Guild"
-        mock_guild.icon = None
-        simple_app.state.bot.get_guild = MagicMock(return_value=mock_guild)
-
-        result = _get_guild_access(request, 999999, test_user)
-        assert result is not None
-        assert result["id"] == "999999"
-        assert result["name"] == "Bot Guild"
-
-    def test_owner_no_access_if_bot_not_in_guild(
-        self, simple_app: FastAPI, test_user: dict[str, Any]
-    ) -> None:
-        """Probar que owner no tiene acceso si el bot no está en el guild."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = [123456789]
-
-        # Bot not in guild
-        simple_app.state.bot.get_guild = MagicMock(return_value=None)
-
-        result = _get_guild_access(request, 999999, test_user)
-        assert result is None
-
-    def test_owner_no_access_if_bot_is_none(
-        self, simple_app: FastAPI, test_user: dict[str, Any]
-    ) -> None:
-        """Probar que owner no tiene acceso si el bot es None."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = [123456789]
-        simple_app.state.bot = None
-
-        result = _get_guild_access(request, 999999, test_user)
-        assert result is None
-
-    def test_user_with_manage_guild_has_access(
-        self, simple_app: FastAPI, test_user: dict[str, Any]
-    ) -> None:
-        """Probar que usuario con MANAGE_GUILD tiene acceso."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = []
-
-        result = _get_guild_access(request, 111222333, test_user)
-        assert result is not None
-        assert result["name"] == "Test Guild"
-
-    def test_user_without_permission_denied(
-        self, simple_app: FastAPI, test_user: dict[str, Any]
-    ) -> None:
-        """Probar que usuario sin permisos es denegado."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = []
-
-        result = _get_guild_access(request, 444555666, test_user)
-        assert result is None
-
-    def test_user_not_in_guild_denied(self, simple_app: FastAPI, test_user: dict[str, Any]) -> None:
-        """Probar que usuario no en el guild es denegado."""
-        request = MagicMock()
-        request.app = simple_app
-        simple_app.state.settings.web.owner_ids = []
-
-        result = _get_guild_access(request, 999999, test_user)
-        assert result is None
-
-
 class TestCheckGuildAccess:
     """Tests para _check_guild_access."""
 
@@ -144,7 +60,6 @@ class TestCheckGuildAccess:
         """Probar que bot owner siempre tiene acceso."""
         session = MagicMock()
         bot = MagicMock()
-        user: dict[str, Any] = {"id": "123456789"}
 
         result = await _check_guild_access(
             session=session,
@@ -152,8 +67,6 @@ class TestCheckGuildAccess:
             guild_id=999999,
             user_id=123456789,
             is_bot_owner=True,
-            is_guild_owner=False,
-            user=user,
         )
 
         assert result is True
@@ -163,7 +76,10 @@ class TestCheckGuildAccess:
         """Probar que guild owner siempre tiene acceso."""
         session = MagicMock()
         bot = MagicMock()
-        user: dict[str, Any] = {"id": "123456789"}
+        # Guild owner is checked via discord_guild.owner_id
+        mock_guild = MagicMock()
+        mock_guild.owner_id = 123456789
+        bot.get_guild.return_value = mock_guild
 
         result = await _check_guild_access(
             session=session,
@@ -171,8 +87,6 @@ class TestCheckGuildAccess:
             guild_id=999999,
             user_id=123456789,
             is_bot_owner=False,
-            is_guild_owner=True,
-            user=user,
         )
 
         assert result is True

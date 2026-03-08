@@ -83,28 +83,12 @@ def test_user() -> dict[str, Any]:
     """Crear usuario de prueba.
 
     Returns:
-        dict[str, Any]: Datos del usuario
+        dict[str, Any]: Datos del usuario (no guilds - stored in bot cache)
     """
     return {
         "id": "123456789",
         "username": "testuser",
         "avatar": None,
-        "guilds": [
-            {
-                "id": "111222333",
-                "name": "Test Guild",
-                "icon": None,
-                "permissions": str(0x20),  # MANAGE_GUILD
-                "owner": False,
-            },
-            {
-                "id": "444555666",
-                "name": "Another Guild",
-                "icon": None,
-                "permissions": "0",
-                "owner": False,
-            },
-        ],
     }
 
 

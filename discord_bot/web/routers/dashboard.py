@@ -106,8 +106,6 @@ async def _check_guild_access(
     guild_id: int,
     user_id: int,
     is_bot_owner: bool,
-    is_guild_owner: bool,
-    user: dict[str, Any],
 ) -> bool:
     """Check if user has access to configure a guild.
 
@@ -117,8 +115,6 @@ async def _check_guild_access(
         guild_id: Guild ID to check
         user_id: User ID
         is_bot_owner: Whether user is bot owner
-        is_guild_owner: Whether user is guild owner
-        user: User data from OAuth
 
     Returns:
         bool: True if user has access
@@ -127,8 +123,12 @@ async def _check_guild_access(
     if is_bot_owner:
         return True
 
+    discord_guild = bot.get_guild(guild_id) if bot else None
+    if not discord_guild:
+        return False
+
     # Guild owners always have access
-    if is_guild_owner:
+    if discord_guild.owner_id == user_id:
         return True
 
     # Check if user invited the bot
@@ -149,19 +149,17 @@ async def _check_guild_access(
 
     if admin_roles_config:
         admin_role_ids = set(admin_roles_config)
-        discord_guild = bot.get_guild(guild_id)
-        if discord_guild:
-            # Try cache first, then fetch from API if not cached
-            member = discord_guild.get_member(user_id)
-            if not member:
-                try:
-                    member = await discord_guild.fetch_member(user_id)
-                except Exception:
-                    member = None
-            if member:
-                user_role_ids = {role.id for role in member.roles}
-                if user_role_ids & admin_role_ids:
-                    return True
+        # Try cache first, then fetch from API if not cached
+        member = discord_guild.get_member(user_id)
+        if not member:
+            try:
+                member = await discord_guild.fetch_member(user_id)
+            except Exception:
+                member = None
+        if member:
+            user_role_ids = {role.id for role in member.roles}
+            if user_role_ids & admin_role_ids:
+                return True
 
     return False
 
@@ -191,51 +189,39 @@ async def dashboard(
 
     manageable_guilds = []
 
-    # Bot owners see ALL guilds the bot is in
-    if is_owner and bot:
-        logger.debug(f"Usuario es owner, mostrando todos los {len(bot.guilds)} guilds del bot")
+    # Check all guilds the bot is in
+    # For each guild, verify user membership and access via bot (no OAuth data needed)
+    if bot:
+        logger.debug(f"Verificando acceso en {len(bot.guilds)} guilds del bot")
         for discord_guild in bot.guilds:
-            manageable_guilds.append(
-                {
-                    "id": str(discord_guild.id),
-                    "name": discord_guild.name,
-                    "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
-                    "bot_present": True,
-                    "has_access": True,
-                }
-            )
-    else:
-        # Non-owners: check guilds from OAuth
-        user_guilds = user.get("guilds", [])
-        logger.debug(f"Usuario tiene {len(user_guilds)} guilds en Discord")
-
-        for guild in user_guilds:
-            is_guild_owner = guild.get("owner", False)
-            guild_id = int(guild.get("id", 0))
-            bot_in_guild = bot and any(g.id == guild_id for g in bot.guilds)
-
-            # Only check access for guilds where bot is present
-            if not bot_in_guild:
+            # Bot owners see all guilds
+            if is_owner:
+                manageable_guilds.append(
+                    {
+                        "id": str(discord_guild.id),
+                        "name": discord_guild.name,
+                        "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
+                        "bot_present": True,
+                        "has_access": True,
+                    }
+                )
                 continue
 
-            logger.debug(f"Guild {guild['name']} (ID: {guild_id}): bot_in_guild={bot_in_guild}")
-
+            # For non-owners, check if user has access to this guild
             has_access = await _check_guild_access(
                 session=session,
                 bot=bot,
-                guild_id=guild_id,
+                guild_id=discord_guild.id,
                 user_id=user_id,
                 is_bot_owner=False,
-                is_guild_owner=is_guild_owner,
-                user=user,
             )
 
             if has_access:
                 manageable_guilds.append(
                     {
-                        "id": guild["id"],
-                        "name": guild["name"],
-                        "icon": guild.get("icon"),
+                        "id": str(discord_guild.id),
+                        "name": discord_guild.name,
+                        "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
                         "bot_present": True,
                         "has_access": True,
                     }
@@ -266,43 +252,3 @@ async def dashboard(
             "bot": bot_info,
         },
     )
-
-
-def _get_guild_access(
-    request: Request, guild_id: int, user: dict[str, Any]
-) -> dict[str, Any] | None:
-    """Verificar acceso al guild (versión síncrona para usar en template).
-
-    Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        user (dict[str, Any]): Usuario autenticado
-
-    Returns:
-        dict[str, Any] | None: Datos del guild o None si no tiene acceso
-    """
-    owner_ids = request.app.state.settings.web.owner_ids
-    user_id = int(user.get("id", 0))
-    bot = request.app.state.bot
-
-    # Bot owners can access any guild the bot is in
-    if user_id in owner_ids:
-        if not bot:
-            return None
-        discord_guild = bot.get_guild(guild_id)
-        if not discord_guild:
-            return None
-        return {
-            "id": str(discord_guild.id),
-            "name": discord_guild.name,
-            "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
-        }
-
-    guilds: list[dict[str, Any]] = user.get("guilds", [])
-    for guild in guilds:
-        if int(guild.get("id", 0)) == guild_id:
-            permissions = int(guild.get("permissions", 0))
-            if permissions & 0x20:
-                return guild
-
-    return None

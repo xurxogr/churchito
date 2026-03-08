@@ -73,20 +73,24 @@ async def guild_access_dep(
 GuildAccess = Annotated[dict[str, Any], Depends(guild_access_dep)]
 
 
-def _get_guild_info(user: dict[str, Any], guild_id: int) -> dict[str, Any]:
-    """Obtener información del guild.
+def _get_guild_info(bot: Any, guild_id: int) -> dict[str, Any]:
+    """Obtener información del guild desde el bot.
 
     Args:
-        user (dict[str, Any]): Usuario autenticado
+        bot: Bot instance
         guild_id (int): ID del guild
 
     Returns:
         dict[str, Any]: Información del guild
     """
-    guilds: list[dict[str, Any]] = user.get("guilds", [])
-    for guild in guilds:
-        if int(guild.get("id", 0)) == guild_id:
-            return guild
+    if bot:
+        discord_guild = bot.get_guild(guild_id)
+        if discord_guild:
+            return {
+                "id": str(discord_guild.id),
+                "name": discord_guild.name,
+                "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
+            }
     return {"id": str(guild_id), "name": f"Servidor {guild_id}"}
 
 
@@ -142,7 +146,7 @@ async def guild_config(
     if not bot or not bot.get_guild(guild_id):
         raise HTTPException(
             status_code=404,
-            detail="El bot no está en este servidor",
+            detail="No tienes permisos para gestionar este servidor",
         )
 
     schema_service = get_config_schema_service()
@@ -174,7 +178,7 @@ async def guild_config(
             }
         )
 
-    guild_info = _get_guild_info(user, guild_id)
+    guild_info = _get_guild_info(request.app.state.bot, guild_id)
     templates = get_templates(request)
 
     return templates.TemplateResponse(
