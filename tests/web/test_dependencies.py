@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 
 from discord_bot.web.dependencies import (
+    NotAuthenticatedException,
     get_current_user,
     get_db_session,
     require_auth,
@@ -62,9 +63,8 @@ class TestRequireAuth:
 
     async def test_raises_when_not_authenticated(self) -> None:
         """Probar que lanza excepción cuando no está autenticado."""
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotAuthenticatedException):
             await require_auth(None)
-        assert exc_info.value.status_code == 401
 
 
 class TestRequireGuildAccess:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -15,6 +15,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.web.auth.oauth import router as auth_router
+from discord_bot.web.dependencies import NotAuthenticatedException
 from discord_bot.web.middleware import CSRFMiddleware, RateLimitMiddleware
 from discord_bot.web.routers.config import router as config_router
 from discord_bot.web.routers.dashboard import router as dashboard_router
@@ -84,6 +85,14 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(dashboard_router)
     app.include_router(config_router)
+
+    @app.exception_handler(NotAuthenticatedException)
+    async def not_authenticated_handler(
+        request: Request, exc: NotAuthenticatedException
+    ) -> RedirectResponse:
+        """Handle not authenticated by redirecting to login."""
+        root_path = request.scope.get("root_path", "")
+        return RedirectResponse(url=f"{root_path}/login", status_code=303)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:

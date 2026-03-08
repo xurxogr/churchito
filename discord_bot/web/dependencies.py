@@ -14,6 +14,16 @@ from discord_bot.common.models import GuildConfig
 logger = logging.getLogger(__name__)
 
 
+class NotAuthenticatedException(Exception):
+    """Excepción para indicar que el usuario no está autenticado.
+
+    Se usa en lugar de HTTPException para permitir redirección al login
+    en lugar de mostrar una página de error 401.
+    """
+
+    pass
+
+
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """Obtener una sesión de base de datos.
 
@@ -55,13 +65,10 @@ async def require_auth(
         dict[str, Any]: Datos del usuario
 
     Raises:
-        HTTPException: Si no está autenticado
+        NotAuthenticatedException: Si no está autenticado (resulta en redirección a login)
     """
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No autenticado",
-        )
+        raise NotAuthenticatedException()
     return user
 
 
