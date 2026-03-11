@@ -17,6 +17,7 @@ from discord_bot.common.services.database import DatabaseService
 from discord_bot.web.auth.oauth import router as auth_router
 from discord_bot.web.dependencies import NotAuthenticatedException
 from discord_bot.web.middleware import (
+    ContentSizeLimitMiddleware,
     CSRFMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -88,6 +89,9 @@ def create_app(
         ProxyHeadersMiddleware,
         trusted_hosts=settings.web.trusted_hosts or ["127.0.0.1"],
     )
+    # ContentSizeLimitMiddleware se añade último para procesar primero
+    # y rechazar bodies grandes antes de otro procesamiento
+    app.add_middleware(ContentSizeLimitMiddleware)
 
     app.state.settings = settings
     app.state.db_service = db_service
