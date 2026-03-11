@@ -1,12 +1,13 @@
 """Tests para el flujo completo de OAuth."""
 
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 from fastapi import FastAPI, Request
 
-from discord_bot.web.auth.oauth import callback
+from discord_bot.web.auth.oauth import OAUTH_STATE_MAX_AGE, callback
 
 
 class TestOAuthCallbackFlow:
@@ -24,7 +25,12 @@ class TestOAuthCallbackFlow:
         """
         request = MagicMock(spec=Request)
         request.app = simple_app
-        request.session = {"oauth_state": "valid_state"}
+        request.session = {
+            "oauth_state": {
+                "value": "valid_state",
+                "created_at": time.time(),
+            }
+        }
         request.scope = {"root_path": ""}
         return request
 
@@ -128,3 +134,17 @@ class TestOAuthCallbackFlow:
         response = await callback(mock_request, code="test", state="any")
         assert response.status_code == 307
         assert "error=invalid_state" in response.headers["location"]
+
+    async def test_callback_expired_state(self, mock_request: MagicMock) -> None:
+        """Probar callback con state expirado."""
+        mock_request.session = {
+            "oauth_state": {
+                "value": "valid_state",
+                "created_at": time.time() - OAUTH_STATE_MAX_AGE - 1,
+            }
+        }
+        response = await callback(mock_request, code="test", state="valid_state")
+        assert response.status_code == 307
+        assert "error=state_expired" in response.headers["location"]
+        # Verificar que se limpió el state de la sesión
+        assert "oauth_state" not in mock_request.session

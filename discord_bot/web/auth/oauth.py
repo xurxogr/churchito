@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -15,6 +16,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
 DISCORD_OAUTH_TOKEN = "https://discord.com/api/oauth2/token"
+
+# Tiempo máximo para completar el flujo OAuth (10 minutos)
+OAUTH_STATE_MAX_AGE = 600
 
 
 @router.get("/login")
@@ -33,7 +37,10 @@ async def login(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=500, detail="OAuth no configurado")
 
     state = secrets.token_urlsafe(32)
-    request.session["oauth_state"] = state
+    request.session["oauth_state"] = {
+        "value": state,
+        "created_at": time.time(),
+    }
 
     params = {
         "client_id": settings.client_id,
@@ -76,7 +83,20 @@ async def callback(
     if not code:
         return RedirectResponse(url=f"{root_path}/login?error=no_code")
 
-    stored_state = request.session.get("oauth_state")
+    stored_state_data = request.session.get("oauth_state")
+    if not stored_state_data or not isinstance(stored_state_data, dict):
+        logger.warning("Estado OAuth no encontrado en sesión")
+        return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
+
+    stored_state = stored_state_data.get("value")
+    created_at = stored_state_data.get("created_at", 0)
+
+    # Verificar que el state no ha expirado
+    if time.time() - created_at > OAUTH_STATE_MAX_AGE:
+        logger.warning("Estado OAuth expirado")
+        request.session.pop("oauth_state", None)
+        return RedirectResponse(url=f"{root_path}/login?error=state_expired")
+
     if not state or state != stored_state:
         logger.warning("Estado OAuth inválido")
         return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
