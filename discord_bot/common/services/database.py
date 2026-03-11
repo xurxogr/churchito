@@ -124,7 +124,7 @@ class DatabaseService:
             engine: Motor de SQLAlchemy
         """
 
-        def set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-untyped-def]
+        def set_sqlite_pragma(dbapi_connection, _connection_record):  # type: ignore[no-untyped-def]
             cursor = dbapi_connection.cursor()
             # WAL mode: mejor rendimiento en lecturas/escrituras concurrentes
             cursor.execute("PRAGMA journal_mode=WAL")
