@@ -16,7 +16,7 @@ class WebSettings(BaseModel):
     )
     host: str = Field(
         description="Host para el servidor web",
-        default="0.0.0.0",
+        default="0.0.0.0",  # noqa: S104 - Intentional for server binding
     )
     port: int = Field(
         description="Puerto para el servidor web",
@@ -98,7 +98,7 @@ class WebSettings(BaseModel):
         json_schema_extra={
             "example": {
                 "enabled": True,
-                "host": "0.0.0.0",
+                "host": "0.0.0.0",  # noqa: S104
                 "port": 8000,
                 "root_path": "/bot",
                 "secret_key": "tu-clave-secreta-aqui",

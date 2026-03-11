@@ -15,7 +15,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
-DISCORD_OAUTH_TOKEN = "https://discord.com/api/oauth2/token"
+DISCORD_OAUTH_TOKEN_URL = "https://discord.com/api/oauth2/token"  # noqa: S105
 
 # Tiempo máximo para completar el flujo OAuth (10 minutos)
 OAUTH_STATE_MAX_AGE = 600
@@ -108,7 +108,7 @@ async def callback(
     try:
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
-                DISCORD_OAUTH_TOKEN,
+                DISCORD_OAUTH_TOKEN_URL,
                 data={
                     "client_id": settings.client_id,
                     "client_secret": settings.client_secret,

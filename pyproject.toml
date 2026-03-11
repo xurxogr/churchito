@@ -60,6 +60,10 @@ dev = [
     "mypy>=1.18.2",
     "ruff>=0.14.1",
     "pre-commit>=3.5.0",
+
+    # Security & Code Analysis
+    "vulture>=2.14",
+    "pip-audit>=2.9.0",
 ]
 
 [project.urls]
@@ -105,10 +109,16 @@ select = [
     "UP",     # pyupgrade
     "D",      # pydocstyle (docstring checks)
     "ASYNC",  # flake8-async (detect blocking calls in async functions)
+    "S",      # flake8-bandit (security checks)
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S104", "S105", "S106"]  # Tests use asserts, fake secrets, etc.
+"migrations/**/*.py" = ["S608"]  # SQL in migrations uses safe patterns
+"scripts/**/*.py" = ["S608"]  # SQL in scripts is intentional
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

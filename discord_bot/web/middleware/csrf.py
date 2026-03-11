@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-CSRF_TOKEN_KEY = "csrf_token"
+CSRF_TOKEN_KEY = "csrf_token"  # noqa: S105 - Key name, not a secret
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_FORM_FIELD = "csrf_token"
 
