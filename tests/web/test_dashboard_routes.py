@@ -141,7 +141,7 @@ class TestDashboardRoutes:
     ) -> None:
         """Probar dashboard para owner del bot."""
         # Setup owner
-        mock_request_with_user.app.state.settings.web.owner_ids = [123456789]
+        mock_request_with_user.app.state.settings.web.owner_ids = [123456789012345678]
 
         # Setup mock templates
         mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
@@ -296,13 +296,13 @@ class TestCheckGuildAccess:
     ) -> None:
         """Probar que el owner del guild tiene acceso."""
         # User is guild owner
-        mock_bot.get_guild.return_value.owner_id = 123456789
+        mock_bot.get_guild.return_value.owner_id = 123456789012345678
 
         result = await _check_guild_access(
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
@@ -318,7 +318,7 @@ class TestCheckGuildAccess:
         """Probar que quien invitó al bot tiene acceso."""
         # Mock Guild con invited_by_id
         mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = 123456789  # El usuario invitó al bot
+        mock_guild_record.invited_by_id = 123456789012345678  # El usuario invitó al bot
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_guild_record
@@ -328,7 +328,7 @@ class TestCheckGuildAccess:
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
@@ -371,7 +371,7 @@ class TestCheckGuildAccess:
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
@@ -400,7 +400,7 @@ class TestCheckGuildAccess:
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
@@ -439,7 +439,7 @@ class TestCheckGuildAccess:
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
@@ -458,7 +458,7 @@ class TestCheckGuildAccess:
             session=mock_session,
             bot=mock_bot,
             guild_id=111222333,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 

@@ -95,7 +95,7 @@ class TestRequireGuildAccess:
         """Probar que el owner tiene acceso a cualquier guild."""
         request = MagicMock()
         request.app = simple_app
-        simple_app.state.settings.web.owner_ids = [123456789]
+        simple_app.state.settings.web.owner_ids = [123456789012345678]
 
         result = await require_guild_access(request, 999999, test_user)
         assert result == test_user
@@ -115,7 +115,7 @@ class TestRequireGuildAccess:
 
         # Mock DB guild with invited_by_id matching the user
         mock_db_guild = MagicMock()
-        mock_db_guild.invited_by_id = 123456789  # Same as test_user id
+        mock_db_guild.invited_by_id = 123456789012345678  # Same as test_user id
         self._setup_db_mock(simple_app, guild=mock_db_guild)
 
         result = await require_guild_access(request, 111222333, test_user)
@@ -131,7 +131,7 @@ class TestRequireGuildAccess:
 
         # Mock discord guild where user is owner
         mock_discord_guild = MagicMock()
-        mock_discord_guild.owner_id = 123456789  # User is guild owner
+        mock_discord_guild.owner_id = 123456789012345678  # User is guild owner
         simple_app.state.bot.get_guild.return_value = mock_discord_guild
 
         result = await require_guild_access(request, 111222333, test_user)

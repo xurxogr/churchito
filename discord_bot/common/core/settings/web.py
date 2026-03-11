@@ -1,6 +1,10 @@
 """Configuración del dashboard web."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Discord snowflake mínimo válido (aproximadamente enero 2015)
+# Los snowflakes de Discord codifican timestamp desde su epoch (1420070400000)
+MIN_DISCORD_SNOWFLAKE = 10_000_000_000_000_000  # ~17 dígitos mínimo
 
 
 class WebSettings(BaseModel):
@@ -66,6 +70,28 @@ class WebSettings(BaseModel):
         ),
         default=True,
     )
+
+    @field_validator("owner_ids")
+    @classmethod
+    def validate_owner_ids(cls, v: list[int]) -> list[int]:
+        """Validar que los owner_ids son Discord snowflakes válidos.
+
+        Args:
+            v (list[int]): Lista de IDs
+
+        Returns:
+            list[int]: Lista validada
+
+        Raises:
+            ValueError: Si algún ID no es un snowflake válido
+        """
+        for user_id in v:
+            if user_id < MIN_DISCORD_SNOWFLAKE:
+                raise ValueError(
+                    f"owner_id {user_id} no es un Discord snowflake válido "
+                    f"(debe ser >= {MIN_DISCORD_SNOWFLAKE})"
+                )
+        return v
 
     model_config = ConfigDict(
         extra="forbid",

@@ -256,7 +256,7 @@ class TestGuildAccessDep:
         """Probar que retorna usuario cuando tiene acceso."""
         request = MagicMock()
         request.app = simple_app
-        simple_app.state.settings.web.owner_ids = [123456789]
+        simple_app.state.settings.web.owner_ids = [123456789012345678]
 
         result = await guild_access_dep(request, 111222333, test_user)
         assert result == test_user

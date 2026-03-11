@@ -1,9 +1,12 @@
 """Tests para la configuración de devops."""
 
+import pytest
+
 from discord_bot.common.core import AppSettings, get_settings
 from discord_bot.common.core.settings.bot import BotSettings
 from discord_bot.common.core.settings.database import DatabaseSettings
 from discord_bot.common.core.settings.logging import LoggingSettings
+from discord_bot.common.core.settings.web import MIN_DISCORD_SNOWFLAKE, WebSettings
 
 
 def test_bot_settings_default() -> None:
@@ -53,3 +56,57 @@ def test_get_settings_singleton() -> None:
     settings2 = get_settings()
 
     assert settings1 is settings2
+
+
+class TestWebSettings:
+    """Tests para WebSettings."""
+
+    def test_web_settings_default(self) -> None:
+        """Probar opciones por defecto de WebSettings."""
+        settings = WebSettings()
+
+        assert settings.enabled is False
+        assert settings.host == "0.0.0.0"
+        assert settings.port == 8000
+        assert settings.owner_ids == []
+
+    def test_valid_owner_ids(self) -> None:
+        """Probar que owner_ids válidos son aceptados."""
+        valid_id = 123456789012345678  # 18 dígitos, válido
+        settings = WebSettings(owner_ids=[valid_id])
+
+        assert settings.owner_ids == [valid_id]
+
+    def test_multiple_valid_owner_ids(self) -> None:
+        """Probar múltiples owner_ids válidos."""
+        ids = [123456789012345678, 987654321098765432]
+        settings = WebSettings(owner_ids=ids)
+
+        assert settings.owner_ids == ids
+
+    def test_invalid_owner_id_too_small(self) -> None:
+        """Probar que owner_id muy pequeño es rechazado."""
+        invalid_id = 12345  # Muy pequeño para ser un snowflake
+
+        with pytest.raises(ValueError) as exc_info:
+            WebSettings(owner_ids=[invalid_id])
+
+        assert "snowflake válido" in str(exc_info.value)
+        assert str(invalid_id) in str(exc_info.value)
+
+    def test_invalid_owner_id_mixed(self) -> None:
+        """Probar que mezcla de IDs válidos e inválidos es rechazada."""
+        valid_id = 123456789012345678
+        invalid_id = 999
+
+        with pytest.raises(ValueError) as exc_info:
+            WebSettings(owner_ids=[valid_id, invalid_id])
+
+        assert str(invalid_id) in str(exc_info.value)
+
+    def test_min_discord_snowflake_constant(self) -> None:
+        """Probar que la constante MIN_DISCORD_SNOWFLAKE es razonable."""
+        # Debe ser al menos 17 dígitos (Discord empezó en 2015)
+        assert MIN_DISCORD_SNOWFLAKE >= 10**16
+        # Pero no demasiado grande
+        assert MIN_DISCORD_SNOWFLAKE < 10**18

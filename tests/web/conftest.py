@@ -28,7 +28,7 @@ def web_settings() -> WebSettings:
         client_id="test_client_id",
         client_secret="test_client_secret",
         redirect_uri="http://localhost:8000/auth/callback",
-        owner_ids=[123456789],
+        owner_ids=[123456789012345678],  # Valid Discord snowflake
     )
 
 
@@ -86,7 +86,7 @@ def test_user() -> dict[str, Any]:
         dict[str, Any]: Datos del usuario (no guilds - stored in bot cache)
     """
     return {
-        "id": "123456789",
+        "id": "123456789012345678",  # Valid Discord snowflake
         "username": "testuser",
         "avatar": None,
     }

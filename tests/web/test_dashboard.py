@@ -65,7 +65,7 @@ class TestCheckGuildAccess:
             session=session,
             bot=bot,
             guild_id=999999,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=True,
         )
 
@@ -78,14 +78,14 @@ class TestCheckGuildAccess:
         bot = MagicMock()
         # Guild owner is checked via discord_guild.owner_id
         mock_guild = MagicMock()
-        mock_guild.owner_id = 123456789
+        mock_guild.owner_id = 123456789012345678
         bot.get_guild.return_value = mock_guild
 
         result = await _check_guild_access(
             session=session,
             bot=bot,
             guild_id=999999,
-            user_id=123456789,
+            user_id=123456789012345678,
             is_bot_owner=False,
         )
 
