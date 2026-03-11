@@ -1,4 +1,12 @@
-"""Middleware de rate limiting para protección contra abuso."""
+"""Middleware de rate limiting para protección contra abuso.
+
+IMPORTANTE: Este rate limiter usa almacenamiento en memoria local.
+NO escala en despliegues multi-worker (cada worker tiene su propio estado).
+
+Para producción con múltiples workers, se recomienda:
+1. Desactivar este middleware (WEB__RATE_LIMIT_ENABLED=false)
+2. Usar rate limiting externo: nginx, HAProxy, Cloudflare, etc.
+"""
 
 import time
 from collections import defaultdict
@@ -8,6 +16,7 @@ from dataclasses import dataclass, field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 # Configuración de límites por ruta
 RATE_LIMITS: dict[str, tuple[int, int]] = {
@@ -48,13 +57,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Los límites se aplican por IP + ruta.
     """
 
-    def __init__(self, app: object) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         """Inicializar el middleware.
 
         Args:
-            app (object): Aplicación ASGI
+            app (ASGIApp): Aplicación ASGI
         """
-        super().__init__(app)  # type: ignore[arg-type]
+        super().__init__(app)
         # Estado por (ip, path_pattern)
         self._state: dict[tuple[str, str], RateLimitState] = defaultdict(RateLimitState)
         self._last_cleanup = time.time()

@@ -66,7 +66,13 @@ def create_app(
         SecurityHeadersMiddleware,
         https_only=settings.web.https_only,
     )
-    app.add_middleware(RateLimitMiddleware)
+    if settings.web.rate_limit_enabled:
+        app.add_middleware(RateLimitMiddleware)
+        logger.warning(
+            "Rate limiting interno habilitado. NOTA: Usa memoria local y NO escala "
+            "en despliegues multi-worker. Para producción con múltiples workers, "
+            "configurar WEB__RATE_LIMIT_ENABLED=false y usar rate limiting externo."
+        )
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(
         SessionMiddleware,

@@ -58,6 +58,14 @@ class WebSettings(BaseModel):
         ),
         default_factory=list,
     )
+    rate_limit_enabled: bool = Field(
+        description=(
+            "Habilitar rate limiting interno. NOTA: El rate limiter usa memoria local, "
+            "por lo que NO escala en despliegues multi-worker. En producción con múltiples "
+            "workers, desactivar esto y usar rate limiting externo (nginx, Cloudflare, etc.)."
+        ),
+        default=True,
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -75,6 +83,7 @@ class WebSettings(BaseModel):
                 "https_only": True,
                 "session_max_age": 7200,
                 "trusted_hosts": ["*"],
+                "rate_limit_enabled": False,
             }
         },
     )
