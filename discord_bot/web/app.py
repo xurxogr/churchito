@@ -16,7 +16,11 @@ from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.web.auth.oauth import router as auth_router
 from discord_bot.web.dependencies import NotAuthenticatedException
-from discord_bot.web.middleware import CSRFMiddleware, RateLimitMiddleware
+from discord_bot.web.middleware import (
+    CSRFMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from discord_bot.web.routers.config import router as config_router
 from discord_bot.web.routers.dashboard import router as dashboard_router
 
@@ -57,6 +61,11 @@ def create_app(
 
     # Middleware se procesa en orden inverso al que se añade
     # (el último añadido procesa primero)
+    # SecurityHeadersMiddleware se añade primero para que procese último (añade headers a respuesta)
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        https_only=settings.web.https_only,
+    )
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(
