@@ -1,5 +1,6 @@
 """Router para configuración de servidores."""
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -611,7 +612,7 @@ async def update_options_batch(
     try:
         body = await request.json()
         options_to_save: dict[str, str] = body.get("options", {})
-    except Exception:
+    except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="JSON inválido") from None
 
     if not options_to_save:

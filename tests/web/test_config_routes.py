@@ -1,5 +1,6 @@
 """Tests para las rutas de configuración."""
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1430,7 +1431,9 @@ class TestUpdateOptionsBatch:
         """Probar que JSON inválido retorna 400."""
         from discord_bot.web.routers.config import update_options_batch
 
-        mock_config_request.json = AsyncMock(side_effect=Exception("Invalid JSON"))
+        mock_config_request.json = AsyncMock(
+            side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             await update_options_batch(

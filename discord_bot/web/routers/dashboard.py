@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+import discord
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -154,7 +155,7 @@ async def _check_guild_access(
         if not member:
             try:
                 member = await discord_guild.fetch_member(user_id)
-            except Exception:
+            except discord.HTTPException:
                 member = None
         if member:
             user_role_ids = {role.id for role in member.roles}

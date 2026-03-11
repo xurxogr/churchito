@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
+import discord
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,7 +143,7 @@ async def require_guild_access(
             if not member:
                 try:
                     member = await discord_guild.fetch_member(user_id)
-                except Exception:
+                except discord.HTTPException:
                     member = None
             if member:
                 user_role_ids = {role.id for role in member.roles}

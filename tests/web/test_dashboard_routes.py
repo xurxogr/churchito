@@ -3,6 +3,7 @@
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
@@ -428,6 +429,9 @@ class TestCheckGuildAccess:
         mock_discord_guild = MagicMock()
         mock_discord_guild.owner_id = 0
         mock_discord_guild.get_member.return_value = None
+        mock_discord_guild.fetch_member = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "Member not found")
+        )
 
         mock_bot.get_guild.return_value = mock_discord_guild
 
