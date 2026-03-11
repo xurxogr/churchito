@@ -50,6 +50,14 @@ class WebSettings(BaseModel):
         description="Duración máxima de la sesión en segundos (default: 2 horas)",
         default=7200,
     )
+    trusted_hosts: list[str] = Field(
+        description=(
+            "Hosts de confianza para proxy headers (X-Forwarded-For, X-Forwarded-Proto). "
+            "Usar ['*'] si hay un proxy reverse delante que limpia estos headers. "
+            "Por defecto ['127.0.0.1'] si no se configura."
+        ),
+        default_factory=list,
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -66,6 +74,7 @@ class WebSettings(BaseModel):
                 "owner_ids": [123456789012345678],
                 "https_only": True,
                 "session_max_age": 7200,
+                "trusted_hosts": ["*"],
             }
         },
     )
