@@ -121,15 +121,43 @@ def create_app(
         """Handle HTTP exceptions with HTML error page."""
         templates: Jinja2Templates = app.state.templates
         root_path = request.scope.get("root_path", "")
+
+        # Para errores 5xx, no exponer detalles internos
+        if exc.status_code >= 500:
+            logger.error(f"Error {exc.status_code}: {exc.detail}")
+            detail = "Error interno del servidor"
+        else:
+            detail = exc.detail
+
         return templates.TemplateResponse(
             request=request,
             name="error.html",
             context={
                 "root_path": root_path,
                 "status_code": exc.status_code,
-                "detail": exc.detail,
+                "detail": detail,
             },
             status_code=exc.status_code,
+        )
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
+        """Handle unexpected exceptions with generic error page."""
+        templates: Jinja2Templates = app.state.templates
+        root_path = request.scope.get("root_path", "")
+
+        # Loguear el error real pero no exponerlo al usuario
+        logger.exception("Error no manejado")
+
+        return templates.TemplateResponse(
+            request=request,
+            name="error.html",
+            context={
+                "root_path": root_path,
+                "status_code": 500,
+                "detail": "Error interno del servidor",
+            },
+            status_code=500,
         )
 
     @app.get("/health")

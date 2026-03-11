@@ -103,3 +103,51 @@ class TestCreateApp:
 
         assert response.status_code == 403
         assert "text/html" in response.headers.get("content-type", "")
+        # El detalle de errores 4xx sí se muestra
+        assert "Test error" in response.text
+
+    def test_http_exception_handler_hides_5xx_details(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Probar que errores 5xx no exponen detalles internos."""
+        from fastapi import HTTPException
+
+        app = create_app(test_app_settings, mock_db_service)
+
+        @app.get("/test-server-error")
+        async def raise_server_error() -> None:
+            raise HTTPException(status_code=500, detail="Database connection failed: host=secret")
+
+        client = TestClient(app)
+        response = client.get("/test-server-error")
+
+        assert response.status_code == 500
+        # No debe exponer el detalle técnico
+        assert "Database" not in response.text
+        assert "secret" not in response.text
+        # Debe mostrar mensaje genérico
+        assert "Error interno" in response.text
+
+    def test_generic_exception_handler(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Probar que excepciones no manejadas no exponen detalles."""
+        app = create_app(test_app_settings, mock_db_service)
+
+        @app.get("/test-unhandled")
+        async def raise_unhandled() -> None:
+            raise ValueError("Sensitive internal error with secrets")
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/test-unhandled")
+
+        assert response.status_code == 500
+        # No debe exponer el error interno
+        assert "Sensitive" not in response.text
+        assert "secrets" not in response.text
+        # Debe mostrar mensaje genérico
+        assert "Error interno" in response.text
