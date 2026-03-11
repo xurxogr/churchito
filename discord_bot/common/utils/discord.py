@@ -6,6 +6,35 @@ import discord
 
 logger = logging.getLogger(__name__)
 
+# Dominios válidos para URLs de Discord CDN
+DISCORD_CDN_DOMAINS: frozenset[str] = frozenset(
+    {
+        "cdn.discordapp.com",
+        "media.discordapp.net",
+    }
+)
+
+
+def is_valid_discord_cdn_url(url: str) -> bool:
+    """Verificar que una URL es de Discord CDN.
+
+    Args:
+        url: URL a verificar
+
+    Returns:
+        True si es una URL válida de Discord CDN
+    """
+    if not url:
+        return False
+
+    if not url.startswith("https://"):
+        return False
+
+    # Extraer dominio (URL format: https://domain/path)
+    domain_part = url[8:]  # Remove "https://"
+    domain = domain_part.split("/")[0]
+    return domain in DISCORD_CDN_DOMAINS
+
 
 async def delete_message(
     guild: discord.Guild,

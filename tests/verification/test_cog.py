@@ -1587,7 +1587,7 @@ class TestOnMessage:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -1726,7 +1726,7 @@ class TestOnMessage:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -1856,7 +1856,7 @@ class TestOnMessage:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -5746,7 +5746,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -5866,7 +5866,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -5995,7 +5995,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6125,7 +6125,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6261,7 +6261,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6392,7 +6392,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6524,7 +6524,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6633,7 +6633,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6740,7 +6740,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -6868,7 +6868,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7012,7 +7012,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7145,7 +7145,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7252,7 +7252,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7361,7 +7361,7 @@ class TestAutoProcessingEdgeCases:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7507,7 +7507,7 @@ class TestHandleReviewRevertFails:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.VerificationService.revert_to_pending_review",
+                "discord_bot.verification.handlers.flow.VerificationService.revert_to_pending_review",
                 new_callable=AsyncMock,
             ) as mock_revert,
         ):
@@ -7627,7 +7627,7 @@ class TestLegacyBooleanAutoMode:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7768,7 +7768,7 @@ class TestStatusReplacementInFormatted:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7880,7 +7880,7 @@ class TestStatusReplacementInFormatted:
                 verification_cog, "_get_all_config", new_callable=AsyncMock
             ) as mock_config,
             patch(
-                "discord_bot.verification.handlers.call_verification_api",
+                "discord_bot.verification.handlers.flow.call_verification_api",
                 new_callable=AsyncMock,
             ) as mock_api,
         ):
@@ -7924,9 +7924,9 @@ class TestHandleReviewRegexFallback:
             "status_rejected": "ESTADO DIFERENTE",
         }
 
-        from discord_bot.verification.handlers import _update_mod_message_for_review
+        from discord_bot.verification.handlers import update_mod_message_for_manual_review
 
-        await _update_mod_message_for_review(
+        await update_mod_message_for_manual_review(
             guild=mock_discord_guild,
             request=request,
             config=config,
@@ -7963,9 +7963,9 @@ class TestHandleReviewRegexFallback:
             "status_rejected": "",
         }
 
-        from discord_bot.verification.handlers import _update_mod_message_for_review
+        from discord_bot.verification.handlers import update_mod_message_for_manual_review
 
-        await _update_mod_message_for_review(
+        await update_mod_message_for_manual_review(
             guild=mock_discord_guild,
             request=request,
             config=config,

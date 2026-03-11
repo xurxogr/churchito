@@ -7,39 +7,41 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
+from discord_bot.common.utils import is_valid_discord_cdn_url
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers import (
-    _calculate_expires_timestamp,
-    _create_screenshot_embeds,
-    _get_api_error_message,
-    _is_valid_discord_url,
-    _send_mod_ping_message,
-    _update_mod_message_for_review,
     update_mod_message_cancelled,
+    update_mod_message_for_manual_review,
     update_tracker_message,
+)
+from discord_bot.verification.handlers.auto_processing import send_mod_ping_message
+from discord_bot.verification.handlers.utils import (
+    calculate_expires_timestamp,
+    create_screenshot_embeds,
+    get_api_error_message,
 )
 from discord_bot.verification.models import VerificationRequest
 
 
 class TestCalculateExpiresTimestamp:
-    """Tests para _calculate_expires_timestamp."""
+    """Tests para calculate_expires_timestamp."""
 
     def test_returns_empty_string_when_timeout_is_zero(self) -> None:
         """Probar que retorna cadena vacía cuando timeout es 0."""
         created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
-        result = _calculate_expires_timestamp(created_at, 0)
+        result = calculate_expires_timestamp(created_at, 0)
         assert result == ""
 
     def test_returns_empty_string_when_timeout_is_negative(self) -> None:
         """Probar que retorna cadena vacía cuando timeout es negativo."""
         created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
-        result = _calculate_expires_timestamp(created_at, -5)
+        result = calculate_expires_timestamp(created_at, -5)
         assert result == ""
 
     def test_returns_relative_timestamp_format(self) -> None:
         """Probar que retorna formato de timestamp relativo de Discord."""
         created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
-        result = _calculate_expires_timestamp(created_at, 60)
+        result = calculate_expires_timestamp(created_at, 60)
 
         # Verificar que tiene el formato correcto <t:TIMESTAMP:R>
         assert result.startswith("<t:")
@@ -50,7 +52,7 @@ class TestCalculateExpiresTimestamp:
         created_at = datetime(2026, 3, 6, 12, 0, 0, tzinfo=UTC)
         timeout_minutes = 60
 
-        result = _calculate_expires_timestamp(created_at, timeout_minutes)
+        result = calculate_expires_timestamp(created_at, timeout_minutes)
 
         # Extraer el timestamp del resultado
         timestamp_str = result[3:-3]  # Quitar "<t:" y ":R>"
@@ -67,84 +69,84 @@ class TestCalculateExpiresTimestamp:
         base_timestamp = int(created_at.timestamp())
 
         # 5 minutos
-        result_5 = _calculate_expires_timestamp(created_at, 5)
+        result_5 = calculate_expires_timestamp(created_at, 5)
         timestamp_5 = int(result_5[3:-3])
         assert timestamp_5 == base_timestamp + (5 * 60)
 
         # 30 minutos
-        result_30 = _calculate_expires_timestamp(created_at, 30)
+        result_30 = calculate_expires_timestamp(created_at, 30)
         timestamp_30 = int(result_30[3:-3])
         assert timestamp_30 == base_timestamp + (30 * 60)
 
         # 1440 minutos (24 horas)
-        result_1440 = _calculate_expires_timestamp(created_at, 1440)
+        result_1440 = calculate_expires_timestamp(created_at, 1440)
         timestamp_1440 = int(result_1440[3:-3])
         assert timestamp_1440 == base_timestamp + (1440 * 60)
 
 
 class TestIsValidDiscordUrl:
-    """Tests para _is_valid_discord_url."""
+    """Tests para is_valid_discord_cdn_url."""
 
     def test_valid_cdn_url(self) -> None:
         """Probar URL válida de cdn.discordapp.com."""
         url = "https://cdn.discordapp.com/attachments/123/456/image.png"
-        assert _is_valid_discord_url(url) is True
+        assert is_valid_discord_cdn_url(url) is True
 
     def test_valid_media_url(self) -> None:
         """Probar URL válida de media.discordapp.net."""
         url = "https://media.discordapp.net/attachments/123/456/image.png"
-        assert _is_valid_discord_url(url) is True
+        assert is_valid_discord_cdn_url(url) is True
 
     def test_empty_url(self) -> None:
         """Probar que URL vacía retorna False."""
-        assert _is_valid_discord_url("") is False
+        assert is_valid_discord_cdn_url("") is False
 
     def test_http_url(self) -> None:
         """Probar que URL HTTP (no HTTPS) retorna False."""
         url = "http://cdn.discordapp.com/attachments/123/456/image.png"
-        assert _is_valid_discord_url(url) is False
+        assert is_valid_discord_cdn_url(url) is False
 
     def test_wrong_domain(self) -> None:
         """Probar que dominio incorrecto retorna False."""
         url = "https://example.com/image.png"
-        assert _is_valid_discord_url(url) is False
+        assert is_valid_discord_cdn_url(url) is False
 
     def test_malicious_url(self) -> None:
         """Probar que URL maliciosa retorna False."""
         url = "https://evil.com/cdn.discordapp.com/image.png"
-        assert _is_valid_discord_url(url) is False
+        assert is_valid_discord_cdn_url(url) is False
 
     def test_subdomain_attack(self) -> None:
         """Probar que subdominio malicioso retorna False."""
         url = "https://cdn.discordapp.com.evil.com/image.png"
-        assert _is_valid_discord_url(url) is False
+        assert is_valid_discord_cdn_url(url) is False
 
     def test_url_with_query_params(self) -> None:
         """Probar URL válida con query params."""
         url = "https://cdn.discordapp.com/attachments/123/456/image.png?size=128"
-        assert _is_valid_discord_url(url) is True
+        assert is_valid_discord_cdn_url(url) is True
 
     def test_url_too_short_for_parsing(self) -> None:
         """Probar URL demasiado corta que podría causar IndexError."""
         # URL que empieza con https:// pero no tiene dominio
         url = "https://"
-        assert _is_valid_discord_url(url) is False
+        assert is_valid_discord_cdn_url(url) is False
 
     def test_url_with_only_domain(self) -> None:
         """Probar URL con solo dominio sin path."""
         url = "https://cdn.discordapp.com"
-        assert _is_valid_discord_url(url) is True
+        assert is_valid_discord_cdn_url(url) is True
 
 
 class TestCreateScreenshotEmbeds:
-    """Tests para _create_screenshot_embeds."""
+    """Tests para create_screenshot_embeds."""
 
     def test_creates_two_embeds_for_two_urls(self) -> None:
         """Probar que crea dos embeds para dos URLs."""
         url1 = "https://cdn.discordapp.com/attachments/123/456/1.png"
         url2 = "https://cdn.discordapp.com/attachments/123/456/2.png"
 
-        embeds = _create_screenshot_embeds(url1=url1, url2=url2)
+        embeds = create_screenshot_embeds(url1=url1, url2=url2)
 
         assert len(embeds) == 2
         assert embeds[0].image.url == url1
@@ -154,14 +156,14 @@ class TestCreateScreenshotEmbeds:
         """Probar que crea un embed si solo hay una URL."""
         url1 = "https://cdn.discordapp.com/attachments/123/456/1.png"
 
-        embeds = _create_screenshot_embeds(url1=url1, url2=None)
+        embeds = create_screenshot_embeds(url1=url1, url2=None)
 
         assert len(embeds) == 1
         assert embeds[0].image.url == url1
 
     def test_creates_empty_list_for_no_urls(self) -> None:
         """Probar que retorna lista vacía si no hay URLs."""
-        embeds = _create_screenshot_embeds(url1=None, url2=None)
+        embeds = create_screenshot_embeds(url1=None, url2=None)
 
         assert len(embeds) == 0
 
@@ -169,49 +171,49 @@ class TestCreateScreenshotEmbeds:
         """Probar que salta URL None."""
         url2 = "https://cdn.discordapp.com/attachments/123/456/2.png"
 
-        embeds = _create_screenshot_embeds(url1=None, url2=url2)
+        embeds = create_screenshot_embeds(url1=None, url2=url2)
 
         assert len(embeds) == 1
         assert embeds[0].image.url == url2
 
 
 class TestGetApiErrorMessage:
-    """Tests para _get_api_error_message."""
+    """Tests para get_api_error_message."""
 
     def test_401_unauthorized(self) -> None:
         """Probar mensaje para 401."""
-        result = _get_api_error_message(401)
+        result = get_api_error_message(401)
         assert result == "API key required or invalid"
 
     def test_413_too_large(self) -> None:
         """Probar mensaje para 413."""
-        result = _get_api_error_message(413)
+        result = get_api_error_message(413)
         assert result == "Image exceeds maximum upload size"
 
     def test_422_not_in_error_messages(self) -> None:
         """Probar que 422 no está en API_ERROR_MESSAGES (se maneja por separado)."""
         # 422 is handled separately as "invalid images", not as an API error
-        result = _get_api_error_message(422)
+        result = get_api_error_message(422)
         assert result == "API Error (code: 422)"
 
     def test_429_rate_limit(self) -> None:
         """Probar mensaje para 429."""
-        result = _get_api_error_message(429)
+        result = get_api_error_message(429)
         assert result == "Rate limit exceeded"
 
     def test_500_internal_error(self) -> None:
         """Probar mensaje para 500."""
-        result = _get_api_error_message(500)
+        result = get_api_error_message(500)
         assert result == "Internal processing error"
 
     def test_unknown_status_code(self) -> None:
         """Probar mensaje para código desconocido."""
-        result = _get_api_error_message(418)
+        result = get_api_error_message(418)
         assert result == "API Error (code: 418)"
 
 
 class TestUpdateModMessageForReview:
-    """Tests para _update_mod_message_for_review."""
+    """Tests para update_mod_message_for_manual_review."""
 
     @pytest.mark.asyncio
     async def test_returns_early_when_no_mod_message_id(self) -> None:
@@ -223,7 +225,7 @@ class TestUpdateModMessageForReview:
         config: dict[str, Any] = {}
 
         # No debería fallar, solo retornar
-        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+        await update_mod_message_for_manual_review(mock_guild, mock_request, config, 123)
 
     @pytest.mark.asyncio
     async def test_returns_early_when_no_mod_channel_id(self) -> None:
@@ -236,7 +238,7 @@ class TestUpdateModMessageForReview:
             "mod_notification_channel": None,
         }
 
-        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+        await update_mod_message_for_manual_review(mock_guild, mock_request, config, 123)
 
     @pytest.mark.asyncio
     async def test_returns_early_when_channel_not_found(self) -> None:
@@ -251,7 +253,7 @@ class TestUpdateModMessageForReview:
             "mod_notification_channel": 888,
         }
 
-        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+        await update_mod_message_for_manual_review(mock_guild, mock_request, config, 123)
 
     @pytest.mark.asyncio
     async def test_returns_early_when_channel_wrong_type(self) -> None:
@@ -268,7 +270,7 @@ class TestUpdateModMessageForReview:
             "mod_notification_channel": 888,
         }
 
-        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+        await update_mod_message_for_manual_review(mock_guild, mock_request, config, 123)
 
     @pytest.mark.asyncio
     async def test_handles_message_not_found(self) -> None:
@@ -289,7 +291,7 @@ class TestUpdateModMessageForReview:
         }
 
         # No debería fallar
-        await _update_mod_message_for_review(mock_guild, mock_request, config, 123)
+        await update_mod_message_for_manual_review(mock_guild, mock_request, config, 123)
 
 
 class TestUpdateModMessageCancelled:
@@ -414,7 +416,7 @@ class TestUpdateModMessageCancelled:
 
 
 class TestSendModPingMessage:
-    """Tests para _send_mod_ping_message."""
+    """Tests para send_mod_ping_message."""
 
     @pytest.mark.asyncio
     async def test_sends_ping_message_with_roles(self) -> None:
@@ -434,7 +436,7 @@ class TestSendModPingMessage:
             "mod_roles": [123],
         }
 
-        await _send_mod_ping_message(mock_channel, config)
+        await send_mod_ping_message(mock_channel, config)
 
         mock_channel.send.assert_called_once()
         call_args = mock_channel.send.call_args
@@ -451,7 +453,7 @@ class TestSendModPingMessage:
             "mod_roles": [123],
         }
 
-        await _send_mod_ping_message(mock_channel, config)
+        await send_mod_ping_message(mock_channel, config)
 
         mock_channel.send.assert_not_called()
 
@@ -469,7 +471,7 @@ class TestSendModPingMessage:
             "mod_roles": [],
         }
 
-        await _send_mod_ping_message(mock_channel, config)
+        await send_mod_ping_message(mock_channel, config)
 
         mock_channel.send.assert_not_called()
 
@@ -488,7 +490,7 @@ class TestSendModPingMessage:
             "mod_roles": [999],
         }
 
-        await _send_mod_ping_message(mock_channel, config)
+        await send_mod_ping_message(mock_channel, config)
 
         mock_channel.send.assert_not_called()
 
@@ -512,7 +514,7 @@ class TestSendModPingMessage:
             "mod_roles": [111, 222],
         }
 
-        await _send_mod_ping_message(mock_channel, config)
+        await send_mod_ping_message(mock_channel, config)
 
         mock_channel.send.assert_called_once()
         call_args = mock_channel.send.call_args
