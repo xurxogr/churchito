@@ -608,6 +608,14 @@ async def update_options_batch(
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
 
+    # Validar Content-Type para prevenir ataques CSRF
+    content_type = request.headers.get("content-type", "")
+    if not content_type.startswith("application/json"):
+        raise HTTPException(
+            status_code=415,
+            detail="Content-Type debe ser application/json",
+        )
+
     # Parse JSON body
     try:
         body = await request.json()

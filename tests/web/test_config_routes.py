@@ -86,6 +86,7 @@ def mock_config_request(simple_app: FastAPI, test_user: dict[str, Any]) -> Magic
     request = MagicMock(spec=Request)
     request.app = simple_app
     request.scope = {"root_path": ""}
+    request.headers = {"content-type": "application/json"}
 
     # Mock templates
     request.app.state.templates = MagicMock(spec=Jinja2Templates)
@@ -1446,6 +1447,52 @@ class TestUpdateOptionsBatch:
 
         assert exc_info.value.status_code == 400
         assert "JSON inválido" in exc_info.value.detail
+
+    async def test_invalid_content_type_raises_415(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que Content-Type inválido retorna 415."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.headers = {"content-type": "text/plain"}
+
+        with pytest.raises(HTTPException) as exc_info:
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+        assert exc_info.value.status_code == 415
+        assert "Content-Type" in exc_info.value.detail
+
+    async def test_missing_content_type_raises_415(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Probar que Content-Type ausente retorna 415."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.headers = {}
+
+        with pytest.raises(HTTPException) as exc_info:
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+        assert exc_info.value.status_code == 415
+        assert "Content-Type" in exc_info.value.detail
 
     async def test_option_not_found_adds_error(
         self,
