@@ -333,7 +333,7 @@ class TestHandleAccept:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_accept(interaction=interaction, request_id=1)
+        await verification_cog.handle_accept(interaction=interaction, public_id="test1")
 
         interaction.response.defer.assert_not_called()
 
@@ -355,7 +355,7 @@ class TestHandleAccept:
         ) as mock_config:
             mock_config.return_value = {"mod_roles": []}
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=1)
+            await verification_cog.handle_accept(interaction=interaction, public_id="test1")
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args.kwargs
@@ -383,7 +383,7 @@ class TestHandleAccept:
         ) as mock_config:
             mock_config.return_value = {"mod_roles": []}
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=99999)
+            await verification_cog.handle_accept(interaction=interaction, public_id="nonexistent")
 
             interaction.followup.send.assert_called_once()
             call_args = interaction.followup.send.call_args
@@ -398,7 +398,9 @@ class TestHandleReject:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_reject(interaction=interaction, request_id=1, reason="motivo")
+        await verification_cog.handle_reject(
+            interaction=interaction, public_id="test1", reason="motivo"
+        )
 
         interaction.response.defer.assert_not_called()
 
@@ -421,7 +423,7 @@ class TestHandleReject:
             mock_config.return_value = {"mod_roles": []}
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=1, reason="motivo"
+                interaction=interaction, public_id="test1", reason="motivo"
             )
 
             interaction.response.send_message.assert_called_once()
@@ -440,7 +442,7 @@ class TestShowRejectionSelect:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        await verification_cog.show_rejection_select(interaction=interaction, request_id=1)
+        await verification_cog.show_rejection_select(interaction=interaction, public_id="test1")
 
         interaction.response.send_message.assert_not_called()
 
@@ -459,7 +461,7 @@ class TestShowRejectionSelect:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock del rol de moderador
         mock_role = MagicMock(spec=discord.Role)
@@ -490,7 +492,7 @@ class TestShowRejectionSelect:
             mock_config.return_value = config_values
 
             await verification_cog.show_rejection_select(
-                interaction=interaction, request_id=request_id
+                interaction=interaction, public_id=public_id
             )
 
             interaction.response.send_message.assert_called_once()
@@ -513,7 +515,7 @@ class TestShowRejectionSelect:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock del rol de moderador
         mock_role = MagicMock(spec=discord.Role)
@@ -539,7 +541,7 @@ class TestShowRejectionSelect:
             mock_config.return_value = config_values
 
             await verification_cog.show_rejection_select(
-                interaction=interaction, request_id=request_id
+                interaction=interaction, public_id=public_id
             )
 
             interaction.response.send_message.assert_called_once()
@@ -561,7 +563,7 @@ class TestShowRejectionSelect:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -588,7 +590,7 @@ class TestShowRejectionSelect:
             mock_config.return_value = config_values
 
             await verification_cog.show_rejection_select(
-                interaction=interaction, request_id=request_id
+                interaction=interaction, public_id=public_id
             )
 
             interaction.response.send_message.assert_called_once()
@@ -614,7 +616,7 @@ class TestShowRejectionSelect:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -641,7 +643,7 @@ class TestShowRejectionSelect:
             mock_config.return_value = config_values
 
             await verification_cog.show_rejection_select(
-                interaction=interaction, request_id=request_id
+                interaction=interaction, public_id=public_id
             )
 
             # Debe funcionar sin error (el motivo se omite)
@@ -673,7 +675,7 @@ class TestShowRejectionSelect:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.show_rejection_select(interaction=interaction, request_id=1)
+            await verification_cog.show_rejection_select(interaction=interaction, public_id="test1")
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -695,7 +697,7 @@ class TestShowRejectionSelect:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock del rol de moderador
         mock_role = MagicMock(spec=discord.Role)
@@ -721,7 +723,7 @@ class TestShowRejectionSelect:
             mock_config.return_value = config_values
 
             await verification_cog.show_rejection_select(
-                interaction=interaction, request_id=request_id
+                interaction=interaction, public_id=public_id
             )
 
             interaction.response.send_message.assert_called_once()
@@ -749,6 +751,7 @@ class TestOnMemberRemove:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         # Simular que el usuario esta en pending_dm_verifications
@@ -770,7 +773,7 @@ class TestOnMemberRemove:
         # Verificar que se cancelo en la base de datos (nueva sesion)
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.CANCELLED
 
@@ -913,6 +916,7 @@ class TestCleanupStaleVerifications:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=789)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         # Añadir a pending_dm_verifications para verificar que se limpia
@@ -931,7 +935,7 @@ class TestCleanupStaleVerifications:
         # Verificar que se canceló en la base de datos
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.CANCELLED
 
@@ -953,7 +957,7 @@ class TestCleanupStaleVerifications:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Bot no encuentra el guild
         verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
@@ -963,7 +967,7 @@ class TestCleanupStaleVerifications:
         # Verificar que NO se canceló (el guild no está disponible)
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
 
@@ -982,7 +986,7 @@ class TestCleanupStaleVerifications:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock guild con el miembro presente
         mock_member = MagicMock(spec=discord.Member)
@@ -997,7 +1001,7 @@ class TestCleanupStaleVerifications:
         # Verificar que NO se canceló
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
 
@@ -1017,7 +1021,7 @@ class TestCleanupStaleVerifications:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=789)
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock guild sin el miembro
         mock_guild = MagicMock()
@@ -1038,7 +1042,7 @@ class TestCleanupStaleVerifications:
         # Verificar que se canceló en la base de datos a pesar del error
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.CANCELLED
 
@@ -1381,6 +1385,7 @@ class TestOnMessage:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -1426,7 +1431,7 @@ class TestOnMessage:
         # Verificar estado en DB
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
             assert (
@@ -1506,6 +1511,7 @@ class TestOnMessage:
             # Añadir mod_message_id para que se procese el auto-rechazo
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -1599,7 +1605,7 @@ class TestOnMessage:
         # Verificar estado en DB - debe estar rechazado
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.REJECTED
             assert updated.reviewed_by_username == "Auto"
@@ -1625,6 +1631,7 @@ class TestOnMessage:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -1738,7 +1745,7 @@ class TestOnMessage:
         # Verificar estado en DB - debe estar aprobado
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
             assert updated.reviewed_by_username == "Auto"
@@ -1764,6 +1771,7 @@ class TestOnMessage:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -1868,7 +1876,7 @@ class TestOnMessage:
         # Verificar estado en DB - debe estar rechazado
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.REJECTED
             assert updated.reviewed_by_username == "Auto"
@@ -1898,7 +1906,7 @@ class TestHandleAcceptHappyPath:
                 "Test Guild",
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock role
         mock_role = MagicMock(spec=discord.Role)
@@ -1945,7 +1953,7 @@ class TestHandleAcceptHappyPath:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             # Rol agregado
             mock_member.add_roles.assert_called_once_with(mock_role)
@@ -1957,7 +1965,7 @@ class TestHandleAcceptHappyPath:
         # Verificar estado en DB
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
             assert updated.reviewed_by_id == 789
@@ -1986,7 +1994,7 @@ class TestHandleAcceptHappyPath:
                 guild_name="Test Guild",
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
@@ -2008,7 +2016,7 @@ class TestHandleAcceptHappyPath:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             call_args = interaction.followup.send.call_args
             assert "ya fue procesada" in call_args.kwargs["content"].lower()
@@ -2035,7 +2043,7 @@ class TestHandleRejectHappyPath:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock member
         mock_member = MagicMock(spec=discord.Member)
@@ -2075,7 +2083,7 @@ class TestHandleRejectHappyPath:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
             )
 
             # DM enviado con motivo
@@ -2086,7 +2094,7 @@ class TestHandleRejectHappyPath:
         # Verificar estado en DB
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.REJECTED
             assert updated.rejection_reason == "Capturas invalidas"
@@ -2956,7 +2964,7 @@ class TestRoleOperations:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -3000,7 +3008,7 @@ class TestRoleOperations:
             mock_config.return_value = config_values
 
             # No deberia fallar aunque el rol falle
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
 
@@ -3021,7 +3029,7 @@ class TestRoleOperations:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
@@ -3066,7 +3074,7 @@ class TestRoleOperations:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
 
@@ -3087,7 +3095,7 @@ class TestRoleOperations:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.add_roles = AsyncMock()
@@ -3128,7 +3136,7 @@ class TestRoleOperations:
             mock_config.return_value = config_values
 
             # No deberia fallar
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
 
@@ -3154,7 +3162,7 @@ class TestModMessageEditing:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         pending_status = "🔍 **Estado:** Pendiente de revision"
 
@@ -3209,7 +3217,7 @@ class TestModMessageEditing:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
@@ -3237,7 +3245,7 @@ class TestModMessageEditing:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.fetch_message = AsyncMock(
@@ -3283,7 +3291,7 @@ class TestModMessageEditing:
             mock_config.return_value = config_values
 
             # No deberia fallar
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
 
@@ -3305,7 +3313,7 @@ class TestModMessageEditing:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         pending_status = "🔍 **Estado:** Pendiente de revision"
 
@@ -3358,7 +3366,7 @@ class TestModMessageEditing:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
             )
 
             mock_mod_message.edit.assert_called_once()
@@ -3647,7 +3655,7 @@ class TestHandleAcceptAllyRoles:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_ally_role = MagicMock(spec=discord.Role)
         mock_ally_role.id = 777
@@ -3692,7 +3700,7 @@ class TestHandleAcceptAllyRoles:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             # Debe usar rol de aliado, no regular
             mock_member.add_roles.assert_called_once_with(mock_ally_role)
@@ -3726,7 +3734,7 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=99999, reason="motivo"
+                interaction=interaction, public_id="nonexistent", reason="motivo"
             )
 
             call_args = interaction.followup.send.call_args
@@ -3756,7 +3764,7 @@ class TestHandleRejectEdgeCases:
                 guild_name="Test Guild",
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
@@ -3779,7 +3787,7 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=request_id, reason="motivo"
+                interaction=interaction, public_id=public_id, reason="motivo"
             )
 
             call_args = interaction.followup.send.call_args
@@ -3802,7 +3810,7 @@ class TestHandleRejectEdgeCases:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
@@ -3841,7 +3849,7 @@ class TestHandleRejectEdgeCases:
 
             # No deberia fallar aunque el DM falle
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
             )
 
             interaction.followup.send.assert_called()
@@ -3864,7 +3872,7 @@ class TestHandleRejectEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.fetch_message = AsyncMock(
@@ -3908,7 +3916,7 @@ class TestHandleRejectEdgeCases:
 
             # No deberia fallar
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=request_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
             )
 
             interaction.followup.send.assert_called()
@@ -4527,45 +4535,45 @@ class TestOnInteraction:
         with patch.object(verification_cog, "handle_accept", new_callable=AsyncMock) as mock_accept:
             await verification_cog.on_interaction(interaction)
 
-            mock_accept.assert_called_once_with(interaction=interaction, request_id=123)
+            mock_accept.assert_called_once_with(interaction=interaction, public_id="123")
 
     async def test_handles_reject_button(self, verification_cog: VerificationCog) -> None:
         """Probar manejo de boton de rechazar."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "verification:reject:456"}
+        interaction.data = {"custom_id": "verification:reject:test456"}
 
         with patch.object(
             verification_cog, "show_rejection_select", new_callable=AsyncMock
         ) as mock_reject:
             await verification_cog.on_interaction(interaction)
 
-            mock_reject.assert_called_once_with(interaction=interaction, request_id=456)
+            mock_reject.assert_called_once_with(interaction=interaction, public_id="test456")
 
-    async def test_handles_invalid_accept_id(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de ID invalido en aceptar."""
+    async def test_handles_any_string_accept_id(self, verification_cog: VerificationCog) -> None:
+        """Probar que acepta cualquier string como public_id."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "verification:accept:invalid"}
+        interaction.data = {"custom_id": "verification:accept:anystring"}
 
         with patch.object(verification_cog, "handle_accept", new_callable=AsyncMock) as mock_accept:
-            # Should not raise, just log error
             await verification_cog.on_interaction(interaction)
 
-            mock_accept.assert_not_called()
+            # Now accepts any string as public_id
+            mock_accept.assert_called_once_with(interaction=interaction, public_id="anystring")
 
-    async def test_handles_invalid_reject_id(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de ID invalido en rechazar."""
+    async def test_handles_any_string_reject_id(self, verification_cog: VerificationCog) -> None:
+        """Probar que acepta cualquier string como public_id para reject."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "verification:reject:not_a_number"}
+        interaction.data = {"custom_id": "verification:reject:some_nanoid"}
 
         with patch.object(
             verification_cog, "show_rejection_select", new_callable=AsyncMock
         ) as mock_reject:
             await verification_cog.on_interaction(interaction)
 
-            mock_reject.assert_not_called()
+            mock_reject.assert_called_once_with(interaction=interaction, public_id="some_nanoid")
 
     async def test_ignores_unrelated_custom_id(self, verification_cog: VerificationCog) -> None:
         """Probar que ignora custom_ids no relacionados."""
@@ -4742,7 +4750,7 @@ class TestValidateModActionEdgeCases:
         async with test_database.session() as session:
             result = await verification_cog._validate_mod_action(
                 interaction=interaction,
-                request_id=1,
+                public_id="test1",
                 session=session,
                 permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
                 permission_error_default="Sin permisos",
@@ -4761,7 +4769,7 @@ class TestValidateModActionEdgeCases:
         async with test_database.session() as session:
             result = await verification_cog._validate_mod_action(
                 interaction=interaction,
-                request_id=1,
+                public_id="test1",
                 session=session,
                 permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
                 permission_error_default="Sin permisos",
@@ -4897,7 +4905,7 @@ class TestUpdateModMessageWithRejectionReason:
             )
             request.mod_message_id = 777  # Necesario para que el metodo no retorne temprano
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         # Mock del mensaje de moderacion
         mod_message = MagicMock()
@@ -4917,7 +4925,7 @@ class TestUpdateModMessageWithRejectionReason:
 
         async with test_database.session() as session:
             service = VerificationService(session)
-            fetched_request = await service.get_request(request_id)
+            fetched_request = await service.get_by_public_id(public_id)
             assert fetched_request is not None
 
             await verification_cog._update_mod_message_for_review(
@@ -4958,7 +4966,7 @@ class TestHandleAcceptCogDisabled:
         ) as mock_enabled:
             mock_enabled.return_value = False
 
-            await verification_cog.handle_accept(interaction, request_id=1)
+            await verification_cog.handle_accept(interaction, public_id="test1")
 
             # No deberia hacer nada si el cog esta deshabilitado
             interaction.response.defer.assert_not_called()
@@ -4987,7 +4995,7 @@ class TestHandleAcceptRoleNotFound:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.add_roles = AsyncMock()
@@ -5026,7 +5034,7 @@ class TestHandleAcceptRoleNotFound:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             # No deberia intentar agregar roles ya que no existe
             mock_member.add_roles.assert_not_called()
@@ -5051,7 +5059,7 @@ class TestHandleAcceptRoleNotFound:
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.remove_roles = AsyncMock()
@@ -5090,7 +5098,7 @@ class TestHandleAcceptRoleNotFound:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             # No deberia intentar quitar roles ya que no existe
             mock_member.remove_roles.assert_not_called()
@@ -5120,7 +5128,7 @@ class TestHandleAcceptDeleteModMessage:
             )
             request.mod_message_id = 777
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.add_roles = AsyncMock()
@@ -5166,7 +5174,7 @@ class TestHandleAcceptDeleteModMessage:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_accept(interaction=interaction, request_id=request_id)
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             # Deberia eliminar el mensaje
             mock_mod_message.delete.assert_called_once()
@@ -5189,7 +5197,7 @@ class TestShowRejectionSelectCogDisabled:
         ) as mock_enabled:
             mock_enabled.return_value = False
 
-            await verification_cog.show_rejection_select(interaction, request_id=1)
+            await verification_cog.show_rejection_select(interaction, public_id="test1")
 
             # No deberia enviar nada si el cog esta deshabilitado
             interaction.response.send_message.assert_not_called()
@@ -5213,7 +5221,7 @@ class TestHandleRejectCogDisabled:
             mock_enabled.return_value = False
 
             await verification_cog.handle_reject(
-                interaction=interaction, request_id=1, reason="Test"
+                interaction=interaction, public_id="test1", reason="Test"
             )
 
             # No deberia hacer nada si el cog esta deshabilitado
@@ -5244,7 +5252,7 @@ class TestHandleRejectDeleteModMessage:
             )
             request.mod_message_id = 777
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_member = MagicMock(spec=discord.Member)
         mock_member.send = AsyncMock()
@@ -5288,7 +5296,7 @@ class TestHandleRejectDeleteModMessage:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction, request_id, reason="Capturas incorrectas"
+                interaction, public_id, reason="Capturas incorrectas"
             )
 
             # Deberia eliminar el mensaje
@@ -5303,7 +5311,7 @@ class TestHandleReview:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
-        await verification_cog.handle_review(interaction, request_id=1)
+        await verification_cog.handle_review(interaction, public_id="test1")
 
     async def test_review_not_mod(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -5340,7 +5348,7 @@ class TestHandleReview:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_review(interaction, request_id=1)
+            await verification_cog.handle_review(interaction, public_id="test1")
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -5368,7 +5376,6 @@ class TestHandleReview:
                 guild_name="Test Guild",
             )
             await session.commit()
-            request_id = request.id
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -5401,7 +5408,7 @@ class TestHandleReview:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_review(interaction, request_id)
+            await verification_cog.handle_review(interaction, public_id=request.public_id)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -5433,7 +5440,7 @@ class TestHandleReview:
             )
             await service.reject(request2.id, 0, "Auto", "Otra razon auto", "Test Guild")
             await session.commit()
-            old_request_id = request1.id
+            old_request_public_id = request1.public_id
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -5467,7 +5474,7 @@ class TestHandleReview:
             mock_config.return_value = config_values
 
             # Intentar revisar la solicitud antigua
-            await verification_cog.handle_review(interaction, old_request_id)
+            await verification_cog.handle_review(interaction, old_request_public_id)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -5497,6 +5504,7 @@ class TestHandleReview:
                 guild_name="Test Guild",
             )
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         # Mock del mensaje de moderación
@@ -5563,7 +5571,7 @@ class TestHandleReview:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_review(interaction, request_id)
+            await verification_cog.handle_review(interaction, public_id)
 
             # Verificar respuesta exitosa
             interaction.response.send_message.assert_called_once()
@@ -5579,7 +5587,7 @@ class TestHandleReview:
         # Verificar estado en DB
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated_request = await service.get_request(request_id)
+            updated_request = await service.get_by_public_id(public_id)
             assert updated_request is not None
             assert updated_request.status == VerificationStatus.PENDING_REVIEW
             assert updated_request.reviewed_by_id is None
@@ -5604,7 +5612,7 @@ class TestHandleReview:
         ) as mock_enabled:
             mock_enabled.return_value = False
 
-            await verification_cog.handle_review(interaction, request_id=1)
+            await verification_cog.handle_review(interaction, public_id="test1")
 
             # No debería llamar a send_message
             interaction.response.send_message.assert_not_called()
@@ -5644,7 +5652,7 @@ class TestHandleReview:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            await verification_cog.handle_review(interaction, request_id=99999)
+            await verification_cog.handle_review(interaction, public_id="nonexistent")
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -5673,6 +5681,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -5758,7 +5767,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud quedó en PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
 
@@ -5783,6 +5792,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -5878,7 +5888,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud quedó en PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
 
@@ -5902,6 +5912,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6007,7 +6018,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que se auto-aprobó (True = BOTH)
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
@@ -6032,6 +6043,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6137,7 +6149,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que se auto-aprobó
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
@@ -6165,6 +6177,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6274,7 +6287,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud fue aprobada de todos modos
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
@@ -6299,6 +6312,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6404,7 +6418,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud fue aprobada
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
@@ -6666,6 +6680,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6752,7 +6767,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud fue rechazada
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.REJECTED
 
@@ -6777,6 +6792,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -6880,7 +6896,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud quedó en PENDING_REVIEW (no auto-aprobada)
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
 
@@ -6905,6 +6921,7 @@ class TestAutoProcessingEdgeCases:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -7025,7 +7042,7 @@ class TestAutoProcessingEdgeCases:
         # Verificar que la solicitud fue aprobada
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
@@ -7385,8 +7402,13 @@ class TestOnInteractionReview:
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = mock_guild
         interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:review:invalid"}
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
 
         # Habilitar cog
         with patch.object(
@@ -7439,7 +7461,7 @@ class TestOnInteractionReview:
 
             await verification_cog.on_interaction(interaction)
 
-            mock_handle_review.assert_called_once_with(interaction=interaction, request_id=42)
+            mock_handle_review.assert_called_once_with(interaction=interaction, public_id="42")
 
 
 class TestGetPendingVerification:
@@ -7478,7 +7500,7 @@ class TestHandleReviewRevertFails:
                 guild_name="Test Guild",
             )
             await session.commit()
-            request_id = request.id
+            public_id = request.public_id
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -7514,7 +7536,7 @@ class TestHandleReviewRevertFails:
             mock_config.return_value = config_values
             mock_revert.return_value = False  # Revert falla
 
-            await verification_cog.handle_review(interaction, request_id)
+            await verification_cog.handle_review(interaction, public_id)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
@@ -7544,6 +7566,7 @@ class TestLegacyBooleanAutoMode:
             )
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
@@ -7639,7 +7662,7 @@ class TestLegacyBooleanAutoMode:
         # No debería auto-aprobar, queda en PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated = await service.get_request(request_id)
+            updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
 
@@ -7930,7 +7953,7 @@ class TestHandleReviewRegexFallback:
             guild=mock_discord_guild,
             request=request,
             config=config,
-            request_id=1,
+            public_id="test1",
         )
 
         mock_mod_message.edit.assert_called_once()
@@ -7969,7 +7992,7 @@ class TestHandleReviewRegexFallback:
             guild=mock_discord_guild,
             request=request,
             config=config,
-            request_id=1,
+            public_id="test1",
         )
 
         mock_mod_message.edit.assert_called_once()
@@ -8654,6 +8677,7 @@ class TestAutoRejectByTimeout:
                 verification_type=VerificationType.REGULAR,
             )
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         # Ejecutar auto-rechazo
@@ -8672,7 +8696,7 @@ class TestAutoRejectByTimeout:
         # Verificar estado
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated_request = await service.get_request(request_id)
+            updated_request = await service.get_by_public_id(public_id)
             assert updated_request is not None
             assert updated_request.status == VerificationStatus.REJECTED
 
@@ -8697,6 +8721,7 @@ class TestAutoRejectByTimeout:
                 guild_name="Test Guild",
             )
             await session.commit()
+            public_id = request.public_id
             request_id = request.id
 
         # Ejecutar auto-rechazo
@@ -8714,7 +8739,7 @@ class TestAutoRejectByTimeout:
         # Verificar que sigue en PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
-            updated_request = await service.get_request(request_id)
+            updated_request = await service.get_by_public_id(public_id)
             assert updated_request is not None
             assert updated_request.status == VerificationStatus.PENDING_REVIEW
 

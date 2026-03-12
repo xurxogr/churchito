@@ -764,7 +764,7 @@ class VerificationCog(commands.Cog):
             )
             reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
             view = ModReviewView(
-                request_id=request.id,
+                public_id=request.public_id,
                 accept_label=accept_label,
                 reject_label=reject_label,
             )
@@ -955,7 +955,7 @@ class VerificationCog(commands.Cog):
     async def _validate_mod_action(
         self,
         interaction: discord.Interaction,
-        request_id: int,
+        public_id: str,
         session: Any,
         permission_error_key: ConfigKey,
         permission_error_default: str,
@@ -964,7 +964,7 @@ class VerificationCog(commands.Cog):
 
         Args:
             interaction (discord.Interaction): Interaccion del moderador
-            request_id (int): ID de la solicitud
+            public_id (str): ID público de la solicitud (NanoID)
             session (AsyncSession): Sesion de base de datos
             permission_error_key (ConfigKey): Clave del mensaje de error
             permission_error_default (str): Mensaje por defecto
@@ -977,7 +977,7 @@ class VerificationCog(commands.Cog):
         return await validate_mod_action(
             cog=self,
             interaction=interaction,
-            request_id=request_id,
+            public_id=public_id,
             session=session,
             permission_error_key=permission_error_key,
             permission_error_default=permission_error_default,
@@ -1085,46 +1085,44 @@ class VerificationCog(commands.Cog):
         except discord.Forbidden:
             pass  # No se pudo responder
 
-    async def handle_accept(self, interaction: discord.Interaction, request_id: int) -> None:
+    async def handle_accept(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar aprobacion de verificacion.
 
         Args:
             interaction (discord.Interaction): Interaccion del moderador
-            request_id (int): ID de la solicitud
+            public_id (str): ID público de la solicitud (NanoID)
         """
-        await handle_accept(cog=self, interaction=interaction, request_id=request_id)
+        await handle_accept(cog=self, interaction=interaction, public_id=public_id)
 
-    async def show_rejection_select(
-        self, interaction: discord.Interaction, request_id: int
-    ) -> None:
+    async def show_rejection_select(self, interaction: discord.Interaction, public_id: str) -> None:
         """Mostrar selector de motivos de rechazo.
 
         Args:
             interaction (discord.Interaction): Interaccion del moderador
-            request_id (int): ID de la solicitud
+            public_id (str): ID público de la solicitud (NanoID)
         """
-        await show_rejection_select(cog=self, interaction=interaction, request_id=request_id)
+        await show_rejection_select(cog=self, interaction=interaction, public_id=public_id)
 
     async def handle_reject(
-        self, interaction: discord.Interaction, request_id: int, reason: str
+        self, interaction: discord.Interaction, public_id: str, reason: str
     ) -> None:
         """Manejar rechazo de verificacion.
 
         Args:
             interaction (discord.Interaction): Interaccion del moderador
-            request_id (int): ID de la solicitud
+            public_id (str): ID público de la solicitud (NanoID)
             reason (str): Motivo del rechazo
         """
-        await handle_reject(cog=self, interaction=interaction, request_id=request_id, reason=reason)
+        await handle_reject(cog=self, interaction=interaction, public_id=public_id, reason=reason)
 
-    async def handle_review(self, interaction: discord.Interaction, request_id: int) -> None:
+    async def handle_review(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar revisión de verificación auto-rechazada.
 
         Args:
             interaction (discord.Interaction): Interaccion del moderador
-            request_id (int): ID de la solicitud
+            public_id (str): ID público de la solicitud (NanoID)
         """
-        await handle_review(cog=self, interaction=interaction, request_id=request_id)
+        await handle_review(cog=self, interaction=interaction, public_id=public_id)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
@@ -1190,33 +1188,22 @@ class VerificationCog(commands.Cog):
 
         custom_id: str = str(interaction.data.get("custom_id", "") if interaction.data else "")
 
-        guild_name = interaction.guild.name if interaction.guild else "DM"
-
-        # Manejar boton de aceptar: verification:accept:{request_id}
+        # Manejar boton de aceptar: verification:accept:{public_id}
         if custom_id.startswith("verification:accept:"):
-            try:
-                request_id = int(custom_id.split(":")[2])
-                await self.handle_accept(interaction=interaction, request_id=request_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID invalido para accept: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self.handle_accept(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar boton de rechazar: verification:reject:{request_id}
+        # Manejar boton de rechazar: verification:reject:{public_id}
         if custom_id.startswith("verification:reject:"):
-            try:
-                request_id = int(custom_id.split(":")[2])
-                await self.show_rejection_select(interaction=interaction, request_id=request_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID invalido para reject: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self.show_rejection_select(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar boton de revisar auto-rechazo: verification:review:{request_id}
+        # Manejar boton de revisar auto-rechazo: verification:review:{public_id}
         if custom_id.startswith("verification:review:"):
-            try:
-                request_id = int(custom_id.split(":")[2])
-                await self.handle_review(interaction=interaction, request_id=request_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID invalido para review: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self.handle_review(interaction=interaction, public_id=public_id)
             return
 
 

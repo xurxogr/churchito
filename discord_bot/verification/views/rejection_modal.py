@@ -10,7 +10,7 @@ class RejectionReasonModal(discord.ui.Modal):
 
     def __init__(
         self,
-        request_id: int,
+        public_id: str,
         title: str = "Motivo de Rechazo",
         label: str = "Motivo",
         placeholder: str = "Explica por que se rechaza la verificacion...",
@@ -18,13 +18,13 @@ class RejectionReasonModal(discord.ui.Modal):
         """Inicializar el modal.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             title (str): Titulo del modal
             label (str): Etiqueta del campo de texto
             placeholder (str): Texto de ayuda del campo
         """
         super().__init__(title=title)
-        self.request_id = request_id
+        self.public_id = public_id
 
         self.reason: discord.ui.TextInput[RejectionReasonModal] = discord.ui.TextInput(
             label=label,
@@ -47,6 +47,6 @@ class RejectionReasonModal(discord.ui.Modal):
 
         await cog.handle_reject(
             interaction=interaction,
-            request_id=self.request_id,
+            public_id=self.public_id,
             reason=self.reason.value,
         )

@@ -203,7 +203,7 @@ class PurgaCog(commands.Cog):
         self,
         guild: discord.Guild,
         config: dict[str, Any],
-        purga_id: int,
+        public_id: str,
         message: str,
         audit_level_required: int = 0,
     ) -> None:
@@ -212,7 +212,7 @@ class PurgaCog(commands.Cog):
         Args:
             guild: Guild donde enviar el log
             config: Configuración del cog
-            purga_id: ID de la purga para prefijo
+            public_id: ID público de la purga para prefijo (NanoID)
             message: Mensaje a enviar (ya formateado)
             audit_level_required: Nivel mínimo de audit para enviar
         """
@@ -228,7 +228,7 @@ class PurgaCog(commands.Cog):
         try:
             channel = guild.get_channel(int(channel_id))
             if channel and isinstance(channel, discord.TextChannel):
-                log_message = f"[#{purga_id}] {message}"
+                log_message = f"[#{public_id}] {message}"
                 await channel.send(log_message)
         except (ValueError, TypeError) as e:
             logger.warning(f"[{guild.name}] Error con canal de log de purga: {e}")
@@ -549,7 +549,7 @@ class PurgaCog(commands.Cog):
             await self._send_log(
                 guild=guild,
                 config=config,
-                purga_id=record.id,
+                public_id=record.public_id,
                 message=log_message,
             )
 
@@ -638,12 +638,12 @@ class PurgaCog(commands.Cog):
         roles = config.get(ConfigKey.WAR_ADMIN_ROLES, [])
         return roles
 
-    async def _handle_authorize(self, interaction: discord.Interaction, purga_id: int) -> None:
+    async def _handle_authorize(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar autorización de una purga.
 
         Args:
             interaction (discord.Interaction): Interacción del botón.
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
         """
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
@@ -658,7 +658,7 @@ class PurgaCog(commands.Cog):
         async with self.bot.database.session() as session:
             purga_service = PurgaService(session)
 
-            record = await purga_service.get_purga(purga_id)
+            record = await purga_service.get_by_public_id(public_id)
             if not record or record.guild_id != guild.id:
                 await interaction.followup.send(
                     "Purga no encontrada.",
@@ -692,12 +692,12 @@ class PurgaCog(commands.Cog):
                 )
                 return
 
-            record = await purga_service.add_authorization(purga_id=purga_id, user_id=user.id)
+            record = await purga_service.add_authorization(purga_id=record.id, user_id=user.id)
             if not record:
                 return
 
             logger.info(
-                f"[{guild.name}] Autorización añadida a purga {purga_id} por {user.display_name}"
+                f"[{guild.name}] Autorización añadida a purga {record.id} por {user.display_name}"
             )
 
             # Calcular autorizaciones requeridas
@@ -717,7 +717,7 @@ class PurgaCog(commands.Cog):
             await self._send_log(
                 guild=guild,
                 config=config,
-                purga_id=purga_id,
+                public_id=record.public_id,
                 message=log_message,
             )
 
@@ -743,14 +743,14 @@ class PurgaCog(commands.Cog):
                 ephemeral=True,
             )
 
-    async def _handle_cancel(self, interaction: discord.Interaction, purga_id: int) -> None:
+    async def _handle_cancel(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar voto de cancelación de una purga.
 
         La cancelación requiere el mismo número de votos que la autorización.
 
         Args:
             interaction (discord.Interaction): Interacción del botón.
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
         """
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
@@ -765,7 +765,7 @@ class PurgaCog(commands.Cog):
         async with self.bot.database.session() as session:
             purga_service = PurgaService(session)
 
-            record = await purga_service.get_purga(purga_id)
+            record = await purga_service.get_by_public_id(public_id)
             if not record or record.guild_id != guild.id:
                 await interaction.followup.send(
                     "Purga no encontrada.",
@@ -804,12 +804,12 @@ class PurgaCog(commands.Cog):
                 return
 
             # Añadir voto de cancelación
-            record = await purga_service.add_cancellation(purga_id=purga_id, user_id=user.id)
+            record = await purga_service.add_cancellation(purga_id=record.id, user_id=user.id)
             if not record:
                 return
 
             logger.info(
-                f"[{guild.name}] Voto de cancelación añadido a purga {purga_id} "
+                f"[{guild.name}] Voto de cancelación añadido a purga {record.id} "
                 f"por {user.display_name}"
             )
 
@@ -821,7 +821,7 @@ class PurgaCog(commands.Cog):
             # (excepto en modo prueba con required=1, que va directo a CANCELLED)
             if record.status == PurgaStatus.AUTHORIZED and cancel_count < required:
                 record = await purga_service.update_status(
-                    purga_id=purga_id, status=PurgaStatus.CANCEL_PENDING
+                    purga_id=record.id, status=PurgaStatus.CANCEL_PENDING
                 )
                 if not record:
                     return
@@ -830,20 +830,20 @@ class PurgaCog(commands.Cog):
                 timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
                 if timeout_minutes > 0:
                     cancel_expires_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
-                    self._cancel_pending_purgas[guild.id] = (purga_id, cancel_expires_at)
+                    self._cancel_pending_purgas[guild.id] = (record.id, cancel_expires_at)
 
-                logger.info(f"[{guild.name}] Purga {purga_id} en estado CANCEL_PENDING")
+                logger.info(f"[{guild.name}] Purga {record.id} en estado CANCEL_PENDING")
 
             if cancel_count >= required:
                 # Cancelar la purga
                 record = await purga_service.update_status(
-                    purga_id=purga_id, status=PurgaStatus.CANCELLED
+                    purga_id=record.id, status=PurgaStatus.CANCELLED
                 )
 
                 if not record:
                     return
 
-                logger.info(f"[{guild.name}] Purga {purga_id} cancelada")
+                logger.info(f"[{guild.name}] Purga {record.id} cancelada")
 
                 # Enviar log de cancelación
                 log_template = config.get(
@@ -854,7 +854,7 @@ class PurgaCog(commands.Cog):
                 await self._send_log(
                     guild=guild,
                     config=config,
-                    purga_id=purga_id,
+                    public_id=record.public_id,
                     message=log_message,
                 )
 
@@ -916,12 +916,12 @@ class PurgaCog(commands.Cog):
     # User confirmation handlers
     # =========================================================================
 
-    async def _handle_confirm(self, interaction: discord.Interaction, purga_id: int) -> None:
+    async def _handle_confirm(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar confirmación de permanencia de un usuario.
 
         Args:
             interaction (discord.Interaction): Interacción del botón.
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
         """
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             return
@@ -934,7 +934,7 @@ class PurgaCog(commands.Cog):
         async with self.bot.database.session() as session:
             purga_service = PurgaService(session)
 
-            record = await purga_service.get_purga(purga_id)
+            record = await purga_service.get_by_public_id(public_id)
             if not record or record.guild_id != guild.id:
                 await interaction.response.send_message(
                     "Purga no encontrada.",
@@ -952,7 +952,9 @@ class PurgaCog(commands.Cog):
             # Toggle confirmación
             was_confirmed = user.id in record.confirmed_by
             if was_confirmed:
-                record = await purga_service.remove_confirmation(purga_id=purga_id, user_id=user.id)
+                record = await purga_service.remove_confirmation(
+                    purga_id=record.id, user_id=user.id
+                )
                 message = config.get(
                     ConfigKey.USER_REMOVED_REACTION_TEXT,
                     "Has retirado tu confirmación.",
@@ -969,7 +971,7 @@ class PurgaCog(commands.Cog):
                                 f"[{guild.name}] No se pudo quitar rol @{role.name} a {user.name}"
                             )
             else:
-                record = await purga_service.add_confirmation(purga_id=purga_id, user_id=user.id)
+                record = await purga_service.add_confirmation(purga_id=record.id, user_id=user.id)
                 message = config.get(
                     ConfigKey.USER_FIRST_REACTION_TEXT,
                     "Has confirmado tu permanencia.",
@@ -1013,7 +1015,7 @@ class PurgaCog(commands.Cog):
         cancel_label = config.get(ConfigKey.MOD_STOP_BUTTON_TEXT, "🛑 Detener purga")
 
         return ModAuthorizationView(
-            purga_id=record.id,
+            public_id=record.public_id,
             status=PurgaStatus(record.status),
             authorize_label=authorize_label,
             cancel_label=cancel_label,
@@ -1215,7 +1217,7 @@ class PurgaCog(commands.Cog):
         confirm_label = config.get(ConfigKey.USER_BUTTON_TEXT, "🛡️ Confirmar permanencia")
 
         view = UserConfirmationView(
-            purga_id=record.id,
+            public_id=record.public_id,
             confirm_label=confirm_label,
             button_style=get_button_style(button_color),
         )
@@ -1517,33 +1519,23 @@ class PurgaCog(commands.Cog):
             return
 
         custom_id: str = str(interaction.data.get("custom_id", "") if interaction.data else "")
-        guild_name = interaction.guild.name if interaction.guild else "DM"
 
-        # Manejar botón de autorizar: purga:authorize:{purga_id}
+        # Manejar botón de autorizar: purga:authorize:{public_id}
         if custom_id.startswith("purga:authorize:"):
-            try:
-                purga_id = int(custom_id.split(":")[2])
-                await self._handle_authorize(interaction=interaction, purga_id=purga_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID inválido para authorize: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self._handle_authorize(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar botón de cancelar: purga:cancel:{purga_id}
+        # Manejar botón de cancelar: purga:cancel:{public_id}
         if custom_id.startswith("purga:cancel:"):
-            try:
-                purga_id = int(custom_id.split(":")[2])
-                await self._handle_cancel(interaction=interaction, purga_id=purga_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID inválido para cancel: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self._handle_cancel(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar botón de confirmar: purga:confirm:{purga_id}
+        # Manejar botón de confirmar: purga:confirm:{public_id}
         if custom_id.startswith("purga:confirm:"):
-            try:
-                purga_id = int(custom_id.split(":")[2])
-                await self._handle_confirm(interaction=interaction, purga_id=purga_id)
-            except (ValueError, IndexError):
-                logger.error(f"[{guild_name}] Custom ID inválido para confirm: {custom_id}")
+            public_id = custom_id.split(":")[2]
+            await self._handle_confirm(interaction=interaction, public_id=public_id)
             return
 
     # =========================================================================

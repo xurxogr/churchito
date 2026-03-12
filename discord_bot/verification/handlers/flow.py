@@ -53,7 +53,7 @@ from discord_bot.verification.models import VerificationRequest  # noqa: E402
 async def validate_mod_action(
     cog: "VerificationCog",
     interaction: discord.Interaction,
-    request_id: int,
+    public_id: str,
     session: AsyncSession,
     permission_error_key: ConfigKey,
     permission_error_default: str,
@@ -69,7 +69,7 @@ async def validate_mod_action(
     Args:
         cog: Instancia del cog.
         interaction: Interaccion del moderador.
-        request_id: ID de la solicitud.
+        public_id: ID público de la solicitud (NanoID).
         session: Sesion de base de datos.
         permission_error_key: Clave del mensaje de error de permisos.
         permission_error_default: Mensaje por defecto si no esta configurado.
@@ -93,7 +93,7 @@ async def validate_mod_action(
     await interaction.response.defer()
 
     verification_service = VerificationService(session=session)
-    request = await verification_service.get_request(request_id=request_id)
+    request = await verification_service.get_by_public_id(public_id=public_id)
 
     if not request or request.guild_id != interaction.guild.id:
         await interaction.followup.send(
@@ -399,14 +399,14 @@ async def handle_dm_screenshots(
 async def handle_accept(
     cog: "VerificationCog",
     interaction: discord.Interaction,
-    request_id: int,
+    public_id: str,
 ) -> None:
     """Manejar aprobacion de verificacion.
 
     Args:
         cog: Instancia del cog.
         interaction: Interaccion del moderador.
-        request_id: ID de la solicitud.
+        public_id: ID público de la solicitud (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -418,7 +418,7 @@ async def handle_accept(
         ctx = await validate_mod_action(
             cog=cog,
             interaction=interaction,
-            request_id=request_id,
+            public_id=public_id,
             session=session,
             permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
             permission_error_default="No tienes permisos para aprobar verificaciones.",
@@ -429,7 +429,7 @@ async def handle_accept(
         config, request, verification_service = ctx
 
         await verification_service.approve(
-            request_id=request_id,
+            request_id=request.id,
             reviewer_id=interaction.user.id,
             reviewer_username=interaction.user.name,
             guild_name=interaction.guild.name,
@@ -533,14 +533,14 @@ async def handle_accept(
 async def show_rejection_select(
     cog: "VerificationCog",
     interaction: discord.Interaction,
-    request_id: int,
+    public_id: str,
 ) -> None:
     """Mostrar selector de motivos de rechazo.
 
     Args:
         cog: Instancia del cog.
         interaction: Interaccion del moderador.
-        request_id: ID de la solicitud.
+        public_id: ID público de la solicitud (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -561,7 +561,7 @@ async def show_rejection_select(
 
     async with cog.bot.database.session() as session:
         verification_service = VerificationService(session=session)
-        request = await verification_service.get_request(request_id=request_id)
+        request = await verification_service.get_by_public_id(public_id=public_id)
 
         if not request or request.guild_id != guild_id:
             not_found_msg = (
@@ -608,7 +608,7 @@ async def show_rejection_select(
     )
 
     view = RejectionReasonView(
-        request_id=request_id,
+        public_id=public_id,
         reasons=reasons,
         other_label=other_label,
         other_description=other_description,
@@ -627,7 +627,7 @@ async def show_rejection_select(
 async def handle_reject(
     cog: "VerificationCog",
     interaction: discord.Interaction,
-    request_id: int,
+    public_id: str,
     reason: str,
 ) -> None:
     """Manejar rechazo de verificacion.
@@ -635,7 +635,7 @@ async def handle_reject(
     Args:
         cog: Instancia del cog.
         interaction: Interaccion del moderador.
-        request_id: ID de la solicitud.
+        public_id: ID público de la solicitud (NanoID).
         reason: Motivo del rechazo.
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
@@ -648,7 +648,7 @@ async def handle_reject(
         ctx = await validate_mod_action(
             cog=cog,
             interaction=interaction,
-            request_id=request_id,
+            public_id=public_id,
             session=session,
             permission_error_key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
             permission_error_default="No tienes permisos para rechazar verificaciones.",
@@ -659,7 +659,7 @@ async def handle_reject(
         config, request, verification_service = ctx
 
         await verification_service.reject(
-            request_id=request_id,
+            request_id=request.id,
             reviewer_id=interaction.user.id,
             reviewer_username=interaction.user.name,
             reason=reason,
@@ -719,7 +719,7 @@ async def handle_reject(
 async def handle_review(
     cog: "VerificationCog",
     interaction: discord.Interaction,
-    request_id: int,
+    public_id: str,
 ) -> None:
     """Manejar revisión de una verificación auto-rechazada.
 
@@ -729,7 +729,7 @@ async def handle_review(
     Args:
         cog: Instancia del cog.
         interaction: Interacción del moderador.
-        request_id: ID de la solicitud.
+        public_id: ID público de la solicitud (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -754,7 +754,7 @@ async def handle_review(
             return
 
         verification_service = VerificationService(session=session)
-        request = await verification_service.get_request(request_id=request_id)
+        request = await verification_service.get_by_public_id(public_id=public_id)
 
         if not request or request.guild_id != interaction.guild.id:
             await interaction.response.send_message(
@@ -775,7 +775,7 @@ async def handle_review(
             guild_id=interaction.guild.id,
             user_id=request.user_id,
         )
-        if not latest or latest.id != request_id:
+        if not latest or latest.id != request.id:
             await interaction.response.send_message(
                 content="Solo se puede revisar la última verificación del usuario.",
                 ephemeral=True,
@@ -783,7 +783,7 @@ async def handle_review(
             return
 
         reverted = await verification_service.revert_to_pending_review(
-            request_id=request_id, guild_name=interaction.guild.name
+            request_id=request.id, guild_name=interaction.guild.name
         )
         if not reverted:
             await interaction.response.send_message(
@@ -792,7 +792,9 @@ async def handle_review(
             )
             return
 
-        await update_mod_message_for_manual_review(interaction.guild, request, config, request_id)
+        await update_mod_message_for_manual_review(
+            interaction.guild, request, config, request.public_id
+        )
 
         await session.commit()
 

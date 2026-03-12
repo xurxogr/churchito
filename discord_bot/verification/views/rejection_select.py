@@ -11,7 +11,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
 
     def __init__(
         self,
-        request_id: int,
+        public_id: str,
         options: list[discord.SelectOption],
         placeholder: str,
         modal_title: str,
@@ -21,7 +21,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         """Inicializar el selector.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             options (list[discord.SelectOption]): Opciones del selector
             placeholder (str): Texto del placeholder
             modal_title (str): Titulo del modal de motivo personalizado
@@ -31,9 +31,9 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         super().__init__(
             placeholder=placeholder,
             options=options,
-            custom_id=f"verification:reject_reason:{request_id}",
+            custom_id=f"verification:reject_reason:{public_id}",
         )
-        self.request_id = request_id
+        self.public_id = public_id
         self.modal_title = modal_title
         self.modal_label = modal_label
         self.modal_placeholder = modal_placeholder
@@ -48,7 +48,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
 
         if selected == "__OTHER__":
             modal = RejectionReasonModal(
-                request_id=self.request_id,
+                public_id=self.public_id,
                 title=self.modal_title,
                 label=self.modal_label,
                 placeholder=self.modal_placeholder,
@@ -59,7 +59,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
             if cog:
                 await cog.handle_reject(
                     interaction=interaction,
-                    request_id=self.request_id,
+                    public_id=self.public_id,
                     reason=selected,
                 )
 
@@ -76,7 +76,7 @@ class RejectionReasonView(discord.ui.View):
 
     def __init__(
         self,
-        request_id: int,
+        public_id: str,
         reasons: list[str],
         other_label: str = "Otro motivo...",
         other_description: str = "Escribir un motivo personalizado",
@@ -88,7 +88,7 @@ class RejectionReasonView(discord.ui.View):
         """Inicializar la vista de seleccion.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             reasons (list[str]): Lista de motivos predefinidos
             other_label (str): Etiqueta para la opcion "Otro"
             other_description (str): Descripcion para la opcion "Otro"
@@ -114,7 +114,7 @@ class RejectionReasonView(discord.ui.View):
 
         self.add_item(
             ReasonSelect(
-                request_id=request_id,
+                public_id=public_id,
                 options=options,
                 placeholder=placeholder,
                 modal_title=modal_title,

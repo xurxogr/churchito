@@ -11,34 +11,34 @@ import discord
 class AcceptButton(discord.ui.Button["ModReviewView"]):
     """Boton para aceptar una solicitud de verificacion."""
 
-    def __init__(self, request_id: int, label: str = "Aceptar") -> None:
+    def __init__(self, public_id: str, label: str = "Aceptar") -> None:
         """Inicializar el boton de aceptar.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             label (str): Texto del boton
         """
         super().__init__(
             label=label,
             style=discord.ButtonStyle.success,
-            custom_id=f"verification:accept:{request_id}",
+            custom_id=f"verification:accept:{public_id}",
         )
 
 
 class RejectButton(discord.ui.Button["ModReviewView"]):
     """Boton para rechazar una solicitud de verificacion."""
 
-    def __init__(self, request_id: int, label: str = "Rechazar") -> None:
+    def __init__(self, public_id: str, label: str = "Rechazar") -> None:
         """Inicializar el boton de rechazar.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             label (str): Texto del boton
         """
         super().__init__(
             label=label,
             style=discord.ButtonStyle.danger,
-            custom_id=f"verification:reject:{request_id}",
+            custom_id=f"verification:reject:{public_id}",
         )
 
 
@@ -51,19 +51,19 @@ class ModReviewView(discord.ui.View):
 
     def __init__(
         self,
-        request_id: int,
+        public_id: str,
         accept_label: str = "Aceptar",
         reject_label: str = "Rechazar",
     ) -> None:
         """Inicializar la vista de revision.
 
         Args:
-            request_id (int): ID de la solicitud de verificacion
+            public_id (str): ID público de la solicitud de verificacion (NanoID)
             accept_label (str): Texto del boton de aceptar
             reject_label (str): Texto del boton de rechazar
         """
         super().__init__(timeout=None)
-        self.request_id = request_id
+        self.public_id = public_id
 
-        self.add_item(AcceptButton(request_id=request_id, label=accept_label))
-        self.add_item(RejectButton(request_id=request_id, label=reject_label))
+        self.add_item(AcceptButton(public_id=public_id, label=accept_label))
+        self.add_item(RejectButton(public_id=public_id, label=reject_label))

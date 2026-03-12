@@ -750,7 +750,7 @@ class TestHandleAuthorize:
         """Probar sin guild."""
         mock_interaction.guild = None
 
-        await purga_cog._handle_authorize(mock_interaction, 1)
+        await purga_cog._handle_authorize(mock_interaction, "1")
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -786,9 +786,9 @@ class TestHandleAuthorize:
                 scheduled_for=datetime.now(UTC) + timedelta(days=3),
             )
             await session.commit()
-            purga_id = purga.id
+            public_id = purga.public_id
 
-        await purga_cog._handle_authorize(mock_interaction, purga_id)
+        await purga_cog._handle_authorize(mock_interaction, public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -811,7 +811,7 @@ class TestHandleAuthorize:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
             await session.commit()
 
-        await purga_cog._handle_authorize(mock_interaction, 99999)
+        await purga_cog._handle_authorize(mock_interaction, "99999")
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -844,7 +844,7 @@ class TestHandleAuthorize:
             )
             await session.commit()
 
-        await purga_cog._handle_authorize(mock_interaction, record.id)
+        await purga_cog._handle_authorize(mock_interaction, record.public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -862,7 +862,7 @@ class TestHandleCancel:
         """Probar sin guild."""
         mock_interaction.guild = None
 
-        await purga_cog._handle_cancel(mock_interaction, 1)
+        await purga_cog._handle_cancel(mock_interaction, "1")
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -898,9 +898,9 @@ class TestHandleCancel:
                 scheduled_for=datetime.now(UTC) + timedelta(days=3),
             )
             await session.commit()
-            purga_id = purga.id
+            public_id = purga.public_id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -918,7 +918,7 @@ class TestHandleConfirm:
         """Probar sin guild."""
         mock_interaction.guild = None
 
-        await purga_cog._handle_confirm(mock_interaction, 1)
+        await purga_cog._handle_confirm(mock_interaction, "1")
 
         mock_interaction.response.defer.assert_not_called()
 
@@ -932,7 +932,7 @@ class TestHandleConfirm:
         """Probar con purga inexistente."""
         mock_interaction.user = mock_member
 
-        await purga_cog._handle_confirm(mock_interaction, 99999)
+        await purga_cog._handle_confirm(mock_interaction, "99999")
 
         mock_interaction.response.send_message.assert_called()
         call_args = mock_interaction.response.send_message.call_args
@@ -1127,7 +1127,7 @@ class TestHandleCancelExtended:
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
             await session.commit()
 
-        await purga_cog._handle_cancel(mock_interaction, 99999)
+        await purga_cog._handle_cancel(mock_interaction, "99999")
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -1161,7 +1161,7 @@ class TestHandleCancelExtended:
             await purga_service.update_status(record.id, PurgaStatus.CANCELLED)
             await session.commit()
 
-        await purga_cog._handle_cancel(mock_interaction, record.id)
+        await purga_cog._handle_cancel(mock_interaction, record.public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -1195,7 +1195,7 @@ class TestHandleCancelExtended:
             await purga_service.add_cancellation(record.id, mock_member.id)
             await session.commit()
 
-        await purga_cog._handle_cancel(mock_interaction, record.id)
+        await purga_cog._handle_cancel(mock_interaction, record.public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -1231,7 +1231,7 @@ class TestHandleConfirmExtended:
             # Estado es PENDING por defecto
             await session.commit()
 
-        await purga_cog._handle_confirm(mock_interaction, record.id)
+        await purga_cog._handle_confirm(mock_interaction, record.public_id)
 
         mock_interaction.response.send_message.assert_called()
         call_args = mock_interaction.response.send_message.call_args
@@ -1311,6 +1311,7 @@ class TestCheckExpiredPurgas:
             )
             await session.commit()
             purga_id = record.id
+            purga_id = record.id
 
         # Registrar en tracking
         purga_cog._active_purgas[guild_id] = (
@@ -1356,6 +1357,7 @@ class TestCheckReadyPurgas:
             )
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
+            purga_id = record.id
             purga_id = record.id
 
         # Registrar en tracking
@@ -1821,41 +1823,41 @@ class TestOnInteraction:
         """Probar manejo de boton de autorizar."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "purga:authorize:123"}
+        interaction.data = {"custom_id": "purga:authorize:test123"}
 
         with patch.object(purga_cog, "_handle_authorize", new_callable=AsyncMock) as mock_auth:
             await purga_cog.on_interaction(interaction)
-            mock_auth.assert_called_once_with(interaction=interaction, purga_id=123)
+            mock_auth.assert_called_once_with(interaction=interaction, public_id="test123")
 
     async def test_handles_cancel_button(self, purga_cog: PurgaCog) -> None:
         """Probar manejo de boton de cancelar."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "purga:cancel:456"}
+        interaction.data = {"custom_id": "purga:cancel:test456"}
 
         with patch.object(purga_cog, "_handle_cancel", new_callable=AsyncMock) as mock_cancel:
             await purga_cog.on_interaction(interaction)
-            mock_cancel.assert_called_once_with(interaction=interaction, purga_id=456)
+            mock_cancel.assert_called_once_with(interaction=interaction, public_id="test456")
 
     async def test_handles_confirm_button(self, purga_cog: PurgaCog) -> None:
         """Probar manejo de boton de confirmar."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "purga:confirm:789"}
+        interaction.data = {"custom_id": "purga:confirm:test789"}
 
         with patch.object(purga_cog, "_handle_confirm", new_callable=AsyncMock) as mock_confirm:
             await purga_cog.on_interaction(interaction)
-            mock_confirm.assert_called_once_with(interaction=interaction, purga_id=789)
+            mock_confirm.assert_called_once_with(interaction=interaction, public_id="test789")
 
     async def test_ignores_invalid_custom_id(self, purga_cog: PurgaCog) -> None:
-        """Probar que ignora custom_id invalido."""
+        """Probar que ignora custom_id invalido - now accepts any string."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "purga:authorize:invalid"}
+        interaction.data = {"custom_id": "purga:authorize:anystring"}
 
         with patch.object(purga_cog, "_handle_authorize", new_callable=AsyncMock) as mock_auth:
             await purga_cog.on_interaction(interaction)
-            mock_auth.assert_not_called()
+            mock_auth.assert_called_once_with(interaction=interaction, public_id="anystring")
 
     async def test_ignores_unknown_button(self, purga_cog: PurgaCog) -> None:
         """Probar que ignora boton desconocido."""
@@ -1988,9 +1990,11 @@ class TestHandleAuthorizeExtended:
                 scheduled_for=datetime.now(UTC) + timedelta(days=3),
             )
             await session.commit()
+            public_id = record.public_id
+            purga_id = record.id
             purga_id = record.id
 
-        await purga_cog._handle_authorize(mock_interaction, purga_id)
+        await purga_cog._handle_authorize(mock_interaction, public_id)
 
         # Verificar mensaje de confirmacion
         mock_interaction.followup.send.assert_called()
@@ -2219,9 +2223,11 @@ class TestHandleConfirmToggle:
             )
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
+            public_id = record.public_id
+            purga_id = record.id
             purga_id = record.id
 
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_interaction.response.send_message.assert_called()
         call_args = mock_interaction.response.send_message.call_args
@@ -2271,9 +2277,9 @@ class TestHandleConfirmToggle:
             # Añadir confirmacion previa
             await purga_service.add_confirmation(record.id, mock_member.id)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_interaction.response.send_message.assert_called()
         call_args = mock_interaction.response.send_message.call_args
@@ -2317,9 +2323,9 @@ class TestHandleConfirmToggle:
             )
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_member.add_roles.assert_called_once_with(mock_role)
 
@@ -2363,9 +2369,9 @@ class TestHandleCancelExtendedFull:
                 scheduled_for=datetime.now(UTC) + timedelta(days=3),
             )
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -2410,9 +2416,11 @@ class TestHandleCancelExtendedFull:
                 scheduled_for=datetime.now(UTC) + timedelta(days=3),
             )
             await session.commit()
+            public_id = record.public_id
+            purga_id = record.id
             purga_id = record.id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -2821,6 +2829,7 @@ class TestCheckExpiredPurgasExtended:
             )
             await session.commit()
             purga_id = record.id
+            purga_id = record.id
 
         purga_cog._active_purgas[guild_id] = (
             purga_id,
@@ -2909,9 +2918,9 @@ class TestHandleConfirmRoleRemoval:
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await purga_service.add_confirmation(record.id, mock_member.id)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_member.remove_roles.assert_called_once_with(mock_role)
 
@@ -2975,9 +2984,9 @@ class TestHandleCancelWithReactionRole:
             # Add confirmation
             await purga_service.add_confirmation(record.id, confirmed_user_id)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Verificar que se quito el rol
         confirmed_member.remove_roles.assert_called()
@@ -3183,10 +3192,10 @@ class TestHandleAuthorizeRevertToPending:
             await purga_service.add_authorization(record.id, 222)
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
         # Ahora el usuario añade una autorizacion (total 3)
-        await purga_cog._handle_authorize(mock_interaction, purga_id)
+        await purga_cog._handle_authorize(mock_interaction, public_id)
 
         # Verificar que funciono
         mock_interaction.followup.send.assert_called()
@@ -3233,9 +3242,9 @@ class TestHandleAuthorizeNotActive:
             # Cambiar a estado cancelado (no activa)
             await purga_service.update_status(record.id, PurgaStatus.CANCELLED)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_authorize(mock_interaction, purga_id)
+        await purga_cog._handle_authorize(mock_interaction, public_id)
 
         mock_interaction.followup.send.assert_called()
         call_args = mock_interaction.followup.send.call_args
@@ -3279,9 +3288,9 @@ class TestHandleConfirmNotAuthorized:
             )
             # Dejar en estado pendiente (no autorizada)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_interaction.response.send_message.assert_called()
         call_args = mock_interaction.response.send_message.call_args
@@ -3330,10 +3339,10 @@ class TestHandleConfirmRoleForbidden:
             )
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
         # No deberia lanzar excepcion
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
 
         mock_interaction.response.send_message.assert_called()
 
@@ -3522,11 +3531,9 @@ class TestTeardown:
 
         mock_discord_bot.get_cog = MagicMock(return_value=cog)
         mock_discord_bot.get_guild = MagicMock(
-            side_effect=lambda gid: mock_guild1
-            if gid == 111
-            else mock_guild2
-            if gid == 222
-            else None
+            side_effect=lambda gid: (
+                mock_guild1 if gid == 111 else mock_guild2 if gid == 222 else None
+            )
         )
 
         await teardown(mock_discord_bot)
@@ -3941,6 +3948,7 @@ class TestCheckExpiredPurgasWithUpdate:
             record.mod_message_id = 456
             await session.commit()
             purga_id = record.id
+            purga_id = record.id
 
         purga_cog._active_purgas[guild_id] = (
             purga_id,
@@ -4102,10 +4110,10 @@ class TestHandleCancelRemovesRoleForbidden:
             )
             await purga_service.add_confirmation(record.id, confirmed_user_id)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
         # No deberia lanzar excepcion
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Se intento quitar el rol pero fallo
         confirmed_member.remove_roles.assert_called()
@@ -4574,12 +4582,14 @@ class TestHandleAuthorizeTestModeExecTime:
             # First authorization from initiator
             await purga_service.add_authorization(record.id, mock_member.id)
             await session.commit()
+            public_id = record.public_id
+            purga_id = record.id
             purga_id = record.id
 
         # Track before
         purga_cog._active_purgas[guild_id] = (purga_id, None)
 
-        await purga_cog._handle_authorize(mock_interaction, purga_id)
+        await purga_cog._handle_authorize(mock_interaction, public_id)
 
         # Should be in authorized_purgas now
         assert guild_id in purga_cog._authorized_purgas
@@ -4629,10 +4639,10 @@ class TestHandleConfirmRemoveRoleForbidden:
             # User already confirmed, now will toggle off
             await purga_service.add_confirmation(record.id, mock_member.id)
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
         # Should not raise - handles Forbidden gracefully
-        await purga_cog._handle_confirm(mock_interaction, purga_id)
+        await purga_cog._handle_confirm(mock_interaction, public_id)
         mock_interaction.response.send_message.assert_called()
 
 
@@ -4692,9 +4702,9 @@ class TestHandleCancelDeletesUserMessage:
             record.user_channel_id = 789
             record.user_message_id = 111
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Should have deleted user message
         mock_user_message.delete.assert_called()
@@ -5273,9 +5283,9 @@ class TestHandleCancelSchedulesDeletion:
             record.mod_channel_id = 123
             record.mod_message_id = 456
             await session.commit()
-            purga_id = record.id
+            public_id = record.public_id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Should have scheduled deletion
         assert len(purga_cog._pending_deletions) > 0
@@ -5365,9 +5375,10 @@ class TestHandleCancelToCancelPending:
             )
             await purga_service.update_status(record.id, PurgaStatus.AUTHORIZED)
             await session.commit()
+            public_id = record.public_id
             purga_id = record.id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Verificar que se transicionó a CANCEL_PENDING
         async with test_database.session() as session:
@@ -5421,9 +5432,10 @@ class TestHandleCancelToCancelPending:
             await purga_service.update_status(record.id, PurgaStatus.CANCEL_PENDING)
             await purga_service.add_cancellation(record.id, 888)
             await session.commit()
+            public_id = record.public_id
             purga_id = record.id
 
-        await purga_cog._handle_cancel(mock_interaction, purga_id)
+        await purga_cog._handle_cancel(mock_interaction, public_id)
 
         # Verificar que se añadió el voto y sigue en CANCEL_PENDING
         async with test_database.session() as session:
@@ -5579,7 +5591,7 @@ class TestModAuthorizationViewCancelPending:
         from discord_bot.purga.views import ModAuthorizationView
 
         view = ModAuthorizationView(
-            purga_id=123,
+            public_id="123",
             status=PurgaStatus.CANCEL_PENDING,
             authorize_label="Autorizar",
             cancel_label="Cancelar",
@@ -5604,7 +5616,7 @@ class TestHandleAuthorizeReturnsNone:
         test_database: DatabaseService,
     ) -> None:
         """Probar que retorna temprano cuando add_authorization retorna None."""
-        purga_id = 1
+        public_id = "test123"
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = mock_guild
@@ -5616,7 +5628,8 @@ class TestHandleAuthorizeReturnsNone:
 
         # Crear record inicial en estado PENDING
         mock_record = MagicMock()
-        mock_record.id = purga_id
+        mock_record.id = 1
+        mock_record.public_id = public_id
         mock_record.guild_id = mock_guild.id
         mock_record.status = PurgaStatus.PENDING
         mock_record.purga_type = PurgaType.WAR_END
@@ -5631,13 +5644,13 @@ class TestHandleAuthorizeReturnsNone:
             }
 
             mock_service = MagicMock()
-            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.get_by_public_id = AsyncMock(return_value=mock_record)
             mock_service.add_authorization = AsyncMock(return_value=None)
             mock_service_class.return_value = mock_service
 
             await purga_cog._handle_authorize(
                 interaction=interaction,
-                purga_id=purga_id,
+                public_id=public_id,
             )
 
             # Verificar que se llamó add_authorization y retornó
@@ -5655,7 +5668,7 @@ class TestHandleCancelReturnsNone:
         test_database: DatabaseService,
     ) -> None:
         """Probar que retorna temprano cuando add_cancellation retorna None."""
-        purga_id = 1
+        public_id = "test123"
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = mock_guild
@@ -5666,7 +5679,8 @@ class TestHandleCancelReturnsNone:
         interaction.followup.send = AsyncMock()
 
         mock_record = MagicMock()
-        mock_record.id = purga_id
+        mock_record.id = 1
+        mock_record.public_id = public_id
         mock_record.guild_id = mock_guild.id
         mock_record.status = PurgaStatus.AUTHORIZED
         mock_record.purga_type = PurgaType.WAR_END
@@ -5681,13 +5695,13 @@ class TestHandleCancelReturnsNone:
             }
 
             mock_service = MagicMock()
-            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.get_by_public_id = AsyncMock(return_value=mock_record)
             mock_service.add_cancellation = AsyncMock(return_value=None)
             mock_service_class.return_value = mock_service
 
             await purga_cog._handle_cancel(
                 interaction=interaction,
-                purga_id=purga_id,
+                public_id=public_id,
             )
 
             mock_service.add_cancellation.assert_called_once()
@@ -5704,7 +5718,7 @@ class TestUpdateStatusReturnsNone:
         test_database: DatabaseService,
     ) -> None:
         """Probar que retorna cuando update_status falla en transición a CANCEL_PENDING."""
-        purga_id = 1
+        public_id = "test123"
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = mock_guild
@@ -5716,7 +5730,8 @@ class TestUpdateStatusReturnsNone:
 
         # Record con estado AUTHORIZED
         mock_record = MagicMock()
-        mock_record.id = purga_id
+        mock_record.id = 1
+        mock_record.public_id = public_id
         mock_record.guild_id = mock_guild.id
         mock_record.status = PurgaStatus.AUTHORIZED
         mock_record.purga_type = PurgaType.WAR_END
@@ -5733,14 +5748,14 @@ class TestUpdateStatusReturnsNone:
             }
 
             mock_service = MagicMock()
-            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.get_by_public_id = AsyncMock(return_value=mock_record)
             mock_service.add_cancellation = AsyncMock(return_value=mock_record)
             mock_service.update_status = AsyncMock(return_value=None)
             mock_service_class.return_value = mock_service
 
             await purga_cog._handle_cancel(
                 interaction=interaction,
-                purga_id=purga_id,
+                public_id=public_id,
             )
 
             mock_service.update_status.assert_called()
@@ -5753,7 +5768,7 @@ class TestUpdateStatusReturnsNone:
         test_database: DatabaseService,
     ) -> None:
         """Probar que retorna cuando update_status falla al cancelar completamente."""
-        purga_id = 1
+        public_id = "test123"
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = mock_guild
@@ -5765,7 +5780,8 @@ class TestUpdateStatusReturnsNone:
 
         # Record con suficientes votos para cancelar
         mock_record = MagicMock()
-        mock_record.id = purga_id
+        mock_record.id = 1
+        mock_record.public_id = public_id
         mock_record.guild_id = mock_guild.id
         mock_record.status = PurgaStatus.CANCEL_PENDING
         mock_record.purga_type = PurgaType.WAR_END
@@ -5781,14 +5797,14 @@ class TestUpdateStatusReturnsNone:
             }
 
             mock_service = MagicMock()
-            mock_service.get_purga = AsyncMock(return_value=mock_record)
+            mock_service.get_by_public_id = AsyncMock(return_value=mock_record)
             mock_service.add_cancellation = AsyncMock(return_value=mock_record)
             mock_service.update_status = AsyncMock(return_value=None)
             mock_service_class.return_value = mock_service
 
             await purga_cog._handle_cancel(
                 interaction=interaction,
-                purga_id=purga_id,
+                public_id=public_id,
             )
 
 
@@ -5962,7 +5978,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
         )
 
@@ -5979,7 +5995,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
             audit_level_required=1,
         )
@@ -5999,7 +6015,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
         )
 
@@ -6019,11 +6035,11 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=42,
+            public_id="test42",
             message="Test message",
         )
 
-        mock_channel.send.assert_called_once_with("[#42] Test message")
+        mock_channel.send.assert_called_once_with("[#test42] Test message")
 
     async def test_audit_level_met(self, purga_cog: PurgaCog, mock_guild: MagicMock) -> None:
         """Envía cuando audit level cumple el requisito."""
@@ -6039,7 +6055,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test",
             audit_level_required=1,
         )
@@ -6060,7 +6076,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
         )
 
@@ -6076,7 +6092,7 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
         )
 
@@ -6095,6 +6111,6 @@ class TestSendLog:
         await purga_cog._send_log(
             guild=mock_guild,
             config=config,
-            purga_id=1,
+            public_id="test1",
             message="Test message",
         )

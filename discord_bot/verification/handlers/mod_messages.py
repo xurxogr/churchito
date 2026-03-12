@@ -188,7 +188,7 @@ async def update_mod_message_for_review(
     )
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
     view = ModReviewView(
-        request_id=request.id, accept_label=accept_label, reject_label=reject_label
+        public_id=request.public_id, accept_label=accept_label, reject_label=reject_label
     )
 
     member = channel.guild.get_member(request.user_id)
@@ -328,7 +328,7 @@ async def update_mod_message_for_manual_review(
     guild: discord.Guild,
     request: "VerificationRequest",
     config: dict[str, Any],
-    request_id: int,
+    public_id: str,
 ) -> None:
     """Actualizar mensaje de moderación para revisión manual.
 
@@ -336,7 +336,7 @@ async def update_mod_message_for_manual_review(
         guild: Guild donde está el mensaje
         request: Solicitud de verificación
         config: Configuración del cog
-        request_id: ID de la solicitud
+        public_id: ID público de la solicitud (NanoID)
     """
     if not request.mod_message_id:
         return
@@ -385,7 +385,7 @@ async def update_mod_message_for_manual_review(
     )
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
     view = ModReviewView(
-        request_id=request_id,
+        public_id=public_id,
         accept_label=accept_label,
         reject_label=reject_label,
     )

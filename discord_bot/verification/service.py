@@ -76,6 +76,20 @@ class VerificationService:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_public_id(self, public_id: str) -> VerificationRequest | None:
+        """Obtener una solicitud por public_id.
+
+        Args:
+            public_id (str): ID público de la solicitud (NanoID)
+
+        Returns:
+            VerificationRequest | None: Solicitud o None si no existe
+        """
+        result = await self._session.execute(
+            select(VerificationRequest).where(VerificationRequest.public_id == public_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_pending_by_user(self, guild_id: int, user_id: int) -> VerificationRequest | None:
         """Obtener solicitud pendiente de un usuario.
 

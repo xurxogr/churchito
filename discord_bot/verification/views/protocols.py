@@ -16,17 +16,15 @@ class VerificationCogProtocol(Protocol):
     ) -> None:
         """Manejar inicio de verificacion."""
 
-    async def handle_accept(self, interaction: discord.Interaction, request_id: int) -> None:
+    async def handle_accept(self, interaction: discord.Interaction, public_id: str) -> None:
         """Manejar aprobacion de verificacion."""
 
     async def handle_reject(
-        self, interaction: discord.Interaction, request_id: int, reason: str
+        self, interaction: discord.Interaction, public_id: str, reason: str
     ) -> None:
         """Manejar rechazo de verificacion."""
 
-    async def show_rejection_select(
-        self, interaction: discord.Interaction, request_id: int
-    ) -> None:
+    async def show_rejection_select(self, interaction: discord.Interaction, public_id: str) -> None:
         """Mostrar selector de motivos de rechazo."""
 
 

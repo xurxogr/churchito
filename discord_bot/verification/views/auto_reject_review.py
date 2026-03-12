@@ -10,17 +10,17 @@ import discord
 class ReviewButton(discord.ui.Button["AutoRejectReviewView"]):
     """Botón para revisar un auto-rechazo."""
 
-    def __init__(self, request_id: int, label: str = "Revisar") -> None:
+    def __init__(self, public_id: str, label: str = "Revisar") -> None:
         """Inicializar el botón de revisar.
 
         Args:
-            request_id (int): ID de la solicitud de verificación
+            public_id (str): ID público de la solicitud de verificación (NanoID)
             label (str): Texto del botón
         """
         super().__init__(
             label=label,
             style=discord.ButtonStyle.secondary,
-            custom_id=f"verification:review:{request_id}",
+            custom_id=f"verification:review:{public_id}",
         )
 
 
@@ -33,20 +33,20 @@ class AutoRejectReviewView(discord.ui.View):
 
     def __init__(
         self,
-        request_id: int,
+        public_id: str,
         review_label: str = "Revisar",
         timeout_minutes: int = 30,
     ) -> None:
         """Inicializar la vista de revisión.
 
         Args:
-            request_id (int): ID de la solicitud de verificación
+            public_id (str): ID público de la solicitud de verificación (NanoID)
             review_label (str): Texto del botón de revisar
             timeout_minutes (int): Minutos hasta que el botón expire
         """
         # Convertir minutos a segundos para el timeout
         timeout_seconds = timeout_minutes * 60 if timeout_minutes > 0 else None
         super().__init__(timeout=timeout_seconds)
-        self.request_id = request_id
+        self.public_id = public_id
 
-        self.add_item(ReviewButton(request_id=request_id, label=review_label))
+        self.add_item(ReviewButton(public_id=public_id, label=review_label))

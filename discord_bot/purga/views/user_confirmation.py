@@ -13,21 +13,21 @@ class ConfirmButton(discord.ui.Button["UserConfirmationView"]):
 
     def __init__(
         self,
-        purga_id: int,
+        public_id: str,
         label: str = "Confirmar permanencia",
         style: discord.ButtonStyle = discord.ButtonStyle.success,
     ) -> None:
         """Inicializar el botón de confirmar.
 
         Args:
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
             label (str): Texto del botón.
             style (discord.ButtonStyle): Estilo del botón.
         """
         super().__init__(
             label=label,
             style=style,
-            custom_id=f"purga:confirm:{purga_id}",
+            custom_id=f"purga:confirm:{public_id}",
         )
 
 
@@ -40,17 +40,17 @@ class UserConfirmationView(discord.ui.View):
 
     def __init__(
         self,
-        purga_id: int,
+        public_id: str,
         confirm_label: str = "Confirmar permanencia",
         button_style: discord.ButtonStyle = discord.ButtonStyle.success,
     ) -> None:
         """Inicializar la vista de confirmación.
 
         Args:
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
             confirm_label (str): Texto del botón de confirmar.
             button_style (discord.ButtonStyle): Estilo del botón.
         """
         super().__init__(timeout=None)
 
-        self.add_item(ConfirmButton(purga_id=purga_id, label=confirm_label, style=button_style))
+        self.add_item(ConfirmButton(public_id=public_id, label=confirm_label, style=button_style))

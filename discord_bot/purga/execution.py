@@ -164,7 +164,7 @@ async def execute_purga(
             await cog._send_log(
                 guild=guild,
                 config=config,
-                purga_id=purga_id,
+                public_id=record.public_id,
                 message=msg,
                 audit_level_required=1,
             )
@@ -339,7 +339,7 @@ async def execute_purga(
             await cog._send_log(
                 guild=guild,
                 config=config,
-                purga_id=purga_id,
+                public_id=record.public_id,
                 message=finish_msg,
             )
 

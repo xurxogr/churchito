@@ -886,6 +886,7 @@ class TestCreateTrackerEmbed:
         """Probar que crea embed sin link cuando no hay mod_message_id."""
         request = MagicMock()
         request.id = 42
+        request.public_id = "42"
         request.username = "TestUser"
         request.status = VerificationStatus.PENDING_REVIEW
         request.verification_type = VerificationType.ALLY

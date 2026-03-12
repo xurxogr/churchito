@@ -244,7 +244,7 @@ async def handle_auto_rejection(
         if review_window and review_window > 0:
             review_label = config.get(ConfigKey.REVIEW_BUTTON_TEXT) or "Revisar"
             view: discord.ui.View | None = AutoRejectReviewView(
-                request_id=request.id,
+                public_id=request.public_id,
                 review_label=review_label,
                 timeout_minutes=review_window,
             )

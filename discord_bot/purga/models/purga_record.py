@@ -3,11 +3,17 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from nanoid import generate
 from sqlalchemy import JSON, BigInteger, DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from discord_bot.common.models import Base
 from discord_bot.purga.enums import PurgaStatus
+
+
+def _generate_public_id() -> str:
+    """Genera un ID público único usando NanoID."""
+    return str(generate(size=21))
 
 
 class PurgaRecord(Base):
@@ -25,6 +31,9 @@ class PurgaRecord(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    public_id: Mapped[str] = mapped_column(
+        String(21), unique=True, nullable=False, default=_generate_public_id
+    )
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     purga_type: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default=PurgaStatus.PENDING)

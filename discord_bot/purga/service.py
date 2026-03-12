@@ -71,6 +71,20 @@ class PurgaService:
         result = await self._session.execute(select(PurgaRecord).where(PurgaRecord.id == purga_id))
         return result.scalar_one_or_none()
 
+    async def get_by_public_id(self, public_id: str) -> PurgaRecord | None:
+        """Obtener una purga por public_id.
+
+        Args:
+            public_id (str): ID público de la purga (NanoID).
+
+        Returns:
+            PurgaRecord | None: Registro si existe.
+        """
+        result = await self._session.execute(
+            select(PurgaRecord).where(PurgaRecord.public_id == public_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_active_purga(self, guild_id: int) -> PurgaRecord | None:
         """Obtener la purga activa de un guild.
 

@@ -15,21 +15,21 @@ class AuthorizeButton(discord.ui.Button["ModAuthorizationView"]):
 
     def __init__(
         self,
-        purga_id: int,
+        public_id: str,
         label: str = "Autorizar purga",
         style: discord.ButtonStyle = discord.ButtonStyle.success,
     ) -> None:
         """Inicializar el botón de autorizar.
 
         Args:
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
             label (str): Texto del botón.
             style (discord.ButtonStyle): Estilo del botón.
         """
         super().__init__(
             label=label,
             style=style,
-            custom_id=f"purga:authorize:{purga_id}",
+            custom_id=f"purga:authorize:{public_id}",
         )
 
 
@@ -38,19 +38,19 @@ class CancelButton(discord.ui.Button["ModAuthorizationView"]):
 
     def __init__(
         self,
-        purga_id: int,
+        public_id: str,
         label: str = "Detener purga",
     ) -> None:
         """Inicializar el botón de cancelar.
 
         Args:
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
             label (str): Texto del botón.
         """
         super().__init__(
             label=label,
             style=discord.ButtonStyle.danger,
-            custom_id=f"purga:cancel:{purga_id}",
+            custom_id=f"purga:cancel:{public_id}",
         )
 
 
@@ -65,7 +65,7 @@ class ModAuthorizationView(discord.ui.View):
 
     def __init__(
         self,
-        purga_id: int,
+        public_id: str,
         status: PurgaStatus,
         authorize_label: str = "Autorizar purga",
         cancel_label: str = "Detener purga",
@@ -74,7 +74,7 @@ class ModAuthorizationView(discord.ui.View):
         """Inicializar la vista de autorización.
 
         Args:
-            purga_id (int): ID del registro de purga.
+            public_id (str): ID público del registro de purga (NanoID).
             status (PurgaStatus): Estado actual de la purga.
             authorize_label (str): Texto del botón de autorizar.
             cancel_label (str): Texto del botón de cancelar.
@@ -84,7 +84,7 @@ class ModAuthorizationView(discord.ui.View):
 
         if status == PurgaStatus.PENDING:
             self.add_item(
-                AuthorizeButton(purga_id=purga_id, label=authorize_label, style=button_style)
+                AuthorizeButton(public_id=public_id, label=authorize_label, style=button_style)
             )
         elif status in (PurgaStatus.AUTHORIZED, PurgaStatus.CANCEL_PENDING):
-            self.add_item(CancelButton(purga_id=purga_id, label=cancel_label))
+            self.add_item(CancelButton(public_id=public_id, label=cancel_label))
