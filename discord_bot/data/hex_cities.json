@@ -1,0 +1,699 @@
+{
+  "AcrithiaHex": {
+    "display_name": "Acrithia",
+    "major_locations": [
+      "Camp Omicron",
+      "Heir Apparent",
+      "Legion Ranch",
+      "Nereid Keep",
+      "Patridia",
+      "Swordfort",
+      "The Brinehold",
+      "Thetus Ring"
+    ]
+  },
+  "AllodsBightHex": {
+    "display_name": "Allods Bight",
+    "major_locations": [
+      "Belaying Trace",
+      "Homesick",
+      "Mercy's Wail",
+      "Rumhold",
+      "Scurvyshire",
+      "The Stone Plank",
+      "The Turncoat"
+    ]
+  },
+  "AshFieldsHex": {
+    "display_name": "Ash Fields",
+    "major_locations": [
+      "Ashtown",
+      "Camp Omega",
+      "Cometa",
+      "Electi",
+      "Sootflow",
+      "The Ashfort",
+      "The Calamity"
+    ]
+  },
+  "BasinSionnachHex": {
+    "display_name": "Basin Sionnach",
+    "major_locations": [
+      "Basinhome",
+      "Cuttail Station",
+      "Lamplight",
+      "Sess",
+      "Stoic",
+      "The Den"
+    ]
+  },
+  "CallahansPassageHex": {
+    "display_name": "Callahan's Passage",
+    "major_locations": [
+      "Cragstown",
+      "Crumbling Post",
+      "Lochan Berth",
+      "Overlook Hill",
+      "Scáth Passing",
+      "Solas Gorge",
+      "The Crumbling Passage",
+      "The Latch",
+      "The Procession",
+      "White Chapel"
+    ]
+  },
+  "CallumsCapeHex": {
+    "display_name": "Callum's Cape",
+    "major_locations": [
+      "Callum's Keep",
+      "Camp Hollow",
+      "Holdout",
+      "Ire",
+      "Lookout",
+      "Naofa",
+      "Scouts Jest"
+    ]
+  },
+  "ClahstraHex": {
+    "display_name": "Clahstra",
+    "major_locations": [
+      "Bewailing Fort",
+      "East Narthex",
+      "The Treasury",
+      "The Vault",
+      "Third Chapter",
+      "Transept",
+      "Watchful Nave",
+      "Weephome"
+    ]
+  },
+  "ClansheadValleyHex": {
+    "display_name": "Clanshead Valley",
+    "major_locations": [
+      "Fallen Crown",
+      "Fort Ealar",
+      "Fort Esterwild",
+      "Fort Windham",
+      "Sweetholt",
+      "The King",
+      "The Pike"
+    ]
+  },
+  "DeadLandsHex": {
+    "display_name": "Deadlands",
+    "major_locations": [
+      "Abandoned Ward",
+      "Brine Glen",
+      "Callahan's Boot",
+      "Callahan's Gate",
+      "Iron's End",
+      "Liberation Point",
+      "Sun's Hollow",
+      "The Pits",
+      "The Salt Farms",
+      "The Salt March",
+      "The Spine"
+    ]
+  },
+  "DrownedValeHex": {
+    "display_name": "Drowned Vale",
+    "major_locations": [
+      "Bootnap",
+      "Coaldrifter Stead",
+      "Eastmarch",
+      "Loggerhead",
+      "Singing Serpents",
+      "Splinter Pens",
+      "The Baths",
+      "The Saltcaps",
+      "The Wash",
+      "Vessel",
+      "Wisp's Warning"
+    ]
+  },
+  "EndlessShoreHex": {
+    "display_name": "Endless Shore",
+    "major_locations": [
+      "Brackish Point",
+      "Enduring Wake",
+      "Iron Junction",
+      "Saltbrook Channel",
+      "Sídhe Fall",
+      "The Old Jack Tar",
+      "The Overland",
+      "Tuatha Watchpost",
+      "Wellchurch",
+      "Woodbind"
+    ]
+  },
+  "FarranacCoastHex": {
+    "display_name": "Farranac Coast",
+    "major_locations": [
+      "Huskhollow",
+      "Macha's Keening",
+      "Mara",
+      "Pleading Wharf",
+      "Scarp of Ambrose",
+      "Scythe",
+      "Terra",
+      "The Bone Haft",
+      "The Jade Cove",
+      "Transient Valley",
+      "Victa"
+    ]
+  },
+  "FishermansRowHex": {
+    "display_name": "Fisherman's Row",
+    "major_locations": [
+      "Arcadia",
+      "Black Well",
+      "Dankana Post",
+      "Eidolo",
+      "Fort Ember",
+      "Hangman's Court",
+      "Oceanwatch",
+      "Peripti Landing",
+      "The Satyr Stone"
+    ]
+  },
+  "GodcroftsHex": {
+    "display_name": "Godcrofts",
+    "major_locations": [
+      "Argosa",
+      "Exile",
+      "Fleecewatch",
+      "Isawa",
+      "Lipsia",
+      "Protos",
+      "Saegio",
+      "The Axehead",
+      "Ursa Base"
+    ]
+  },
+  "GreatMarchHex": {
+    "display_name": "Great March",
+    "major_locations": [
+      "Camp Senti",
+      "Dendró Field",
+      "Leto",
+      "Lionsfort",
+      "Myrmidon's Stay",
+      "Remnant Villa",
+      "Sitaria",
+      "The Swan",
+      "Violethome"
+    ]
+  },
+  "GutterHex": {
+    "display_name": "Gutter",
+    "major_locations": [
+      "Kuoppa",
+      "Lost Kaivo",
+      "Rikki Sarana",
+      "Rotko Camp",
+      "Salaoja Road",
+      "Suojus",
+      "The Parras"
+    ]
+  },
+  "HeartlandsHex": {
+    "display_name": "Heartlands",
+    "major_locations": [
+      "Barronswall",
+      "Barrony Ranch",
+      "Deeplaw Post",
+      "Fort Providence",
+      "Greenfield Orchard",
+      "Oleander Homestead",
+      "Proexí",
+      "The Blemish",
+      "The Breach",
+      "The Plough"
+    ]
+  },
+  "HowlCountyHex": {
+    "display_name": "Howl County",
+    "major_locations": [
+      "Fort Red",
+      "Fort Rider",
+      "Great Warden Dam",
+      "Hungry Wolf",
+      "Little Lamb",
+      "Sickleshire",
+      "Slipgate Outpost",
+      "Teller Farm"
+    ]
+  },
+  "KalokaiHex": {
+    "display_name": "Kalokai",
+    "major_locations": [
+      "Baccae Ridge",
+      "Camp Tau",
+      "Hallow",
+      "Lost Greensward",
+      "Night's Regret",
+      "Sourtooth",
+      "Sweethearth"
+    ]
+  },
+  "KingsCageHex": {
+    "display_name": "Kings Cage",
+    "major_locations": [
+      "Den of Knaves",
+      "Eastknife",
+      "Gibbet Fields",
+      "Scarlethold",
+      "Slipchain",
+      "Southblade",
+      "The Bailie",
+      "The Manacle"
+    ]
+  },
+  "KuuraStrandHex": {
+    "display_name": "Kuura Strand",
+    "major_locations": [
+      "Faden Point",
+      "Lumia",
+      "Martti",
+      "Menneen",
+      "Suosalo",
+      "Talven"
+    ]
+  },
+  "LinnMercyHex": {
+    "display_name": "Linn of Mercy",
+    "major_locations": [
+      "Fort Duncan",
+      "Hardline",
+      "Lathair",
+      "Outwich Ranch",
+      "Rotdust",
+      "The Crimson Gardens",
+      "The First Coin",
+      "The Last Grove",
+      "The Long Whine",
+      "The Prairie Bazaar",
+      "Ulster Falls"
+    ]
+  },
+  "LochMorHex": {
+    "display_name": "Loch Mor",
+    "major_locations": [
+      "Feirmor",
+      "Market Road",
+      "Mercy's Wish",
+      "Moon's Copse",
+      "The Roilfort",
+      "Tomb of the First",
+      "Westmarch"
+    ]
+  },
+  "LykosIsleHex": {
+    "display_name": "Lykos Isle",
+    "major_locations": [
+      "Aetherwood",
+      "Astutia",
+      "Cyrus",
+      "Erebus Islet",
+      "Fort Guile",
+      "Mārudia",
+      "The Squall"
+    ]
+  },
+  "MarbanHollow": {
+    "display_name": "Marban Hollow",
+    "major_locations": [
+      "Checkpoint Bua",
+      "Lockheed",
+      "Maiden's Veil",
+      "Mox",
+      "Oster Wall",
+      "Sanctum",
+      "The Spitrocks"
+    ]
+  },
+  "MooringCountyHex": {
+    "display_name": "Mooring County",
+    "major_locations": [
+      "Borderlane",
+      "Gravekeeper's Holdfast",
+      "Headstone",
+      "Luch's Workshop",
+      "MacConmara Barrows",
+      "Morrighan's Grave",
+      "Ogmaran",
+      "Reaching River",
+      "The Cut",
+      "The Spade",
+      "The Wind Hills",
+      "Wiccwalk"
+    ]
+  },
+  "MorgensCrossingHex": {
+    "display_name": "Morgens Crossing",
+    "major_locations": [
+      "Allsight",
+      "Bastard's Block",
+      "Callum's Descent",
+      "Eversus",
+      "Lividus",
+      "Quietus"
+    ]
+  },
+  "NevishLineHex": {
+    "display_name": "Nevish Line",
+    "major_locations": [
+      "Blackcoat Way",
+      "Blinding Stones",
+      "Grief Mother",
+      "Mistle Shrine",
+      "Princefal",
+      "The Scrying Belt",
+      "Tomb Father",
+      "Unruly"
+    ]
+  },
+  "OarbreakerHex": {
+    "display_name": "Oarbreaker",
+    "major_locations": [
+      "Fort Fogwood",
+      "Gold",
+      "Grisly Refuge",
+      "Integrum",
+      "Partisan Island",
+      "Posterus",
+      "Silver",
+      "The Conclave",
+      "The Dirk"
+    ]
+  },
+  "OlavisWakeHex": {
+    "display_name": "Olavi's Wake",
+    "major_locations": [
+      "Ilmari Bridge",
+      "Koskinla",
+      "Kulkue",
+      "Yöohja"
+    ]
+  },
+  "OnyxHex": {
+    "display_name": "Onyx",
+    "major_locations": [
+      "Beholder's Span",
+      "Cisterna Run",
+      "Dexam",
+      "Garland",
+      "The Brink",
+      "The Waif"
+    ]
+  },
+  "OriginHex": {
+    "display_name": "Origin",
+    "major_locations": [
+      "Arise",
+      "Dormio",
+      "Finis",
+      "Initium",
+      "Teichotima",
+      "The Steel Road",
+      "World Star"
+    ]
+  },
+  "PalantineBermHex": {
+    "display_name": "Palantine Berm",
+    "major_locations": [
+      "Dryfeld",
+      "Leiri Hermanni",
+      "The Droll",
+      "The Pippeli Stones",
+      "Underlook",
+      "Vendett",
+      "Windburn Landing"
+    ]
+  },
+  "PariPeakHex": {
+    "display_name": "Pari Peak",
+    "major_locations": [
+      "Camp Surista",
+      "Itään",
+      "Kohina Base",
+      "Little Raakkua",
+      "Pariah"
+    ]
+  },
+  "PipersEnclaveHex": {
+    "display_name": "Piper's Enclave",
+    "major_locations": [
+      "Aegocerus Fortress",
+      "House of Lyterius",
+      "Maenalius Cove",
+      "Pan's Villa",
+      "Reedhurst",
+      "Syrinx Pass"
+    ]
+  },
+  "ReachingTrailHex": {
+    "display_name": "Reaching Trail",
+    "major_locations": [
+      "Brodytown",
+      "Dwyerstown",
+      "Elksford",
+      "Fort Mac Conaill",
+      "Harpy",
+      "Ice Ranch",
+      "Limestone Holdfast",
+      "Mousetrap",
+      "Nightchurch",
+      "Reprieve",
+      "The Ark"
+    ]
+  },
+  "ReaversPassHex": {
+    "display_name": "Reaver's Pass",
+    "major_locations": [
+      "Breakwater",
+      "Clay Coffer",
+      "Fort Rictus",
+      "Keelhaul",
+      "Scuttletown",
+      "The Bilge",
+      "Thimble Base"
+    ]
+  },
+  "RedRiverHex": {
+    "display_name": "Red River",
+    "major_locations": [
+      "Camp Upsilon",
+      "Cannonsmoke",
+      "Climb",
+      "Fort Matchwood",
+      "Judicium",
+      "Minos",
+      "Penance",
+      "Victoria Hill"
+    ]
+  },
+  "SableportHex": {
+    "display_name": "Sableport",
+    "major_locations": [
+      "Barronhome",
+      "Cinderwick",
+      "Light's End",
+      "Talonsfort",
+      "The Pendant",
+      "The Robin's Nest",
+      "The Whetstone"
+    ]
+  },
+  "ShackledChasmHex": {
+    "display_name": "Shackled Chasm",
+    "major_locations": [
+      "Firstmarch",
+      "Gorgon Grove",
+      "Limewood Holdfast",
+      "Reflection",
+      "Savages",
+      "Silk Farms",
+      "Simo's Run",
+      "The Bell Toll",
+      "The Grave of Erastos",
+      "The Vanguard"
+    ]
+  },
+  "SpeakingWoodsHex": {
+    "display_name": "Speaking Woods",
+    "major_locations": [
+      "Fort Blather",
+      "Hush",
+      "Inari Base",
+      "Sotto Bank",
+      "Stem",
+      "The Filament",
+      "Tine",
+      "Wound"
+    ]
+  },
+  "StemaLandingHex": {
+    "display_name": "Stema Landing",
+    "major_locations": [
+      "Acies Overlook",
+      "Alchimio Estate",
+      "Base Ferveret",
+      "Base Sagitta",
+      "The Flair",
+      "The Spearhead",
+      "The Wane",
+      "Ustio",
+      "Verge Wing"
+    ]
+  },
+  "StlicanShelfHex": {
+    "display_name": "Stlican Shelf",
+    "major_locations": [
+      "Breaker Town",
+      "Briar",
+      "Fort Hoarfrost",
+      "Port of Rime",
+      "The Old Mourn",
+      "The Pale House",
+      "The South Wind",
+      "Thornhold",
+      "Vulpine Watch"
+    ]
+  },
+  "StonecradleHex": {
+    "display_name": "Stonecradle",
+    "major_locations": [
+      "Buckler Sound",
+      "Fading Lights",
+      "The Cord",
+      "The Dais",
+      "The Heir's Knife",
+      "The Long Fast",
+      "The Reach",
+      "Trammel Pool",
+      "World's End"
+    ]
+  },
+  "TempestIslandHex": {
+    "display_name": "Tempest Island",
+    "major_locations": [
+      "Blackwatch",
+      "Isle of Psyche",
+      "Liar's Haven",
+      "Plana Fada",
+      "Reef",
+      "Surge Gate",
+      "The Gale",
+      "The Iris",
+      "The Rush"
+    ]
+  },
+  "TerminusHex": {
+    "display_name": "Terminus",
+    "major_locations": [
+      "Bloody Palm Fort",
+      "Cerberus Wake",
+      "Therizó",
+      "Thunderbolt",
+      "Warlord's Stead",
+      "Winding Bolas"
+    ]
+  },
+  "TheFingersHex": {
+    "display_name": "The Fingers",
+    "major_locations": [
+      "Captain's Dread",
+      "Fort Barley",
+      "Headsman's Villa",
+      "Plankhouse",
+      "Second Man",
+      "Tethys Base",
+      "The Old Captain",
+      "The Tusk",
+      "Titancall"
+    ]
+  },
+  "TyrantFoothillsHex": {
+    "display_name": "Tyrant Foothills",
+    "major_locations": [
+      "Azmar",
+      "Bandolier Base",
+      "Duelist's Scarp",
+      "Lugria",
+      "Northern Sky Hold",
+      "Onioncap",
+      "Scrapegrace"
+    ]
+  },
+  "UmbralWildwoodHex": {
+    "display_name": "Umbral Wildwood",
+    "major_locations": [
+      "Amethyst",
+      "Atropos' Fate",
+      "Clotho's Refuge",
+      "Goldenroot Ranch",
+      "Hermit's Rest",
+      "Lachesis' Tally ",
+      "Sentry",
+      "Stray",
+      "The Foundry",
+      "Thunderfoot",
+      "Vagrant Bastion"
+    ]
+  },
+  "ViperPitHex": {
+    "display_name": "Viper Pit",
+    "major_locations": [
+      "Blackthroat",
+      "Earl Crowley",
+      "Fleck Crossing",
+      "Fort Viper",
+      "Kirknell",
+      "Moltworth",
+      "Serenity's Blight",
+      "The Friars"
+    ]
+  },
+  "WeatheredExpanseHex": {
+    "display_name": "Weathered Expanse",
+    "major_locations": [
+      "Crow's Nest",
+      "Foxcatcher",
+      "Frostmarch",
+      "Huntsfort",
+      "Necropolis",
+      "Shattered Advance",
+      "Spirit Watch",
+      "The Weathering Halls",
+      "Wightwalk"
+    ]
+  },
+  "WestgateHex": {
+    "display_name": "Westgate",
+    "major_locations": [
+      "Holdfast",
+      "Kingstone",
+      "Longstone",
+      "Lord's Mouth",
+      "Lost Partition",
+      "Rancher's Fast",
+      "The Gallows",
+      "Westgate Keep",
+      "Wyattwick",
+      "Zeus' Demise"
+    ]
+  },
+  "WrestaHex": {
+    "display_name": "Wresta",
+    "major_locations": [
+      "Adripio",
+      "Argan Isle",
+      "Garion Slip",
+      "Latro Manor",
+      "Ratchet",
+      "Scallyhold",
+      "Toad's Plinth"
+    ]
+  }
+}

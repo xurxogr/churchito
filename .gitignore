@@ -145,7 +145,7 @@ cython_debug/
 backup/
 logs/
 test.py
-data/
+/data/
 .claude
 *.db
 *.db-journal

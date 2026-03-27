@@ -9,6 +9,7 @@ Create Date: 2026-03-12 15:38:44.468021
 from collections.abc import Sequence
 
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "c42443ef0dd0"
@@ -53,9 +54,23 @@ def upgrade() -> None:
     op.create_index("ix_purge_user_purge_id", "purge_user_results", ["purge_id"])
     op.create_index("ix_purge_user_user_id", "purge_user_results", ["user_id"])
 
+    # Update cog_name in guild_configs from 'purga' to 'purge'
+    connection = op.get_bind()
+    connection.execute(text("UPDATE guild_configs SET cog_name = 'purge' WHERE cog_name = 'purga'"))
+    connection.execute(
+        text("UPDATE guild_cogs_enabled SET cog_name = 'purge' WHERE cog_name = 'purga'")
+    )
+
 
 def downgrade() -> None:
     """Revert purge tables and columns back to purga."""
+    # Revert cog_name in guild_configs from 'purge' to 'purga'
+    connection = op.get_bind()
+    connection.execute(text("UPDATE guild_configs SET cog_name = 'purga' WHERE cog_name = 'purge'"))
+    connection.execute(
+        text("UPDATE guild_cogs_enabled SET cog_name = 'purga' WHERE cog_name = 'purge'")
+    )
+
     # Drop new indexes first
     op.drop_index("ix_purge_user_user_id", table_name="purge_user_results")
     op.drop_index("ix_purge_user_purge_id", table_name="purge_user_results")

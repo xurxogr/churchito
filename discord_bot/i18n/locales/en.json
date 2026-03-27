@@ -544,6 +544,108 @@
         }
       }
     },
+    "stockpile": {
+      "display_name": "Stockpile",
+      "description": "Manage stockpile information with location and access codes",
+      "groups": {
+        "Commands": "Commands",
+        "Permissions": "Permissions",
+        "Messages": "Messages",
+        "Notifications": "Notifications"
+      },
+      "options": {
+        "add_command_name": {
+          "name": "Add command name",
+          "description": "Name for the command to add stockpiles (without slash)"
+        },
+        "show_command_name": {
+          "name": "Show command name",
+          "description": "Name for the command to show stockpiles (without slash)"
+        },
+        "delete_command_name": {
+          "name": "Delete command name",
+          "description": "Name for the command to delete stockpiles (without slash)"
+        },
+        "command_channel": {
+          "name": "Command channel",
+          "description": "Channel where stockpile commands must be used. Leave empty to disable commands."
+        },
+        "notification_channel": {
+          "name": "Notification channel",
+          "description": "Channel where stockpile add/delete notifications are sent. Leave empty to disable."
+        },
+        "add_roles": {
+          "name": "Roles that can add stockpiles",
+          "description": "Only users with these roles can add new stockpiles"
+        },
+        "delete_roles": {
+          "name": "Roles that can delete stockpiles",
+          "description": "Only users with these roles can delete stockpiles"
+        },
+        "allowed_view_roles": {
+          "name": "Allowed view roles",
+          "description": "Roles that can be assigned to stockpiles for viewing. When adding a stockpile, only these roles can be selected."
+        },
+        "add_success_text": {
+          "name": "Add success message",
+          "description": "Message shown when a stockpile is added successfully",
+          "default": "Stockpile **{name}** added at **{hex}** - **{city}**\nCode: `{code}`"
+        },
+        "show_header_text": {
+          "name": "Show header message",
+          "description": "Header text when displaying stockpiles",
+          "default": "**Stockpiles at {hex} - {city}** ({count})"
+        },
+        "show_item_text": {
+          "name": "Show item message",
+          "description": "Text for each stockpile in the list",
+          "default": "**{name}**: `{code}` (by <@{creator}>)"
+        },
+        "show_empty_text": {
+          "name": "Show empty message",
+          "description": "Message when no stockpiles are found",
+          "default": "No stockpiles found at **{hex}** - **{city}**"
+        },
+        "delete_success_text": {
+          "name": "Delete success message",
+          "description": "Message shown when a stockpile is deleted",
+          "default": "Stockpile **{name}** at **{hex}** - **{city}** has been deleted."
+        },
+        "no_permission_text": {
+          "name": "No permission message",
+          "description": "Message when user lacks permission",
+          "default": "You don't have permission to perform this action."
+        },
+        "not_found_text": {
+          "name": "Not found message",
+          "description": "Message when stockpile is not found",
+          "default": "Stockpile not found."
+        },
+        "invalid_code_text": {
+          "name": "Invalid code message",
+          "description": "Message when code format is invalid",
+          "default": "Code must be exactly 6 digits."
+        },
+        "invalid_roles_text": {
+          "name": "Invalid roles message",
+          "description": "Message when selected roles are not allowed",
+          "default": "One or more selected roles are not in the allowed view roles list."
+        },
+        "wrong_channel_text": {
+          "name": "Wrong channel message",
+          "description": "Message when command is used in wrong channel",
+          "default": "This command can only be used in {channel}."
+        },
+        "add_notification_text": {
+          "name": "Add notification message",
+          "description": "Public message sent to notification channel when a stockpile is added. Leave empty to disable."
+        },
+        "delete_notification_text": {
+          "name": "Delete notification message",
+          "description": "Public message sent to notification channel when a stockpile is deleted. Leave empty to disable."
+        }
+      }
+    },
     "purge": {
       "display_name": "Purge",
       "description": "Purge system for member activity management",

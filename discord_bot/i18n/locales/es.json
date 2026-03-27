@@ -544,6 +544,108 @@
         }
       }
     },
+    "stockpile": {
+      "display_name": "Almacén",
+      "description": "Gestiona información de almacenes con ubicación y códigos de acceso",
+      "groups": {
+        "Commands": "Comandos",
+        "Permissions": "Permisos",
+        "Messages": "Mensajes",
+        "Notifications": "Notificaciones"
+      },
+      "options": {
+        "add_command_name": {
+          "name": "Nombre comando añadir",
+          "description": "Nombre del comando para añadir almacenes (sin barra)"
+        },
+        "show_command_name": {
+          "name": "Nombre comando mostrar",
+          "description": "Nombre del comando para mostrar almacenes (sin barra)"
+        },
+        "delete_command_name": {
+          "name": "Nombre comando eliminar",
+          "description": "Nombre del comando para eliminar almacenes (sin barra)"
+        },
+        "command_channel": {
+          "name": "Canal de comandos",
+          "description": "Canal donde deben usarse los comandos de almacén. Deja vacío para deshabilitar comandos."
+        },
+        "notification_channel": {
+          "name": "Canal de notificaciones",
+          "description": "Canal donde se envían las notificaciones de añadir/eliminar almacenes. Deja vacío para deshabilitar."
+        },
+        "add_roles": {
+          "name": "Roles que pueden añadir",
+          "description": "Solo usuarios con estos roles pueden añadir nuevos almacenes"
+        },
+        "delete_roles": {
+          "name": "Roles que pueden eliminar",
+          "description": "Solo usuarios con estos roles pueden eliminar almacenes"
+        },
+        "allowed_view_roles": {
+          "name": "Roles de vista permitidos",
+          "description": "Roles que pueden asignarse a los almacenes para visualización. Al añadir un almacén, solo estos roles pueden seleccionarse."
+        },
+        "add_success_text": {
+          "name": "Mensaje de éxito al añadir",
+          "description": "Mensaje mostrado cuando se añade un almacén correctamente",
+          "default": "Almacén **{name}** añadido en **{hex}** - **{city}**\nCódigo: `{code}`"
+        },
+        "show_header_text": {
+          "name": "Mensaje de cabecera",
+          "description": "Texto de cabecera al mostrar almacenes",
+          "default": "**Almacenes en {hex} - {city}** ({count})"
+        },
+        "show_item_text": {
+          "name": "Mensaje de elemento",
+          "description": "Texto para cada almacén en la lista",
+          "default": "**{name}**: `{code}` (por <@{creator}>)"
+        },
+        "show_empty_text": {
+          "name": "Mensaje sin resultados",
+          "description": "Mensaje cuando no se encuentran almacenes",
+          "default": "No se encontraron almacenes en **{hex}** - **{city}**"
+        },
+        "delete_success_text": {
+          "name": "Mensaje de éxito al eliminar",
+          "description": "Mensaje mostrado cuando se elimina un almacén",
+          "default": "Almacén **{name}** en **{hex}** - **{city}** ha sido eliminado."
+        },
+        "no_permission_text": {
+          "name": "Mensaje sin permisos",
+          "description": "Mensaje cuando el usuario no tiene permiso",
+          "default": "No tienes permiso para realizar esta acción."
+        },
+        "not_found_text": {
+          "name": "Mensaje no encontrado",
+          "description": "Mensaje cuando no se encuentra el almacén",
+          "default": "Almacén no encontrado."
+        },
+        "invalid_code_text": {
+          "name": "Mensaje código inválido",
+          "description": "Mensaje cuando el formato del código es inválido",
+          "default": "El código debe tener exactamente 6 dígitos."
+        },
+        "invalid_roles_text": {
+          "name": "Mensaje roles inválidos",
+          "description": "Mensaje cuando los roles seleccionados no están permitidos",
+          "default": "Uno o más roles seleccionados no están en la lista de roles permitidos."
+        },
+        "wrong_channel_text": {
+          "name": "Mensaje canal incorrecto",
+          "description": "Mensaje cuando el comando se usa en el canal incorrecto",
+          "default": "Este comando solo puede usarse en {channel}."
+        },
+        "add_notification_text": {
+          "name": "Mensaje notificación añadir",
+          "description": "Mensaje público enviado al canal de notificaciones cuando se añade un almacén. Deja vacío para deshabilitar."
+        },
+        "delete_notification_text": {
+          "name": "Mensaje notificación eliminar",
+          "description": "Mensaje público enviado al canal de notificaciones cuando se elimina un almacén. Deja vacío para deshabilitar."
+        }
+      }
+    },
     "purge": {
       "display_name": "Purga",
       "description": "Sistema de purga para gestión de actividad de miembros",
