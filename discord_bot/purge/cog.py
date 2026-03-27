@@ -1364,8 +1364,12 @@ class PurgeCog(commands.Cog):
 
         # Identify expired purges
         for guild_id, (_purge_id, expires_at) in self._active_purges.items():
-            if expires_at and expires_at <= now:
-                expired_guilds.append(guild_id)
+            if expires_at:
+                # SQLite doesn't support native timezone, normalize to UTC if naive
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=UTC)
+                if expires_at <= now:
+                    expired_guilds.append(guild_id)
 
         # Process expired purges
         for guild_id in expired_guilds:
@@ -1448,6 +1452,9 @@ class PurgeCog(commands.Cog):
 
         # Identify purges ready to execute
         for guild_id, (_purge_id, scheduled_for) in self._authorized_purges.items():
+            # SQLite doesn't support native timezone, normalize to UTC if naive
+            if scheduled_for.tzinfo is None:
+                scheduled_for = scheduled_for.replace(tzinfo=UTC)
             if scheduled_for <= now:
                 ready_guilds.append(guild_id)
 
