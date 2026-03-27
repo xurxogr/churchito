@@ -1,1 +1,1 @@
-"""Dashboard web para configuración del bot."""
+"""Web dashboard for bot configuration."""

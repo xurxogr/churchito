@@ -1,4 +1,4 @@
-"""Middleware para añadir headers de seguridad HTTP."""
+"""Middleware to add HTTP security headers."""
 
 from collections.abc import Awaitable, Callable
 
@@ -8,20 +8,20 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 # Content Security Policy
-# - default-src 'self': Solo recursos del mismo origen por defecto
-# - script-src: Scripts del mismo origen + inline (necesario para HTMX)
-# - style-src: Estilos del mismo origen + inline (necesario para Tailwind)
-# - img-src: Imágenes del mismo origen + Discord CDN + data URIs
-# - font-src: Fuentes del mismo origen
-# - connect-src: Conexiones XHR/fetch al mismo origen
-# - frame-ancestors 'none': Equivalente a X-Frame-Options: DENY
-# - base-uri 'self': Restringe <base> tag
-# - form-action 'self': Formularios solo al mismo origen
+# - default-src 'self': Only resources from same origin by default
+# - script-src: Scripts from same origin + inline + unpkg.com (for HTMX CDN)
+# - style-src: Styles from same origin + inline (required for Tailwind)
+# - img-src: Images from any source (for user-provided content)
+# - font-src: Fonts from same origin
+# - connect-src: XHR/fetch connections to same origin
+# - frame-ancestors 'none': Equivalent to X-Frame-Options: DENY
+# - base-uri 'self': Restricts <base> tag
+# - form-action 'self': Forms only to same origin
 DEFAULT_CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; "
     "style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' https://cdn.discordapp.com https://media.discordapp.net data:; "
+    "img-src *; "
     "font-src 'self'; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "
@@ -29,27 +29,27 @@ DEFAULT_CSP = (
     "form-action 'self'"
 )
 
-# HSTS: 1 año, incluir subdominios
+# HSTS: 1 year, include subdomains
 DEFAULT_HSTS = "max-age=31536000; includeSubDomains"
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Middleware que añade headers de seguridad HTTP a todas las respuestas.
+    """Middleware that adds HTTP security headers to all responses.
 
-    Headers añadidos:
-    - X-Frame-Options: Previene clickjacking
-    - X-Content-Type-Options: Previene MIME sniffing
-    - Referrer-Policy: Controla información de referrer
-    - Content-Security-Policy: Controla recursos permitidos
-    - Strict-Transport-Security: Fuerza HTTPS (solo si https_only=True)
+    Headers added:
+    - X-Frame-Options: Prevents clickjacking
+    - X-Content-Type-Options: Prevents MIME sniffing
+    - Referrer-Policy: Controls referrer information
+    - Content-Security-Policy: Controls allowed resources
+    - Strict-Transport-Security: Forces HTTPS (only if https_only=True)
     """
 
     def __init__(self, app: ASGIApp, https_only: bool = True) -> None:
-        """Inicializar middleware.
+        """Initialize middleware.
 
         Args:
-            app (ASGIApp): Aplicación ASGI
-            https_only (bool): Si True, añade header HSTS
+            app (ASGIApp): ASGI application
+            https_only (bool): If True, adds HSTS header
         """
         super().__init__(app)
         self.https_only = https_only
@@ -59,30 +59,30 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        """Procesar request añadiendo headers de seguridad a la respuesta.
+        """Process request by adding security headers to the response.
 
         Args:
-            request (Request): Request entrante
-            call_next (Callable[[Request], Awaitable[Response]]): Siguiente handler
+            request (Request): Incoming request
+            call_next (Callable[[Request], Awaitable[Response]]): Next handler
 
         Returns:
-            Response: Respuesta con headers de seguridad añadidos
+            Response: Response with security headers added
         """
         response: Response = await call_next(request)
 
-        # Prevenir clickjacking (redundante con CSP frame-ancestors, pero para navegadores antiguos)
+        # Prevent clickjacking (redundant with CSP frame-ancestors, but for older browsers)
         response.headers["X-Frame-Options"] = "DENY"
 
-        # Prevenir MIME type sniffing
+        # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
 
-        # Controlar información de referrer
+        # Control referrer information
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Content Security Policy
         response.headers["Content-Security-Policy"] = DEFAULT_CSP
 
-        # HSTS solo si está configurado para HTTPS
+        # HSTS only if configured for HTTPS
         if self.https_only:
             response.headers["Strict-Transport-Security"] = DEFAULT_HSTS
 

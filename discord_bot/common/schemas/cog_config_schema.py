@@ -1,4 +1,4 @@
-"""Esquema de configuración de un cog."""
+"""Cog configuration schema."""
 
 import copy
 
@@ -8,31 +8,29 @@ from discord_bot.common.schemas.config_option import ConfigOption
 
 
 class CogConfigSchema(BaseModel):
-    """Esquema completo de configuración para un cog.
+    """Complete configuration schema for a cog.
 
-    Este modelo representa el esquema de configuración de un cog,
-    incluyendo metadatos del cog y la lista de opciones configurables.
+    This model represents the configuration schema of a cog,
+    including cog metadata and the list of configurable options.
     """
 
-    cog_name: str = Field(description="Identificador único del cog")
-    display_name: str = Field(description="Nombre legible para mostrar en la UI")
-    description: str = Field(default="", description="Descripción del cog")
-    icon: str = Field(default="", description="Emoji o icono para mostrar en la UI")
-    toggleable: bool = Field(
-        default=True, description="Si el cog puede ser habilitado/deshabilitado"
-    )
+    cog_name: str = Field(description="Unique identifier for the cog")
+    display_name: str = Field(description="Human-readable name to display in the UI")
+    description: str = Field(default="", description="Description of the cog")
+    icon: str = Field(default="", description="Emoji or icon to display in the UI")
+    toggleable: bool = Field(default=True, description="Whether the cog can be enabled/disabled")
     options: list[ConfigOption] = Field(
-        default_factory=list, description="Lista de opciones configurables"
+        default_factory=list, description="List of configurable options"
     )
 
     def get_option(self, key: str) -> ConfigOption | None:
-        """Obtener una opción de configuración por su clave.
+        """Get a configuration option by its key.
 
         Args:
-            key (str): Clave de la opción a buscar
+            key (str): Key of the option to find
 
         Returns:
-            ConfigOption | None: La opción si existe, None en caso contrario
+            ConfigOption | None: The option if it exists, None otherwise
         """
         for option in self.options:
             if option.key == key:
@@ -40,9 +38,9 @@ class CogConfigSchema(BaseModel):
         return None
 
     def get_default_values(self) -> dict[str, object]:
-        """Obtener un diccionario con los valores por defecto de todas las opciones.
+        """Get a dictionary with default values for all options.
 
         Returns:
-            dict[str, object]: Diccionario con clave -> valor_default
+            dict[str, object]: Dictionary with key -> default_value
         """
         return {option.key: copy.deepcopy(option.default) for option in self.options}

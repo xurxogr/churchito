@@ -1,4 +1,4 @@
-"""Procesamiento automático de verificaciones (auto-aprobación/rechazo)."""
+"""Automatic verification processing (auto-approval/rejection)."""
 
 import logging
 from typing import TYPE_CHECKING, Any
@@ -25,11 +25,11 @@ async def send_mod_ping_message(
     channel: discord.TextChannel,
     config: dict[str, Any],
 ) -> None:
-    """Enviar mensaje de ping a moderadores cuando hay verificación pendiente.
+    """Send ping message to moderators when there is a pending verification.
 
     Args:
-        channel: Canal de moderación
-        config: Configuración del cog
+        channel: Moderation channel
+        config: Cog configuration
     """
     ping_template = config.get(ConfigKey.MOD_PING_MESSAGE)
     if not ping_template:
@@ -75,8 +75,8 @@ async def handle_auto_approval(
         mod_message: Moderation message to update
         additional_content: Additional content (player info, history)
         embeds: Screenshot embeds
-        additional_sections: Secciones adicionales para el embed.
-        sections_context: Contexto para placeholders de secciones.
+        additional_sections: Additional sections for the embed.
+        sections_context: Context for section placeholders.
     """
     await verification_service.approve(
         request_id=request.id,
@@ -103,7 +103,7 @@ async def handle_auto_approval(
                     await member.add_roles(role)
                 except discord.Forbidden:
                     logger.warning(
-                        f"[{guild.name}] Sin permisos para añadir rol {role.name} a {member.name}"
+                        f"[{guild.name}] No permission to add role {role.name} to {member.name}"
                     )
 
         for role_id in roles_remove or []:
@@ -113,7 +113,8 @@ async def handle_auto_approval(
                     await member.remove_roles(role)
                 except discord.Forbidden:
                     logger.warning(
-                        f"[{guild.name}] Sin permisos para quitar rol {role.name} de {member.name}"
+                        f"[{guild.name}] No permission to remove role "
+                        f"{role.name} from {member.name}"
                     )
 
         approval_msg = format_message(
@@ -183,8 +184,8 @@ async def handle_auto_rejection(
         additional_content: Additional content (player info, history)
         embeds: Screenshot embeds
         reason: Rejection reason
-        additional_sections: Secciones adicionales para el embed.
-        sections_context: Contexto para placeholders de secciones.
+        additional_sections: Additional sections for the embed.
+        sections_context: Context for section placeholders.
     """
     await verification_service.reject(
         request_id=request.id,
@@ -270,26 +271,26 @@ async def process_auto_verification(
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
 ) -> bool:
-    """Procesar auto-aprobación o auto-rechazo según las reglas.
+    """Process auto-approval or auto-rejection based on rules.
 
     Args:
-        cog: Instancia del cog de verificación
-        guild: Guild de Discord
-        request: Solicitud de verificación
-        verification_service: Servicio de verificación
-        config: Configuración del cog
-        mod_message: Mensaje de moderación a actualizar
-        additional_content: Contenido adicional
-        embeds: Embeds de capturas
-        should_approve: Si debería aprobarse
-        rejection_reason: Motivo de rechazo si no aprueba
-        auto_approve: Si auto-aprobación está habilitada
-        auto_reject: Si auto-rechazo está habilitado
-        additional_sections: Secciones adicionales para el embed
-        sections_context: Contexto para placeholders de secciones
+        cog: Verification cog instance
+        guild: Discord guild
+        request: Verification request
+        verification_service: Verification service
+        config: Cog configuration
+        mod_message: Moderation message to update
+        additional_content: Additional content
+        embeds: Screenshot embeds
+        should_approve: Whether it should be approved
+        rejection_reason: Rejection reason if not approved
+        auto_approve: Whether auto-approval is enabled
+        auto_reject: Whether auto-rejection is enabled
+        additional_sections: Additional sections for the embed
+        sections_context: Context for section placeholders
 
     Returns:
-        True si se procesó automáticamente, False si requiere revisión manual
+        True if processed automatically, False if manual review required
     """
     if should_approve and auto_approve:
         await handle_auto_approval(

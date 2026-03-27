@@ -1,4 +1,4 @@
-"""Middleware para limitar el tamaño del body de las requests."""
+"""Middleware to limit request body size."""
 
 from collections.abc import Awaitable, Callable
 
@@ -7,23 +7,23 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-# Límite por defecto: 1MB (suficiente para JSON de configuración)
+# Default limit: 1MB (sufficient for configuration JSON)
 DEFAULT_MAX_BODY_SIZE = 1 * 1024 * 1024
 
 
 class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
-    """Middleware que limita el tamaño máximo del body de las requests.
+    """Middleware that limits the maximum request body size.
 
-    Previene ataques de denegación de servicio por envío de bodies muy grandes.
-    Verifica el header Content-Length antes de procesar la request.
+    Prevents denial of service attacks by sending very large bodies.
+    Checks the Content-Length header before processing the request.
     """
 
     def __init__(self, app: ASGIApp, max_body_size: int = DEFAULT_MAX_BODY_SIZE) -> None:
-        """Inicializar middleware.
+        """Initialize middleware.
 
         Args:
-            app (ASGIApp): Aplicación ASGI
-            max_body_size (int): Tamaño máximo en bytes (default: 1MB)
+            app (ASGIApp): ASGI application
+            max_body_size (int): Maximum size in bytes (default: 1MB)
         """
         super().__init__(app)
         self.max_body_size = max_body_size
@@ -33,14 +33,14 @@ class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        """Procesar request verificando el tamaño del body.
+        """Process request by verifying body size.
 
         Args:
-            request (Request): Request entrante
-            call_next (Callable[[Request], Awaitable[Response]]): Siguiente handler
+            request (Request): Incoming request
+            call_next (Callable[[Request], Awaitable[Response]]): Next handler
 
         Returns:
-            Response: Respuesta del handler o error 413
+            Response: Handler response or 413 error
         """
         content_length = request.headers.get("content-length")
 
@@ -54,7 +54,7 @@ class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
                         headers={"Content-Type": "text/plain"},
                     )
             except ValueError:
-                # Content-Length inválido, dejar que falle más adelante
+                # Invalid Content-Length, let it fail later
                 pass
 
         response: Response = await call_next(request)

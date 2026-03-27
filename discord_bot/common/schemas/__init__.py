@@ -1,4 +1,4 @@
-"""Esquemas comunes."""
+"""Common schemas."""
 
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption

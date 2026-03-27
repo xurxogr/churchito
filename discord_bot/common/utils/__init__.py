@@ -1,4 +1,4 @@
-"""Utilidades comunes."""
+"""Common utilities."""
 
 from discord_bot.common.utils.discord import (
     DISCORD_CDN_DOMAINS,

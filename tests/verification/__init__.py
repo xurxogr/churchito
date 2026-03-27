@@ -1,1 +1,1 @@
-"""Tests para el cog de verificacion."""
+"""Tests for the verification cog."""

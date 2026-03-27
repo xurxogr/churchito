@@ -1,4 +1,4 @@
-"""Modelos del cog de verificacion."""
+"""Verification cog models."""
 
 from discord_bot.verification.models.verification_request import VerificationRequest
 

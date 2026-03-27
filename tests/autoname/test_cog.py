@@ -1,4 +1,4 @@
-"""Tests para AutonameCog."""
+"""Tests for AutonameCog."""
 
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,7 +15,7 @@ from discord_bot.common.services.database import DatabaseService
 
 @pytest.fixture
 def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
-    """Crear mock del bot con database."""
+    """Create mock of bot with database."""
     bot = MagicMock(spec=DiscordBot)
     bot.database = test_database
     bot.guilds = []
@@ -25,13 +25,13 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
 
 @pytest.fixture
 def autoname_cog(mock_discord_bot: MagicMock) -> AutonameCog:
-    """Crear instancia del cog para tests."""
+    """Create cog instance for tests."""
     return AutonameCog(mock_discord_bot)
 
 
 @pytest.fixture
 def mock_member() -> MagicMock:
-    """Crear mock de un miembro de Discord."""
+    """Create mock of a Discord member."""
     member = MagicMock(spec=discord.Member)
     member.id = 123456789
     member.bot = False
@@ -42,7 +42,7 @@ def mock_member() -> MagicMock:
     member.guild.name = "Test Guild"
     member.edit = AsyncMock()
 
-    # Crear roles mock
+    # Create mock roles
     role1 = MagicMock(spec=discord.Role)
     role1.id = 100
     role2 = MagicMock(spec=discord.Role)
@@ -53,12 +53,12 @@ def mock_member() -> MagicMock:
 
 
 class TestIsCogEnabled:
-    """Tests para _is_cog_enabled."""
+    """Tests for _is_cog_enabled."""
 
     async def test_cog_enabled(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando el cog esta habilitado."""
+        """Test when cog is enabled."""
         guild_id = 123
 
         async with test_database.session() as session:
@@ -74,7 +74,7 @@ class TestIsCogEnabled:
     async def test_cog_disabled(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando el cog esta deshabilitado."""
+        """Test when cog is disabled."""
         guild_id = 456
 
         async with test_database.session() as session:
@@ -89,12 +89,12 @@ class TestIsCogEnabled:
 
 
 class TestGetConfig:
-    """Tests para _get_config."""
+    """Tests for _get_config."""
 
     async def test_returns_config_dict(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que devuelve un diccionario de configuracion."""
+        """Test that returns a configuration dictionary."""
         guild_id = 123
 
         result = await autoname_cog._get_config(guild_id)
@@ -104,7 +104,7 @@ class TestGetConfig:
     async def test_returns_saved_config(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que devuelve configuracion guardada."""
+        """Test that returns saved configuration."""
         guild_id = 789
 
         async with test_database.session() as session:
@@ -120,12 +120,12 @@ class TestGetConfig:
 
 
 class TestGetSyncInterval:
-    """Tests para _get_sync_interval."""
+    """Tests for _get_sync_interval."""
 
     async def test_returns_default_when_not_configured(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que devuelve 30 por defecto cuando el cog esta habilitado."""
+        """Test that returns 30 by default when cog is enabled."""
         guild_id = 111
 
         async with test_database.session() as session:
@@ -142,7 +142,7 @@ class TestGetSyncInterval:
     async def test_returns_zero_when_cog_disabled(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que devuelve 0 cuando el cog esta deshabilitado."""
+        """Test that returns 0 when cog is disabled."""
         guild_id = 222
 
         async with test_database.session() as session:
@@ -159,7 +159,7 @@ class TestGetSyncInterval:
     async def test_returns_configured_interval(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que devuelve el intervalo configurado."""
+        """Test that returns the configured interval."""
         guild_id = 333
 
         async with test_database.session() as session:
@@ -176,10 +176,10 @@ class TestGetSyncInterval:
 
 
 class TestApplyNickname:
-    """Tests para apply_nickname."""
+    """Tests for apply_nickname."""
 
     async def test_skips_bots(self, autoname_cog: AutonameCog, mock_member: MagicMock) -> None:
-        """Probar que no procesa bots."""
+        """Test that bots are not processed."""
         mock_member.bot = True
 
         result = await autoname_cog.apply_nickname(mock_member)
@@ -193,7 +193,7 @@ class TestApplyNickname:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que devuelve False cuando no hay configuracion de roles."""
+        """Test that returns False when there is no role configuration."""
         guild_id = mock_member.guild.id
 
         async with test_database.session() as session:
@@ -214,7 +214,7 @@ class TestApplyNickname:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que aplica nickname cuando hay coincidencia de rol."""
+        """Test that applies nickname when there is a role match."""
         guild_id = mock_member.guild.id
         tags_config = [{"role_id": 100, "tag": "CAP"}]
         prefixes_config = [{"role_id": 100, "prefix": "★"}]
@@ -244,7 +244,7 @@ class TestApplyNickname:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que devuelve False cuando no hay cambio necesario."""
+        """Test that returns False when no change is needed."""
         guild_id = mock_member.guild.id
         mock_member.nick = "★[ABC | CAP] Xurxo"
         mock_member.display_name = "★[ABC | CAP] Xurxo"
@@ -276,7 +276,7 @@ class TestApplyNickname:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que maneja errores de permisos."""
+        """Test that handles permission errors."""
         guild_id = mock_member.guild.id
         mock_member.edit = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
         tags_config = [{"role_id": 100, "tag": "CAP"}]
@@ -299,7 +299,7 @@ class TestApplyNickname:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que maneja errores HTTP."""
+        """Test that handles HTTP errors."""
         guild_id = mock_member.guild.id
         mock_member.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "Error"))
         tags_config = [{"role_id": 100, "tag": "CAP"}]
@@ -318,7 +318,7 @@ class TestApplyNickname:
 
 
 class TestApplyNicknameRequiredRole:
-    """Tests para required_role en apply_nickname."""
+    """Tests for required_role in apply_nickname."""
 
     async def test_skips_member_without_required_roles(
         self,
@@ -326,9 +326,9 @@ class TestApplyNicknameRequiredRole:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que salta miembros sin ninguno de los roles requeridos."""
+        """Test that skips members without any of the required roles."""
         guild_id = mock_member.guild.id
-        required_roles = [999, 998]  # Roles que el miembro NO tiene
+        required_roles = [999, 998]  # Roles that the member does NOT have
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
         async with test_database.session() as session:
@@ -353,9 +353,9 @@ class TestApplyNicknameRequiredRole:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que procesa miembros con alguno de los roles requeridos."""
+        """Test that processes members with any of the required roles."""
         guild_id = mock_member.guild.id
-        required_roles = [999, 100]  # 100 es un rol que el miembro SI tiene
+        required_roles = [999, 100]  # 100 is a role that the member DOES have
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
         async with test_database.session() as session:
@@ -383,7 +383,7 @@ class TestApplyNicknameRequiredRole:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que maneja valores invalidos en la lista de roles requeridos."""
+        """Test that handles invalid values in the required roles list."""
         guild_id = mock_member.guild.id
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
@@ -392,7 +392,7 @@ class TestApplyNicknameRequiredRole:
             await config_service.set_cog_enabled(
                 guild_id=guild_id, cog_name="autoname", enabled=True
             )
-            # Lista con valores invalidos y uno valido (100)
+            # List with invalid values and one valid (100)
             await config_service.set_value(
                 guild_id, "autoname", ConfigKey.REQUIRED_ROLES, ["invalid", None, 100]
             )
@@ -402,7 +402,7 @@ class TestApplyNicknameRequiredRole:
             )
             await session.commit()
 
-        # Debe continuar procesando porque 100 es valido y el miembro lo tiene
+        # Should continue processing because 100 is valid and the member has it
         result = await autoname_cog.apply_nickname(mock_member)
 
         assert result is True
@@ -410,12 +410,12 @@ class TestApplyNicknameRequiredRole:
 
 
 class TestOnMemberUpdate:
-    """Tests para on_member_update."""
+    """Tests for on_member_update."""
 
     async def test_ignores_same_roles(
         self, autoname_cog: AutonameCog, mock_member: MagicMock
     ) -> None:
-        """Probar que ignora cuando los roles no cambian."""
+        """Test that ignores when roles do not change."""
         before = mock_member
         after = mock_member
         before.roles = after.roles
@@ -430,7 +430,7 @@ class TestOnMemberUpdate:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que ignora cuando el cog esta deshabilitado."""
+        """Test that ignores when cog is disabled."""
         guild_id = mock_member.guild.id
 
         async with test_database.session() as session:
@@ -454,7 +454,7 @@ class TestOnMemberUpdate:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que aplica nickname cuando cambian los roles."""
+        """Test that applies nickname when roles change."""
         guild_id = mock_member.guild.id
 
         async with test_database.session() as session:
@@ -474,12 +474,12 @@ class TestOnMemberUpdate:
 
 
 class TestRunSync:
-    """Tests para _run_sync."""
+    """Tests for _run_sync."""
 
     async def test_skips_guild_with_zero_interval(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que salta guilds con intervalo 0."""
+        """Test that skips guilds with interval 0."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test"
@@ -500,7 +500,7 @@ class TestRunSync:
     async def test_syncs_guild_when_due(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que sincroniza guild cuando toca."""
+        """Test that syncs guild when due."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 456
         mock_guild.name = "Test"
@@ -521,7 +521,7 @@ class TestRunSync:
     async def test_force_all_syncs_all_guilds(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que force_all sincroniza todos los guilds."""
+        """Test that force_all syncs all guilds."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 789
         mock_guild.name = "Test"
@@ -540,12 +540,12 @@ class TestRunSync:
 
 
 class TestSyncGuild:
-    """Tests para _sync_guild."""
+    """Tests for _sync_guild."""
 
     async def test_skips_when_cog_disabled(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que salta cuando el cog esta deshabilitado."""
+        """Test that skips when cog is disabled."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -563,7 +563,7 @@ class TestSyncGuild:
     async def test_skips_when_no_roles_config(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que salta cuando no hay configuracion de roles."""
+        """Test that skips when there is no role configuration."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 456
 
@@ -584,7 +584,7 @@ class TestSyncGuild:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que aplica nickname a todos los miembros."""
+        """Test that applies nickname to all members."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = mock_member.guild.id
         mock_guild.name = "Test"
@@ -613,7 +613,7 @@ class TestSyncGuild:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que salta miembros bot."""
+        """Test that skips bot members."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = mock_member.guild.id
         mock_guild.name = "Test"
@@ -638,15 +638,15 @@ class TestSyncGuild:
             autoname_cog, "apply_nickname", new_callable=AsyncMock, return_value=True
         ) as mock_apply:
             await autoname_cog._sync_guild(mock_guild)
-            # Solo debe llamarse una vez (para mock_member, no para bot_member)
+            # Should only be called once (for mock_member, not for bot_member)
             mock_apply.assert_called_once_with(mock_member)
 
 
 class TestOnConfigChanged:
-    """Tests para on_config_changed."""
+    """Tests for on_config_changed."""
 
     async def test_resyncs_on_tags_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que re-sincroniza cuando cambian las etiquetas."""
+        """Test that re-syncs when tags change."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -655,7 +655,7 @@ class TestOnConfigChanged:
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_prefixes_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que re-sincroniza cuando cambian los prefijos."""
+        """Test that re-syncs when prefixes change."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -664,7 +664,7 @@ class TestOnConfigChanged:
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_format_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que re-sincroniza cuando cambia el formato."""
+        """Test that re-syncs when format changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -673,7 +673,7 @@ class TestOnConfigChanged:
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_resyncs_on_required_roles_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que re-sincroniza cuando cambian los roles requeridos."""
+        """Test that re-syncs when required roles change."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -682,7 +682,7 @@ class TestOnConfigChanged:
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_ignores_interval_change(self, autoname_cog: AutonameCog) -> None:
-        """Probar que ignora cambios de intervalo."""
+        """Test that ignores interval changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -692,10 +692,10 @@ class TestOnConfigChanged:
 
 
 class TestOnCogToggled:
-    """Tests para on_cog_toggled."""
+    """Tests for on_cog_toggled."""
 
     async def test_syncs_on_enabled(self, autoname_cog: AutonameCog) -> None:
-        """Probar que sincroniza cuando se habilita el cog."""
+        """Test that syncs when cog is enabled."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -704,7 +704,7 @@ class TestOnCogToggled:
             mock_sync.assert_called_once_with(mock_guild)
 
     async def test_no_sync_on_disabled(self, autoname_cog: AutonameCog) -> None:
-        """Probar que no sincroniza cuando se deshabilita el cog."""
+        """Test that does not sync when cog is disabled."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test"
 
@@ -714,10 +714,10 @@ class TestOnCogToggled:
 
 
 class TestCogLifecycle:
-    """Tests para cog_load y cog_unload."""
+    """Tests for cog_load and cog_unload."""
 
     async def test_cog_load_starts_sync_loop(self, autoname_cog: AutonameCog) -> None:
-        """Probar que cog_load inicia el sync loop."""
+        """Test that cog_load starts the sync loop."""
         with patch.object(autoname_cog.sync_loop, "start") as mock_start:
             await autoname_cog.cog_load()
             mock_start.assert_called_once()
@@ -725,7 +725,7 @@ class TestCogLifecycle:
         assert autoname_cog._sync_started is True
 
     async def test_cog_load_only_starts_once(self, autoname_cog: AutonameCog) -> None:
-        """Probar que cog_load no inicia dos veces."""
+        """Test that cog_load does not start twice."""
         autoname_cog._sync_started = True
 
         with patch.object(autoname_cog.sync_loop, "start") as mock_start:
@@ -733,7 +733,7 @@ class TestCogLifecycle:
             mock_start.assert_not_called()
 
     async def test_cog_unload_cancels_sync_loop(self, autoname_cog: AutonameCog) -> None:
-        """Probar que cog_unload cancela el sync loop."""
+        """Test that cog_unload cancels the sync loop."""
         autoname_cog._sync_started = True
 
         with patch.object(autoname_cog.sync_loop, "cancel") as mock_cancel:
@@ -743,7 +743,7 @@ class TestCogLifecycle:
         assert autoname_cog._sync_started is False
 
     async def test_cog_unload_only_cancels_if_started(self, autoname_cog: AutonameCog) -> None:
-        """Probar que cog_unload no cancela si no estaba iniciado."""
+        """Test that cog_unload does not cancel if not started."""
         autoname_cog._sync_started = False
 
         with patch.object(autoname_cog.sync_loop, "cancel") as mock_cancel:
@@ -752,10 +752,10 @@ class TestCogLifecycle:
 
 
 class TestSendLog:
-    """Tests para _send_log."""
+    """Tests for _send_log."""
 
     async def test_does_nothing_without_channel(self, autoname_cog: AutonameCog) -> None:
-        """Probar que no hace nada si no hay canal configurado."""
+        """Test that does nothing if no channel is configured."""
         mock_guild = MagicMock(spec=discord.Guild)
         config: dict[str, object] = {ConfigKey.LOG_MESSAGE_SUCCESS: "Test {old_name}"}
 
@@ -767,7 +767,7 @@ class TestSendLog:
         mock_guild.get_channel.assert_not_called()
 
     async def test_does_nothing_with_empty_message(self, autoname_cog: AutonameCog) -> None:
-        """Probar que no hace nada si el mensaje esta vacio."""
+        """Test that does nothing if message is empty."""
         mock_guild = MagicMock(spec=discord.Guild)
         config: dict[str, object] = {
             ConfigKey.LOG_CHANNEL: "123456",
@@ -781,7 +781,7 @@ class TestSendLog:
         mock_guild.get_channel.assert_not_called()
 
     async def test_sends_formatted_message(self, autoname_cog: AutonameCog) -> None:
-        """Probar que envia mensaje formateado al canal."""
+        """Test that sends formatted message to channel."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.send = AsyncMock()
 
@@ -790,7 +790,7 @@ class TestSendLog:
 
         config: dict[str, object] = {
             ConfigKey.LOG_CHANNEL: "123456",
-            ConfigKey.LOG_MESSAGE_SUCCESS: "Cambiado de {old_name} a {new_name}",
+            ConfigKey.LOG_MESSAGE_SUCCESS: "Changed from {old_name} to {new_name}",
         }
 
         await autoname_cog._send_log(
@@ -802,10 +802,10 @@ class TestSendLog:
         )
 
         mock_guild.get_channel.assert_called_once_with(123456)
-        mock_channel.send.assert_called_once_with("Cambiado de OldNick a NewNick")
+        mock_channel.send.assert_called_once_with("Changed from OldNick to NewNick")
 
     async def test_handles_channel_not_found(self, autoname_cog: AutonameCog) -> None:
-        """Probar que maneja cuando el canal no existe."""
+        """Test that handles when channel does not exist."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.get_channel.return_value = None
 
@@ -818,7 +818,7 @@ class TestSendLog:
         await autoname_cog._send_log(mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS)
 
     async def test_handles_non_text_channel(self, autoname_cog: AutonameCog) -> None:
-        """Probar que ignora canales que no son de texto."""
+        """Test that ignores non-text channels."""
         mock_channel = MagicMock(spec=discord.VoiceChannel)
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -833,7 +833,7 @@ class TestSendLog:
         await autoname_cog._send_log(mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS)
 
     async def test_handles_missing_placeholder(self, autoname_cog: AutonameCog) -> None:
-        """Probar que maneja placeholders faltantes."""
+        """Test that handles missing placeholders."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.send = AsyncMock()
 
@@ -842,7 +842,7 @@ class TestSendLog:
 
         config: dict[str, object] = {
             ConfigKey.LOG_CHANNEL: "123456",
-            ConfigKey.LOG_MESSAGE_SUCCESS: "Mensaje con {missing_placeholder}",
+            ConfigKey.LOG_MESSAGE_SUCCESS: "Message with {missing_placeholder}",
         }
 
         # Should not raise - KeyError is caught
@@ -853,7 +853,7 @@ class TestSendLog:
         mock_channel.send.assert_not_called()
 
     async def test_handles_http_exception_on_send(self, autoname_cog: AutonameCog) -> None:
-        """Probar que maneja errores HTTP al enviar."""
+        """Test that handles HTTP errors when sending."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.send = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "Error"))
 
@@ -872,7 +872,7 @@ class TestSendLog:
 
 
 class TestApplyNicknameSafetyCheck:
-    """Tests para safety check en apply_nickname."""
+    """Tests for safety check in apply_nickname."""
 
     async def test_skips_when_new_nick_equals_current_nick(
         self,
@@ -880,12 +880,12 @@ class TestApplyNicknameSafetyCheck:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que salta cuando new_nickname == member.nick."""
+        """Test that skips when new_nickname == member.nick."""
         guild_id = mock_member.guild.id
-        # compute_nickname devolvera "[ABC | CAP] Xurxo"
-        # pero member.nick ya es ese valor
+        # compute_nickname will return "[ABC | CAP] Xurxo"
+        # but member.nick already has that value
         mock_member.nick = "[ABC | CAP] Xurxo"
-        mock_member.display_name = "Xurxo"  # display_name diferente
+        mock_member.display_name = "Xurxo"  # different display_name
         tags_config = [{"role_id": 100, "tag": "CAP"}]
 
         async with test_database.session() as session:
@@ -910,7 +910,7 @@ class TestApplyNicknameSafetyCheck:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar safety check cuando compute_nickname devuelve valor que ya existe."""
+        """Test safety check when compute_nickname returns value that already exists."""
         guild_id = mock_member.guild.id
         mock_member.nick = "[ABC | CAP] Xurxo"
         mock_member.display_name = "[ABC | CAP] Xurxo"
@@ -927,7 +927,7 @@ class TestApplyNicknameSafetyCheck:
             )
             await session.commit()
 
-        # Mock compute_nickname para devolver un valor (simula edge case)
+        # Mock compute_nickname to return a value (simulates edge case)
         with patch(
             "discord_bot.autoname.cog.compute_nickname",
             return_value="[ABC | CAP] Xurxo",
@@ -939,16 +939,16 @@ class TestApplyNicknameSafetyCheck:
 
 
 class TestSyncLoopMethods:
-    """Tests para sync_loop y before_sync."""
+    """Tests for sync_loop and before_sync."""
 
     async def test_sync_loop_calls_run_sync(self, autoname_cog: AutonameCog) -> None:
-        """Probar que sync_loop llama a _run_sync."""
+        """Test that sync_loop calls _run_sync."""
         with patch.object(autoname_cog, "_run_sync", new_callable=AsyncMock) as mock_run:
             await autoname_cog.sync_loop()
             mock_run.assert_called_once()
 
     async def test_before_sync_waits_and_runs(self, autoname_cog: AutonameCog) -> None:
-        """Probar que before_sync espera y ejecuta sync."""
+        """Test that before_sync waits and runs sync."""
         with patch.object(autoname_cog, "_run_sync", new_callable=AsyncMock) as mock_run:
             await autoname_cog.before_sync()
             cast(MagicMock, autoname_cog.bot).wait_until_ready.assert_called_once()
@@ -956,12 +956,12 @@ class TestSyncLoopMethods:
 
 
 class TestRunSyncIntervalCheck:
-    """Tests para verificacion de intervalo en _run_sync."""
+    """Tests for interval verification in _run_sync."""
 
     async def test_skips_when_not_due(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que salta guild cuando no ha pasado suficiente tiempo."""
+        """Test that skips guild when not enough time has passed."""
         from datetime import UTC, datetime, timedelta
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -969,7 +969,7 @@ class TestRunSyncIntervalCheck:
         mock_guild.name = "Test"
         cast(MagicMock, autoname_cog.bot).guilds = [mock_guild]
 
-        # Configurar intervalo de 30 minutos
+        # Configure 30 minute interval
         async with test_database.session() as session:
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(
@@ -978,7 +978,7 @@ class TestRunSyncIntervalCheck:
             await config_service.set_value(mock_guild.id, "autoname", ConfigKey.SYNC_INTERVAL, 30)
             await session.commit()
 
-        # Simular que se sincronizo hace 10 minutos
+        # Simulate that it synced 10 minutes ago
         autoname_cog._last_sync[mock_guild.id] = datetime.now(UTC) - timedelta(minutes=10)
 
         with patch.object(autoname_cog, "_sync_guild") as mock_sync:
@@ -988,7 +988,7 @@ class TestRunSyncIntervalCheck:
     async def test_handles_exception_in_guild_sync(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
     ) -> None:
-        """Probar que maneja excepciones durante sync de guild."""
+        """Test that handles exceptions during guild sync."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 456
         mock_guild.name = "Test"
@@ -1007,7 +1007,7 @@ class TestRunSyncIntervalCheck:
 
 
 class TestSyncGuildErrorHandling:
-    """Tests para manejo de errores en _sync_guild."""
+    """Tests for error handling in _sync_guild."""
 
     async def test_handles_exception_in_apply_nickname(
         self,
@@ -1015,7 +1015,7 @@ class TestSyncGuildErrorHandling:
         mock_member: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Probar que maneja excepciones al aplicar nickname."""
+        """Test that handles exceptions when applying nickname."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = mock_member.guild.id
         mock_guild.name = "Test"
@@ -1043,10 +1043,10 @@ class TestSyncGuildErrorHandling:
 
 
 class TestSetupAndTeardown:
-    """Tests para setup y teardown del cog."""
+    """Tests for setup and teardown of the cog."""
 
     async def test_setup_registers_schema_and_adds_cog(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que setup registra el schema y añade el cog."""
+        """Test that setup registers the schema and adds the cog."""
         from discord_bot.autoname.cog import setup
         from discord_bot.common.services.config_schema_service import (
             get_config_schema_service,
@@ -1057,12 +1057,12 @@ class TestSetupAndTeardown:
         await setup(mock_discord_bot)
 
         mock_discord_bot.add_cog.assert_called_once()
-        # Verificar que el schema fue registrado
+        # Verify that the schema was registered
         schema = get_config_schema_service().get_schema("autoname")
         assert schema == AUTONAME_CONFIG_SCHEMA
 
     async def test_teardown_unregisters_schema(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que teardown desregistra el schema."""
+        """Test that teardown unregisters the schema."""
         from discord_bot.autoname.cog import setup, teardown
         from discord_bot.common.services.config_schema_service import (
             get_config_schema_service,
@@ -1070,10 +1070,10 @@ class TestSetupAndTeardown:
 
         mock_discord_bot.add_cog = AsyncMock()
 
-        # Primero setup para registrar
+        # First setup to register
         await setup(mock_discord_bot)
         assert get_config_schema_service().get_schema("autoname") is not None
 
-        # Luego teardown
+        # Then teardown
         await teardown(mock_discord_bot)
         assert get_config_schema_service().get_schema("autoname") is None

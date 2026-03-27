@@ -1,33 +1,33 @@
-"""Claves de configuracion del cog de verificacion."""
+"""Configuration keys for the verification cog."""
 
 from enum import StrEnum
 
 
 class ConfigKey(StrEnum):
-    """Claves de configuracion para el cog de verificacion."""
+    """Configuration keys for the verification cog."""
 
-    # Configuracion general
+    # General configuration
     VERIFICATION_ENABLED = "verification_enabled"
     VERIFICATION_CHANNEL = "verification_channel"
     MOD_NOTIFICATION_CHANNEL = "mod_notification_channel"
     HEALTH_CHECK_INTERVAL = "health_check_interval"
 
-    # Textos de botones
+    # Button texts
     VERIFY_BUTTON_TEXT = "verify_button_text"
     VERIFY_ALLY_BUTTON_TEXT = "verify_ally_button_text"
     ACCEPT_BUTTON_TEXT = "accept_button_text"
     REJECT_BUTTON_TEXT = "reject_button_text"
 
-    # Nombres de tipos de verificacion
+    # Verification type names
     VERIFICATION_TYPE_REGULAR_DISPLAY = "verification_type_regular_display"
     VERIFICATION_TYPE_ALLY_DISPLAY = "verification_type_ally_display"
     HISTORY_LABEL = "history_label"
 
-    # Embeds de moderación (ConfigOptionType.EMBED)
+    # Moderation embeds (ConfigOptionType.EMBED)
     MOD_EMBED_REGULAR = "mod_embed_regular"
     MOD_EMBED_ALLY = "mod_embed_ally"
 
-    # Mensajes del panel y DM
+    # Panel and DM messages
     VERIFICATION_PANEL_MESSAGE = "verification_panel_message"
     DM_INSTRUCTIONS_MESSAGE = "dm_instructions_message"
     DM_INSTRUCTIONS_ALLY_MESSAGE = "dm_instructions_ally_message"
@@ -64,7 +64,7 @@ class ConfigKey(StrEnum):
     ALLY_ROLES_REMOVE = "ally_roles_remove"
     MOD_ROLES = "mod_roles"
 
-    # Motivos de rechazo (usados tanto en rechazo automático como manual)
+    # Rejection reasons (used for both automatic and manual rejection)
     REJECT_SCREENSHOT_TIMEOUT = "reject_screenshot_timeout"
     REJECT_WRONG_CAPTURES = "reject_wrong_captures"
     REJECT_NAME_MISMATCH = "reject_name_mismatch"
@@ -73,7 +73,7 @@ class ConfigKey(StrEnum):
     REJECT_WRONG_SHARD = "reject_wrong_shard"
     REJECT_WRONG_FACTION = "reject_wrong_faction"
 
-    # Selector de rechazo
+    # Rejection selector
     REJECTION_SELECT_MESSAGE = "rejection_select_message"
     REJECTION_SELECT_PLACEHOLDER = "rejection_select_placeholder"
     REJECTION_OTHER_LABEL = "rejection_other_label"
@@ -82,13 +82,13 @@ class ConfigKey(StrEnum):
     REJECTION_MODAL_LABEL = "rejection_modal_label"
     REJECTION_MODAL_PLACEHOLDER = "rejection_modal_placeholder"
 
-    # Opciones
+    # Options
     DELETE_PROCESSED_MESSAGES = "delete_processed_messages"
     BLOCKING_ROLES = "blocking_roles"
     AUTO_REJECT_REVIEW_WINDOW = "auto_reject_review_window"
     SCREENSHOT_TIMEOUT_MINUTES = "screenshot_timeout_minutes"
 
-    # Botón de revisión
+    # Review button
     REVIEW_BUTTON_TEXT = "review_button_text"
 
     # API Verification Settings (API URL and Key are in global settings)
@@ -100,10 +100,10 @@ class ConfigKey(StrEnum):
     VERIFICATION_VALID_REGIMENT = "verification_valid_regiment"
     PLAYER_INFO_SECTIONS = "player_info_sections"
 
-    # Tracker de verificaciones pendientes
+    # Pending verifications tracker
     TRACKER_TITLE = "tracker_title"
 
-    # Claves internas (prefijo _ indica que no son configurables por usuario)
+    # Internal keys (prefix _ indicates they are not user-configurable)
     PANEL_MESSAGE_ID = "_panel_message_id"
     PANEL_CHANNEL_ID = "_panel_channel_id"
     TRACKER_MESSAGE_ID = "_tracker_message_id"

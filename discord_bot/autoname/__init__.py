@@ -1,1 +1,1 @@
-"""Cog de autoname para formateo automatico de nicknames."""
+"""Autoname cog for automatic nickname formatting."""

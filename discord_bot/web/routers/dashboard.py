@@ -1,4 +1,4 @@
-"""Router principal del dashboard."""
+"""Main dashboard router."""
 
 import logging
 from typing import Any
@@ -19,26 +19,54 @@ router = APIRouter(tags=["dashboard"])
 
 
 def get_templates(request: Request) -> Jinja2Templates:
-    """Obtener el motor de templates.
+    """Get the template engine.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Returns:
-        Jinja2Templates: Motor de templates configurado
+        Jinja2Templates: Configured template engine
     """
     templates: Jinja2Templates = request.app.state.templates
     return templates
 
 
-def base_context(request: Request) -> dict[str, Any]:
-    """Contexto base para todas las plantillas.
+def get_browser_language(request: Request) -> str:
+    """Get the language from the browser's Accept-Language header.
 
     Args:
-        request (Request): Request de FastAPI
+        request: FastAPI request
 
     Returns:
-        dict[str, Any]: Contexto con variables comunes
+        str: Language code ('en' or 'es', defaults to 'en')
+    """
+    from discord_bot.i18n import get_i18n_service
+
+    i18n = get_i18n_service()
+    accept_language = request.headers.get("Accept-Language", "")
+
+    # Parse Accept-Language header (e.g., "es-ES,es;q=0.9,en;q=0.8")
+    for part in accept_language.split(","):
+        # Extract language code (before any ';' for quality factor)
+        lang_part = part.split(";")[0].strip()
+        # Get base language (e.g., "es" from "es-ES")
+        base_lang = lang_part.split("-")[0].lower()
+
+        if base_lang in i18n.SUPPORTED_LANGUAGES:
+            return base_lang
+
+    return i18n.DEFAULT_LANGUAGE
+
+
+def base_context(request: Request, lang: str | None = None) -> dict[str, Any]:
+    """Base context for all templates.
+
+    Args:
+        request (Request): FastAPI request
+        lang (str | None): Language code (uses browser language if not provided)
+
+    Returns:
+        dict[str, Any]: Context with common variables
     """
     bot = request.app.state.bot
     bot_name = bot.user.name if bot and bot.user else None
@@ -46,6 +74,7 @@ def base_context(request: Request) -> dict[str, Any]:
         "root_path": request.scope.get("root_path", ""),
         "csrf_token": get_csrf_token(request),
         "bot_name": bot_name,
+        "lang": lang or get_browser_language(request),
     }
 
 
@@ -54,14 +83,14 @@ async def index(
     request: Request,
     user: CurrentUser,
 ) -> Response:
-    """Página principal.
+    """Main page.
 
     Args:
-        request (Request): Request de FastAPI
-        user (CurrentUser): Usuario actual (puede ser None)
+        request (Request): FastAPI request
+        user (CurrentUser): Current user (may be None)
 
     Returns:
-        Response: Página de inicio o redirección
+        Response: Home page or redirect
     """
     if user:
         root_path = request.scope.get("root_path", "")
@@ -80,14 +109,14 @@ async def login_page(
     request: Request,
     user: CurrentUser,
 ) -> Response:
-    """Página de login.
+    """Login page.
 
     Args:
-        request (Request): Request de FastAPI
-        user (CurrentUser): Usuario actual (puede ser None)
+        request (Request): FastAPI request
+        user (CurrentUser): Current user (may be None)
 
     Returns:
-        Response: Página de login o redirección
+        Response: Login page or redirect
     """
     if user:
         root_path = request.scope.get("root_path", "")
@@ -171,29 +200,29 @@ async def dashboard(
     user: RequireAuth,
     session: DbSession,
 ) -> HTMLResponse:
-    """Página principal del dashboard con lista de servidores.
+    """Main dashboard page with server list.
 
     Args:
-        request (Request): Request de FastAPI
-        user (RequireAuth): Usuario autenticado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        user (RequireAuth): Authenticated user
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Página del dashboard
+        HTMLResponse: Dashboard page
     """
     bot = request.app.state.bot
     owner_ids = request.app.state.settings.web.owner_ids
     user_id = int(user.get("id", 0))
     is_owner = user_id in owner_ids
 
-    logger.debug(f"Usuario ID: {user_id}, Es owner: {is_owner}")
+    logger.debug(f"User ID: {user_id}, Is owner: {is_owner}")
 
     manageable_guilds = []
 
     # Check all guilds the bot is in
     # For each guild, verify user membership and access via bot (no OAuth data needed)
     if bot:
-        logger.debug(f"Verificando acceso en {len(bot.guilds)} guilds del bot")
+        logger.debug(f"Checking access in {len(bot.guilds)} bot guilds")
         for discord_guild in bot.guilds:
             # Bot owners see all guilds
             if is_owner:
@@ -230,7 +259,7 @@ async def dashboard(
 
     manageable_guilds.sort(key=lambda g: g["name"].lower())
 
-    logger.debug(f"Guilds gestionables: {len(manageable_guilds)}")
+    logger.debug(f"Manageable guilds: {len(manageable_guilds)}")
 
     # Bot info
     bot_info = None

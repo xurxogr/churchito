@@ -1,4 +1,4 @@
-"""Cog de verificacion de usuarios."""
+"""User verification cog."""
 
 import asyncio
 import logging
@@ -40,43 +40,43 @@ logger = logging.getLogger(__name__)
 
 
 class VerificationCog(commands.Cog):
-    """Cog para el sistema de verificacion de usuarios."""
+    """Cog for the user verification system."""
 
     def __init__(self, bot: DiscordBot) -> None:
-        """Inicializar el cog de verificacion.
+        """Initialize the verification cog.
 
         Args:
-            bot (DiscordBot): Instancia del bot
+            bot (DiscordBot): Bot instance
         """
         self.bot = bot
         self._pending_dm_verifications: dict[int, tuple[int, int]] = {}
         self._last_health_check: dict[int, datetime] = {}
         self._health_check_started = False
-        # Timers para timeout de capturas: request_id -> Task
+        # Timers for screenshot timeout: request_id -> Task
         self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
-        """Obtener opciones bloqueadas por configuración de despliegue.
+        """Get options locked by deployment configuration.
 
         Returns:
-            dict[str, dict[str, Any]]: Mapa de key -> {locked, reason}
+            dict[str, dict[str, Any]]: Map of key -> {locked, reason}
         """
         return {}
 
     async def cog_load(self) -> None:
-        """Registrar vistas persistentes y restaurar estado al cargar el cog."""
+        """Register persistent views and restore state when loading the cog."""
         self.bot.add_view(VerificationPanelView())
 
-        # Restaurar verificaciones pendientes desde la base de datos
+        # Restore pending verifications from the database
         await self._restore_pending_verifications()
 
-        # El health check se inicia despues de que el bot este listo
+        # Health check starts after the bot is ready
         if not self._health_check_started:
             self.health_check_loop.start()
             self._health_check_started = True
 
     async def _restore_pending_verifications(self) -> None:
-        """Restaurar verificaciones pendientes desde la base de datos."""
+        """Restore pending verifications from the database."""
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             config_service = ConfigService(session=session)
@@ -91,7 +91,7 @@ class VerificationCog(commands.Cog):
                     request.id,
                 )
 
-                # Restaurar timer si esta configurado
+                # Restore timer if configured
                 config = await config_service.get_all_config(
                     guild_id=request.guild_id,
                     cog_name=COG_NAME,
@@ -101,7 +101,7 @@ class VerificationCog(commands.Cog):
                 if timeout_minutes <= 0:
                     continue
 
-                # Calcular tiempo restante
+                # Calculate remaining time
                 created_at = request.created_at
                 if created_at.tzinfo is None:
                     created_at = created_at.replace(tzinfo=UTC)
@@ -109,7 +109,7 @@ class VerificationCog(commands.Cog):
                 remaining_minutes = timeout_minutes - elapsed_minutes
 
                 if remaining_minutes <= 0:
-                    # Ya paso el tiempo, rechazar inmediatamente
+                    # Time already passed, reject immediately
                     asyncio.create_task(
                         self._auto_reject_by_timeout(
                             request_id=request.id,
@@ -119,7 +119,7 @@ class VerificationCog(commands.Cog):
                     )
                     continue
 
-                # Aun hay tiempo, restaurar timer
+                # Still time left, restore timer
                 self.start_screenshot_timer(
                     request_id=request.id,
                     guild_id=request.guild_id,
@@ -130,17 +130,17 @@ class VerificationCog(commands.Cog):
 
             if pending_requests:
                 logger.info(
-                    f"Restauradas {len(pending_requests)} verificaciones pendientes "
+                    f"Restored {len(pending_requests)} pending verifications "
                     f"({timers_restored} timers)"
                 )
 
     async def cog_unload(self) -> None:
-        """Detener tareas al descargar el cog."""
+        """Stop tasks when unloading the cog."""
         if self._health_check_started:
             self.health_check_loop.cancel()
             self._health_check_started = False
 
-        # Cancelar todos los timers de capturas pendientes
+        # Cancel all pending screenshot timers
         for _, task in list(self._screenshot_timers.items()):
             if not task.done():
                 task.cancel()
@@ -153,18 +153,18 @@ class VerificationCog(commands.Cog):
         user_id: int,
         timeout_minutes: int,
     ) -> None:
-        """Iniciar timer para timeout de capturas.
+        """Start timer for screenshot timeout.
 
         Args:
-            request_id: ID de la solicitud
-            guild_id: ID del servidor
-            user_id: ID del usuario
-            timeout_minutes: Minutos antes del auto-rechazo
+            request_id: Request ID
+            guild_id: Server ID
+            user_id: User ID
+            timeout_minutes: Minutes before auto-rejection
         """
-        # Cancelar timer existente si hay
+        # Cancel existing timer if any
         self.cancel_screenshot_timer(request_id)
 
-        # Crear nuevo timer
+        # Create new timer
         task = asyncio.create_task(
             self._screenshot_timer_task(
                 request_id=request_id,
@@ -174,23 +174,21 @@ class VerificationCog(commands.Cog):
             )
         )
         self._screenshot_timers[request_id] = task
-        logger.info(
-            f"Timer de capturas iniciado para solicitud {request_id} ({timeout_minutes} min)"
-        )
+        logger.info(f"Screenshot timer started for request {request_id} ({timeout_minutes} min)")
 
     def cancel_screenshot_timer(self, request_id: int) -> bool:
-        """Cancelar timer de capturas para una solicitud.
+        """Cancel screenshot timer for a request.
 
         Args:
-            request_id: ID de la solicitud
+            request_id: Request ID
 
         Returns:
-            bool: True si se cancelo, False si no existia
+            bool: True if cancelled, False if it didn't exist
         """
         task = self._screenshot_timers.pop(request_id, None)
         if task and not task.done():
             task.cancel()
-            logger.info(f"Timer de capturas cancelado para solicitud {request_id}")
+            logger.info(f"Screenshot timer cancelled for request {request_id}")
             return True
         return False
 
@@ -201,13 +199,13 @@ class VerificationCog(commands.Cog):
         user_id: int,
         timeout_minutes: int,
     ) -> None:
-        """Tarea que auto-rechaza la solicitud tras el timeout.
+        """Task that auto-rejects the request after timeout.
 
         Args:
-            request_id: ID de la solicitud
-            guild_id: ID del servidor
-            user_id: ID del usuario
-            timeout_minutes: Minutos de timeout
+            request_id: Request ID
+            guild_id: Server ID
+            user_id: User ID
+            timeout_minutes: Timeout minutes
         """
         guild = self.bot.get_guild(guild_id)
         guild_name = guild.name if guild else f"Guild {guild_id}"
@@ -219,11 +217,9 @@ class VerificationCog(commands.Cog):
                 user_id=user_id,
             )
         except asyncio.CancelledError:
-            logger.debug(f"[{guild_name}] Timer de capturas cancelado para solicitud {request_id}")
+            logger.debug(f"[{guild_name}] Screenshot timer cancelled for request {request_id}")
         except Exception as e:
-            logger.error(
-                f"[{guild_name}] Error en timer de capturas para solicitud {request_id}: {e}"
-            )
+            logger.error(f"[{guild_name}] Error in screenshot timer for request {request_id}: {e}")
         finally:
             self._screenshot_timers.pop(request_id, None)
 
@@ -233,14 +229,14 @@ class VerificationCog(commands.Cog):
         guild_id: int,
         user_id: int,
     ) -> None:
-        """Rechazar automaticamente una solicitud por timeout de capturas.
+        """Automatically reject a request due to screenshot timeout.
 
         Args:
-            request_id: ID de la solicitud
-            guild_id: ID del servidor
-            user_id: ID del usuario
+            request_id: Request ID
+            guild_id: Server ID
+            user_id: User ID
         """
-        # Obtener guild para logs y actualizar mensajes
+        # Get guild for logs and message updates
         guild = self.bot.get_guild(guild_id)
         guild_name = guild.name if guild else f"Guild {guild_id}"
 
@@ -250,26 +246,24 @@ class VerificationCog(commands.Cog):
 
             request = await verification_service.get_request(request_id)
             if not request:
-                logger.warning(
-                    f"[{guild_name}] Solicitud {request_id} no encontrada para auto-rechazo"
-                )
+                logger.warning(f"[{guild_name}] Request {request_id} not found for auto-rejection")
                 return
 
-            # Solo rechazar si sigue esperando capturas
+            # Only reject if still waiting for screenshots
             if request.status != VerificationStatus.PENDING_SCREENSHOTS:
                 logger.debug(
-                    f"[{guild_name}] Solicitud {request_id} ya no espera capturas "
+                    f"[{guild_name}] Request {request_id} no longer waiting for screenshots "
                     f"(status={request.status})"
                 )
                 return
 
-            # Obtener config para el motivo de rechazo
+            # Get config for rejection reason
             config = await config_service.get_all_config(
                 guild_id=guild_id,
                 cog_name=COG_NAME,
             )
 
-            # Rechazar la solicitud
+            # Reject the request
             reason = config.get(ConfigKey.REJECT_SCREENSHOT_TIMEOUT) or "Screenshot timeout"
             await verification_service.reject(
                 request_id=request_id,
@@ -278,17 +272,17 @@ class VerificationCog(commands.Cog):
                 reason=reason,
                 guild_name=guild_name,
             )
-            # Flush para que los cambios sean visibles en consultas posteriores
+            # Flush so changes are visible in subsequent queries
             await session.flush()
 
-            # Limpiar de memoria
+            # Clean from memory
             if user_id in self._pending_dm_verifications:
                 del self._pending_dm_verifications[user_id]
             if not guild:
                 await session.commit()
                 return
 
-            # Actualizar mensaje de moderacion
+            # Update moderation message
             rejected_status = format_message(
                 template=config.get(ConfigKey.STATUS_REJECTED),
                 moderator="Auto",
@@ -303,7 +297,7 @@ class VerificationCog(commands.Cog):
                 verification_service=verification_service,
             )
 
-            # Notificar al usuario
+            # Notify the user
             member = guild.get_member(user_id)
             if member:
                 verification_type = VerificationType(request.verification_type)
@@ -323,7 +317,7 @@ class VerificationCog(commands.Cog):
                 except discord.Forbidden:
                     pass
 
-            # Actualizar tracker
+            # Update tracker
             await update_tracker_message(
                 guild=guild,
                 config=config,
@@ -333,19 +327,19 @@ class VerificationCog(commands.Cog):
             await session.commit()
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
-        """Verificar si el cog esta habilitado para un guild.
+        """Check if the cog is enabled for a guild.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            bool: True si el cog esta habilitado
+            bool: True if the cog is enabled
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
 
-    # Claves de configuración que requieren actualizar el panel
+    # Configuration keys that require updating the panel
     _PANEL_UPDATE_KEYS = frozenset(
         {
             ConfigKey.VERIFICATION_ENABLED,
@@ -358,7 +352,7 @@ class VerificationCog(commands.Cog):
         }
     )
 
-    # Claves de configuración que requieren actualizar los embeds de moderación
+    # Configuration keys that require updating moderation embeds
     _MOD_EMBED_UPDATE_KEYS = frozenset(
         {
             ConfigKey.MOD_EMBED_REGULAR,
@@ -373,41 +367,41 @@ class VerificationCog(commands.Cog):
     )
 
     async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
-        """Manejar cambios de configuración desde el dashboard web.
+        """Handle configuration changes from the web dashboard.
 
-        Solo actualiza panel y embeds una vez aunque cambien múltiples opciones.
+        Only updates panel and embeds once even if multiple options change.
 
         Args:
-            guild (discord.Guild): Guild donde cambió la configuración
-            keys (list[str]): Lista de claves de configuración que cambiaron
+            guild (discord.Guild): Guild where configuration changed
+            keys (list[str]): List of configuration keys that changed
         """
         keys_set = set(keys)
 
         # Check if any panel key changed
         if keys_set & self._PANEL_UPDATE_KEYS:
             changed_panel_keys = keys_set & self._PANEL_UPDATE_KEYS
-            logger.info(f"[{guild.name}] Config cambió {changed_panel_keys}, actualizando panel")
+            logger.info(f"[{guild.name}] Config changed {changed_panel_keys}, updating panel")
             await self._check_verification_message(guild=guild, recreate=True)
 
         # Check if any mod embed key changed
         if keys_set & self._MOD_EMBED_UPDATE_KEYS:
             changed_embed_keys = keys_set & self._MOD_EMBED_UPDATE_KEYS
-            logger.info(f"[{guild.name}] Config cambió {changed_embed_keys}, actualizando embeds")
+            logger.info(f"[{guild.name}] Config changed {changed_embed_keys}, updating embeds")
             await self._rebuild_pending_embeds_for_guild(guild)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
-        """Manejar cuando el cog es habilitado o deshabilitado.
+        """Handle when the cog is enabled or disabled.
 
         Args:
-            guild (discord.Guild): Guild donde cambió el estado
-            enabled (bool): True si fue habilitado, False si fue deshabilitado
+            guild (discord.Guild): Guild where state changed
+            enabled (bool): True if enabled, False if disabled
         """
         if enabled:
-            logger.info(f"[{guild.name}] Cog habilitado, creando panel")
+            logger.info(f"[{guild.name}] Cog enabled, creating panel")
             await self._check_verification_message(guild=guild, recreate=True)
             return
 
-        logger.info(f"[{guild.name}] Cog deshabilitado, eliminando panel")
+        logger.info(f"[{guild.name}] Cog disabled, removing panel")
 
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
@@ -441,35 +435,35 @@ class VerificationCog(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def health_check_loop(self) -> None:
-        """Verificar periodicamente que los paneles de verificacion existen.
+        """Periodically verify that verification panels exist.
 
-        Cada guild tiene su propio intervalo configurado. Este loop corre
-        cada minuto y verifica si cada guild esta listo para su health check.
+        Each guild has its own configured interval. This loop runs
+        every minute and checks if each guild is ready for its health check.
         """
         await self._run_health_check()
 
     @health_check_loop.before_loop
     async def before_health_check(self) -> None:
-        """Esperar a que el bot este listo antes de iniciar el health check."""
+        """Wait for the bot to be ready before starting health check."""
         await self.bot.wait_until_ready()
-        # Limpiar verificaciones de usuarios que salieron mientras el bot estaba offline
+        # Clean verifications from users who left while the bot was offline
         await self._cleanup_stale_verifications()
-        # Inicializar trackers para guilds con verificaciones pendientes
+        # Initialize trackers for guilds with pending verifications
         await self._initialize_trackers()
-        # Ejecutar inmediatamente al iniciar para todos los guilds
+        # Execute immediately on startup for all guilds
         await self._run_health_check(force_all=True)
 
     async def _cleanup_stale_verifications(self) -> None:
-        """Cancelar verificaciones de usuarios que salieron mientras el bot estaba offline."""
+        """Cancel verifications from users who left while the bot was offline."""
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             pending = await service.get_all_pending()
 
             if not pending:
-                logger.debug("No hay verificaciones pendientes para limpiar")
+                logger.debug("No pending verifications to clean")
                 return
 
-            logger.info(f"Verificando {len(pending)} solicitudes pendientes...")
+            logger.info(f"Checking {len(pending)} pending requests...")
             config_service = ConfigService(session=session)
             cancelled_count = 0
             guilds_with_changes: dict[int, tuple[discord.Guild, dict[str, Any]]] = {}
@@ -478,24 +472,24 @@ class VerificationCog(commands.Cog):
                 guild = self.bot.get_guild(request.guild_id)
                 if not guild:
                     logger.warning(
-                        f"[Guild ID: {request.guild_id}] Guild no encontrado para "
-                        f"solicitud {request.id} (usuario={request.username})"
+                        f"[Guild ID: {request.guild_id}] Guild not found for "
+                        f"request {request.id} (user={request.username})"
                     )
                     continue
 
                 member = guild.get_member(request.user_id)
                 if member:
-                    logger.debug(f"[{guild.name}] Usuario {request.username} sigue en el servidor")
+                    logger.debug(f"[{guild.name}] User {request.username} still in server")
                     continue
 
-                # Usuario no está en el servidor, cancelar verificación
+                # User not in server, cancel verification
                 await service.cancel(request_id=request.id, guild_name=guild.name)
 
-                # Limpiar de memoria si estaba pendiente
+                # Clean from memory if it was pending
                 if request.user_id in self._pending_dm_verifications:
                     del self._pending_dm_verifications[request.user_id]
 
-                # Actualizar mensaje de moderación
+                # Update moderation message
                 config = await config_service.get_all_config(
                     guild_id=request.guild_id,
                     cog_name=COG_NAME,
@@ -508,21 +502,21 @@ class VerificationCog(commands.Cog):
                         verification_service=service,
                     )
                 except Exception as e:
-                    logger.error(f"[{guild.name}] Error actualizando mensaje de mod: {e}")
+                    logger.error(f"[{guild.name}] Error updating mod message: {e}")
 
-                # Marcar guild para actualizar tracker
+                # Mark guild for tracker update
                 guilds_with_changes[guild.id] = (guild, config)
 
                 cancelled_count += 1
                 logger.info(
-                    f"[{guild.name}] Verificacion {request.id} cancelada "
-                    f"(usuario {request.username} ya no esta en el servidor)"
+                    f"[{guild.name}] Verification {request.id} cancelled "
+                    f"(user {request.username} no longer in server)"
                 )
 
             if cancelled_count > 0:
                 await session.commit()
 
-                # Actualizar trackers de guilds afectados
+                # Update trackers for affected guilds
                 for guild, config in guilds_with_changes.values():
                     try:
                         await update_tracker_message(
@@ -532,39 +526,39 @@ class VerificationCog(commands.Cog):
                             config_service=config_service,
                         )
                     except Exception as e:
-                        logger.error(f"Error actualizando tracker en {guild.name}: {e}")
+                        logger.error(f"Error updating tracker in {guild.name}: {e}")
                 await session.commit()
 
             logger.info(
-                f"Limpieza completada: {cancelled_count}/{len(pending)} verificaciones canceladas"
+                f"Cleanup completed: {cancelled_count}/{len(pending)} verifications cancelled"
             )
 
     async def _initialize_trackers(self) -> None:
-        """Inicializar mensajes de tracker para guilds con verificaciones pendientes.
+        """Initialize tracker messages for guilds with pending verifications.
 
-        Se ejecuta al iniciar el bot para asegurar que los trackers existan
-        para todos los guilds que tienen verificaciones pendientes.
+        Runs on bot startup to ensure trackers exist for all guilds
+        that have pending verifications.
         """
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             config_service = ConfigService(session=session)
 
-            # Obtener todos los guild_ids únicos con verificaciones pendientes
+            # Get all unique guild_ids with pending verifications
             pending = await service.get_all_pending()
             if not pending:
-                logger.debug("No hay verificaciones pendientes para inicializar trackers")
+                logger.debug("No pending verifications to initialize trackers")
                 return
 
-            # Agrupar por guild_id
+            # Group by guild_id
             guild_ids = {request.guild_id for request in pending}
-            logger.info(f"Inicializando trackers para {len(guild_ids)} guilds...")
+            logger.info(f"Initializing trackers for {len(guild_ids)} guilds...")
 
             for guild_id in guild_ids:
                 guild = self.bot.get_guild(guild_id)
                 if not guild:
                     continue
 
-                # Verificar si el cog está habilitado
+                # Check if cog is enabled
                 if not await self._is_cog_enabled(guild_id):
                     continue
 
@@ -581,28 +575,28 @@ class VerificationCog(commands.Cog):
                         config_service=config_service,
                     )
                 except Exception as e:
-                    logger.error(f"Error inicializando tracker en {guild.name}: {e}")
+                    logger.error(f"Error initializing tracker in {guild.name}: {e}")
 
             await session.commit()
-            logger.info("Inicialización de trackers completada")
+            logger.info("Tracker initialization completed")
 
     async def _rebuild_pending_embeds_for_guild(self, guild: discord.Guild) -> None:
-        """Reconstruir embeds de verificaciones pendientes para un guild específico.
+        """Rebuild pending verification embeds for a specific guild.
 
-        Se llama cuando cambia la configuración de embeds de moderación.
+        Called when moderation embed configuration changes.
 
         Args:
-            guild: Guild donde reconstruir los embeds
+            guild: Guild where to rebuild embeds
         """
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             pending = await service.get_pending_with_mod_messages()
 
-            # Filtrar solo las de este guild
+            # Filter only this guild's requests
             guild_requests = [r for r in pending if r.guild_id == guild.id]
             logger.debug(
-                f"[{guild.name}] Verificaciones con embed de mod: "
-                f"{len(guild_requests)} de {len(pending)} totales"
+                f"[{guild.name}] Verifications with mod embed: "
+                f"{len(guild_requests)} of {len(pending)} total"
             )
             if not guild_requests:
                 return
@@ -635,13 +629,11 @@ class VerificationCog(commands.Cog):
                         rebuilt_count += 1
                 except Exception as e:
                     logger.error(
-                        f"[{guild.name}] Error reconstruyendo embed para "
-                        f"solicitud {request.id}: {e}"
+                        f"[{guild.name}] Error rebuilding embed for request {request.id}: {e}"
                     )
 
             logger.debug(
-                f"[{guild.name}] Reconstrucción completada: "
-                f"{rebuilt_count}/{len(guild_requests)} embeds"
+                f"[{guild.name}] Rebuild completed: {rebuilt_count}/{len(guild_requests)} embeds"
             )
 
     async def _rebuild_single_embed(
@@ -651,20 +643,19 @@ class VerificationCog(commands.Cog):
         request: Any,
         config: dict[str, Any],
     ) -> bool:
-        """Reconstruir un solo embed de verificación pendiente.
+        """Rebuild a single pending verification embed.
 
-        Regenera el template con la configuración actual mientras preserva
-        cualquier contenido extra (como resultados de OCR) que aparezca
-        después de la línea de estado.
+        Regenerates the template with current configuration while preserving
+        any extra content (like OCR results) that appears after the status line.
 
         Args:
-            guild: Guild donde está el mensaje
-            channel: Canal de moderación
-            request: Solicitud de verificación
-            config: Configuración del cog
+            guild: Guild where the message is
+            channel: Moderation channel
+            request: Verification request
+            config: Cog configuration
 
         Returns:
-            bool: True si se reconstruyó correctamente
+            bool: True if rebuilt successfully
         """
         if not request.mod_message_id:
             return False
@@ -672,23 +663,23 @@ class VerificationCog(commands.Cog):
         try:
             mod_message = await channel.fetch_message(request.mod_message_id)
         except discord.NotFound:
-            logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
+            logger.warning(f"[{guild.name}] Mod message not found: {request.mod_message_id}")
             return False
 
-        # Extraer contenido extra (después de la línea de estado) del embed actual
+        # Extract extra content (after the status line) from current embed
         extra_content = ""
         if mod_message.embeds:
             current_content = mod_message.embeds[0].description or ""
 
-            # Buscar las líneas de estado configuradas (solo estados pendientes)
+            # Find configured status lines (only pending statuses)
             status_texts = [
                 config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "",
                 config.get(ConfigKey.STATUS_PENDING_REVIEW) or "",
                 config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or "",
             ]
-            status_texts = [s for s in status_texts if s]  # Filtrar vacíos
+            status_texts = [s for s in status_texts if s]  # Filter empty
 
-            # Encontrar la última posición de cualquier texto de estado
+            # Find the last position of any status text
             last_status_end = -1
             for status_text in status_texts:
                 if status_text in current_content:
@@ -697,23 +688,23 @@ class VerificationCog(commands.Cog):
                     if end_pos > last_status_end:
                         last_status_end = end_pos
 
-            # Si hay contenido después del estado, preservarlo
+            # If there's content after status, preserve it
             if last_status_end > 0 and last_status_end < len(current_content):
                 extra_content = current_content[last_status_end:].strip()
 
-        # Regenerar el template con la configuración actual
+        # Regenerate template with current configuration
         verification_type = VerificationType(request.verification_type)
         type_display = get_verification_type_display(
             verification_type=verification_type, config=config
         )
 
-        # Determinar el estado según el status de la solicitud
+        # Determine status based on request status
         if request.status == VerificationStatus.PENDING_SCREENSHOTS:
             status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
         else:
             status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or ""
 
-        # Obtener mención del usuario
+        # Get user mention
         member = guild.get_member(request.user_id)
         user_mention = member.mention if member else f"<@{request.user_id}>"
 
@@ -731,7 +722,7 @@ class VerificationCog(commands.Cog):
             past_requests=past_requests,
         )
 
-        # Crear nuevos embeds con la configuración actual
+        # Create new embeds with current configuration
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         main_embeds = create_mod_embeds(
@@ -750,19 +741,19 @@ class VerificationCog(commands.Cog):
             sections_context=sections_context,
         )
 
-        # Mantener embeds de capturas (identificados por tener imagen)
-        # Los embeds de capturas tienen set_image con URL de las capturas
+        # Keep screenshot embeds (identified by having an image)
+        # Screenshot embeds have set_image with screenshot URLs
         screenshot_embeds = [e for e in mod_message.embeds if e.image and e.image.url]
         all_embeds = [*main_embeds, *screenshot_embeds]
 
-        # Solo añadir botones si está pendiente de revisión (ya tiene capturas)
+        # Only add buttons if pending review (already has screenshots)
         view: ModReviewView | None = None
         if request.status == VerificationStatus.PENDING_REVIEW:
             accept_label = format_message(
-                template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+                template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Accept",
                 verification_type=type_display,
             )
-            reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+            reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Reject"
             view = ModReviewView(
                 public_id=request.public_id,
                 accept_label=accept_label,
@@ -770,49 +761,49 @@ class VerificationCog(commands.Cog):
             )
 
         await mod_message.edit(embeds=all_embeds, view=view)
-        logger.debug(f"[{guild.name}] Embed reconstruido para solicitud {request.id}")
+        logger.debug(f"[{guild.name}] Embed rebuilt for request {request.id}")
         return True
 
     async def _run_health_check(self, force_all: bool = False) -> None:
-        """Ejecutar verificacion de salud de paneles en guilds que esten listos.
+        """Run panel health check on guilds that are ready.
 
         Args:
-            force_all (bool): Si True, ejecuta para todos los guilds ignorando intervalos
+            force_all (bool): If True, executes for all guilds ignoring intervals
         """
         now = datetime.now(UTC)
 
         for guild in self.bot.guilds:
             try:
-                # Obtener intervalo configurado para este guild
+                # Get configured interval for this guild
                 interval = await self._get_health_check_interval(guild.id)
 
-                # Si intervalo es 0, health check desactivado para este guild
+                # If interval is 0, health check disabled for this guild
                 if interval == 0:
                     continue
 
-                # Verificar si es momento de ejecutar (a menos que sea forzado)
+                # Check if it's time to execute (unless forced)
                 if not force_all:
                     last_check = self._last_health_check.get(guild.id)
                     if last_check:
                         seconds_since_last = (now - last_check).total_seconds()
                         if seconds_since_last < interval * 60:
-                            continue  # Aun no es momento
+                            continue  # Not time yet
 
-                # Ejecutar health check y registrar timestamp
+                # Execute health check and record timestamp
                 await self._check_verification_message(guild=guild)
                 self._last_health_check[guild.id] = now
 
             except Exception as e:
-                logger.error(f"[{guild.name}] Error en health check: {e}")
+                logger.error(f"[{guild.name}] Error in health check: {e}")
 
     async def _get_health_check_interval(self, guild_id: int) -> int:
-        """Obtener el intervalo de health check configurado para un guild.
+        """Get the configured health check interval for a guild.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            int: Intervalo en minutos (0 si desactivado, 30 por defecto)
+            int: Interval in minutes (0 if disabled, 30 by default)
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
@@ -832,14 +823,14 @@ class VerificationCog(commands.Cog):
         guild_id: int,
         config_service: ConfigService | None = None,
     ) -> dict[str, Any]:
-        """Obtener toda la configuracion del cog para un guild.
+        """Get all cog configuration for a guild.
 
         Args:
-            guild_id (int): ID del guild
-            config_service (ConfigService | None): Servicio existente para reutilizar sesion
+            guild_id (int): Guild ID
+            config_service (ConfigService | None): Existing service to reuse session
 
         Returns:
-            dict[str, Any]: Diccionario con toda la configuracion
+            dict[str, Any]: Dictionary with all configuration
         """
         if config_service:
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
@@ -848,25 +839,25 @@ class VerificationCog(commands.Cog):
             return await svc.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
 
     def _format_message(self, template: str | None = None, **kwargs: str | None) -> str:
-        """Reemplazar placeholders en un mensaje.
+        """Replace placeholders in a message.
 
         Args:
-            template (str | None): Plantilla del mensaje
-            **kwargs: Placeholders a reemplazar (ej: username="Juan", status="Pendiente")
+            template (str | None): Message template
+            **kwargs: Placeholders to replace (e.g.: username="John", status="Pending")
 
         Returns:
-            str: Mensaje formateado
+            str: Formatted message
         """
         return format_message(template, **kwargs)
 
     def _create_panel_embed(self, text: str) -> discord.Embed:
-        """Crear un embed para el panel de verificación.
+        """Create an embed for the verification panel.
 
         Args:
-            text (str): Texto del mensaje que puede contener URLs de imagen
+            text (str): Message text that may contain image URLs
 
         Returns:
-            discord.Embed: Embed con el mensaje formateado
+            discord.Embed: Embed with formatted message
         """
         return create_panel_embed(text)
 
@@ -875,14 +866,14 @@ class VerificationCog(commands.Cog):
         guild: discord.Guild,
         config: dict[str, Any],
     ) -> discord.TextChannel | None:
-        """Obtener canal de moderacion si esta configurado y accesible.
+        """Get moderation channel if configured and accessible.
 
         Args:
             guild (discord.Guild): Guild
-            config (dict[str, Any]): Configuracion del cog
+            config (dict[str, Any]): Cog configuration
 
         Returns:
-            discord.TextChannel | None: Canal de moderacion o None si no disponible
+            discord.TextChannel | None: Moderation channel or None if not available
         """
         return get_mod_channel(guild=guild, config=config, bot_user=self.bot.user)
 
@@ -891,11 +882,11 @@ class VerificationCog(commands.Cog):
         guild: discord.Guild,
         recreate: bool = False,
     ) -> None:
-        """Verificar y restaurar panel de verificacion de un guild.
+        """Verify and restore verification panel for a guild.
 
         Args:
-            guild (discord.Guild): Guild a verificar
-            recreate (bool): Si True, elimina el panel existente y lo recrea
+            guild (discord.Guild): Guild to verify
+            recreate (bool): If True, deletes existing panel and recreates it
         """
         await check_verification_message(cog=self, guild=guild, recreate=recreate)
 
@@ -907,14 +898,14 @@ class VerificationCog(commands.Cog):
         config_service: ConfigService,
         session: Any,
     ) -> None:
-        """Crear panel de verificacion en un canal.
+        """Create verification panel in a channel.
 
         Args:
-            guild (discord.Guild): Guild del panel
-            channel (discord.TextChannel): Canal donde crear
-            config (dict[str, Any]): Configuracion del cog
-            config_service (ConfigService): Servicio de configuracion
-            session (Any): Sesion de base de datos
+            guild (discord.Guild): Panel guild
+            channel (discord.TextChannel): Channel where to create
+            config (dict[str, Any]): Cog configuration
+            config_service (ConfigService): Config service
+            session (Any): Database session
         """
         from discord_bot.verification.panel import create_verification_message
 
@@ -934,13 +925,13 @@ class VerificationCog(commands.Cog):
         verification_service: VerificationService,
         config: dict[str, Any],
     ) -> None:
-        """Actualizar mensaje de moderacion cuando se reciben las capturas.
+        """Update moderation message when screenshots are received.
 
         Args:
-            channel (discord.TextChannel): Canal de moderacion
-            request (VerificationRequest): Solicitud de verificacion
-            verification_service (VerificationService): Servicio de verificacion
-            config (dict[str, Any]): Configuracion del cog
+            channel (discord.TextChannel): Moderation channel
+            request (VerificationRequest): Verification request
+            verification_service (VerificationService): Verification service
+            config (dict[str, Any]): Cog configuration
         """
         from discord_bot.verification.handlers import update_mod_message_for_review
 
@@ -960,17 +951,17 @@ class VerificationCog(commands.Cog):
         permission_error_key: ConfigKey,
         permission_error_default: str,
     ) -> Any:
-        """Validar y preparar contexto para acciones de moderacion.
+        """Validate and prepare context for moderation actions.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
-            public_id (str): ID público de la solicitud (NanoID)
-            session (AsyncSession): Sesion de base de datos
-            permission_error_key (ConfigKey): Clave del mensaje de error
-            permission_error_default (str): Mensaje por defecto
+            interaction (discord.Interaction): Moderator interaction
+            public_id (str): Public request ID (NanoID)
+            session (AsyncSession): Database session
+            permission_error_key (ConfigKey): Error message key
+            permission_error_default (str): Default message
 
         Returns:
-            ModActionContext | None: Contexto validado o None si fallo
+            ModActionContext | None: Validated context or None if failed
         """
         from discord_bot.verification.handlers import validate_mod_action
 
@@ -986,11 +977,11 @@ class VerificationCog(commands.Cog):
     async def handle_verification_start(
         self, interaction: discord.Interaction, verification_type: VerificationType
     ) -> None:
-        """Manejar inicio de verificacion cuando el usuario hace clic en un boton.
+        """Handle verification start when user clicks a button.
 
         Args:
-            interaction (discord.Interaction): Interaccion del usuario
-            verification_type (VerificationType): Tipo de verificacion
+            interaction (discord.Interaction): User interaction
+            verification_type (VerificationType): Verification type
         """
         await handle_verification_start(
             cog=self, interaction=interaction, verification_type=verification_type
@@ -998,17 +989,17 @@ class VerificationCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        """Manejar mensajes DM con capturas de pantalla.
+        """Handle DM messages with screenshots.
 
         Args:
-            message (discord.Message): Mensaje recibido
+            message (discord.Message): Received message
         """
         if message.guild is not None:
             return
         if message.author.bot:
             return
 
-        # Buscar verificacion pendiente en memoria o en base de datos
+        # Find pending verification in memory or database
         verification_info = await self._get_pending_verification(message.author.id)
 
         if verification_info is None:
@@ -1017,7 +1008,7 @@ class VerificationCog(commands.Cog):
 
         guild_id, request_id = verification_info
 
-        # Verificar si el cog esta habilitado
+        # Check if cog is enabled
         if not await self._is_cog_enabled(guild_id):
             return
 
@@ -1026,52 +1017,52 @@ class VerificationCog(commands.Cog):
         )
 
     async def _get_pending_verification(self, user_id: int) -> tuple[int, int] | None:
-        """Obtener verificacion pendiente de un usuario.
+        """Get pending verification for a user.
 
-        Busca primero en memoria, luego en base de datos.
-        Si encuentra en DB, restaura el estado en memoria.
+        Searches first in memory, then in database.
+        If found in DB, restores state in memory.
 
         Args:
-            user_id (int): ID del usuario
+            user_id (int): User ID
 
         Returns:
-            tuple[int, int] | None: (guild_id, request_id) o None si no hay pendiente
+            tuple[int, int] | None: (guild_id, request_id) or None if no pending
         """
-        # Primero buscar en memoria (mas rapido)
+        # First search in memory (faster)
         if user_id in self._pending_dm_verifications:
             return self._pending_dm_verifications[user_id]
 
-        # Buscar en base de datos (por si el bot reinicio)
+        # Search in database (in case bot restarted)
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             pending = await service.get_any_pending_by_user(user_id)
 
             if pending:
-                # Restaurar en memoria para futuras consultas
+                # Restore in memory for future queries
                 self._pending_dm_verifications[user_id] = (pending.guild_id, pending.id)
                 return (pending.guild_id, pending.id)
 
         return None
 
     async def _respond_no_pending_verification(self, message: discord.Message) -> None:
-        """Responder cuando el usuario envia un DM sin verificacion activa.
+        """Respond when user sends a DM without active verification.
 
         Args:
-            message (discord.Message): Mensaje recibido
+            message (discord.Message): Received message
         """
-        # Buscar un servidor comun para obtener la configuracion
+        # Find a common server to get configuration
         guild_id = None
         for guild in self.bot.guilds:
             if guild.get_member(message.author.id):
-                # Verificar si el cog esta habilitado en este servidor
+                # Check if cog is enabled in this server
                 if await self._is_cog_enabled(guild.id):
                     guild_id = guild.id
                     break
 
-        # Obtener mensaje de configuracion o usar default
+        # Get configured message or use default
         default_message = (
-            "No tienes ninguna verificación en curso. "
-            "Si deseas verificarte, usa el panel de verificación en el servidor."
+            "You don't have any verification in progress. "
+            "If you want to verify, use the verification panel in the server."
         )
 
         if guild_id:
@@ -1083,53 +1074,53 @@ class VerificationCog(commands.Cog):
         try:
             await message.reply(response)
         except discord.Forbidden:
-            pass  # No se pudo responder
+            pass  # Could not reply
 
     async def handle_accept(self, interaction: discord.Interaction, public_id: str) -> None:
-        """Manejar aprobacion de verificacion.
+        """Handle verification approval.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
-            public_id (str): ID público de la solicitud (NanoID)
+            interaction (discord.Interaction): Moderator interaction
+            public_id (str): Public request ID (NanoID)
         """
         await handle_accept(cog=self, interaction=interaction, public_id=public_id)
 
     async def show_rejection_select(self, interaction: discord.Interaction, public_id: str) -> None:
-        """Mostrar selector de motivos de rechazo.
+        """Show rejection reason selector.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
-            public_id (str): ID público de la solicitud (NanoID)
+            interaction (discord.Interaction): Moderator interaction
+            public_id (str): Public request ID (NanoID)
         """
         await show_rejection_select(cog=self, interaction=interaction, public_id=public_id)
 
     async def handle_reject(
         self, interaction: discord.Interaction, public_id: str, reason: str
     ) -> None:
-        """Manejar rechazo de verificacion.
+        """Handle verification rejection.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
-            public_id (str): ID público de la solicitud (NanoID)
-            reason (str): Motivo del rechazo
+            interaction (discord.Interaction): Moderator interaction
+            public_id (str): Public request ID (NanoID)
+            reason (str): Rejection reason
         """
         await handle_reject(cog=self, interaction=interaction, public_id=public_id, reason=reason)
 
     async def handle_review(self, interaction: discord.Interaction, public_id: str) -> None:
-        """Manejar revisión de verificación auto-rechazada.
+        """Handle auto-rejected verification review.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
-            public_id (str): ID público de la solicitud (NanoID)
+            interaction (discord.Interaction): Moderator interaction
+            public_id (str): Public request ID (NanoID)
         """
         await handle_review(cog=self, interaction=interaction, public_id=public_id)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
-        """Cancelar verificaciones pendientes cuando un usuario sale.
+        """Cancel pending verifications when a user leaves.
 
         Args:
-            member (discord.Member): Miembro que salio
+            member (discord.Member): Member who left
         """
         if member.id in self._pending_dm_verifications:
             del self._pending_dm_verifications[member.id]
@@ -1145,7 +1136,7 @@ class VerificationCog(commands.Cog):
                 )
                 await session.commit()
 
-                # Actualizar el mensaje de moderación
+                # Update moderation message
                 config_service = ConfigService(session=session)
                 config = await config_service.get_all_config(
                     guild_id=member.guild.id, cog_name=COG_NAME
@@ -1157,7 +1148,7 @@ class VerificationCog(commands.Cog):
                     verification_service=verification_service,
                 )
 
-                # Actualizar mensaje de tracker
+                # Update tracker message
                 await update_tracker_message(
                     guild=member.guild,
                     config=config,
@@ -1167,40 +1158,40 @@ class VerificationCog(commands.Cog):
                 await session.commit()
 
                 logger.info(
-                    f"[{member.guild.name}] Verificacion cancelada: "
-                    f"usuario={member.name} (salió del servidor)"
+                    f"[{member.guild.name}] Verification cancelled: "
+                    f"user={member.name} (left the server)"
                 )
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction) -> None:
-        """Manejar interacciones de botones de moderacion con IDs dinamicos.
+        """Handle moderation button interactions with dynamic IDs.
 
-        Los botones de aceptar/rechazar tienen custom_ids dinamicos como
-        'verification:accept:123' que incluyen el request_id. Este listener
-        es el unico manejador de estos botones (no tienen callbacks en la vista),
-        lo que permite que funcionen incluso despues de reiniciar el bot.
+        The accept/reject buttons have dynamic custom_ids like
+        'verification:accept:123' that include the request_id. This listener
+        is the only handler for these buttons (they don't have callbacks in the view),
+        which allows them to work even after restarting the bot.
 
         Args:
-            interaction (discord.Interaction): Interaccion recibida
+            interaction (discord.Interaction): Received interaction
         """
         if interaction.type != discord.InteractionType.component:
             return
 
         custom_id: str = str(interaction.data.get("custom_id", "") if interaction.data else "")
 
-        # Manejar boton de aceptar: verification:accept:{public_id}
+        # Handle accept button: verification:accept:{public_id}
         if custom_id.startswith("verification:accept:"):
             public_id = custom_id.split(":")[2]
             await self.handle_accept(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar boton de rechazar: verification:reject:{public_id}
+        # Handle reject button: verification:reject:{public_id}
         if custom_id.startswith("verification:reject:"):
             public_id = custom_id.split(":")[2]
             await self.show_rejection_select(interaction=interaction, public_id=public_id)
             return
 
-        # Manejar boton de revisar auto-rechazo: verification:review:{public_id}
+        # Handle auto-reject review button: verification:review:{public_id}
         if custom_id.startswith("verification:review:"):
             public_id = custom_id.split(":")[2]
             await self.handle_review(interaction=interaction, public_id=public_id)
@@ -1208,19 +1199,19 @@ class VerificationCog(commands.Cog):
 
 
 async def setup(bot: DiscordBot) -> None:
-    """Cargar el cog de verificacion.
+    """Load the verification cog.
 
     Args:
-        bot (DiscordBot): Instancia del bot
+        bot (DiscordBot): Bot instance
     """
     get_config_schema_service().register_schema(VERIFICATION_CONFIG_SCHEMA)
     await bot.add_cog(VerificationCog(bot))
 
 
 async def teardown(bot: DiscordBot) -> None:
-    """Descargar el cog de verificacion.
+    """Unload the verification cog.
 
     Args:
-        bot (DiscordBot): Instancia del bot
+        bot (DiscordBot): Bot instance
     """
     get_config_schema_service().unregister_schema("verification")

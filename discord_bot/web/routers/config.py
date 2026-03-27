@@ -1,4 +1,4 @@
-"""Router para configuración de servidores."""
+"""Router for server configuration."""
 
 import json
 import logging
@@ -14,6 +14,7 @@ from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.embed_builder import COLOR_TAGS, GLOBAL_PLACEHOLDERS
+from discord_bot.i18n import get_i18n_service
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
 from discord_bot.web.middleware import get_csrf_token
 
@@ -23,33 +24,61 @@ router = APIRouter(prefix="/guild", tags=["config"])
 
 
 def get_templates(request: Request) -> Jinja2Templates:
-    """Obtener el motor de templates.
+    """Get the template engine.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Returns:
-        Jinja2Templates: Motor de templates configurado
+        Jinja2Templates: Configured template engine
     """
     templates: Jinja2Templates = request.app.state.templates
     return templates
 
 
-def base_context(request: Request) -> dict[str, Any]:
-    """Contexto base para todas las plantillas.
+def get_browser_language(request: Request) -> str:
+    """Get the language from the browser's Accept-Language header.
 
     Args:
-        request (Request): Request de FastAPI
+        request: FastAPI request
 
     Returns:
-        dict[str, Any]: Contexto con variables comunes
+        str: Language code ('en' or 'es', defaults to 'en')
+    """
+    i18n = get_i18n_service()
+    accept_language = request.headers.get("Accept-Language", "")
+
+    # Parse Accept-Language header (e.g., "es-ES,es;q=0.9,en;q=0.8")
+    for part in accept_language.split(","):
+        # Extract language code (before any ';' for quality factor)
+        lang_part = part.split(";")[0].strip()
+        # Get base language (e.g., "es" from "es-ES")
+        base_lang = lang_part.split("-")[0].lower()
+
+        if base_lang in i18n.SUPPORTED_LANGUAGES:
+            return base_lang
+
+    return i18n.DEFAULT_LANGUAGE
+
+
+def base_context(request: Request, lang: str | None = None) -> dict[str, Any]:
+    """Base context for all templates.
+
+    Args:
+        request (Request): FastAPI request
+        lang (str | None): Language code (uses default if not provided)
+
+    Returns:
+        dict[str, Any]: Context with common variables
     """
     bot = request.app.state.bot
     bot_name = bot.user.name if bot and bot.user else None
+    i18n = get_i18n_service()
     return {
         "root_path": request.scope.get("root_path", ""),
         "csrf_token": get_csrf_token(request),
         "bot_name": bot_name,
+        "lang": lang or i18n.DEFAULT_LANGUAGE,
     }
 
 
@@ -58,15 +87,15 @@ async def guild_access_dep(
     guild_id: Annotated[int, Path()],
     user: RequireAuth,
 ) -> dict[str, Any]:
-    """Dependencia para verificar acceso al guild.
+    """Dependency to verify guild access.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        user (RequireAuth): Usuario autenticado
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        user (RequireAuth): Authenticated user
 
     Returns:
-        dict[str, Any]: Datos del usuario si tiene acceso
+        dict[str, Any]: User data if they have access
     """
     return await require_guild_access(request, guild_id, user)
 
@@ -75,14 +104,14 @@ GuildAccess = Annotated[dict[str, Any], Depends(guild_access_dep)]
 
 
 def _get_guild_info(bot: Any, guild_id: int) -> dict[str, Any]:
-    """Obtener información del guild desde el bot.
+    """Get guild information from the bot.
 
     Args:
         bot: Bot instance
-        guild_id (int): ID del guild
+        guild_id (int): Guild ID
 
     Returns:
-        dict[str, Any]: Información del guild
+        dict[str, Any]: Guild information
     """
     if bot:
         discord_guild = bot.get_guild(guild_id)
@@ -92,36 +121,36 @@ def _get_guild_info(bot: Any, guild_id: int) -> dict[str, Any]:
                 "name": discord_guild.name,
                 "icon": str(discord_guild.icon.key) if discord_guild.icon else None,
             }
-    return {"id": str(guild_id), "name": f"Servidor {guild_id}"}
+    return {"id": str(guild_id), "name": f"Server {guild_id}"}
 
 
 def _format_relative_time(delta: timedelta) -> str:
-    """Formatear un timedelta como texto relativo en español.
+    """Format a timedelta as relative text in English.
 
     Args:
-        delta: Diferencia de tiempo
+        delta: Time difference
 
     Returns:
-        str: Texto como "hace 2 días", "hace 3 meses", etc.
+        str: Text like "2 days ago", "3 months ago", etc.
     """
     total_seconds = int(delta.total_seconds())
     if total_seconds < 60:
-        return "hace unos segundos"
+        return "a few seconds ago"
     elif total_seconds < 3600:
         minutes = total_seconds // 60
-        return f"hace {minutes} minuto{'s' if minutes != 1 else ''}"
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
     elif total_seconds < 86400:
         hours = total_seconds // 3600
-        return f"hace {hours} hora{'s' if hours != 1 else ''}"
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
     elif total_seconds < 2592000:  # ~30 days
         days = total_seconds // 86400
-        return f"hace {days} día{'s' if days != 1 else ''}"
+        return f"{days} day{'s' if days != 1 else ''} ago"
     elif total_seconds < 31536000:  # ~365 days
         months = total_seconds // 2592000
-        return f"hace {months} mes{'es' if months != 1 else ''}"
+        return f"{months} month{'s' if months != 1 else ''} ago"
     else:
         years = total_seconds // 31536000
-        return f"hace {years} año{'s' if years != 1 else ''}"
+        return f"{years} year{'s' if years != 1 else ''} ago"
 
 
 @router.get("/{guild_id}", response_class=HTMLResponse)
@@ -131,24 +160,28 @@ async def guild_config(
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Página de configuración de un servidor.
+    """Server configuration page.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Página de configuración
+        HTMLResponse: Configuration page
     """
     # Verify bot is in this guild
     bot = request.app.state.bot
     if not bot or not bot.get_guild(guild_id):
         raise HTTPException(
             status_code=404,
-            detail="No tienes permisos para gestionar este servidor",
+            detail="You don't have permission to manage this server",
         )
+
+    # Get language from browser
+    lang = get_browser_language(request)
+    i18n = get_i18n_service()
 
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
@@ -163,15 +196,28 @@ async def guild_config(
         cog_name, schema = item
         # "bot" gets priority 0, everything else gets 1
         priority = 0 if cog_name == "bot" else 1
-        return (priority, schema.display_name)
+        # Get translated display name for sorting
+        translated_name = i18n.translate(f"cogs.{cog_name}.display_name", lang)
+        if translated_name == f"cogs.{cog_name}.display_name":
+            translated_name = schema.display_name
+        return (priority, translated_name)
 
     for cog_name, schema in sorted(schemas.items(), key=cog_sort_key):
         is_enabled = enabled_cogs.get(cog_name, False)
+        # Get translated display name and description
+        translated_display_name = i18n.translate(f"cogs.{cog_name}.display_name", lang)
+        translated_description = i18n.translate(f"cogs.{cog_name}.description", lang)
+        # Fallback to original if translation is the key itself
+        if translated_display_name == f"cogs.{cog_name}.display_name":
+            translated_display_name = schema.display_name
+        if translated_description == f"cogs.{cog_name}.description":
+            translated_description = schema.description
+
         cogs_data.append(
             {
                 "name": cog_name,
-                "display_name": schema.display_name,
-                "description": schema.description,
+                "display_name": translated_display_name,
+                "description": translated_description,
                 "icon": schema.icon or "⚙️",
                 "enabled": is_enabled,
                 "toggleable": schema.toggleable,
@@ -186,7 +232,7 @@ async def guild_config(
         request=request,
         name="guild_config.html",
         context={
-            **base_context(request),
+            **base_context(request, lang),
             "user": user,
             "guild": guild_info,
             "guild_id": guild_id,
@@ -202,26 +248,32 @@ async def _render_cog_settings(
     session: Any,
     user: dict[str, Any] | None = None,
     error: str | None = None,
+    lang: str | None = None,
 ) -> HTMLResponse:
-    """Renderizar el partial de configuración de un cog.
+    """Render the cog configuration partial.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        session: Sesión de base de datos
-        user: Usuario autenticado (para preview de placeholders)
-        error (str | None): Mensaje de error opcional
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        session: Database session
+        user: Authenticated user (for placeholder preview)
+        error (str | None): Optional error message
+        lang (str | None): Language code
 
     Returns:
-        HTMLResponse: Partial HTML con la configuración del cog
+        HTMLResponse: Partial HTML with cog configuration
     """
+    # Get language from browser if not provided
+    if lang is None:
+        lang = get_browser_language(request)
+
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
 
     schema = schema_service.get_schema(cog_name)
     if not schema:
-        raise HTTPException(status_code=404, detail="Cog no encontrado")
+        raise HTTPException(status_code=404, detail="Cog not found")
 
     config_values = await config_service.get_all_config(guild_id, cog_name)
     is_enabled = await config_service.is_cog_enabled(guild_id, cog_name)
@@ -277,11 +329,26 @@ async def _render_cog_settings(
             except Exception as e:
                 logger.warning(f"Error getting locked options from {cog_name}: {e}")
 
+    # Get translations for this cog
+    i18n = get_i18n_service()
+    cog_translations = i18n.get_cog_translations(cog_name, lang)
+    options_trans = cog_translations.get("options", {})
+    groups_trans = cog_translations.get("groups", {})
+    sections_trans = cog_translations.get("sections", {})
+    choices_trans = cog_translations.get("choices", {})
+
     options_data: list[dict[str, Any]] = []
     for opt in schema.options:
         # Skip locked options - they don't appear in the UI
         if opt.key in locked_options:
             continue
+
+        # Get option translations
+        opt_trans = options_trans.get(opt.key, {})
+        translated_name = opt_trans.get("name", opt.name)
+        translated_desc = opt_trans.get("description", opt.description)
+        translated_section = sections_trans.get(opt.section, opt.section) if opt.section else None
+        translated_group = groups_trans.get(opt.group, opt.group) if opt.group else None
 
         raw_value = config_values.get(opt.key, opt.default)
 
@@ -317,29 +384,59 @@ async def _render_cog_settings(
                 if isinstance(raw_value, list):
                     template_value = [str(v) for v in raw_value]
 
+        # Translate choices if present
+        translated_choices = None
+        if opt.choices:
+            translated_choices = []
+            for label, value in opt.choices:
+                translated_label = label
+                # Check option-specific choices translations first
+                opt_choices_trans = opt_trans.get("choices", {})
+                if label in opt_choices_trans:
+                    translated_label = opt_choices_trans[label]
+                else:
+                    # Search through all choice groups in cog translations
+                    for choice_group in choices_trans.values():
+                        if isinstance(choice_group, dict) and label in choice_group:
+                            translated_label = choice_group[label]
+                            break
+                translated_choices.append((translated_label, value))
+
+        # Translate table columns if present
+        translated_columns = None
+        if opt.columns:
+            columns_trans = cog_translations.get("columns", {})
+            translated_columns = []
+            for col in opt.columns:
+                col_copy = col.copy()
+                col_key = col.get("key", "")
+                if col_key in columns_trans:
+                    col_copy["name"] = columns_trans[col_key]
+                translated_columns.append(col_copy)
+
         options_data.append(
             {
                 "key": opt.key,
-                "name": opt.name,
-                "description": opt.description,
+                "name": translated_name,
+                "description": translated_desc,
                 "type": opt.option_type.value,
                 "value": template_value,
                 "display_value": display_value,
                 "default": opt.default,
                 "required": opt.required,
-                "section": opt.section,
-                "group": opt.group,
-                "choices": opt.choices,
+                "section": translated_section,
+                "group": translated_group,
+                "choices": translated_choices,
                 "min_value": opt.min_value,
                 "max_value": opt.max_value,
                 "max_length": opt.max_length,
                 "placeholders": opt.placeholders,
-                "columns": opt.columns,
+                "columns": translated_columns,
             }
         )
 
     templates = get_templates(request)
-    guild_name = discord_guild.name if discord_guild else f"Servidor {guild_id}"
+    guild_name = discord_guild.name if discord_guild else f"Server {guild_id}"
     member_count = discord_guild.member_count if discord_guild else 0
 
     # Get member from guild for join date info
@@ -373,8 +470,8 @@ async def _render_cog_settings(
         "server_name": guild_name,
         "server_id": str(guild_id),
         "server_member_count": str(member_count),
-        "user_name": user.get("username", "Usuario") if user else "Usuario",
-        "user_mention": f"@{user.get('username', 'Usuario')}" if user else "@Usuario",
+        "user_name": user.get("username", "User") if user else "User",
+        "user_mention": f"@{user.get('username', 'User')}" if user else "@User",
         "user_id": str(user.get("id", "123456789")) if user else "123456789",
         "user_avatar_url": (
             f"https://cdn.discordapp.com/avatars/{user.get('id')}/{user.get('avatar')}.png"
@@ -382,13 +479,13 @@ async def _render_cog_settings(
             else "https://cdn.discordapp.com/embed/avatars/0.png"
         ),
         "user_joined_server": user_joined_server or "01/01/2024 12:00",
-        "user_joined_server_relative": user_joined_server_relative or "hace 2 meses",
+        "user_joined_server_relative": user_joined_server_relative or "2 months ago",
         "user_joined_discord": user_joined_discord or "01/06/2020 15:00",
-        "user_joined_discord_relative": user_joined_discord_relative or "hace 4 años",
+        "user_joined_discord_relative": user_joined_discord_relative or "4 years ago",
         "created_at": now.strftime("%Y-%m-%d %H:%M"),
-        "status": "📷 Esperando capturas",
-        "verification_type": "Miembro",
-        "username": user.get("username", "Usuario") if user else "Usuario",
+        "status": "📷 Waiting for screenshots",
+        "verification_type": "Member",
+        "username": user.get("username", "User") if user else "User",
         # Player info placeholders (for verification API response preview)
         "name": "PlayerName",
         "regiment": "82DK",
@@ -400,17 +497,21 @@ async def _render_cog_settings(
         "war_time": "278, 08:34",
     }
 
+    # Get translated schema display name and description
+    translated_display_name = cog_translations.get("display_name", schema.display_name)
+    translated_description = cog_translations.get("description", schema.description)
+
     return templates.TemplateResponse(
         request=request,
         name="partials/cog_settings.html",
         context={
-            **base_context(request),
+            **base_context(request, lang),
             "guild_id": guild_id,
             "guild_name": guild_name,
             "cog_name": cog_name,
             "schema": {
-                "display_name": schema.display_name,
-                "description": schema.description,
+                "display_name": translated_display_name,
+                "description": translated_description,
                 "icon": schema.icon or "⚙️",
                 "toggleable": schema.toggleable,
             },
@@ -435,17 +536,17 @@ async def cog_settings(
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Obtener el partial de configuración de un cog (HTMX).
+    """Get the cog configuration partial (HTMX).
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Partial HTML con la configuración del cog
+        HTMLResponse: Partial HTML with cog configuration
     """
     return await _render_cog_settings(
         request=request,
@@ -464,32 +565,32 @@ async def toggle_cog(
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Alternar el estado de habilitación de un cog.
+    """Toggle cog enabled state.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Partial actualizado
+        HTMLResponse: Updated partial
     """
-    # Validar que el cog existe antes de cualquier operación DB
+    # Validate cog exists before any DB operation
     schema_service = get_config_schema_service()
     if not schema_service.get_schema(cog_name):
-        raise HTTPException(status_code=404, detail="Cog no encontrado")
+        raise HTTPException(status_code=404, detail="Cog not found")
 
     config_service = ConfigService(session)
     current = await config_service.is_cog_enabled(guild_id, cog_name)
     new_state = not current
     await config_service.set_cog_enabled(guild_id, cog_name, new_state)
 
-    # Commit para que el cog vea el cambio en su propia sesión
+    # Commit so the cog sees the change in its own session
     await session.commit()
 
-    # Notificar al cog del cambio
+    # Notify the cog of the change
     await _notify_cog_toggled(
         request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state
     )
@@ -513,30 +614,30 @@ async def update_option(
     session: DbSession,
     value: Annotated[str, Form()] = "",
 ) -> HTMLResponse:
-    """Actualizar una opción de configuración.
+    """Update a configuration option.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        key (str): Clave de la opción
-        value (str): Nuevo valor (como string del formulario)
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        key (str): Option key
+        value (str): New value (as form string)
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Partial actualizado
+        HTMLResponse: Updated partial
     """
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
 
     option = schema_service.get_option(cog_name, key)
     if not option:
-        raise HTTPException(status_code=404, detail="Opción no encontrada")
+        raise HTTPException(status_code=404, detail="Option not found")
 
     converted_value = _convert_form_value(value, option.option_type, option=option)
 
-    # Validar permisos del bot para canales
+    # Validate bot permissions for channels
     if converted_value and option.option_type == ConfigOptionType.CHANNEL:
         permission_error = _validate_channel_permissions(
             request=request, guild_id=guild_id, channel_id=converted_value
@@ -556,7 +657,7 @@ async def update_option(
     )
 
     if not success:
-        logger.warning(f"Error al guardar configuración: {validation_error}")
+        logger.warning(f"Error saving configuration: {validation_error}")
         return await _render_cog_settings(
             request=request,
             guild_id=guild_id,
@@ -566,10 +667,10 @@ async def update_option(
             error=validation_error,
         )
 
-    # Commit para que el cog vea los cambios en su propia sesión
+    # Commit so the cog sees the changes in its own session
     await session.commit()
 
-    # Notificar al cog que una configuración cambió
+    # Notify the cog that a configuration changed
     await _notify_cog_config_changed(
         request=request, guild_id=guild_id, cog_name=cog_name, keys=[key]
     )
@@ -591,29 +692,29 @@ async def update_options_batch(
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Actualizar múltiples opciones de configuración en batch.
+    """Update multiple configuration options in batch.
 
-    Guarda todas las opciones a la DB primero, luego notifica al cog una sola vez.
+    Saves all options to DB first, then notifies the cog once.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Partial actualizado
+        HTMLResponse: Updated partial
     """
     schema_service = get_config_schema_service()
     config_service = ConfigService(session)
 
-    # Validar Content-Type para prevenir ataques CSRF
+    # Validate Content-Type to prevent CSRF attacks
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("application/json"):
         raise HTTPException(
             status_code=415,
-            detail="Content-Type debe ser application/json",
+            detail="Content-Type must be application/json",
         )
 
     # Parse JSON body
@@ -621,7 +722,7 @@ async def update_options_batch(
         body = await request.json()
         options_to_save: dict[str, str] = body.get("options", {})
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="JSON inválido") from None
+        raise HTTPException(status_code=400, detail="Invalid JSON") from None
 
     if not options_to_save:
         return await _render_cog_settings(
@@ -639,7 +740,7 @@ async def update_options_batch(
     for key, value in options_to_save.items():
         option = schema_service.get_option(cog_name, key)
         if not option:
-            errors.append(f"Opción '{key}' no encontrada")
+            errors.append(f"Option '{key}' not found")
             continue
 
         converted_value = _convert_form_value(value, option.option_type, option=option)
@@ -693,24 +794,24 @@ async def reload_cog(
     user: GuildAccess,
     session: DbSession,
 ) -> HTMLResponse:
-    """Recargar un cog (reload de la extensión).
+    """Reload a cog (extension reload).
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        user (GuildAccess): Usuario con acceso verificado
-        session (DbSession): Sesión de base de datos
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        user (GuildAccess): User with verified access
+        session (DbSession): Database session
 
     Returns:
-        HTMLResponse: Partial actualizado
+        HTMLResponse: Updated partial
     """
-    # Validar que el cog existe antes de cualquier operación
+    # Validate cog exists before any operation
     schema_service = get_config_schema_service()
     if not schema_service.get_schema(cog_name):
-        raise HTTPException(status_code=404, detail="Cog no encontrado")
+        raise HTTPException(status_code=404, detail="Cog not found")
 
-    # El cog "bot" no se puede recargar
+    # The "bot" cog cannot be reloaded
     if cog_name == "bot":
         return await _render_cog_settings(
             request=request,
@@ -718,7 +819,7 @@ async def reload_cog(
             cog_name=cog_name,
             session=session,
             user=user,
-            error="El módulo 'bot' no se puede recargar",
+            error="The 'bot' module cannot be reloaded",
         )
 
     bot = request.app.state.bot
@@ -729,22 +830,22 @@ async def reload_cog(
             cog_name=cog_name,
             session=session,
             user=user,
-            error="Bot no disponible",
+            error="Bot not available",
         )
 
     extension_name = f"discord_bot.{cog_name}.cog"
     try:
         await bot.reload_extension(extension_name)
-        logger.info(f"Cog {cog_name} recargado por usuario {user.get('id')}")
+        logger.info(f"Cog {cog_name} reloaded by user {user.get('id')}")
     except Exception as e:
-        logger.error(f"Error al recargar cog {cog_name}: {e}")
+        logger.error(f"Error reloading cog {cog_name}: {e}")
         return await _render_cog_settings(
             request=request,
             guild_id=guild_id,
             cog_name=cog_name,
             session=session,
             user=user,
-            error=f"Error al recargar: {e}",
+            error=f"Error reloading: {e}",
         )
 
     return await _render_cog_settings(
@@ -759,16 +860,16 @@ async def reload_cog(
 async def _notify_cog_config_changed(
     request: Request, guild_id: int, cog_name: str, keys: list[str]
 ) -> None:
-    """Notificar a un cog que configuraciones cambiaron.
+    """Notify a cog that configurations changed.
 
-    Si el cog implementa el método `on_config_changed`, se llamará con
-    el guild_id y las keys que cambiaron. El cog decide qué hacer.
+    If the cog implements the `on_config_changed` method, it will be called with
+    the guild_id and the keys that changed. The cog decides what to do.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        keys (list[str]): Lista de claves de configuración que cambiaron
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        keys (list[str]): List of configuration keys that changed
     """
     bot = request.app.state.bot
     if not bot:
@@ -778,8 +879,8 @@ async def _notify_cog_config_changed(
     if not guild:
         return
 
-    # Buscar el cog por nombre (convertir snake_case a CamelCase + Cog)
-    # Por ejemplo: "verification" -> "VerificationCog"
+    # Find the cog by name (convert snake_case to CamelCase + Cog)
+    # For example: "verification" -> "VerificationCog"
     cog_class_name = cog_name.title().replace("_", "") + "Cog"
     cog = bot.get_cog(cog_class_name)
 
@@ -789,22 +890,22 @@ async def _notify_cog_config_changed(
     try:
         await cog.on_config_changed(guild=guild, keys=keys)
     except Exception as e:
-        logger.error(f"Error en on_config_changed de {cog_name}: {e}")
+        logger.error(f"Error in on_config_changed of {cog_name}: {e}")
 
 
 async def _notify_cog_toggled(
     request: Request, guild_id: int, cog_name: str, enabled: bool
 ) -> None:
-    """Notificar a un cog que fue habilitado o deshabilitado.
+    """Notify a cog that it was enabled or disabled.
 
-    Si el cog implementa el método `on_cog_toggled`, se llamará con
-    el guild y el nuevo estado.
+    If the cog implements the `on_cog_toggled` method, it will be called with
+    the guild and the new state.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        cog_name (str): Nombre del cog
-        enabled (bool): True si fue habilitado, False si fue deshabilitado
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+        enabled (bool): True if enabled, False if disabled
     """
     bot = request.app.state.bot
     if not bot:
@@ -823,42 +924,42 @@ async def _notify_cog_toggled(
     try:
         await cog.on_cog_toggled(guild=guild, enabled=enabled)
     except Exception as e:
-        logger.error(f"Error en on_cog_toggled de {cog_name}: {e}")
+        logger.error(f"Error in on_cog_toggled of {cog_name}: {e}")
 
 
 def _validate_channel_permissions(request: Request, guild_id: int, channel_id: int) -> str | None:
-    """Validar que el bot tiene permisos para enviar mensajes en un canal.
+    """Validate that the bot has permissions to send messages in a channel.
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        channel_id (int): ID del canal
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        channel_id (int): Channel ID
 
     Returns:
-        str | None: Mensaje de error o None si tiene permisos
+        str | None: Error message or None if has permissions
     """
     bot = request.app.state.bot
     if not bot:
-        return None  # No podemos validar sin bot
+        return None  # Cannot validate without bot
 
     guild = bot.get_guild(guild_id)
     if not guild:
-        return None  # No podemos validar sin guild
+        return None  # Cannot validate without guild
 
     channel = guild.get_channel(channel_id)
     if not channel:
-        return f"Canal con ID {channel_id} no encontrado"
+        return f"Channel with ID {channel_id} not found"
 
-    # Obtener permisos del bot en el canal
+    # Get bot permissions in the channel
     bot_member = guild.get_member(bot.user.id)
     if not bot_member:
-        return None  # No podemos validar
+        return None  # Cannot validate
 
     permissions = channel.permissions_for(bot_member)
     if not permissions.send_messages:
         return (
-            f"El bot no tiene permisos para enviar mensajes en #{channel.name}. "
-            f"Agrega el permiso 'Enviar mensajes' al bot en ese canal."
+            f"The bot doesn't have permission to send messages in #{channel.name}. "
+            f"Add the 'Send Messages' permission to the bot in that channel."
         )
 
     return None
@@ -869,18 +970,18 @@ def _convert_form_value(
     option_type: ConfigOptionType,
     option: ConfigOption | None = None,
 ) -> Any:
-    """Convertir un valor de formulario al tipo correcto.
+    """Convert a form value to the correct type.
 
     Args:
-        value (str): Valor como string
-        option_type (ConfigOptionType): Tipo de opción
-        option (ConfigOption | None): Opción completa (para TABLE con columns)
+        value (str): Value as string
+        option_type (ConfigOptionType): Option type
+        option (ConfigOption | None): Complete option (for TABLE with columns)
 
     Returns:
-        Any: Valor convertido
+        Any: Converted value
     """
-    # Para STRING, TEXTAREA y TEXT_CHOICE, preservar cadenas vacias
-    # (permite "limpiar" un valor o seleccionar opción vacía)
+    # For STRING, TEXTAREA and TEXT_CHOICE, preserve empty strings
+    # (allows "clearing" a value or selecting empty option)
     preserve_empty_types = (
         ConfigOptionType.STRING,
         ConfigOptionType.TEXTAREA,
@@ -896,7 +997,7 @@ def _convert_form_value(
         case ConfigOptionType.INTEGER:
             return int(value)
         case ConfigOptionType.BOOLEAN:
-            return value.lower() in ("true", "1", "on", "yes", "sí")
+            return value.lower() in ("true", "1", "on", "yes")
         case ConfigOptionType.CHANNEL | ConfigOptionType.ROLE:
             return int(value)
         case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
@@ -904,24 +1005,24 @@ def _convert_form_value(
         case ConfigOptionType.TABLE:
             import json
 
-            # Limitar tamaño del JSON para prevenir DoS
+            # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"JSON demasiado grande: {len(value)} bytes")
+                logger.warning(f"JSON too large: {len(value)} bytes")
                 return None
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"JSON inválido en TABLE config: {e}")
+                logger.warning(f"Invalid JSON in TABLE config: {e}")
                 return None
 
-            # Validar que data es una lista
+            # Validate that data is a list
             if not isinstance(data, list):
-                logger.warning("TABLE config debe ser una lista")
+                logger.warning("TABLE config must be a list")
                 return None
 
-            # Procesar filas
+            # Process rows
             if option and option.columns:
                 valid_keys = {col["key"] for col in option.columns}
                 int_columns = {
@@ -933,20 +1034,20 @@ def _convert_form_value(
                     if not isinstance(row, dict):
                         continue
 
-                    # Filtrar solo claves válidas
+                    # Filter only valid keys
                     cleaned_row = {k: v for k, v in row.items() if k in valid_keys}
 
-                    # Convertir columnas de role/channel a enteros
+                    # Convert role/channel columns to integers
                     for col_key in int_columns:
                         if col_key in cleaned_row and cleaned_row[col_key]:
                             col_value = cleaned_row[col_key]
-                            # Validar tipo antes de convertir
+                            # Validate type before converting
                             if isinstance(col_value, int):
-                                pass  # Ya es int
+                                pass  # Already int
                             elif isinstance(col_value, str) and col_value.isdigit():
                                 cleaned_row[col_key] = int(col_value)
                             else:
-                                # Valor inválido, eliminar la clave
+                                # Invalid value, remove the key
                                 cleaned_row.pop(col_key, None)
 
                     cleaned_data.append(cleaned_row)
@@ -957,24 +1058,24 @@ def _convert_form_value(
         case ConfigOptionType.EMBED:
             import json
 
-            # Limitar tamaño del JSON para prevenir DoS
+            # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"JSON de EMBED demasiado grande: {len(value)} bytes")
+                logger.warning(f"EMBED JSON too large: {len(value)} bytes")
                 return None
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"JSON inválido en EMBED config: {e}")
+                logger.warning(f"Invalid JSON in EMBED config: {e}")
                 return None
 
-            # Validar que data es un diccionario
+            # Validate that data is a dictionary
             if not isinstance(data, dict):
-                logger.warning("EMBED config debe ser un diccionario")
+                logger.warning("EMBED config must be a dictionary")
                 return None
 
-            # Validar estructura del embed
+            # Validate embed structure
             valid_embed_keys = {
                 "title",
                 "description",
@@ -987,7 +1088,7 @@ def _convert_form_value(
             }
             embed_data: dict[str, Any] = {k: v for k, v in data.items() if k in valid_embed_keys}
 
-            # Validar URLs: deben ser placeholder {xxx} o empezar con http
+            # Validate URLs: must be placeholder {xxx} or start with http
             for url_key in ["thumbnail_url", "image_url", "footer_icon_url"]:
                 url_value = embed_data.get(url_key)
                 if not url_value or not isinstance(url_value, str):
@@ -1000,9 +1101,9 @@ def _convert_form_value(
                 if is_placeholder or is_http_url:
                     continue
                 embed_data.pop(url_key, None)
-                logger.warning(f"URL inválida en {url_key}: debe ser placeholder o URL http")
+                logger.warning(f"Invalid URL in {url_key}: must be placeholder or http URL")
 
-            # Validar que sections es una lista si existe
+            # Validate that sections is a list if present
             if "sections" in embed_data:
                 if not isinstance(embed_data["sections"], list):
                     embed_data["sections"] = []
@@ -1011,16 +1112,16 @@ def _convert_form_value(
         case ConfigOptionType.EMBED_SECTIONS:
             import json
 
-            # Limitar tamaño del JSON para prevenir DoS
+            # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"JSON de EMBED_SECTIONS demasiado grande: {len(value)} bytes")
+                logger.warning(f"EMBED_SECTIONS JSON too large: {len(value)} bytes")
                 return None
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"JSON inválido en EMBED_SECTIONS config: {e}")
+                logger.warning(f"Invalid JSON in EMBED_SECTIONS config: {e}")
                 return None
 
             # Handle both list and dict with "sections" key
@@ -1028,7 +1129,7 @@ def _convert_form_value(
                 data = data["sections"]
 
             if not isinstance(data, list):
-                logger.warning("EMBED_SECTIONS config debe ser una lista")
+                logger.warning("EMBED_SECTIONS config must be a list")
                 return None
 
             return data

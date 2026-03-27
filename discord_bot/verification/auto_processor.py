@@ -1,4 +1,4 @@
-"""Procesador automático de verificaciones."""
+"""Automatic verification processor."""
 
 import logging
 from typing import Any
@@ -12,37 +12,37 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
-    """Calcular diferencia de días entre tiempos de juego.
+    """Calculate difference in days between in-game times.
 
     Args:
-        ingame_time: Tiempo del jugador (formato "268, 07:41")
-        current_ingame_time: Tiempo actual del juego (formato "278, 08:34")
+        ingame_time: Player time (format "268, 07:41")
+        current_ingame_time: Current game time (format "278, 08:34")
 
     Returns:
-        Diferencia absoluta en días
+        Absolute difference in days
     """
     try:
-        # Extraer días (número antes de la coma)
+        # Extract days (number before the comma)
         ingame_days = int(ingame_time.split(",")[0].strip())
         current_days = int(current_ingame_time.split(",")[0].strip())
         return abs(current_days - ingame_days)
     except (ValueError, IndexError) as e:
         logger.warning(
-            f"Error parseando diferencia de tiempo: {ingame_time} vs {current_ingame_time}: {e}"
+            f"Error parsing time difference: {ingame_time} vs {current_ingame_time}: {e}"
         )
         return 0
 
 
 def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
-    """Comprobar si el nombre de Discord coincide con el nombre del juego.
+    """Check if Discord name matches the game name.
 
     Args:
-        discord_name: Nombre de display de Discord
-        game_name: Nombre en el juego desde la API
-        mode: Modo de comparación (EXACT o CONTAINS)
+        discord_name: Discord display name
+        game_name: In-game name from the API
+        mode: Comparison mode (EXACT or CONTAINS)
 
     Returns:
-        True si los nombres coinciden según el modo
+        True if names match according to the mode
     """
     discord_lower = discord_name.lower().strip()
     game_lower = game_name.lower().strip()
@@ -55,21 +55,21 @@ def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
 
 
 def extract_regiment_id(regiment: str) -> str | None:
-    """Extraer el ID del regimiento desde el formato completo.
+    """Extract the regiment ID from the full format.
 
-    El formato esperado es: [ID#número] Nombre del regimiento
-    Por ejemplo: [7-HP#8707] 7th Hispanic Platoon -> 7-HP#8707
+    Expected format is: [ID#number] Regiment Name
+    For example: [7-HP#8707] 7th Hispanic Platoon -> 7-HP#8707
 
     Args:
-        regiment: String del regimiento completo
+        regiment: Full regiment string
 
     Returns:
-        El ID completo del regimiento (contenido entre corchetes) o None si no se puede extraer
+        The complete regiment ID (content between brackets) or None if cannot be extracted
     """
     if not regiment:
         return None
 
-    # Buscar el contenido entre corchetes
+    # Find the content between brackets
     if not regiment.startswith("["):
         return None
 
@@ -86,20 +86,20 @@ def process_verification(
     config: dict[str, Any],
     member_display_name: str,
 ) -> tuple[bool, str | None]:
-    """Procesar reglas de verificación y determinar aprobación/rechazo.
+    """Process verification rules and determine approval/rejection.
 
     Args:
-        request: Solicitud de verificación
-        api_response: Respuesta de la API con datos del jugador
-        config: Configuración del cog
-        member_display_name: Nombre de display del miembro en Discord
+        request: Verification request
+        api_response: API response with player data
+        config: Cog configuration
+        member_display_name: Discord member display name
 
     Returns:
-        Tupla de (debe_aprobar, motivo_rechazo)
+        Tuple of (should_approve, rejection_reason)
     """
-    # 1. Comprobar coincidencia de nombre (si está habilitado)
+    # 1. Check name match (if enabled)
     match_name_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
-    # Manejar valores booleanos legacy para compatibilidad
+    # Handle legacy boolean values for compatibility
     if match_name_mode is True:
         match_name_mode = NameMatchMode.EXACT
     elif match_name_mode is False or not match_name_mode:
@@ -107,51 +107,48 @@ def process_verification(
 
     if match_name_mode != NameMatchMode.NONE:
         if not names_match(member_display_name, api_response.name, match_name_mode):
-            reason = config.get(ConfigKey.REJECT_NAME_MISMATCH) or "Nombre de usuario no coincide"
+            reason = config.get(ConfigKey.REJECT_NAME_MISMATCH) or "Username does not match"
             return False, reason
 
-    # 2. Comprobar regimiento (solo para verificación REGULAR)
+    # 2. Check regiment (only for REGULAR verification)
     if request.verification_type == VerificationType.REGULAR and api_response.regiment:
         valid_regiment = config.get(ConfigKey.VERIFICATION_VALID_REGIMENT, "")
         if valid_regiment:
-            # Si hay un regimiento válido configurado, solo rechazar si no coincide
+            # If a valid regiment is configured, only reject if it doesn't match
             detected_regiment_id = extract_regiment_id(api_response.regiment)
             if detected_regiment_id != valid_regiment:
                 reason = (
                     config.get(ConfigKey.REJECT_HAS_REGIMENT)
-                    or "El usuario ya pertenece a un regimiento"
+                    or "User already belongs to a regiment"
                 )
                 return False, reason
         else:
-            # Si no hay regimiento válido configurado, rechazar cualquier regimiento
+            # If no valid regiment is configured, reject any regiment
             reason = (
-                config.get(ConfigKey.REJECT_HAS_REGIMENT)
-                or "El usuario ya pertenece a un regimiento"
+                config.get(ConfigKey.REJECT_HAS_REGIMENT) or "User already belongs to a regiment"
             )
             return False, reason
 
-    # 3. Comprobar diferencia de tiempo (si está configurado > 0)
+    # 3. Check time difference (if configured > 0)
     time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)
     if time_diff_limit and time_diff_limit > 0:
         diff = calculate_time_diff_days(api_response.ingame_time, api_response.current_ingame_time)
         if diff > time_diff_limit:
-            reason = config.get(ConfigKey.REJECT_TIME_DIFF) or "Captura demasiado antigua"
+            reason = config.get(ConfigKey.REJECT_TIME_DIFF) or "Screenshot too old"
             return False, reason
 
-    # 4. Comprobar shard (si está configurado)
+    # 4. Check shard (if configured)
     expected_shard = config.get(ConfigKey.VERIFICATION_SHARD)
     if expected_shard and api_response.shard.upper() != expected_shard.upper():
-        reason_template = (
-            config.get(ConfigKey.REJECT_WRONG_SHARD) or "Shard incorrecto, debe ser {shard}"
-        )
+        reason_template = config.get(ConfigKey.REJECT_WRONG_SHARD) or "Wrong shard, must be {shard}"
         reason = format_message(reason_template, shard=expected_shard)
         return False, reason
 
-    # 5. Comprobar facción (si está configurado)
+    # 5. Check faction (if configured)
     expected_faction = config.get(ConfigKey.VERIFICATION_FACTION)
     if expected_faction and api_response.faction.lower() != expected_faction.lower():
-        reason = config.get(ConfigKey.REJECT_WRONG_FACTION) or "Facción incorrecta"
+        reason = config.get(ConfigKey.REJECT_WRONG_FACTION) or "Wrong faction"
         return False, reason
 
-    # Todas las comprobaciones pasaron
+    # All checks passed
     return True, None

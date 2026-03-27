@@ -10,7 +10,7 @@ from discord_bot.common.core.settings.logging import LoggingSettings
 
 
 def test_setup_logging_console() -> None:
-    """Probar opciones de log con consola."""
+    """Test log options with console."""
     settings = LoggingSettings(
         log_level="INFO",
         log_file=None,
@@ -18,13 +18,13 @@ def test_setup_logging_console() -> None:
 
     setup_logging(settings)
 
-    # Verificar que el registrador está configurado
+    # Verify that the logger is configured
     logger = logging.getLogger()
     assert logger.level == logging.INFO
 
 
 def test_setup_logging_file() -> None:
-    """Probar opciones de log con fichero."""
+    """Test log options with file."""
     with TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "test.log"
 
@@ -36,21 +36,21 @@ def test_setup_logging_file() -> None:
 
         setup_logging(settings)
 
-        # Verificar que el registrador está configurado
+        # Verify that the logger is configured
         logger = logging.getLogger()
         assert logger.level == logging.DEBUG
 
-        # Probar logeo
-        logger.info("Mensaje de test")
+        # Test logging
+        logger.info("Test message")
 
-        # Verificar que el fichero fue creado y contiene el mensaje
+        # Verify that the file was created and contains the message
         assert log_file.exists()
         content = log_file.read_text()
-        assert "Mensaje de test" in content
+        assert "Test message" in content
 
 
 def test_setup_logging_with_custom_loggers() -> None:
-    """Probar opciones de log con niveles de registro personalizados."""
+    """Test log options with custom log levels."""
     settings = LoggingSettings(
         log_level="INFO",
         loggers={"discord": "WARNING", "discord_bot": "DEBUG"},
@@ -59,7 +59,7 @@ def test_setup_logging_with_custom_loggers() -> None:
 
     setup_logging(settings)
 
-    # Verificar que los registradores están configurados
+    # Verify that the loggers are configured
     discord_logger = logging.getLogger("discord")
     assert discord_logger.level == logging.WARNING
 
@@ -68,7 +68,7 @@ def test_setup_logging_with_custom_loggers() -> None:
 
 
 def test_setup_logging_with_rotate_logs() -> None:
-    """Probar opciones de log con rotación habilitada."""
+    """Test log options with rotation enabled."""
     with TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "test.log"
 
@@ -80,35 +80,35 @@ def test_setup_logging_with_rotate_logs() -> None:
 
         setup_logging(settings)
 
-        # Verificar que el registrador está configurado
+        # Verify that the logger is configured
         logger = logging.getLogger()
         assert logger.level == logging.INFO
 
-        # Verificar que el handler es un TimedRotatingFileHandler
+        # Verify that the handler is a TimedRotatingFileHandler
         handlers = logger.handlers
         assert len(handlers) > 0
 
-        # Buscar el TimedRotatingFileHandler
+        # Find the TimedRotatingFileHandler
         file_handler = None
         for handler in handlers:
             if isinstance(handler, TimedRotatingFileHandler):
                 file_handler = handler
                 break
 
-        assert file_handler is not None, "TimedRotatingFileHandler necesita ser configurado"
+        assert file_handler is not None, "TimedRotatingFileHandler needs to be configured"
         assert file_handler.when == "MIDNIGHT"
 
-        # Probar logeo
-        logger.info("Mensaje de test para rotación")
+        # Test logging
+        logger.info("Test message for rotation")
 
-        # Verificar que el fichero fue creado y contiene el mensaje
+        # Verify that the file was created and contains the message
         assert log_file.exists()
         content = log_file.read_text()
-        assert "Mensaje de test para rotación" in content
+        assert "Test message for rotation" in content
 
 
 def test_setup_logging_without_rotate_logs() -> None:
-    """Probar opciones de log con fichero pero sin rotación habilitada."""
+    """Test log options with file but without rotation enabled."""
     with TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "test.log"
 
@@ -120,29 +120,29 @@ def test_setup_logging_without_rotate_logs() -> None:
 
         setup_logging(settings)
 
-        # Verificar que el registrador está configurado
+        # Verify that the logger is configured
         logger = logging.getLogger()
         handlers = logger.handlers
 
-        # Verificar que no hay TimedRotatingFileHandler
+        # Verify that there is no TimedRotatingFileHandler
         rotating_handlers = [h for h in handlers if isinstance(h, TimedRotatingFileHandler)]
         assert len(rotating_handlers) == 0, (
-            "No usar TimedRotatingFileHandler cuando rotate_logs=False"
+            "Should not use TimedRotatingFileHandler when rotate_logs=False"
         )
 
-        # Verificar que hay FileHandler
+        # Verify that there is a FileHandler
         file_handlers = [h for h in handlers if isinstance(h, logging.FileHandler)]
-        assert len(file_handlers) > 0, "Se deber usar FileHandler cuando rotate_logs=False"
+        assert len(file_handlers) > 0, "Should use FileHandler when rotate_logs=False"
 
-        # Probar logeo
-        logger.info("Mensaje de prueba sin rotación")
+        # Test logging
+        logger.info("Test message without rotation")
         assert log_file.exists()
 
 
 def test_setup_logging_creates_log_directory() -> None:
-    """Probar que se crea el directorio automáticamente al configurar salvar a fichero."""
+    """Test that the directory is created automatically when configuring file output."""
     with TemporaryDirectory() as tmpdir:
-        # Crear una ruta de fichero en un subdirectorio que no existe
+        # Create a file path in a subdirectory that doesn't exist
         log_file = Path(tmpdir) / "nested" / "dirs" / "test.log"
 
         settings = LoggingSettings(
@@ -153,12 +153,12 @@ def test_setup_logging_creates_log_directory() -> None:
 
         setup_logging(settings)
 
-        # Verificar que el directorio fue creado
+        # Verify that the directory was created
         assert log_file.parent.exists()
         assert log_file.parent.is_dir()
 
-        # Probar logeo
+        # Test logging
         logger = logging.getLogger()
-        logger.info("Probar creación de directorio de log")
+        logger.info("Test log directory creation")
 
         assert log_file.exists()

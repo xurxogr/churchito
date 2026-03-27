@@ -1,4 +1,4 @@
-"""Modal para motivo de rechazo."""
+"""Rejection reason modal."""
 
 import discord
 
@@ -6,22 +6,22 @@ from discord_bot.verification.views.protocols import get_verification_cog
 
 
 class RejectionReasonModal(discord.ui.Modal):
-    """Modal para ingresar el motivo de rechazo."""
+    """Modal for entering rejection reason."""
 
     def __init__(
         self,
         public_id: str,
-        title: str = "Motivo de Rechazo",
-        label: str = "Motivo",
-        placeholder: str = "Explica por que se rechaza la verificacion...",
+        title: str = "Rejection Reason",
+        label: str = "Reason",
+        placeholder: str = "Explain why the verification is being rejected...",
     ) -> None:
-        """Inicializar el modal.
+        """Initialize the modal.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            title (str): Titulo del modal
-            label (str): Etiqueta del campo de texto
-            placeholder (str): Texto de ayuda del campo
+            public_id (str): Public request ID (NanoID)
+            title (str): Modal title
+            label (str): Text field label
+            placeholder (str): Field help text
         """
         super().__init__(title=title)
         self.public_id = public_id
@@ -36,10 +36,10 @@ class RejectionReasonModal(discord.ui.Modal):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction[discord.Client]) -> None:
-        """Procesar envio del modal.
+        """Process modal submission.
 
         Args:
-            interaction (discord.Interaction): Interaccion del moderador
+            interaction (discord.Interaction): Moderator interaction
         """
         cog = get_verification_cog(interaction)
         if not cog:

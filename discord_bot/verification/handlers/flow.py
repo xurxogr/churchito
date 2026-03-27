@@ -1,4 +1,4 @@
-"""Flujo principal de verificación y acciones de moderador."""
+"""Main verification flow and moderator actions."""
 
 import logging
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 class ModActionContext(NamedTuple):
-    """Contexto validado para acciones de moderacion."""
+    """Validated context for moderation actions."""
 
     config: dict[str, Any]
     request: "VerificationRequest"
@@ -58,24 +58,24 @@ async def validate_mod_action(
     permission_error_key: ConfigKey,
     permission_error_default: str,
 ) -> ModActionContext | None:
-    """Validar y preparar contexto para acciones de moderacion.
+    """Validate and prepare context for moderation actions.
 
-    Realiza todas las validaciones comunes para aprobar/rechazar:
-    - Verificar permisos de moderador
-    - Defer la interaccion
-    - Obtener la solicitud
-    - Verificar que existe y esta pendiente de revision
+    Performs all common validations for approve/reject:
+    - Verify moderator permissions
+    - Defer the interaction
+    - Get the request
+    - Verify it exists and is pending review
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interaccion del moderador.
-        public_id: ID público de la solicitud (NanoID).
-        session: Sesion de base de datos.
-        permission_error_key: Clave del mensaje de error de permisos.
-        permission_error_default: Mensaje por defecto si no esta configurado.
+        cog: Cog instance.
+        interaction: Moderator interaction.
+        public_id: Public request ID (NanoID).
+        session: Database session.
+        permission_error_key: Permission error message key.
+        permission_error_default: Default message if not configured.
 
     Returns:
-        Contexto validado o None si fallo alguna validacion.
+        Validated context or None if any validation failed.
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return None
@@ -97,7 +97,7 @@ async def validate_mod_action(
 
     if not request or request.guild_id != interaction.guild.id:
         await interaction.followup.send(
-            content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Solicitud no encontrada.",
+            content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Request not found.",
             ephemeral=True,
         )
         return None
@@ -105,7 +105,7 @@ async def validate_mod_action(
     if request.status != VerificationStatus.PENDING_REVIEW:
         await interaction.followup.send(
             content=config.get(ConfigKey.REQUEST_ALREADY_PROCESSED_MESSAGE)
-            or "Esta solicitud ya fue procesada.",
+            or "This request has already been processed.",
             ephemeral=True,
         )
         return None
@@ -118,12 +118,12 @@ async def handle_verification_start(
     interaction: discord.Interaction,
     verification_type: VerificationType,
 ) -> None:
-    """Manejar inicio de verificacion cuando el usuario hace clic en un boton.
+    """Handle verification start when user clicks a button.
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interaccion del usuario.
-        verification_type: Tipo de verificacion.
+        cog: Cog instance.
+        interaction: User interaction.
+        verification_type: Verification type.
     """
     if not interaction.guild or not interaction.user:
         return
@@ -177,7 +177,7 @@ async def handle_verification_start(
         if pending_any:
             await interaction.followup.send(
                 config.get(ConfigKey.PENDING_IN_OTHER_SERVER_MESSAGE)
-                or "Ya tienes una verificación en curso en otro servidor.",
+                or "You already have an ongoing verification in another server.",
                 ephemeral=True,
             )
             return
@@ -270,13 +270,13 @@ async def handle_dm_screenshots(
     guild_id: int,
     request_id: int,
 ) -> None:
-    """Procesar mensaje DM con capturas de pantalla.
+    """Process DM message with screenshots.
 
     Args:
-        cog: Instancia del cog.
-        message: Mensaje recibido.
-        guild_id: ID del guild.
-        request_id: ID de la solicitud.
+        cog: Cog instance.
+        message: Received message.
+        guild_id: Guild ID.
+        request_id: Request ID.
     """
     image_attachments = [
         a for a in message.attachments if a.content_type and a.content_type.startswith("image/")
@@ -302,7 +302,7 @@ async def handle_dm_screenshots(
 
         if not is_valid_discord_cdn_url(url1) or not is_valid_discord_cdn_url(url2):
             logger.warning(
-                f"[{guild_name}] URLs de captura inválidas para {message.author.name}: "
+                f"[{guild_name}] Invalid screenshot URLs for {message.author.name}: "
                 f"{url1[:50]}..., {url2[:50]}..."
             )
             formatted = format_message(
@@ -329,7 +329,7 @@ async def handle_dm_screenshots(
             await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
             return
 
-        server_name = guild_name if guild else "el servidor"
+        server_name = guild_name if guild else "the server"
         formatted_received = format_message(
             template=config.get(ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE),
             username=message.author.name,
@@ -401,12 +401,12 @@ async def handle_accept(
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
-    """Manejar aprobacion de verificacion.
+    """Handle verification approval.
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interaccion del moderador.
-        public_id: ID público de la solicitud (NanoID).
+        cog: Cog instance.
+        interaction: Moderator interaction.
+        public_id: Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -421,7 +421,7 @@ async def handle_accept(
             public_id=public_id,
             session=session,
             permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-            permission_error_default="No tienes permisos para aprobar verificaciones.",
+            permission_error_default="You do not have permission to approve verifications.",
         )
         if not ctx:
             return
@@ -450,31 +450,31 @@ async def handle_accept(
             for role_id in roles_add or []:
                 role = interaction.guild.get_role(role_id)
                 if not role:
-                    logger.warning(f"[{interaction.guild.name}] Rol no encontrado (ID: {role_id})")
+                    logger.warning(f"[{interaction.guild.name}] Role not found (ID: {role_id})")
                     continue
                 try:
                     await member.add_roles(role)
                 except discord.Forbidden as e:
-                    failed_roles.append(f"@{role.name} (agregar)")
+                    failed_roles.append(f"@{role.name} (add)")
                     logger.warning(
-                        f"No se pudo agregar rol {role.name} ({role_id}): {e}. "
-                        f"Verifica que el bot tenga permiso 'Gestionar roles' y que "
-                        f"su rol este por encima de @{role.name} en la jerarquia."
+                        f"Could not add role {role.name} ({role_id}): {e}. "
+                        f"Verify the bot has 'Manage Roles' permission and that "
+                        f"its role is above @{role.name} in the hierarchy."
                     )
 
             for role_id in roles_remove or []:
                 role = interaction.guild.get_role(role_id)
                 if not role:
-                    logger.warning(f"[{interaction.guild.name}] Rol no encontrado (ID: {role_id})")
+                    logger.warning(f"[{interaction.guild.name}] Role not found (ID: {role_id})")
                     continue
                 try:
                     await member.remove_roles(role)
                 except discord.Forbidden as e:
-                    failed_roles.append(f"@{role.name} (quitar)")
+                    failed_roles.append(f"@{role.name} (remove)")
                     logger.warning(
-                        f"No se pudo quitar rol {role.name} ({role_id}): {e}. "
-                        f"Verifica que el bot tenga permiso 'Gestionar roles' y que "
-                        f"su rol este por encima de @{role.name} en la jerarquia."
+                        f"Could not remove role {role.name} ({role_id}): {e}. "
+                        f"Verify the bot has 'Manage Roles' permission and that "
+                        f"its role is above @{role.name} in the hierarchy."
                     )
 
             formatted = format_message(
@@ -513,17 +513,17 @@ async def handle_accept(
 
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_APPROVED_CONFIRMATION)
-            or "Verificacion aprobada para {username}.",
+            or "Verification approved for {username}.",
             username=request.username,
         )
         if failed_roles:
             roles_warning = ", ".join(failed_roles)
             await interaction.followup.send(
                 f"{confirmation}\n\n"
-                f"⚠️ **Advertencia:** No se pudieron modificar algunos roles: {roles_warning}\n"
-                f"Verifica que:\n"
-                f"• El bot tenga el permiso **Gestionar roles**\n"
-                f"• El rol del bot este **por encima** de estos roles en la jerarquia",
+                f"⚠️ **Warning:** Could not modify some roles: {roles_warning}\n"
+                f"Verify that:\n"
+                f"• The bot has the **Manage Roles** permission\n"
+                f"• The bot's role is **above** these roles in the hierarchy",
                 ephemeral=True,
             )
         else:
@@ -535,12 +535,12 @@ async def show_rejection_select(
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
-    """Mostrar selector de motivos de rechazo.
+    """Show rejection reason selector.
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interaccion del moderador.
-        public_id: ID público de la solicitud (NanoID).
+        cog: Cog instance.
+        interaction: Moderator interaction.
+        public_id: Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -554,7 +554,7 @@ async def show_rejection_select(
 
     if not has_any_role(member=interaction.user, role_ids=config.get(ConfigKey.MOD_ROLES) or []):
         await interaction.response.send_message(
-            content="No tienes permisos para rechazar verificaciones.",
+            content="You do not have permission to reject verifications.",
             ephemeral=True,
         )
         return
@@ -564,9 +564,7 @@ async def show_rejection_select(
         request = await verification_service.get_by_public_id(public_id=public_id)
 
         if not request or request.guild_id != guild_id:
-            not_found_msg = (
-                config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Solicitud no encontrada."
-            )
+            not_found_msg = config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Request not found."
             await interaction.response.send_message(content=not_found_msg, ephemeral=True)
             return
 
@@ -591,20 +589,18 @@ async def show_rejection_select(
             reasons.append(reason)
 
     select_message = (
-        config.get(ConfigKey.REJECTION_SELECT_MESSAGE) or "Selecciona el motivo de rechazo:"
+        config.get(ConfigKey.REJECTION_SELECT_MESSAGE) or "Select the rejection reason:"
     )
     placeholder = (
-        config.get(ConfigKey.REJECTION_SELECT_PLACEHOLDER) or "Selecciona el motivo de rechazo..."
+        config.get(ConfigKey.REJECTION_SELECT_PLACEHOLDER) or "Select the rejection reason..."
     )
-    other_label = config.get(ConfigKey.REJECTION_OTHER_LABEL) or "Otro motivo..."
-    other_description = (
-        config.get(ConfigKey.REJECTION_OTHER_DESCRIPTION) or "Escribir un motivo personalizado"
-    )
-    modal_title = config.get(ConfigKey.REJECTION_MODAL_TITLE) or "Motivo de Rechazo"
-    modal_label = config.get(ConfigKey.REJECTION_MODAL_LABEL) or "Motivo"
+    other_label = config.get(ConfigKey.REJECTION_OTHER_LABEL) or "Other reason..."
+    other_description = config.get(ConfigKey.REJECTION_OTHER_DESCRIPTION) or "Write a custom reason"
+    modal_title = config.get(ConfigKey.REJECTION_MODAL_TITLE) or "Rejection Reason"
+    modal_label = config.get(ConfigKey.REJECTION_MODAL_LABEL) or "Reason"
     modal_placeholder = (
         config.get(ConfigKey.REJECTION_MODAL_PLACEHOLDER)
-        or "Explica por que se rechaza la verificacion..."
+        or "Explain why the verification is being rejected..."
     )
 
     view = RejectionReasonView(
@@ -630,13 +626,13 @@ async def handle_reject(
     public_id: str,
     reason: str,
 ) -> None:
-    """Manejar rechazo de verificacion.
+    """Handle verification rejection.
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interaccion del moderador.
-        public_id: ID público de la solicitud (NanoID).
-        reason: Motivo del rechazo.
+        cog: Cog instance.
+        interaction: Moderator interaction.
+        public_id: Public request ID (NanoID).
+        reason: Rejection reason.
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -651,7 +647,7 @@ async def handle_reject(
             public_id=public_id,
             session=session,
             permission_error_key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
-            permission_error_default="No tienes permisos para rechazar verificaciones.",
+            permission_error_default="You do not have permission to reject verifications.",
         )
         if not ctx:
             return
@@ -710,7 +706,7 @@ async def handle_reject(
 
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_REJECTED_CONFIRMATION)
-            or "Verificación rechazada para {username}.",
+            or "Verification rejected for {username}.",
             username=request.username,
         )
         await interaction.followup.send(content=confirmation, ephemeral=True)
@@ -721,15 +717,15 @@ async def handle_review(
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
-    """Manejar revisión de una verificación auto-rechazada.
+    """Handle review of an auto-rejected verification.
 
-    Permite a los moderadores revisar manualmente una verificación
-    que fue auto-rechazada, poniéndola de nuevo en estado pendiente.
+    Allows moderators to manually review a verification that was
+    auto-rejected, putting it back in pending state.
 
     Args:
-        cog: Instancia del cog.
-        interaction: Interacción del moderador.
-        public_id: ID público de la solicitud (NanoID).
+        cog: Cog instance.
+        interaction: Moderator interaction.
+        public_id: Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -748,7 +744,7 @@ async def handle_review(
         ):
             await interaction.response.send_message(
                 content=config.get(ConfigKey.NO_PERMISSION_REJECT_MESSAGE)
-                or "No tienes permisos para revisar verificaciones.",
+                or "You do not have permission to review verifications.",
                 ephemeral=True,
             )
             return
@@ -758,15 +754,14 @@ async def handle_review(
 
         if not request or request.guild_id != interaction.guild.id:
             await interaction.response.send_message(
-                content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE)
-                or "Solicitud no encontrada.",
+                content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Request not found.",
                 ephemeral=True,
             )
             return
 
         if request.status != VerificationStatus.REJECTED or request.reviewed_by_username != "Auto":
             await interaction.response.send_message(
-                content="Esta verificación no fue auto-rechazada.",
+                content="This verification was not auto-rejected.",
                 ephemeral=True,
             )
             return
@@ -777,7 +772,7 @@ async def handle_review(
         )
         if not latest or latest.id != request.id:
             await interaction.response.send_message(
-                content="Solo se puede revisar la última verificación del usuario.",
+                content="Only the user's latest verification can be reviewed.",
                 ephemeral=True,
             )
             return
@@ -787,7 +782,7 @@ async def handle_review(
         )
         if not reverted:
             await interaction.response.send_message(
-                content="No se pudo revertir la verificación.",
+                content="Could not revert the verification.",
                 ephemeral=True,
             )
             return
@@ -807,6 +802,6 @@ async def handle_review(
         await session.commit()
 
         await interaction.response.send_message(
-            content=f"Verificación de {request.username} puesta en revisión manual.",
+            content=f"Verification of {request.username} set for manual review.",
             ephemeral=True,
         )

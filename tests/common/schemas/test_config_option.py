@@ -1,14 +1,14 @@
-"""Tests para ConfigOption."""
+"""Tests for ConfigOption."""
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.config_option import ConfigOption
 
 
 class TestConfigOptionValidation:
-    """Tests para la validación de ConfigOption."""
+    """Tests for ConfigOption validation."""
 
     def test_validate_none_value_required(self) -> None:
-        """Probar validación de None cuando es requerido."""
+        """Test validation of None when required."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -17,10 +17,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(None)
         assert is_valid is False
-        assert error is not None and "obligatoria" in error
+        assert error is not None and "is required" in error
 
     def test_validate_none_value_not_required(self) -> None:
-        """Probar validación de None cuando no es requerido."""
+        """Test validation of None when not required."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -32,7 +32,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_string_valid(self) -> None:
-        """Probar validación de string válido."""
+        """Test validation of valid string."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -44,7 +44,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_string_invalid_type(self) -> None:
-        """Probar validación de string con tipo inválido."""
+        """Test validation of string with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -52,10 +52,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(123)
         assert is_valid is False
-        assert error is not None and "debe ser texto" in error
+        assert error is not None and "must be text" in error
 
     def test_validate_string_too_long(self) -> None:
-        """Probar validación de string demasiado largo."""
+        """Test validation of string that is too long."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -64,10 +64,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("hello world")
         assert is_valid is False
-        assert error is not None and "no puede exceder" in error
+        assert error is not None and "cannot exceed" in error
 
     def test_validate_integer_valid(self) -> None:
-        """Probar validación de entero válido."""
+        """Test validation of valid integer."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -80,7 +80,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_integer_invalid_type(self) -> None:
-        """Probar validación de entero con tipo inválido."""
+        """Test validation of integer with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -88,10 +88,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("not a number")
         assert is_valid is False
-        assert error is not None and "debe ser un número entero" in error
+        assert error is not None and "must be an integer" in error
 
     def test_validate_integer_below_min(self) -> None:
-        """Probar validación de entero por debajo del mínimo."""
+        """Test validation of integer below minimum."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -100,10 +100,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(5)
         assert is_valid is False
-        assert error is not None and "debe ser al menos" in error
+        assert error is not None and "must be at least" in error
 
     def test_validate_integer_above_max(self) -> None:
-        """Probar validación de entero por encima del máximo."""
+        """Test validation of integer above maximum."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -112,10 +112,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(15)
         assert is_valid is False
-        assert error is not None and "no puede exceder" in error
+        assert error is not None and "cannot exceed" in error
 
     def test_validate_boolean_valid(self) -> None:
-        """Probar validación de booleano válido."""
+        """Test validation of valid boolean."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -126,7 +126,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_boolean_invalid_type(self) -> None:
-        """Probar validación de booleano con tipo inválido."""
+        """Test validation of boolean with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -134,10 +134,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("true")
         assert is_valid is False
-        assert error is not None and "debe ser verdadero o falso" in error
+        assert error is not None and "must be true or false" in error
 
     def test_validate_channel_valid(self) -> None:
-        """Probar validación de canal válido."""
+        """Test validation of valid channel."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -148,7 +148,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_channel_invalid_type(self) -> None:
-        """Probar validación de canal con tipo inválido."""
+        """Test validation of channel with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -156,10 +156,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("not an id")
         assert is_valid is False
-        assert error is not None and "debe ser un ID válido" in error
+        assert error is not None and "must be a valid ID" in error
 
     def test_validate_role_valid(self) -> None:
-        """Probar validación de rol válido."""
+        """Test validation of valid role."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -170,7 +170,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_role_invalid_type(self) -> None:
-        """Probar validación de rol con tipo inválido."""
+        """Test validation of role with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -178,10 +178,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("not an id")
         assert is_valid is False
-        assert error is not None and "debe ser un ID válido" in error
+        assert error is not None and "must be a valid ID" in error
 
     def test_validate_channel_list_valid(self) -> None:
-        """Probar validación de lista de canales válida."""
+        """Test validation of valid channel list."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -192,7 +192,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_channel_list_invalid(self) -> None:
-        """Probar validación de lista de canales inválida."""
+        """Test validation of invalid channel list."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -200,10 +200,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(["not", "ids"])
         assert is_valid is False
-        assert error is not None and "debe ser una lista de IDs" in error
+        assert error is not None and "must be a list of IDs" in error
 
     def test_validate_role_list_valid(self) -> None:
-        """Probar validación de lista de roles válida."""
+        """Test validation of valid role list."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -214,7 +214,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_role_list_invalid(self) -> None:
-        """Probar validación de lista de roles inválida."""
+        """Test validation of invalid role list."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -222,10 +222,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("not a list")
         assert is_valid is False
-        assert error is not None and "debe ser una lista de IDs" in error
+        assert error is not None and "must be a list of IDs" in error
 
     def test_validate_text_choice_valid(self) -> None:
-        """Probar validación de opción de texto válida."""
+        """Test validation of valid text choice."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -237,7 +237,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_text_choice_invalid(self) -> None:
-        """Probar validación de opción de texto inválida."""
+        """Test validation of invalid text choice."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -246,10 +246,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("c")
         assert is_valid is False
-        assert error is not None and "debe ser una de las opciones válidas" in error
+        assert error is not None and "must be one of the valid options" in error
 
     def test_validate_text_choice_no_choices(self) -> None:
-        """Probar validación de opción de texto sin choices definidas."""
+        """Test validation of text choice without defined choices."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -260,20 +260,20 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_textarea_valid(self) -> None:
-        """Probar validación de textarea válido."""
+        """Test validation of valid textarea."""
         option = ConfigOption(
             key="test",
             name="Test",
             option_type=ConfigOptionType.TEXTAREA,
             max_length=2000,
         )
-        multiline_text = "Linea 1\nLinea 2\nLinea 3"
+        multiline_text = "Line 1\nLine 2\nLine 3"
         is_valid, error = option.validate_value(multiline_text)
         assert is_valid is True
         assert error is None
 
     def test_validate_textarea_with_markdown(self) -> None:
-        """Probar validación de textarea con markdown de Discord."""
+        """Test validation of textarea with Discord markdown."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -281,18 +281,18 @@ class TestConfigOptionValidation:
             max_length=2000,
         )
         markdown_text = (
-            "**Bienvenido**\n\n"
-            "Por favor sube capturas de:\n"
-            "- :flag_es: Perfil\n"
-            "- <#123456789> Canal\n"
-            "~~tachado~~ __subrayado__"
+            "**Welcome**\n\n"
+            "Please upload screenshots of:\n"
+            "- :flag_es: Profile\n"
+            "- <#123456789> Channel\n"
+            "~~strikethrough~~ __underline__"
         )
         is_valid, error = option.validate_value(markdown_text)
         assert is_valid is True
         assert error is None
 
     def test_validate_textarea_invalid_type(self) -> None:
-        """Probar validación de textarea con tipo inválido."""
+        """Test validation of textarea with invalid type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -300,10 +300,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(123)
         assert is_valid is False
-        assert error is not None and "debe ser texto" in error
+        assert error is not None and "must be text" in error
 
     def test_validate_textarea_too_long(self) -> None:
-        """Probar validación de textarea demasiado largo."""
+        """Test validation of textarea that is too long."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -313,17 +313,17 @@ class TestConfigOptionValidation:
         long_text = "a" * 150
         is_valid, error = option.validate_value(long_text)
         assert is_valid is False
-        assert error is not None and "no puede exceder" in error
+        assert error is not None and "cannot exceed" in error
 
     def test_validate_table_valid(self) -> None:
-        """Probar validación de tabla válida."""
+        """Test validation of valid table."""
         option = ConfigOption(
             key="test",
             name="Test",
             option_type=ConfigOptionType.TABLE,
             columns=[
-                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
-                {"key": "tag", "name": "Etiqueta", "type": "string", "required": True},
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "required": True},
             ],
         )
         table_value = [
@@ -335,7 +335,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_table_not_list(self) -> None:
-        """Probar validación de tabla con tipo no lista."""
+        """Test validation of table with non-list type."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -343,10 +343,10 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value("not a list")
         assert is_valid is False
-        assert error is not None and "debe ser una lista" in error
+        assert error is not None and "must be a list" in error
 
     def test_validate_table_row_not_dict(self) -> None:
-        """Probar validación de tabla con fila que no es dict."""
+        """Test validation of table with row that is not a dict."""
         option = ConfigOption(
             key="test",
             name="Test",
@@ -354,34 +354,34 @@ class TestConfigOptionValidation:
         )
         is_valid, error = option.validate_value(["not", "dicts"])
         assert is_valid is False
-        assert error is not None and "debe ser un objeto" in error
+        assert error is not None and "must be an object" in error
 
     def test_validate_table_missing_required_column(self) -> None:
-        """Probar validación de tabla con columna requerida faltante."""
+        """Test validation of table with missing required column."""
         option = ConfigOption(
             key="test",
             name="Test",
             option_type=ConfigOptionType.TABLE,
             columns=[
-                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
-                {"key": "tag", "name": "Etiqueta", "type": "string", "required": True},
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "required": True},
             ],
         )
         table_value = [
-            {"role_id": 123},  # Falta "tag"
+            {"role_id": 123},  # Missing "tag"
         ]
         is_valid, error = option.validate_value(table_value)
         assert is_valid is False
-        assert error is not None and "es obligatorio" in error
+        assert error is not None and "is required" in error
 
     def test_validate_table_empty_list(self) -> None:
-        """Probar validación de tabla vacía (válido)."""
+        """Test validation of empty table (valid)."""
         option = ConfigOption(
             key="test",
             name="Test",
             option_type=ConfigOptionType.TABLE,
             columns=[
-                {"key": "role_id", "name": "Rol", "type": "role", "required": True},
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
             ],
         )
         is_valid, error = option.validate_value([])
@@ -389,7 +389,7 @@ class TestConfigOptionValidation:
         assert error is None
 
     def test_validate_table_no_columns(self) -> None:
-        """Probar validación de tabla sin columnas definidas."""
+        """Test validation of table without defined columns."""
         option = ConfigOption(
             key="test",
             name="Test",

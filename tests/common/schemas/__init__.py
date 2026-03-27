@@ -1,1 +1,1 @@
-"""Inicializacion del modulo."""
+"""Module initialization."""

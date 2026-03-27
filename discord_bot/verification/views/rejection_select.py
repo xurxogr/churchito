@@ -1,4 +1,4 @@
-"""Vista de seleccion de motivo de rechazo."""
+"""Rejection reason selection view."""
 
 import discord
 
@@ -7,7 +7,7 @@ from discord_bot.verification.views.rejection_modal import RejectionReasonModal
 
 
 class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
-    """Selector de motivos de rechazo."""
+    """Rejection reason selector."""
 
     def __init__(
         self,
@@ -18,15 +18,15 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         modal_label: str,
         modal_placeholder: str,
     ) -> None:
-        """Inicializar el selector.
+        """Initialize the selector.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            options (list[discord.SelectOption]): Opciones del selector
-            placeholder (str): Texto del placeholder
-            modal_title (str): Titulo del modal de motivo personalizado
-            modal_label (str): Etiqueta del campo de texto del modal
-            modal_placeholder (str): Placeholder del campo de texto del modal
+            public_id (str): Public request ID (NanoID)
+            options (list[discord.SelectOption]): Selector options
+            placeholder (str): Placeholder text
+            modal_title (str): Custom reason modal title
+            modal_label (str): Modal text field label
+            modal_placeholder (str): Modal text field placeholder
         """
         super().__init__(
             placeholder=placeholder,
@@ -39,10 +39,10 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         self.modal_placeholder = modal_placeholder
 
     async def callback(self, interaction: discord.Interaction[discord.Client]) -> None:
-        """Manejar seleccion de motivo de rechazo.
+        """Handle rejection reason selection.
 
         Args:
-            interaction (discord.Interaction[discord.Client]): Interaccion del moderador
+            interaction (discord.Interaction[discord.Client]): Moderator interaction
         """
         selected = self.values[0]
 
@@ -68,34 +68,34 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
 
 
 class RejectionReasonView(discord.ui.View):
-    """Vista con dropdown para seleccionar motivo de rechazo.
+    """View with dropdown to select rejection reason.
 
-    Muestra opciones predefinidas configurables mas una opcion "Otro"
-    que abre el modal para texto personalizado.
+    Shows configurable predefined options plus an "Other" option
+    that opens a modal for custom text.
     """
 
     def __init__(
         self,
         public_id: str,
         reasons: list[str],
-        other_label: str = "Otro motivo...",
-        other_description: str = "Escribir un motivo personalizado",
-        placeholder: str = "Selecciona el motivo de rechazo...",
-        modal_title: str = "Motivo de Rechazo",
-        modal_label: str = "Motivo",
-        modal_placeholder: str = "Explica por que se rechaza la verificacion...",
+        other_label: str = "Other reason...",
+        other_description: str = "Write a custom reason",
+        placeholder: str = "Select the rejection reason...",
+        modal_title: str = "Rejection Reason",
+        modal_label: str = "Reason",
+        modal_placeholder: str = "Explain why the verification is being rejected...",
     ) -> None:
-        """Inicializar la vista de seleccion.
+        """Initialize the selection view.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            reasons (list[str]): Lista de motivos predefinidos
-            other_label (str): Etiqueta para la opcion "Otro"
-            other_description (str): Descripcion para la opcion "Otro"
-            placeholder (str): Texto del placeholder del selector
-            modal_title (str): Titulo del modal de motivo personalizado
-            modal_label (str): Etiqueta del campo de texto del modal
-            modal_placeholder (str): Placeholder del campo de texto del modal
+            public_id (str): Public request ID (NanoID)
+            reasons (list[str]): List of predefined reasons
+            other_label (str): Label for the "Other" option
+            other_description (str): Description for the "Other" option
+            placeholder (str): Selector placeholder text
+            modal_title (str): Custom reason modal title
+            modal_label (str): Modal text field label
+            modal_placeholder (str): Modal text field placeholder
         """
         super().__init__(timeout=60)
 

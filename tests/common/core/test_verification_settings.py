@@ -1,13 +1,13 @@
-"""Tests para discord_bot/common/core/settings/verification.py."""
+"""Tests for discord_bot/common/core/settings/verification.py."""
 
 from discord_bot.common.core.settings.verification import VerificationSettings
 
 
 class TestVerificationSettings:
-    """Tests para VerificationSettings."""
+    """Tests for VerificationSettings."""
 
     def test_default_values(self) -> None:
-        """Probar valores por defecto."""
+        """Test default values."""
         settings = VerificationSettings()
 
         assert settings.api_url == ""
@@ -15,7 +15,7 @@ class TestVerificationSettings:
         assert settings.api_timeout == 30
 
     def test_custom_values(self) -> None:
-        """Probar valores personalizados."""
+        """Test custom values."""
         settings = VerificationSettings(
             api_url="https://api.example.com/verify",
             api_key="test-key",
@@ -27,7 +27,7 @@ class TestVerificationSettings:
         assert settings.api_timeout == 60
 
     def test_api_url_empty_disables_verification(self) -> None:
-        """Probar que URL vacía indica verificación desactivada."""
+        """Test that empty URL indicates verification is disabled."""
         settings = VerificationSettings(api_url="")
 
         # Empty string is falsy, used to check if API is configured

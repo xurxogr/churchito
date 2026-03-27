@@ -1,4 +1,4 @@
-"""Tests para VerificationCog."""
+"""Tests for VerificationCog."""
 
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -36,7 +36,7 @@ class AsyncIteratorMock:
 
 @pytest.fixture
 def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
-    """Crear mock del bot con database."""
+    """Create mock bot with database."""
     bot = MagicMock(spec=DiscordBot)
     bot.database = test_database
     bot.guilds = []
@@ -54,7 +54,7 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
 
 @pytest.fixture
 def verification_cog(mock_discord_bot: MagicMock) -> VerificationCog:
-    """Crear instancia del cog para tests."""
+    """Create cog instance for tests."""
     cog = VerificationCog(mock_discord_bot)
     # Mock _is_cog_enabled to return True by default (cogs are disabled by default now)
     object.__setattr__(cog, "_is_cog_enabled", AsyncMock(return_value=True))
@@ -62,73 +62,73 @@ def verification_cog(mock_discord_bot: MagicMock) -> VerificationCog:
 
 
 class TestFormatMessage:
-    """Tests para _format_message."""
+    """Tests for _format_message."""
 
     def test_format_all_placeholders(self, verification_cog: VerificationCog) -> None:
-        """Probar reemplazo de todos los placeholders."""
+        """Test replacement of all placeholders."""
         template = (
-            "Hola {username}! Bienvenido a {server_name}. "
-            "Tu verificacion ({verification_type}) fue {reason}. "
-            "Mencion: {user_mention}"
+            "Hello {username}! Welcome to {server_name}."
+            "Your verification ({verification_type}) was {reason}."
+            "Mention: {user_mention}"
         )
 
         result = verification_cog._format_message(
             template,
             username="TestUser",
             user_mention="<@123>",
-            server_name="Mi Servidor",
+            server_name="My Server",
             verification_type="Normal",
-            reason="aprobada",
+            reason="approved",
         )
 
         assert result == (
-            "Hola TestUser! Bienvenido a Mi Servidor. "
-            "Tu verificacion (Normal) fue aprobada. "
-            "Mencion: <@123>"
+            "Hello TestUser! Welcome to My Server."
+            "Your verification (Normal) was approved."
+            "Mention: <@123>"
         )
 
     def test_format_ally_type(self, verification_cog: VerificationCog) -> None:
-        """Probar que verification_type se usa correctamente."""
-        template = "Tipo: {verification_type}"
-        result = verification_cog._format_message(template, verification_type="Aliado")
-        assert result == "Tipo: Aliado"
+        """Test that verification_type is used correctly."""
+        template = "Type: {verification_type}"
+        result = verification_cog._format_message(template, verification_type="Ally")
+        assert result == "Type: Ally"
 
     def test_format_regular_type(self, verification_cog: VerificationCog) -> None:
-        """Probar que verification_type se usa correctamente."""
-        template = "Tipo: {verification_type}"
+        """Test that verification_type is used correctly."""
+        template = "Type: {verification_type}"
         result = verification_cog._format_message(template, verification_type="Normal")
-        assert result == "Tipo: Normal"
+        assert result == "Type: Normal"
 
     def test_format_empty_placeholders(self, verification_cog: VerificationCog) -> None:
-        """Probar con placeholder pasado como None."""
-        template = "Usuario: {username}"
+        """Test with placeholder passed as None."""
+        template = "User: {username}"
         result = verification_cog._format_message(template, username=None)
-        assert result == "Usuario: "
+        assert result == "User: "
 
     def test_format_unmatched_placeholder(self, verification_cog: VerificationCog) -> None:
-        """Probar que placeholders no pasados se mantienen."""
-        template = "Usuario: {username}"
+        """Test that placeholders not passed are kept as is."""
+        template = "User: {username}"
         result = verification_cog._format_message(template)
-        assert result == "Usuario: {username}"
+        assert result == "User: {username}"
 
     def test_format_no_placeholders(self, verification_cog: VerificationCog) -> None:
-        """Probar mensaje sin placeholders."""
-        template = "Mensaje simple sin placeholders"
+        """Test message without placeholders."""
+        template = "Simple message without placeholders"
         result = verification_cog._format_message(template)
         assert result == template
 
     def test_format_dynamic_kwargs(self, verification_cog: VerificationCog) -> None:
-        """Probar que acepta cualquier placeholder dinamico."""
-        template = "Estado: {status}, Moderador: {moderator}"
-        result = verification_cog._format_message(template, status="Aprobado", moderator="Admin")
-        assert result == "Estado: Aprobado, Moderador: Admin"
+        """Test that accepts any dynamic placeholder."""
+        template = "Status: {status}, Moderator: {moderator}"
+        result = verification_cog._format_message(template, status="Approved", moderator="Admin")
+        assert result == "Status: Approved, Moderator: Admin"
 
 
 class TestHasAnyRole:
-    """Tests para has_any_role utility."""
+    """Tests for has_any_role utility."""
 
     def test_has_any_role_with_matching_role(self) -> None:
-        """Probar con rol que coincide."""
+        """Test with matching role."""
         member = MagicMock(spec=discord.Member)
         role1 = MagicMock(spec=discord.Role)
         role1.id = 111
@@ -140,7 +140,7 @@ class TestHasAnyRole:
         assert result is True
 
     def test_has_any_role_without_matching_role(self) -> None:
-        """Probar sin rol que coincida."""
+        """Test without matching role."""
         member = MagicMock(spec=discord.Member)
         role1 = MagicMock(spec=discord.Role)
         role1.id = 111
@@ -150,7 +150,7 @@ class TestHasAnyRole:
         assert result is False
 
     def test_has_any_role_empty_list_with_permission(self) -> None:
-        """Probar lista vacia - usa permisos de manage_guild."""
+        """Test empty list - uses manage_guild permissions."""
         member = MagicMock(spec=discord.Member)
         member.guild_permissions = MagicMock()
         member.guild_permissions.manage_guild = True
@@ -159,7 +159,7 @@ class TestHasAnyRole:
         assert result is True
 
     def test_has_any_role_empty_list_without_permission(self) -> None:
-        """Probar lista vacia sin permisos."""
+        """Test empty list without permissions."""
         member = MagicMock(spec=discord.Member)
         member.guild_permissions = MagicMock()
         member.guild_permissions.manage_guild = False
@@ -169,10 +169,10 @@ class TestHasAnyRole:
 
 
 class TestHandleVerificationStart:
-    """Tests para handle_verification_start."""
+    """Tests for handle_verification_start."""
 
     async def test_no_guild(self, verification_cog: VerificationCog) -> None:
-        """Probar sin guild."""
+        """Test without guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
@@ -180,14 +180,14 @@ class TestHandleVerificationStart:
             interaction=interaction, verification_type=VerificationType.REGULAR
         )
 
-        # No deberia hacer nada
+        # Should not do anything
         interaction.response.defer.assert_not_called()
 
     async def test_already_pending(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar con verificacion ya pendiente."""
-        # Crear solicitud pendiente usando la misma database que el cog
+        """Test with already pending verification."""
+        # Create pending request using the same database as the cog
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -222,7 +222,7 @@ class TestHandleVerificationStart:
             patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
         ):
             mock_config.return_value = {
-                "already_pending_message": "Ya tienes una solicitud pendiente.",
+                "already_pending_message": "You already have a pending request.",
                 "verification_type_regular_display": "Normal",
             }
 
@@ -232,13 +232,13 @@ class TestHandleVerificationStart:
 
             interaction.followup.send.assert_called_once()
             call_args = interaction.followup.send.call_args
-            assert "pendiente" in call_args[0][0].lower()
+            assert "pending" in call_args[0][0].lower()
 
     async def test_pending_in_other_server(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar con verificacion pendiente en otro servidor."""
-        # Crear solicitud pendiente en guild 111
+        """Test with pending verification in another server."""
+        # Create pending request in guild 111
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -250,13 +250,13 @@ class TestHandleVerificationStart:
             )
             await session.commit()
 
-        # Intentar verificar en guild 222
+        # Try to verify in guild 222
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
-        interaction.guild.id = 222  # Diferente guild
+        interaction.guild.id = 222  # Different guild
         interaction.guild.name = "Other Guild"
         interaction.user = MagicMock(spec=discord.User)
-        interaction.user.id = 456  # Mismo usuario
+        interaction.user.id = 456  # Same user
         interaction.user.name = "TestUser"
         interaction.user.mention = "<@456>"
         interaction.response = MagicMock()
@@ -273,7 +273,7 @@ class TestHandleVerificationStart:
             patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
         ):
             mock_config.return_value = {
-                "pending_in_other_server_message": "Tienes verificación en otro servidor.",
+                "pending_in_other_server_message": "You have verification in another server.",
                 "verification_type_regular_display": "Normal",
             }
 
@@ -283,10 +283,10 @@ class TestHandleVerificationStart:
 
             interaction.followup.send.assert_called_once()
             call_args = interaction.followup.send.call_args
-            assert "otro servidor" in call_args[0][0].lower()
+            assert "another server" in call_args[0][0].lower()
 
     async def test_dm_disabled(self, verification_cog: VerificationCog) -> None:
-        """Probar con DMs deshabilitados."""
+        """Test with DMs disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 999
@@ -310,9 +310,9 @@ class TestHandleVerificationStart:
             patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
         ):
             mock_config.return_value = {
-                "already_pending_message": "Pendiente",
-                "dm_instructions_message": "Instrucciones {username}",
-                "dm_disabled_message": "DMs deshabilitados",
+                "already_pending_message": "Pending",
+                "dm_instructions_message": "Instructions {username}",
+                "dm_disabled_message": "DMs disabled",
                 "verification_type_regular_display": "Normal",
             }
 
@@ -322,14 +322,14 @@ class TestHandleVerificationStart:
 
             interaction.followup.send.assert_called()
             call_args = interaction.followup.send.call_args
-            assert "DMs deshabilitados" in str(call_args)
+            assert "DMs disabled" in str(call_args)
 
 
 class TestHandleAccept:
-    """Tests para handle_accept."""
+    """Tests for handle_accept."""
 
     async def test_no_guild(self, verification_cog: VerificationCog) -> None:
-        """Probar sin guild."""
+        """Test without guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
@@ -338,7 +338,7 @@ class TestHandleAccept:
         interaction.response.defer.assert_not_called()
 
     async def test_not_mod(self, verification_cog: VerificationCog) -> None:
-        """Probar sin permisos de moderador."""
+        """Test without moderator permissions."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -359,11 +359,11 @@ class TestHandleAccept:
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args.kwargs
-            assert "permisos" in call_kwargs["content"].lower()
+            assert "permission" in call_kwargs["content"].lower()
             assert call_kwargs["ephemeral"] is True
 
     async def test_request_not_found(self, verification_cog: VerificationCog) -> None:
-        """Probar con solicitud inexistente."""
+        """Test with non-existent request."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -387,25 +387,25 @@ class TestHandleAccept:
 
             interaction.followup.send.assert_called_once()
             call_args = interaction.followup.send.call_args
-            assert "no encontrada" in call_args.kwargs["content"].lower()
+            assert "not found" in call_args.kwargs["content"].lower()
 
 
 class TestHandleReject:
-    """Tests para handle_reject."""
+    """Tests for handle_reject."""
 
     async def test_no_guild(self, verification_cog: VerificationCog) -> None:
-        """Probar sin guild."""
+        """Test without guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
         await verification_cog.handle_reject(
-            interaction=interaction, public_id="test1", reason="motivo"
+            interaction=interaction, public_id="test1", reason="reason"
         )
 
         interaction.response.defer.assert_not_called()
 
     async def test_not_mod(self, verification_cog: VerificationCog) -> None:
-        """Probar sin permisos de moderador."""
+        """Test without moderator permissions."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -423,20 +423,20 @@ class TestHandleReject:
             mock_config.return_value = {"mod_roles": []}
 
             await verification_cog.handle_reject(
-                interaction=interaction, public_id="test1", reason="motivo"
+                interaction=interaction, public_id="test1", reason="reason"
             )
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args.kwargs
-            assert "permisos" in call_kwargs["content"].lower()
+            assert "permission" in call_kwargs["content"].lower()
             assert call_kwargs["ephemeral"] is True
 
 
 class TestShowRejectionSelect:
-    """Tests para show_rejection_select."""
+    """Tests for show_rejection_select."""
 
     async def test_no_guild(self, verification_cog: VerificationCog) -> None:
-        """Probar sin guild."""
+        """Test without guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
         interaction.response = MagicMock()
@@ -449,8 +449,8 @@ class TestShowRejectionSelect:
     async def test_with_configured_reasons(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar con motivos configurados."""
-        # Crear solicitud en la base de datos
+        """Test with configured reasons."""
+        # Create request in the database
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -463,11 +463,11 @@ class TestShowRejectionSelect:
             await session.commit()
             public_id = request.public_id
 
-        # Mock del rol de moderador
+        # Mock moderator role
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
 
-        # Mock del usuario como Member con rol de mod
+        # Mock user as Member with mod role
         mock_user = MagicMock(spec=discord.Member)
         mock_user.roles = [mock_role]
 
@@ -480,8 +480,8 @@ class TestShowRejectionSelect:
 
         config_values: dict[str, object] = {
             "mod_roles": [999],
-            "rejection_reason_1": "Motivo 1",
-            "rejection_reason_2": "Motivo 2",
+            "rejection_reason_1": "Reason 1",
+            "rejection_reason_2": "Reason 2",
             "rejection_reason_3": "",
             "rejection_reason_4": None,
         }
@@ -503,8 +503,8 @@ class TestShowRejectionSelect:
     async def test_with_no_configured_reasons(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar sin motivos configurados - usa defaults."""
-        # Crear solicitud en la base de datos
+        """Test without configured reasons - uses defaults."""
+        # Create request in the database
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -517,11 +517,11 @@ class TestShowRejectionSelect:
             await session.commit()
             public_id = request.public_id
 
-        # Mock del rol de moderador
+        # Mock moderator role
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
 
-        # Mock del usuario como Member con rol de mod
+        # Mock user as Member with mod role
         mock_user = MagicMock(spec=discord.Member)
         mock_user.roles = [mock_role]
 
@@ -549,7 +549,7 @@ class TestShowRejectionSelect:
     async def test_shard_placeholder_replaced(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que el placeholder {shard} se reemplaza en REJECT_WRONG_SHARD."""
+        """Test that placeholder {shard} is replaced in REJECT_WRONG_SHARD."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -580,7 +580,7 @@ class TestShowRejectionSelect:
 
         config_values: dict[str, Any] = {
             "mod_roles": [999],
-            "reject_wrong_shard": "Usuario en shard incorrecto (esperado: {shard})",
+            "reject_wrong_shard": "User in wrong shard (expected: {shard})",
             "verification_shard": "ABLE",
         }
 
@@ -595,14 +595,14 @@ class TestShowRejectionSelect:
 
             interaction.response.send_message.assert_called_once()
             call_kwargs = interaction.response.send_message.call_args[1]
-            # Verificar que el view tiene las opciones con shard reemplazado
+            # Verify that the view has options with replaced shard
             view = call_kwargs["view"]
             assert view is not None
 
     async def test_shard_placeholder_skipped_when_no_shard_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que REJECT_WRONG_SHARD se omite si no hay shard configurado."""
+        """Test that REJECT_WRONG_SHARD is omitted if no shard configured."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -633,8 +633,8 @@ class TestShowRejectionSelect:
 
         config_values: dict[str, Any] = {
             "mod_roles": [999],
-            "reject_wrong_shard": "Usuario en shard incorrecto (esperado: {shard})",
-            # No verification_shard configurado
+            "reject_wrong_shard": "User in wrong shard (expected: {shard})",
+            # No verification_shard configured
         }
 
         with patch.object(
@@ -646,14 +646,14 @@ class TestShowRejectionSelect:
                 interaction=interaction, public_id=public_id
             )
 
-            # Debe funcionar sin error (el motivo se omite)
+            # Should work without error (reason is omitted)
             interaction.response.send_message.assert_called_once()
 
     async def test_not_mod(self, verification_cog: VerificationCog) -> None:
-        """Probar que usuario sin rol de mod no puede ver el selector."""
-        # Mock del usuario sin rol de mod
+        """Test that user without mod role cannot see the selector."""
+        # Mock user without mod role
         mock_role = MagicMock(spec=discord.Role)
-        mock_role.id = 111  # Rol distinto al de mod
+        mock_role.id = 111  # Different role from mod
 
         mock_user = MagicMock(spec=discord.Member)
         mock_user.roles = [mock_role]
@@ -679,18 +679,18 @@ class TestShowRejectionSelect:
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "No tienes permisos" in call_args[1]["content"]
+            assert "You do not have permission" in call_args[1]["content"]
             assert call_args[1]["ephemeral"] is True
 
     async def test_request_from_different_guild(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que rechaza solicitud de otro guild (seguridad cross-guild)."""
-        # Crear solicitud en guild 999 (diferente al guild del interaction)
+        """Test that rejects request from another guild (cross-guild security)."""
+        # Create request in guild 999 (different from interaction guild)
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
-                guild_id=999,  # Guild diferente
+                guild_id=999,  # Different guild
                 user_id=456,
                 username="TestUser",
                 guild_name="Test Guild",
@@ -699,17 +699,17 @@ class TestShowRejectionSelect:
             await session.commit()
             public_id = request.public_id
 
-        # Mock del rol de moderador
+        # Mock moderator role
         mock_role = MagicMock(spec=discord.Role)
         mock_role.id = 999
 
-        # Mock del usuario como Member con rol de mod
+        # Mock user as Member with mod role
         mock_user = MagicMock(spec=discord.Member)
         mock_user.roles = [mock_role]
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
-        interaction.guild.id = 123  # Guild diferente al de la solicitud
+        interaction.guild.id = 123  # Different guild from request
         interaction.user = mock_user
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
@@ -728,19 +728,19 @@ class TestShowRejectionSelect:
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            # Debe rechazar como si no encontrara la solicitud
-            assert "no encontrada" in call_args[1]["content"].lower()
+            # Should reject as if request not found
+            assert "not found" in call_args[1]["content"].lower()
             assert call_args[1]["ephemeral"] is True
 
 
 class TestOnMemberRemove:
-    """Tests para on_member_remove."""
+    """Tests for on_member_remove."""
 
     async def test_cancels_pending_verification(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que cancela verificaciones pendientes."""
-        # Crear solicitud pendiente usando la misma database que el cog
+        """Test that cancels pending verifications."""
+        # Create pending request using the same database as the cog
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -754,7 +754,7 @@ class TestOnMemberRemove:
             public_id = request.public_id
             request_id = request.id
 
-        # Simular que el usuario esta en pending_dm_verifications
+        # Simulate that the user is in pending_dm_verifications
         verification_cog._pending_dm_verifications[456] = (123, request_id)
 
         # Mock member
@@ -767,10 +767,10 @@ class TestOnMemberRemove:
 
         await verification_cog.on_member_remove(member)
 
-        # Verificar que se elimino de pending
+        # Verify that was removed from pending
         assert 456 not in verification_cog._pending_dm_verifications
 
-        # Verificar que se cancelo en la base de datos (nueva sesion)
+        # Verify that was cancelled in database (new session)
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -778,20 +778,20 @@ class TestOnMemberRemove:
             assert updated.status == VerificationStatus.CANCELLED
 
     async def test_no_pending_verification(self, verification_cog: VerificationCog) -> None:
-        """Probar cuando no hay verificacion pendiente."""
+        """Test when there is no pending verification."""
         member = MagicMock(spec=discord.Member)
         member.id = 999
         member.guild = MagicMock(spec=discord.Guild)
         member.guild.id = 123
 
-        # No deberia fallar
+        # Should not fail
         await verification_cog.on_member_remove(member)
 
     async def test_updates_mod_message_on_leave(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que actualiza el mensaje de moderación cuando el usuario sale."""
-        # Crear solicitud con mod_message_id
+        """Test that updates moderation message when user leaves."""
+        # Create request with mod_message_id
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -804,7 +804,7 @@ class TestOnMemberRemove:
             await service.set_mod_message_id(request_id=request.id, message_id=789)
             await session.commit()
 
-        # Mock member con guild que tiene canal de moderación
+        # Mock member with guild that has moderation channel
         member = MagicMock(spec=discord.Member)
         member.id = 456
         member.name = "TestUser"
@@ -812,33 +812,33 @@ class TestOnMemberRemove:
         member.guild.id = 123
         member.guild.name = "Test Guild"
 
-        # Mock canal de moderación
+        # Mock moderation channel
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_message.embeds = [MagicMock(description="Test content\n⏳ Pendiente de revisión")]
+        mock_message.embeds = [MagicMock(description="Test content\n⏳ Pending review")]
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
         member.guild.get_channel = MagicMock(return_value=mock_channel)
 
-        # Mock la función update_mod_message_cancelled
+        # Mock the update_mod_message_cancelled function
         with patch("discord_bot.verification.cog.update_mod_message_cancelled") as mock_update:
             mock_update.return_value = None
             await verification_cog.on_member_remove(member)
 
-            # Verificar que se llamó a update_mod_message_cancelled
+            # Verify that update_mod_message_cancelled was called
             mock_update.assert_called_once()
             call_args = mock_update.call_args
             assert call_args[1]["guild"] == member.guild
 
 
 class TestRestorePendingVerifications:
-    """Tests para restauracion de verificaciones pendientes."""
+    """Tests for restoring pending verifications."""
 
     async def test_restore_pending_verifications(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que restaura verificaciones pendientes desde la DB."""
-        # Crear verificaciones pendientes en la base de datos
+        """Test that restores pending verifications from DB."""
+        # Create pending verifications in the database
         async with test_database.session() as session:
             service = VerificationService(session)
             request1 = await service.create_request(
@@ -859,13 +859,13 @@ class TestRestorePendingVerifications:
             request1_id = request1.id
             request2_id = request2.id
 
-        # Limpiar estado en memoria
+        # Clear state in memory
         verification_cog._pending_dm_verifications.clear()
 
-        # Restaurar
+        # Restore
         await verification_cog._restore_pending_verifications()
 
-        # Verificar que se restauraron
+        # Verify that were restored
         assert 456 in verification_cog._pending_dm_verifications
         assert 789 in verification_cog._pending_dm_verifications
         assert verification_cog._pending_dm_verifications[456] == (111, request1_id)
@@ -874,7 +874,7 @@ class TestRestorePendingVerifications:
     async def test_restore_ignores_pending_review(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no restaura verificaciones en estado PENDING_REVIEW."""
+        """Test that does not restore verifications in PENDING_REVIEW state."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -884,7 +884,7 @@ class TestRestorePendingVerifications:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            # Actualizar a PENDING_REVIEW
+            # Update to PENDING_REVIEW
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
@@ -893,18 +893,18 @@ class TestRestorePendingVerifications:
         verification_cog._pending_dm_verifications.clear()
         await verification_cog._restore_pending_verifications()
 
-        # No debe restaurar porque ya tiene capturas
+        # Should not restore because it already has screenshots
         assert 456 not in verification_cog._pending_dm_verifications
 
 
 class TestCleanupStaleVerifications:
-    """Tests para limpieza de verificaciones obsoletas al iniciar."""
+    """Tests for cleanup of stale verifications on startup."""
 
     async def test_cancels_verification_when_user_not_in_guild(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que cancela verificaciones si el usuario ya no está en el servidor."""
-        # Crear solicitud pendiente
+        """Test that cancels verifications if user is no longer in the server."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -919,38 +919,38 @@ class TestCleanupStaleVerifications:
             public_id = request.public_id
             request_id = request.id
 
-        # Añadir a pending_dm_verifications para verificar que se limpia
+        # Add to pending_dm_verifications to verify it gets cleaned
         verification_cog._pending_dm_verifications[456] = (123, request_id)
 
-        # Mock guild sin el miembro
+        # Mock guild without the member
         mock_guild = MagicMock()
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
-        mock_guild.get_member.return_value = None  # Usuario no está
-        mock_guild.get_channel.return_value = None  # Sin canal de mod
+        mock_guild.get_member.return_value = None  # User is not present
+        mock_guild.get_channel.return_value = None  # Without mod channel
         verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
 
         await verification_cog._cleanup_stale_verifications()
 
-        # Verificar que se canceló en la base de datos
+        # Verify that was cancelled in the database
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.CANCELLED
 
-        # Verificar que se limpió de memoria
+        # Verify that was cleaned from memory
         assert 456 not in verification_cog._pending_dm_verifications
 
     async def test_skips_verification_when_guild_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que ignora verificaciones si el guild no está disponible."""
-        # Crear solicitud pendiente
+        """Test that ignores verifications if guild is not available."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
-                guild_id=999,  # Guild que no existe
+                guild_id=999,  # Guild that doesn't exist
                 user_id=456,
                 username="TestUser",
                 guild_name="Unknown Guild",
@@ -959,12 +959,12 @@ class TestCleanupStaleVerifications:
             await session.commit()
             public_id = request.public_id
 
-        # Bot no encuentra el guild
+        # Bot doesn't find the guild
         verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
 
         await verification_cog._cleanup_stale_verifications()
 
-        # Verificar que NO se canceló (el guild no está disponible)
+        # Verify that was NOT cancelled (guild not available)
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -974,8 +974,8 @@ class TestCleanupStaleVerifications:
     async def test_skips_verification_when_user_still_in_guild(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no cancela verificaciones si el usuario sigue en el servidor."""
-        # Crear solicitud pendiente
+        """Test that does not cancel verifications if user is still in server."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -988,17 +988,17 @@ class TestCleanupStaleVerifications:
             await session.commit()
             public_id = request.public_id
 
-        # Mock guild con el miembro presente
+        # Mock guild with member present
         mock_member = MagicMock(spec=discord.Member)
         mock_member.id = 456
         mock_guild = MagicMock()
         mock_guild.id = 123
-        mock_guild.get_member.return_value = mock_member  # Usuario está
+        mock_guild.get_member.return_value = mock_member  # User is present
         verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
 
         await verification_cog._cleanup_stale_verifications()
 
-        # Verificar que NO se canceló
+        # Verify that was NOT cancelled
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1008,8 +1008,8 @@ class TestCleanupStaleVerifications:
     async def test_handles_mod_message_update_error(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que continúa si falla la actualización del mensaje de mod."""
-        # Crear solicitud pendiente
+        """Test that continues if mod message update fails."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -1023,7 +1023,7 @@ class TestCleanupStaleVerifications:
             await session.commit()
             public_id = request.public_id
 
-        # Mock guild sin el miembro
+        # Mock guild without the member
         mock_guild = MagicMock()
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -1031,15 +1031,15 @@ class TestCleanupStaleVerifications:
         mock_guild.get_channel.return_value = None
         verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
 
-        # Mock update_mod_message_cancelled para que falle
+        # Mock update_mod_message_cancelled to fail
         with patch(
             "discord_bot.verification.cog.update_mod_message_cancelled",
             side_effect=Exception("Discord API error"),
         ):
-            # No debe lanzar excepción
+            # Should not throw exception
             await verification_cog._cleanup_stale_verifications()
 
-        # Verificar que se canceló en la base de datos a pesar del error
+        # Verify that was cancelled in the database despite the error
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1048,13 +1048,13 @@ class TestCleanupStaleVerifications:
 
 
 class TestInitializeTrackers:
-    """Tests para inicialización de trackers al iniciar."""
+    """Tests for tracker initialization on startup."""
 
     async def test_initializes_tracker_for_guild_with_pending(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que inicializa tracker para guilds con verificaciones pendientes."""
-        # Crear solicitud pendiente y configuración
+        """Test that initializes tracker for guilds with pending verifications."""
+        # Create pending request and configuration
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -1064,11 +1064,11 @@ class TestInitializeTrackers:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            # Guardar configuración con mod_notification_channel
+            # Save configuration with mod_notification_channel
             config_service = ConfigService(session)
             await config_service.set_value(123, "verification", "mod_notification_channel", 888)
             await config_service.set_value(
-                123, "verification", "tracker_title", "📋 Verificaciones Pendientes"
+                123, "verification", "tracker_title", "📋 Pending Verifications"
             )
             await session.commit()
 
@@ -1089,14 +1089,14 @@ class TestInitializeTrackers:
 
         await verification_cog._initialize_trackers()
 
-        # Verificar que se envió el mensaje del tracker
+        # Verify that the tracker message was sent
         mock_mod_channel.send.assert_called_once()
 
     async def test_skips_guild_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que ignora guilds no encontrados."""
-        # Crear solicitud pendiente
+        """Test that ignores guilds not found."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -1108,17 +1108,17 @@ class TestInitializeTrackers:
             )
             await session.commit()
 
-        # Bot no encuentra el guild
+        # Bot doesn't find the guild
         verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
 
-        # No debe lanzar excepción
+        # Should not throw exception
         await verification_cog._initialize_trackers()
 
     async def test_skips_disabled_cog(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que ignora guilds con cog deshabilitado."""
-        # Crear solicitud pendiente
+        """Test that ignores guilds with disabled cog."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -1136,7 +1136,7 @@ class TestInitializeTrackers:
 
         verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
 
-        # Cog deshabilitado
+        # Cog disabled
         with patch.object(
             verification_cog, "_is_cog_enabled", new_callable=AsyncMock
         ) as mock_enabled:
@@ -1144,33 +1144,33 @@ class TestInitializeTrackers:
 
             await verification_cog._initialize_trackers()
 
-            # No debe llamar a get_all_config (porque el cog está deshabilitado)
+            # Should not call get_all_config (because cog is disabled)
             mock_guild.get_channel.assert_not_called()
 
     async def test_no_pending_returns_early(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna temprano si no hay verificaciones pendientes."""
-        # Sin verificaciones pendientes
+        """Test that returns early if there are no pending verifications."""
+        # Without pending verifications
 
-        # No debe lanzar excepción
+        # Should not throw exception
         await verification_cog._initialize_trackers()
 
 
 class TestOnMessage:
-    """Tests para on_message (DM screenshots)."""
+    """Tests for on_message (DM screenshots)."""
 
     async def test_ignores_guild_messages(self, verification_cog: VerificationCog) -> None:
-        """Probar que ignora mensajes de guild."""
+        """Test that ignores guild messages."""
         message = MagicMock(spec=discord.Message)
         message.guild = MagicMock(spec=discord.Guild)
 
         await verification_cog.on_message(message)
 
-        # No deberia procesar nada
+        # Should not process anything
 
     async def test_ignores_bot_messages(self, verification_cog: VerificationCog) -> None:
-        """Probar que ignora mensajes de bots."""
+        """Test that ignores bot messages."""
         message = MagicMock(spec=discord.Message)
         message.guild = None
         message.author = MagicMock()
@@ -1181,7 +1181,7 @@ class TestOnMessage:
     async def test_responds_to_user_without_pending(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que responde a usuarios sin verificacion pendiente."""
+        """Test that responds to users without pending verification."""
         message = MagicMock(spec=discord.Message)
         message.guild = None
         message.author = MagicMock()
@@ -1189,10 +1189,10 @@ class TestOnMessage:
         message.author.id = 999
         message.reply = AsyncMock()
 
-        # Configurar mock del bot para que no encuentre servidor comun
+        # Configure mock bot to not find common server
         verification_cog.bot.guilds = []  # type: ignore[misc]
 
-        # Mock para que no encuentre en base de datos
+        # Mock to not find in database
         with patch.object(
             verification_cog, "_get_pending_verification", new_callable=AsyncMock
         ) as mock_get_pending:
@@ -1200,15 +1200,15 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-            # Debe responder con el mensaje por defecto
+            # Should respond with default message
             message.reply.assert_called_once()
             args = message.reply.call_args[0]
-            assert "No tienes ninguna verificación en curso" in args[0]
+            assert "You don't have any verification in progress" in args[0]
 
     async def test_responds_to_user_without_pending_with_config(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que responde con config de servidor comun."""
+        """Test that responds with common server config."""
         message = MagicMock(spec=discord.Message)
         message.guild = None
         message.author = MagicMock()
@@ -1216,14 +1216,14 @@ class TestOnMessage:
         message.author.id = 999
         message.reply = AsyncMock()
 
-        # Mock de servidor comun
+        # Mock common server
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.get_member = MagicMock(return_value=MagicMock())
         verification_cog.bot.guilds = [mock_guild]  # type: ignore[misc]
 
         config_values = {
-            "no_pending_verification_message": "Mensaje personalizado sin verificación",
+            "no_pending_verification_message": "Custom message no verification",
         }
 
         with (
@@ -1245,10 +1245,10 @@ class TestOnMessage:
 
             message.reply.assert_called_once()
             args = message.reply.call_args[0]
-            assert "Mensaje personalizado sin verificación" in args[0]
+            assert "Custom message no verification" in args[0]
 
     async def test_no_response_when_forbidden(self, verification_cog: VerificationCog) -> None:
-        """Probar que no falla si no puede responder al usuario."""
+        """Test that does not fail if cannot respond to user."""
         message = MagicMock(spec=discord.Message)
         message.guild = None
         message.author = MagicMock()
@@ -1263,14 +1263,14 @@ class TestOnMessage:
         ) as mock_get_pending:
             mock_get_pending.return_value = None
 
-            # No deberia lanzar excepcion
+            # Should not throw exception
             await verification_cog.on_message(message)
 
     async def test_restores_pending_from_database(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que restaura verificacion pendiente desde la base de datos."""
-        # Crear verificacion pendiente en DB
+        """Test that restores pending verification from the database."""
+        # Create pending verification in DB
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -1283,30 +1283,30 @@ class TestOnMessage:
             await session.commit()
             request_id = request.id
 
-        # El usuario NO esta en _pending_dm_verifications
+        # The user is NOT in _pending_dm_verifications
         assert 456 not in verification_cog._pending_dm_verifications
 
-        # Buscar verificacion pendiente
+        # Find pending verification
         result = await verification_cog._get_pending_verification(456)
 
-        # Debe encontrarla en la DB y restaurarla en memoria
+        # Should find in DB and restore in memory
         assert result is not None
         assert result == (123, request_id)
         assert 456 in verification_cog._pending_dm_verifications
         assert verification_cog._pending_dm_verifications[456] == (123, request_id)
 
     async def test_returns_memory_before_database(self, verification_cog: VerificationCog) -> None:
-        """Probar que busca primero en memoria antes de ir a la DB."""
-        # Agregar a memoria
+        """Test that looks in memory first before going to the DB."""
+        # Add to memory
         verification_cog._pending_dm_verifications[456] = (123, 999)
 
-        # Buscar verificacion pendiente (no debe ir a la DB)
+        # Find pending verification (should not go to DB)
         result = await verification_cog._get_pending_verification(456)
 
         assert result == (123, 999)
 
     async def test_wrong_image_count(self, verification_cog: VerificationCog) -> None:
-        """Probar con numero incorrecto de imagenes."""
+        """Test with incorrect number of images."""
         verification_cog._pending_dm_verifications[456] = (123, 1)
 
         message = MagicMock(spec=discord.Message)
@@ -1318,13 +1318,13 @@ class TestOnMessage:
         message.channel = MagicMock()
         message.channel.send = AsyncMock()
 
-        # Solo 1 imagen
+        # Only 1 image
         attachment = MagicMock()
         attachment.content_type = "image/png"
         message.attachments = [attachment]
 
         config_values = {
-            "wrong_images_message": "Debes enviar 2 imagenes",
+            "wrong_images_message": "You must send 2 images",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -1334,11 +1334,11 @@ class TestOnMessage:
             await verification_cog.on_message(message)
 
             message.channel.send.assert_called_once()
-            # Usuario sigue en pending
+            # User still in pending
             assert 456 in verification_cog._pending_dm_verifications
 
     async def test_non_image_attachments_ignored(self, verification_cog: VerificationCog) -> None:
-        """Probar que adjuntos no-imagen son ignorados."""
+        """Test that non-image attachments are ignored."""
         verification_cog._pending_dm_verifications[456] = (123, 1)
 
         message = MagicMock(spec=discord.Message)
@@ -1350,7 +1350,7 @@ class TestOnMessage:
         message.channel = MagicMock()
         message.channel.send = AsyncMock()
 
-        # 2 archivos pero no son imagenes
+        # 2 files but they are not images
         attachment1 = MagicMock()
         attachment1.content_type = "application/pdf"
         attachment2 = MagicMock()
@@ -1358,7 +1358,7 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values = {
-            "wrong_images_message": "Debes enviar 2 imagenes",
+            "wrong_images_message": "You must send 2 images",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -1367,14 +1367,14 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-            # Deberia pedir imagenes porque no detecto ninguna
+            # Should ask for images since none were detected
             message.channel.send.assert_called_once()
 
     async def test_valid_screenshots_processed(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar procesamiento exitoso de capturas."""
-        # Crear solicitud pendiente
+        """Test successful processing of screenshots."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -1404,7 +1404,7 @@ class TestOnMessage:
         message.channel = MagicMock()
         message.channel.send = AsyncMock()
 
-        # 2 imagenes validas
+        # 2 valid images
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
@@ -1414,7 +1414,7 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -1423,12 +1423,12 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-            # Usuario removido de pending
+            # User removed from pending
             assert 456 not in verification_cog._pending_dm_verifications
-            # Confirmacion enviada
+            # Confirmation sent
             message.channel.send.assert_called()
 
-        # Verificar estado en DB
+        # Verify state in DB
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1444,7 +1444,7 @@ class TestOnMessage:
     async def test_invalid_discord_url_rejected(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que URLs no de Discord CDN son rechazadas."""
+        """Test that non-Discord CDN URLs are rejected."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -1468,7 +1468,7 @@ class TestOnMessage:
         message.channel = MagicMock()
         message.channel.send = AsyncMock()
 
-        # URLs de un dominio externo (no Discord CDN)
+        # URLs from external domain (not Discord CDN)
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
         attachment1.url = "https://example.com/image1.png"
@@ -1478,7 +1478,7 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "wrong_images_message": "URLs inválidas",
+            "wrong_images_message": "Invalid URLs",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -1487,15 +1487,15 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-            # Se envió mensaje de error
+            # Sent error message
             message.channel.send.assert_called_once()
-            # Usuario sigue en pending (no se procesó)
+            # User still in pending (was not processed)
             assert 456 in verification_cog._pending_dm_verifications
 
     async def test_auto_reject_on_api_422(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar auto-rechazo cuando la API devuelve 422 (imágenes inválidas)."""
+        """Test auto-reject when API returns 422 (invalid images)."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -1508,7 +1508,7 @@ class TestOnMessage:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            # Añadir mod_message_id para que se procese el auto-rechazo
+            # Add mod_message_id so auto-reject is processed
             await service.set_mod_message_id(request_id=request.id, message_id=999)
             await session.commit()
             public_id = request.public_id
@@ -1548,7 +1548,7 @@ class TestOnMessage:
         mock_user.id = 111
         object.__setattr__(verification_cog.bot, "user", mock_user)
 
-        # Mock settings con API configurada
+        # Mock settings with API configured
         mock_settings = MagicMock()
         mock_settings.verification.api_url = "https://api.example.com"
         mock_settings.verification.api_key = "test-key"
@@ -1573,15 +1573,15 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Tu verificación fue rechazada: {reason}",
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Your verification was rejected: {reason}",
             "delete_processed_messages": True,
         }
 
-        # Mock API devuelve 422
+        # Mock API returns 422
         api_result = VerificationAPIResult(
             success=False,
             status_code=422,
@@ -1602,7 +1602,7 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-        # Verificar estado en DB - debe estar rechazado
+        # Verify state in DB - should be rejected
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1613,7 +1613,7 @@ class TestOnMessage:
     async def test_auto_approve_when_checks_pass(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar auto-aprobación cuando todas las verificaciones pasan."""
+        """Test auto-approval when all verifications pass."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -1702,20 +1702,20 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Verificación aprobada",
+            "approval_message_regular": "Verification approved",
             "delete_processed_messages": True,
         }
 
-        # Mock API devuelve respuesta exitosa que pasa todas las verificaciones
+        # Mock API returns successful response that passes all verifications
         api_response = VerificationAPIResponse(
             name="TestUser",
             level=10,
-            regiment="",  # Sin regimiento
+            regiment="",  # Without regiment
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
@@ -1742,7 +1742,7 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-        # Verificar estado en DB - debe estar aprobado
+        # Verify state in DB - should be approved
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1753,7 +1753,7 @@ class TestOnMessage:
     async def test_auto_reject_when_checks_fail(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar auto-rechazo cuando las verificaciones fallan (ej: tiene regimiento)."""
+        """Test auto-reject when verifications fail (e.g. has regiment)."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -1834,19 +1834,19 @@ class TestOnMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
-            "reject_has_regiment": "Ya perteneces a un regimiento",
-            "rejection_message": "Tu verificación fue rechazada: {reason}",
+            "reject_has_regiment": "You already belong to a regiment",
+            "rejection_message": "Your verification was rejected: {reason}",
             "delete_processed_messages": True,
         }
 
-        # Mock API devuelve respuesta con regimiento (falla verificación para REGULAR)
+        # Mock API returns response with regiment (fails verification for REGULAR)
         api_response = VerificationAPIResponse(
             name="TestUser",
             level=10,
-            regiment="82DK",  # Tiene regimiento - debe rechazarse para REGULAR
+            regiment="82DK",  # Has regiment - should be rejected for REGULAR
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
@@ -1873,7 +1873,7 @@ class TestOnMessage:
 
             await verification_cog.on_message(message)
 
-        # Verificar estado en DB - debe estar rechazado
+        # Verify state in DB - should be rejected
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1883,13 +1883,13 @@ class TestOnMessage:
 
 
 class TestHandleAcceptHappyPath:
-    """Tests para handle_accept flujo exitoso."""
+    """Tests for handle_accept successful flow."""
 
     async def test_accept_approves_and_adds_roles(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aprobacion exitosa con roles."""
-        # Crear solicitud pendiente de revision
+        """Test successful approval with roles."""
+        # Create request pending review
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -1944,7 +1944,7 @@ class TestHandleAcceptHappyPath:
             "mod_roles": [],
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -1955,14 +1955,14 @@ class TestHandleAcceptHappyPath:
 
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
-            # Rol agregado
+            # Role added
             mock_member.add_roles.assert_called_once_with(mock_role)
-            # DM enviado
+            # DM sent
             mock_member.send.assert_called_once()
-            # Confirmacion
+            # Confirmation
             interaction.followup.send.assert_called()
 
-        # Verificar estado en DB
+        # Verify state in DB
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -1973,8 +1973,8 @@ class TestHandleAcceptHappyPath:
     async def test_accept_already_processed(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aprobacion de solicitud ya procesada."""
-        # Crear solicitud ya aprobada
+        """Test approval of already processed request."""
+        # Create already approved request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -2019,17 +2019,17 @@ class TestHandleAcceptHappyPath:
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             call_args = interaction.followup.send.call_args
-            assert "ya fue procesada" in call_args.kwargs["content"].lower()
+            assert "already been processed" in call_args.kwargs["content"].lower()
 
 
 class TestHandleRejectHappyPath:
-    """Tests para handle_reject flujo exitoso."""
+    """Tests for handle_reject successful flow."""
 
     async def test_reject_updates_status_and_notifies(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar rechazo exitoso."""
-        # Crear solicitud pendiente de revision
+        """Test successful rejection."""
+        # Create request pending review
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -2071,10 +2071,10 @@ class TestHandleRejectHappyPath:
 
         config_values: dict[str, object] = {
             "mod_roles": [],
-            "rejection_message": "Rechazado: {reason}",
+            "rejection_message": "Rejected: {reason}",
             "mod_notification_channel": None,
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
+            "verification_type_ally_display": "Ally",
         }
 
         with patch.object(
@@ -2083,34 +2083,34 @@ class TestHandleRejectHappyPath:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Invalid captures"
             )
 
-            # DM enviado con motivo
+            # DM sent with reason
             mock_member.send.assert_called_once()
             sent_message = mock_member.send.call_args.kwargs["content"]
-            assert "Capturas invalidas" in sent_message
+            assert "Invalid captures" in sent_message
 
-        # Verificar estado en DB
+        # Verify state in DB
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.REJECTED
-            assert updated.rejection_reason == "Capturas invalidas"
+            assert updated.rejection_reason == "Invalid captures"
 
 
 class TestHealthCheck:
-    """Tests para health check."""
+    """Tests for health check."""
 
     async def test_check_verification_message_no_channel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check sin canal configurado (cog habilitado)."""
+        """Test healthcheck without configured channel (cog enabled)."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
-        # Habilitar cog pero NO configurar canal
+        # Enable cog but DO NOT configure channel
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
@@ -2118,17 +2118,17 @@ class TestHealthCheck:
             await config_service.set_cog_enabled(123, "verification", True)
             await session.commit()
 
-        # No deberia fallar - retorna temprano en linea 85
+        # Should not fail - returns early on line 85
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_disabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check desactivado."""
+        """Test healthcheck disabled."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
-        # Configurar interval = 0
+        # Configure interval = 0
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
@@ -2136,13 +2136,13 @@ class TestHealthCheck:
             await config_service.set_value(123, "verification", "health_check_interval", 0)
             await session.commit()
 
-        # No deberia hacer nada
+        # Should not do anything
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_run_health_check_iterates_guilds(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que health check itera sobre guilds."""
+        """Test that healthcheck iterates over guilds."""
         mock_guild1 = MagicMock(spec=discord.Guild)
         mock_guild1.id = 111
         mock_guild2 = MagicMock(spec=discord.Guild)
@@ -2158,7 +2158,7 @@ class TestHealthCheck:
                 verification_cog, "_check_verification_message", new_callable=AsyncMock
             ) as mock_check,
         ):
-            mock_interval.return_value = 30  # Health check habilitado
+            mock_interval.return_value = 30  # Health check enabled
 
             await verification_cog._run_health_check(force_all=True)
 
@@ -2167,7 +2167,7 @@ class TestHealthCheck:
     async def test_run_health_check_handles_exception(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que health check maneja excepciones por guild."""
+        """Test that healthcheck handles exceptions per guild."""
         mock_guild1 = MagicMock(spec=discord.Guild)
         mock_guild1.id = 111
         mock_guild2 = MagicMock(spec=discord.Guild)
@@ -2184,18 +2184,18 @@ class TestHealthCheck:
             ) as mock_check,
         ):
             mock_interval.return_value = 30
-            # Primer guild falla, segundo deberia continuar
+            # First guild fails, second should continue
             mock_check.side_effect = [Exception("Error"), None]
 
             await verification_cog._run_health_check(force_all=True)
 
-            # Ambos fueron llamados
+            # Both were called
             assert mock_check.call_count == 2
 
     async def test_run_health_check_skips_disabled_guilds(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que health check omite guilds con intervalo 0."""
+        """Test that healthcheck skips guilds with interval 0."""
         mock_guild1 = MagicMock(spec=discord.Guild)
         mock_guild1.id = 111
         mock_guild2 = MagicMock(spec=discord.Guild)
@@ -2216,14 +2216,14 @@ class TestHealthCheck:
 
             await verification_cog._run_health_check(force_all=True)
 
-            # Solo guild 2 fue verificado
+            # Only guild 2 was verified
             assert mock_check.call_count == 1
             mock_check.assert_called_once_with(guild=mock_guild2)
 
     async def test_run_health_check_respects_interval(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que health check respeta el intervalo por guild."""
+        """Test that healthcheck respects the interval per guild."""
         from datetime import UTC, datetime, timedelta
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -2239,28 +2239,28 @@ class TestHealthCheck:
                 verification_cog, "_check_verification_message", new_callable=AsyncMock
             ) as mock_check,
         ):
-            mock_interval.return_value = 30  # 30 minutos
+            mock_interval.return_value = 30  # 30 minutes
 
-            # Simular que se verifico hace 10 minutos
+            # Simulate verified 10 minutes ago
             verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=10)
 
             await verification_cog._run_health_check()
 
-            # No deberia verificar (solo pasaron 10 de 30 minutos)
+            # Should not verify (only 10 of 30 minutes passed)
             assert mock_check.call_count == 0
 
-            # Simular que se verifico hace 35 minutos
+            # Simulate verified 35 minutes ago
             verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=35)
 
             await verification_cog._run_health_check()
 
-            # Ahora si deberia verificar
+            # Now it should verify
             assert mock_check.call_count == 1
 
     async def test_run_health_check_updates_last_check(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que health check actualiza el timestamp al verificar."""
+        """Test that healthcheck updates the timestamp when verifying."""
         from datetime import datetime
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -2276,19 +2276,19 @@ class TestHealthCheck:
         ):
             mock_interval.return_value = 30
 
-            # Sin timestamp previo
+            # Without previous timestamp
             assert 111 not in verification_cog._last_health_check
 
             await verification_cog._run_health_check(force_all=True)
 
-            # Ahora debe tener timestamp
+            # Should now have timestamp
             assert 111 in verification_cog._last_health_check
             assert isinstance(verification_cog._last_health_check[111], datetime)
 
     async def test_get_health_check_interval_returns_configured_value(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que _get_health_check_interval retorna el valor configurado."""
+        """Test that _get_health_check_interval returns the configured value."""
         guild_id = 123
 
         async with test_database.session() as session:
@@ -2305,7 +2305,7 @@ class TestHealthCheck:
     async def test_get_health_check_interval_returns_default(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que _get_health_check_interval retorna 30 por defecto."""
+        """Test that _get_health_check_interval returns 30 by default."""
         guild_id = 456
 
         async with test_database.session() as session:
@@ -2321,7 +2321,7 @@ class TestHealthCheck:
     async def test_get_health_check_interval_returns_zero_when_disabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que _get_health_check_interval retorna 0 cuando cog deshabilitado."""
+        """Test that _get_health_check_interval returns 0 when cog is disabled."""
         guild_id = 789
 
         async with test_database.session() as session:
@@ -2337,11 +2337,11 @@ class TestHealthCheck:
     async def test_check_verification_message_no_panel_message_id(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check sin panel message ID."""
+        """Test healthcheck without panel message ID."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
-        # Configurar canal pero no panel message ID
+        # Configure channel but not panel message ID
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
@@ -2354,7 +2354,7 @@ class TestHealthCheck:
     async def test_check_verification_message_channel_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check con canal no encontrado."""
+        """Test healthcheck with channel not found."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.get_channel = MagicMock(return_value=None)
@@ -2368,13 +2368,13 @@ class TestHealthCheck:
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await session.commit()
 
-        # Debe retornar temprano con warning (lineas 89-90)
+        # Should return early with warning (lines 89-90)
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_message_not_found_restores(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check restaura panel cuando mensaje no existe."""
+        """Test health check restores panel when message does not exist."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(
             side_effect=discord.NotFound(MagicMock(), "Not found")
@@ -2404,7 +2404,7 @@ class TestHealthCheck:
     async def test_check_verification_message_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check con permisos denegados (lineas 167-168)."""
+        """Test healthcheck with denied permissions (lines 167-168)."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(
             side_effect=discord.Forbidden(MagicMock(), "Forbidden")
@@ -2424,15 +2424,15 @@ class TestHealthCheck:
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
             await session.commit()
 
-        # No deberia fallar - maneja Forbidden con warning (lineas 167-168)
+        # Should not fail - handles Forbidden with warning (lines 167-168)
         await verification_cog._check_verification_message(mock_guild)
 
     async def test_check_verification_message_no_components_restores(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar health check restaura panel sin botones."""
+        """Test healthcheck restores panel without buttons."""
         mock_message = MagicMock()
-        mock_message.components = []  # Sin componentes
+        mock_message.components = []  # Without components
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
@@ -2461,7 +2461,7 @@ class TestHealthCheck:
     async def test_check_verification_message_auto_creates_when_no_panel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que se crea panel automaticamente si no existe."""
+        """Test that panel is created automatically if it does not exist."""
         mock_channel = MagicMock(spec=discord.TextChannel)
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -2474,7 +2474,7 @@ class TestHealthCheck:
 
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(123, "verification", True)
-            # Solo canal configurado, sin panel existente
+            # Only channel configured, without existing panel
             await config_service.set_value(123, "verification", "verification_channel", 111)
             await session.commit()
 
@@ -2487,15 +2487,15 @@ class TestHealthCheck:
     async def test_check_verification_message_moves_when_channel_changes(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que mueve panel cuando cambia el canal."""
-        # Canal viejo (donde estaba el panel)
+        """Test that moves panel when channel changes."""
+        # Old channel (where panel was)
         mock_old_channel = MagicMock(spec=discord.TextChannel)
         mock_old_channel.name = "old-verification"
         mock_old_message = MagicMock()
         mock_old_channel.fetch_message = AsyncMock(return_value=mock_old_message)
         mock_old_message.delete = AsyncMock()
 
-        # Canal nuevo (donde debe ir el panel)
+        # New channel (where panel should go)
         mock_new_channel = MagicMock(spec=discord.TextChannel)
         mock_new_channel.name = "new-verification"
 
@@ -2516,9 +2516,9 @@ class TestHealthCheck:
 
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(123, "verification", True)
-            # Canal configurado: 222 (nuevo)
+            # Configured channel: 222 (new)
             await config_service.set_value(123, "verification", "verification_channel", 222)
-            # Panel existente en canal 111 (viejo)
+            # Existing panel in channel 111 (old)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
             await session.commit()
@@ -2528,17 +2528,17 @@ class TestHealthCheck:
         ) as mock_create:
             await verification_cog._check_verification_message(mock_guild)
 
-            # Debe eliminar panel viejo
+            # Should delete old panel
             mock_old_message.delete.assert_called_once()
-            # Debe crear panel nuevo
+            # Should create new panel
             mock_create.assert_called_once()
 
 
 class TestDeleteMessage:
-    """Tests para delete_message utility."""
+    """Tests for delete_message utility."""
 
     async def test_delete_message_success(self) -> None:
-        """Probar eliminacion exitosa de mensaje."""
+        """Test successful message deletion."""
         mock_message = MagicMock()
         mock_message.delete = AsyncMock()
 
@@ -2556,7 +2556,7 @@ class TestDeleteMessage:
         mock_message.delete.assert_called_once()
 
     async def test_delete_message_channel_not_found(self) -> None:
-        """Probar eliminacion cuando canal no existe."""
+        """Test deletion when channel does not exist."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.get_channel = MagicMock(return_value=None)
@@ -2566,7 +2566,7 @@ class TestDeleteMessage:
         assert result is False
 
     async def test_delete_message_not_found(self) -> None:
-        """Probar eliminacion cuando mensaje ya no existe."""
+        """Test deletion when message no longer exists."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(
             side_effect=discord.NotFound(MagicMock(), "Not found")
@@ -2581,7 +2581,7 @@ class TestDeleteMessage:
         assert result is False
 
     async def test_delete_message_forbidden(self) -> None:
-        """Probar eliminacion sin permisos."""
+        """Test deletion without permissions."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(
             side_effect=discord.Forbidden(MagicMock(), "Forbidden")
@@ -2597,12 +2597,12 @@ class TestDeleteMessage:
 
 
 class TestCreateVerificationMessage:
-    """Tests para _create_verification_message."""
+    """Tests for _create_verification_message."""
 
     async def test_create_verification_message_success(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar creacion exitosa de panel con canal de moderacion configurado."""
+        """Test successful panel creation with moderation channel configured."""
         mock_new_message = MagicMock()
         mock_new_message.id = 12345
 
@@ -2611,20 +2611,20 @@ class TestCreateVerificationMessage:
         mock_channel.name = "verification"
         mock_channel.send = AsyncMock(return_value=mock_new_message)
 
-        # Mock del canal de moderacion
+        # Mock moderation channel
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.id = 222
 
-        # Mock de permisos del bot en el canal de moderacion
+        # Mock bot permissions in moderation channel
         mock_permissions = MagicMock()
         mock_permissions.send_messages = True
         mock_mod_channel.permissions_for = MagicMock(return_value=mock_permissions)
 
-        # Mock del miembro del bot
+        # Mock bot member
         mock_bot_member = MagicMock(spec=discord.Member)
         mock_bot_member.id = 999
 
-        # Configurar bot.user.id
+        # Configure bot.user.id
         mock_user = MagicMock()
         mock_user.id = 999
         object.__setattr__(verification_cog.bot, "user", mock_user)
@@ -2640,12 +2640,12 @@ class TestCreateVerificationMessage:
 
             config_service = ConfigService(session)
 
-            # Configurar valores necesarios
+            # Configure required values
             await config_service.set_value(123, "verification", "mod_notification_channel", 222)
-            await config_service.set_value(123, "verification", "verify_button_text", "Verificar")
-            await config_service.set_value(123, "verification", "verify_ally_button_text", "Aliado")
+            await config_service.set_value(123, "verification", "verify_button_text", "Verify")
+            await config_service.set_value(123, "verification", "verify_ally_button_text", "Ally")
             await config_service.set_value(
-                123, "verification", "verification_panel_message", "Bienvenido"
+                123, "verification", "verification_panel_message", "Welcome"
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -2658,14 +2658,14 @@ class TestCreateVerificationMessage:
             )
 
             mock_channel.send.assert_called_once()
-            # Verificar que se envio con view (botones habilitados)
+            # Verify that was sent with view (buttons enabled)
             call_kwargs = mock_channel.send.call_args.kwargs
             assert call_kwargs["view"] is not None
 
     async def test_create_verification_message_disabled_no_mod_channel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar panel deshabilitado cuando no hay canal de moderacion."""
+        """Test panel disabled when there is no moderation channel."""
         mock_new_message = MagicMock()
         mock_new_message.id = 12345
 
@@ -2683,12 +2683,12 @@ class TestCreateVerificationMessage:
 
             config_service = ConfigService(session)
 
-            # NO configurar mod_notification_channel
+            # DO NOT configure mod_notification_channel
             await config_service.set_value(
                 123,
                 "verification",
                 "verification_disabled_message",
-                "La verificacion esta deshabilitada",
+                "Verification is disabled",
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -2701,35 +2701,35 @@ class TestCreateVerificationMessage:
             )
 
             mock_channel.send.assert_called_once()
-            # Verificar que se envio sin view (botones deshabilitados)
+            # Verify that was sent without view (buttons disabled)
             call_kwargs = mock_channel.send.call_args.kwargs
             assert "view" not in call_kwargs
-            # El contenido ahora está en el embed
+            # Content is now in the embed
             assert "embed" in call_kwargs
-            assert "deshabilitada" in call_kwargs["embed"].description
+            assert "disabled" in call_kwargs["embed"].description
 
     async def test_create_verification_message_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar creacion con permisos denegados en canal de verificacion."""
+        """Test creation with denied permissions in verification channel."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 111
         mock_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
 
-        # Mock del canal de moderacion
+        # Mock moderation channel
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.id = 222
 
-        # Mock de permisos del bot
+        # Mock bot permissions
         mock_permissions = MagicMock()
         mock_permissions.send_messages = True
         mock_mod_channel.permissions_for = MagicMock(return_value=mock_permissions)
 
-        # Mock del miembro del bot
+        # Mock bot member
         mock_bot_member = MagicMock(spec=discord.Member)
         mock_bot_member.id = 999
 
-        # Configurar bot.user.id
+        # Configure bot.user.id
         mock_user = MagicMock()
         mock_user.id = 999
         object.__setattr__(verification_cog.bot, "user", mock_user)
@@ -2745,16 +2745,16 @@ class TestCreateVerificationMessage:
 
             config_service = ConfigService(session)
 
-            # Configurar valores necesarios
+            # Configure required values
             await config_service.set_value(123, "verification", "mod_notification_channel", 222)
-            await config_service.set_value(123, "verification", "verify_button_text", "Verificar")
-            await config_service.set_value(123, "verification", "verify_ally_button_text", "Aliado")
+            await config_service.set_value(123, "verification", "verify_button_text", "Verify")
+            await config_service.set_value(123, "verification", "verify_ally_button_text", "Ally")
             await config_service.set_value(
-                123, "verification", "verification_panel_message", "Bienvenido"
+                123, "verification", "verification_panel_message", "Welcome"
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
-            # No deberia fallar
+            # Should not fail
             await verification_cog._create_verification_message(
                 guild=mock_guild,
                 channel=mock_channel,
@@ -2766,7 +2766,7 @@ class TestCreateVerificationMessage:
     async def test_create_verification_message_with_embed_and_view(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar creacion de panel con embed e imagen (linea 227)."""
+        """Test panel creation with embed and image (line 227)."""
         mock_new_message = MagicMock()
         mock_new_message.id = 12345
 
@@ -2775,20 +2775,20 @@ class TestCreateVerificationMessage:
         mock_channel.name = "verification"
         mock_channel.send = AsyncMock(return_value=mock_new_message)
 
-        # Mock del canal de moderacion
+        # Mock moderation channel
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.id = 222
 
-        # Mock de permisos del bot en el canal de moderacion
+        # Mock bot permissions in moderation channel
         mock_permissions = MagicMock()
         mock_permissions.send_messages = True
         mock_mod_channel.permissions_for = MagicMock(return_value=mock_permissions)
 
-        # Mock del miembro del bot
+        # Mock bot member
         mock_bot_member = MagicMock(spec=discord.Member)
         mock_bot_member.id = 999
 
-        # Configurar bot.user.id
+        # Configure bot.user.id
         mock_user = MagicMock()
         mock_user.id = 999
         object.__setattr__(verification_cog.bot, "user", mock_user)
@@ -2804,15 +2804,15 @@ class TestCreateVerificationMessage:
 
             config_service = ConfigService(session)
 
-            # Configurar con URL de imagen para crear embed
+            # Configure with image URL to create embed
             await config_service.set_value(123, "verification", "mod_notification_channel", 222)
-            await config_service.set_value(123, "verification", "verify_button_text", "Verificar")
-            await config_service.set_value(123, "verification", "verify_ally_button_text", "Aliado")
+            await config_service.set_value(123, "verification", "verify_button_text", "Verify")
+            await config_service.set_value(123, "verification", "verify_ally_button_text", "Ally")
             await config_service.set_value(
                 123,
                 "verification",
                 "verification_panel_message",
-                "Bienvenido\nhttps://example.com/image.png",
+                "Welcome\nhttps://example.com/image.png",
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -2825,7 +2825,7 @@ class TestCreateVerificationMessage:
             )
 
             mock_channel.send.assert_called_once()
-            # Verificar que se envio con embed y view
+            # Verify that was sent with embed and view
             call_kwargs = mock_channel.send.call_args.kwargs
             assert "embed" in call_kwargs
             assert call_kwargs["view"] is not None
@@ -2833,7 +2833,7 @@ class TestCreateVerificationMessage:
     async def test_create_verification_message_with_embed_only(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar creacion de panel con embed sin botones (linea 229)."""
+        """Test panel creation with embed without buttons (line 229)."""
         mock_new_message = MagicMock()
         mock_new_message.id = 12345
 
@@ -2845,20 +2845,20 @@ class TestCreateVerificationMessage:
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
-        # Sin canal de moderacion configurado
+        # Without moderation channel configured
 
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
             config_service = ConfigService(session)
 
-            # NO configurar mod_notification_channel (deshabilitado)
-            # Pero SI poner URL de imagen para crear embed
+            # DO NOT configure mod_notification_channel (disabled)
+            # But DO put image URL to create embed
             await config_service.set_value(
                 123,
                 "verification",
                 "verification_disabled_message",
-                "Verificacion deshabilitada\nhttps://example.com/image.png",
+                "Verification disabled\nhttps://example.com/image.png",
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -2871,19 +2871,19 @@ class TestCreateVerificationMessage:
             )
 
             mock_channel.send.assert_called_once()
-            # Verificar que se envio solo con embed (sin view)
+            # Verify that was sent with embed only (without view)
             call_kwargs = mock_channel.send.call_args.kwargs
             assert "embed" in call_kwargs
             assert "view" not in call_kwargs or call_kwargs.get("view") is None
 
 
 class TestHandleVerificationStartHappyPath:
-    """Tests para handle_verification_start flujo exitoso."""
+    """Tests for handle_verification_start successful flow."""
 
     async def test_starts_verification_successfully(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar inicio exitoso de verificacion."""
+        """Test successful verification start."""
         # Mock mod channel
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_message = MagicMock()
@@ -2912,12 +2912,12 @@ class TestHandleVerificationStartHappyPath:
         interaction.followup.send = AsyncMock()
 
         config_values: dict[str, object] = {
-            "already_pending_message": "Pendiente",
-            "dm_instructions_message": "Instrucciones para {username}",
+            "already_pending_message": "Pending",
+            "dm_instructions_message": "Instructions for {username}",
             "mod_notification_channel": 888,
-            "mod_message_template": "Nueva verificacion de {username}",
+            "mod_message_template": "New verification from {username}",
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
+            "verification_type_ally_display": "Ally",
         }
 
         with patch.object(
@@ -2929,14 +2929,14 @@ class TestHandleVerificationStartHappyPath:
                 interaction=interaction, verification_type=VerificationType.REGULAR
             )
 
-            # DM enviado
+            # DM sent
             mock_user.send.assert_called_once()
-            # Mensaje a mods enviado (+ tracker message)
+            # Message to mods sent (+ tracker message)
             assert mock_mod_channel.send.call_count >= 1
-            # Confirmacion
+            # Confirmation
             interaction.followup.send.assert_called()
 
-        # Verificar que se creo la solicitud
+        # Verify that the request was created
         async with test_database.session() as session:
             service = VerificationService(session)
             pending = await service.get_pending_by_user(123, 456)
@@ -2945,12 +2945,12 @@ class TestHandleVerificationStartHappyPath:
 
 
 class TestRoleOperations:
-    """Tests para operaciones de roles."""
+    """Tests for role operations."""
 
     async def test_accept_role_add_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aprobacion cuando agregar rol falla."""
+        """Test approval when adding role fails."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -2998,7 +2998,7 @@ class TestRoleOperations:
             "mod_roles": [],
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -3007,7 +3007,7 @@ class TestRoleOperations:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # No deberia fallar aunque el rol falle
+            # Should not fail even if the role fails
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
@@ -3015,7 +3015,7 @@ class TestRoleOperations:
     async def test_accept_role_remove_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aprobacion cuando quitar rol falla."""
+        """Test approval when removing role fails."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3065,7 +3065,7 @@ class TestRoleOperations:
             "mod_roles": [],
             "regular_roles_add": [],
             "regular_roles_remove": [999],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -3081,7 +3081,7 @@ class TestRoleOperations:
     async def test_accept_dm_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aprobacion cuando DM falla."""
+        """Test approval when DM fails."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3126,7 +3126,7 @@ class TestRoleOperations:
             "mod_roles": [],
             "regular_roles_add": [],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -3135,19 +3135,19 @@ class TestRoleOperations:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # No deberia fallar
+            # Should not fail
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
 
 
 class TestModMessageEditing:
-    """Tests para edicion de mensajes de moderacion."""
+    """Tests for editing moderation messages."""
 
     async def test_accept_edits_mod_message(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que aceptar edita el mensaje de moderacion."""
+        """Test that accept edits the moderation message."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3164,11 +3164,11 @@ class TestModMessageEditing:
             await session.commit()
             public_id = request.public_id
 
-        pending_status = "🔍 **Estado:** Pendiente de revision"
+        pending_status = "🔍 **Status:** Pending review"
 
-        # Crear mock del embed existente
+        # Create mock of existing embed
         mock_embed = MagicMock()
-        mock_embed.description = f"Solicitud\n\n{pending_status}"
+        mock_embed.description = f"Request\n\n{pending_status}"
 
         mock_mod_message = MagicMock()
         mock_mod_message.embeds = [mock_embed]
@@ -3206,10 +3206,10 @@ class TestModMessageEditing:
             "mod_roles": [],
             "regular_roles_add": [],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": 888,
             "status_pending_review": pending_status,
-            "status_approved": "✅ **Estado:** Aprobado por {moderator}",
+            "status_approved": "✅ **Status:** Approved by {moderator}",
         }
 
         with patch.object(
@@ -3221,16 +3221,16 @@ class TestModMessageEditing:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
-            # El contenido ahora está en el primer embed
+            # Content is now in the first embed
             assert "embeds" in edit_kwargs
             main_embed = edit_kwargs["embeds"][0]
-            assert "Aprobado" in (main_embed.description or "")
+            assert "Approved" in (main_embed.description or "")
             assert edit_kwargs["view"] is None
 
     async def test_accept_mod_message_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar aceptar cuando mensaje de mod no existe."""
+        """Test accept when mod message does not exist."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3281,7 +3281,7 @@ class TestModMessageEditing:
             "mod_roles": [],
             "regular_roles_add": [],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": 888,
         }
 
@@ -3290,7 +3290,7 @@ class TestModMessageEditing:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # No deberia fallar
+            # Should not fail
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
             interaction.followup.send.assert_called()
@@ -3298,7 +3298,7 @@ class TestModMessageEditing:
     async def test_reject_edits_mod_message(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que rechazar edita el mensaje de moderacion."""
+        """Test that reject edits the moderation message."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3315,11 +3315,11 @@ class TestModMessageEditing:
             await session.commit()
             public_id = request.public_id
 
-        pending_status = "🔍 **Estado:** Pendiente de revision"
+        pending_status = "🔍 **Status:** Pending review"
 
-        # Crear mock del embed existente
+        # Create mock of existing embed
         mock_embed = MagicMock()
-        mock_embed.description = f"Solicitud\n\n{pending_status}"
+        mock_embed.description = f"Request\n\n{pending_status}"
 
         mock_mod_message = MagicMock()
         mock_mod_message.embeds = [mock_embed]
@@ -3352,12 +3352,12 @@ class TestModMessageEditing:
 
         config_values: dict[str, object] = {
             "mod_roles": [],
-            "rejection_message": "Rechazado: {reason}",
+            "rejection_message": "Rejected: {reason}",
             "mod_notification_channel": 888,
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
+            "verification_type_ally_display": "Ally",
             "status_pending_review": pending_status,
-            "status_rejected": "❌ **Estado:** Rechazado por {moderator}\n**Motivo:** {reason}",
+            "status_rejected": "❌ **Status:** Rejected by {moderator}\n**Reason:** {reason}",
         }
 
         with patch.object(
@@ -3366,29 +3366,29 @@ class TestModMessageEditing:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Invalid captures"
             )
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
-            # El contenido ahora está en el primer embed
+            # Content is now in the first embed
             assert "embeds" in edit_kwargs
             main_embed = edit_kwargs["embeds"][0]
-            assert "Rechazado" in (main_embed.description or "")
-            assert "Capturas invalidas" in (main_embed.description or "")
+            assert "Rejected" in (main_embed.description or "")
+            assert "Invalid captures" in (main_embed.description or "")
 
 
 class TestUpdateModMessageForReview:
-    """Tests para _update_mod_message_for_review."""
+    """Tests for _update_mod_message_for_review."""
 
     async def test_update_with_history(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar actualizacion con historial de verificaciones."""
-        # Crear historial
+        """Test update with verification history."""
+        # Create history
         async with test_database.session() as session:
             service = VerificationService(session)
-            # Solicitud anterior aprobada
+            # Previous approved request
             old_request = await service.create_request(
                 guild_id=123,
                 user_id=456,
@@ -3404,7 +3404,7 @@ class TestUpdateModMessageForReview:
                 guild_name="Test Guild",
             )
 
-            # Solicitud actual
+            # Current request
             request = await service.create_request(
                 guild_id=123,
                 user_id=456,
@@ -3418,7 +3418,7 @@ class TestUpdateModMessageForReview:
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
 
-            # Refrescar request
+            # Refresh request
             refreshed = await service.get_request(request.id)
             assert refreshed is not None
             request = refreshed
@@ -3432,9 +3432,9 @@ class TestUpdateModMessageForReview:
             config = {
                 "mod_message_template": "Template {username}",
                 "verification_type_regular_display": "Normal",
-                "verification_type_ally_display": "Aliado",
-                "accept_button_text": "Aceptar",
-                "reject_button_text": "Rechazar",
+                "verification_type_ally_display": "Ally",
+                "accept_button_text": "Accept",
+                "reject_button_text": "Reject",
             }
 
             await verification_cog._update_mod_message_for_review(
@@ -3446,12 +3446,12 @@ class TestUpdateModMessageForReview:
 
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args[1]
-            # El contenido ahora está en el primer embed
+            # Content is now in the first embed
             assert "embeds" in edit_kwargs
             main_embed = edit_kwargs["embeds"][0]
-            # Historial ahora es un campo, no parte de la descripción
+            # History is now a field, not part of description
             history_field = next(
-                (f for f in main_embed.fields if f.name == "Historial"),
+                (f for f in main_embed.fields if f.name == "History"),
                 None,
             )
             assert history_field is not None
@@ -3459,7 +3459,7 @@ class TestUpdateModMessageForReview:
     async def test_update_message_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar actualizacion cuando mensaje no existe."""
+        """Test update when message does not exist."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3486,12 +3486,12 @@ class TestUpdateModMessageForReview:
             config = {
                 "mod_message_template": "Template {username}",
                 "verification_type_regular_display": "Normal",
-                "verification_type_ally_display": "Aliado",
-                "accept_button_text": "Aceptar",
-                "reject_button_text": "Rechazar",
+                "verification_type_ally_display": "Ally",
+                "accept_button_text": "Accept",
+                "reject_button_text": "Reject",
             }
 
-            # No deberia fallar
+            # Should not fail
             await verification_cog._update_mod_message_for_review(
                 channel=mock_channel,
                 request=request,
@@ -3501,13 +3501,13 @@ class TestUpdateModMessageForReview:
 
 
 class TestOnMessageScreenshots:
-    """Tests adicionales para on_message con screenshots."""
+    """Additional tests for on_message with screenshots."""
 
     async def test_request_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando la solicitud no existe en DB."""
-        # Registrar pending pero sin crear en DB
+        """Test when request does not exist in DB."""
+        # Register pending but without creating in DB
         verification_cog._pending_dm_verifications[456] = (123, 99999)
 
         object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=None))
@@ -3530,7 +3530,7 @@ class TestOnMessageScreenshots:
         message.attachments = [attachment1, attachment2]
 
         config_values = {
-            "request_not_found_message": "Error: No se encontro tu solicitud.",
+            "request_not_found_message": "Error: Your request was not found.",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -3539,17 +3539,17 @@ class TestOnMessageScreenshots:
 
             await verification_cog.on_message(message)
 
-            # Deberia enviar error
+            # Should send error
             message.channel.send.assert_called()
             call_args = message.channel.send.call_args
             assert "error" in call_args.kwargs["content"].lower()
 
 
 class TestCogLifecycle:
-    """Tests para cog_load y cog_unload."""
+    """Tests for cog_load and cog_unload."""
 
     async def test_cog_load_starts_health_check(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que cog_load inicia health check."""
+        """Test that cog_load starts health check."""
         cog = VerificationCog(mock_discord_bot)
 
         # Mock the task
@@ -3563,7 +3563,7 @@ class TestCogLifecycle:
         assert cog._health_check_started is True
 
     async def test_cog_unload_stops_health_check(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que cog_unload detiene health check."""
+        """Test that cog_unload stops health check."""
         cog = VerificationCog(mock_discord_bot)
         cog._health_check_started = True
 
@@ -3577,12 +3577,12 @@ class TestCogLifecycle:
 
 
 class TestHealthCheckTaskMethods:
-    """Tests para metodos del task loop de health check."""
+    """Tests for health check task loop methods."""
 
     async def test_health_check_loop_calls_run_health_check(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que el loop llama a _run_health_check."""
+        """Test that the loop calls _run_health_check."""
         with patch.object(
             verification_cog, "_run_health_check", new_callable=AsyncMock
         ) as mock_run:
@@ -3593,7 +3593,7 @@ class TestHealthCheckTaskMethods:
     async def test_before_health_check_waits_and_runs(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que before_health_check espera al bot y ejecuta health check."""
+        """Test that before_health_check waits for the bot and runs health check."""
         with patch.object(
             verification_cog, "_run_health_check", new_callable=AsyncMock
         ) as mock_run:
@@ -3601,17 +3601,17 @@ class TestHealthCheckTaskMethods:
 
             wait_until_ready_mock = cast(AsyncMock, verification_cog.bot.wait_until_ready)
             wait_until_ready_mock.assert_called_once()
-            # Debe ejecutar health check inmediatamente
+            # Should execute health check immediately
             mock_run.assert_called_once()
 
 
 class TestGetAllConfig:
-    """Tests para _get_all_config."""
+    """Tests for _get_all_config."""
 
     async def test_get_all_config_returns_values(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que _get_all_config devuelve los valores configurados."""
+        """Test that _get_all_config returns configured values."""
         from discord_bot.common.services.config_service import ConfigService
 
         async with test_database.session() as session:
@@ -3620,28 +3620,28 @@ class TestGetAllConfig:
                 guild_id=123,
                 cog_name="verification",
                 key="verify_button_text",
-                value="Mi Boton",
+                value="My Button",
             )
             await session.commit()
 
         result = await verification_cog._get_all_config(guild_id=123)
-        assert result.get("verify_button_text") == "Mi Boton"
+        assert result.get("verify_button_text") == "My Button"
 
     async def test_get_all_config_returns_empty_dict_for_missing(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que _get_all_config devuelve dict vacio para guild sin config."""
+        """Test that _get_all_config returns empty dict for guild without config."""
         result = await verification_cog._get_all_config(guild_id=999)
         assert isinstance(result, dict)
 
 
 class TestHandleAcceptAllyRoles:
-    """Tests para handle_accept con verificacion de aliado."""
+    """Tests for handle_accept with ally verification."""
 
     async def test_accept_ally_uses_ally_roles(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que aceptar aliado usa roles de aliado."""
+        """Test that accepting ally uses ally roles."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3691,7 +3691,7 @@ class TestHandleAcceptAllyRoles:
             "regular_roles_remove": [],
             "ally_roles_add": [777],
             "ally_roles_remove": [222],
-            "approval_message_ally": "Aprobado como aliado!",
+            "approval_message_ally": "Approved as ally!",
             "mod_notification_channel": None,
         }
 
@@ -3702,15 +3702,15 @@ class TestHandleAcceptAllyRoles:
 
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
-            # Debe usar rol de aliado, no regular
+            # Should use ally role, not regular
             mock_member.add_roles.assert_called_once_with(mock_ally_role)
 
 
 class TestHandleRejectEdgeCases:
-    """Tests para handle_reject casos edge."""
+    """Tests for handle_reject edge cases."""
 
     async def test_reject_request_not_found(self, verification_cog: VerificationCog) -> None:
-        """Probar rechazo con solicitud inexistente."""
+        """Test rejection with non-existent request."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -3734,16 +3734,16 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, public_id="nonexistent", reason="motivo"
+                interaction=interaction, public_id="nonexistent", reason="reason"
             )
 
             call_args = interaction.followup.send.call_args
-            assert "no encontrada" in call_args.kwargs["content"].lower()
+            assert "not found" in call_args.kwargs["content"].lower()
 
     async def test_reject_already_processed(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar rechazo de solicitud ya procesada."""
+        """Test rejection of already processed request."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3760,7 +3760,7 @@ class TestHandleRejectEdgeCases:
                 request_id=request.id,
                 reviewer_id=111,
                 reviewer_username="OtherMod",
-                reason="Ya rechazada",
+                reason="Already rejected",
                 guild_name="Test Guild",
             )
             await session.commit()
@@ -3787,16 +3787,16 @@ class TestHandleRejectEdgeCases:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction=interaction, public_id=public_id, reason="motivo"
+                interaction=interaction, public_id=public_id, reason="reason"
             )
 
             call_args = interaction.followup.send.call_args
-            assert "ya fue procesada" in call_args.kwargs["content"].lower()
+            assert "already been processed" in call_args.kwargs["content"].lower()
 
     async def test_reject_dm_forbidden(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar rechazo cuando DM falla."""
+        """Test rejection when DM fails."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3836,10 +3836,10 @@ class TestHandleRejectEdgeCases:
 
         config_values: dict[str, object] = {
             "mod_roles": [],
-            "rejection_message": "Rechazado: {reason}",
+            "rejection_message": "Rejected: {reason}",
             "mod_notification_channel": None,
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
+            "verification_type_ally_display": "Ally",
         }
 
         with patch.object(
@@ -3847,9 +3847,9 @@ class TestHandleRejectEdgeCases:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # No deberia fallar aunque el DM falle
+            # Should not fail even if DM fails
             await verification_cog.handle_reject(
-                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Invalid captures"
             )
 
             interaction.followup.send.assert_called()
@@ -3857,7 +3857,7 @@ class TestHandleRejectEdgeCases:
     async def test_reject_mod_message_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar rechazo cuando mensaje de mod no existe."""
+        """Test rejection when mod message does not exist."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3903,10 +3903,10 @@ class TestHandleRejectEdgeCases:
 
         config_values: dict[str, object] = {
             "mod_roles": [],
-            "rejection_message": "Rechazado: {reason}",
+            "rejection_message": "Rejected: {reason}",
             "mod_notification_channel": 888,
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
+            "verification_type_ally_display": "Ally",
         }
 
         with patch.object(
@@ -3914,21 +3914,21 @@ class TestHandleRejectEdgeCases:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # No deberia fallar
+            # Should not fail
             await verification_cog.handle_reject(
-                interaction=interaction, public_id=public_id, reason="Capturas invalidas"
+                interaction=interaction, public_id=public_id, reason="Invalid captures"
             )
 
             interaction.followup.send.assert_called()
 
 
 class TestOnMessageUpdateModMessage:
-    """Tests para on_message actualizando mensaje de moderacion."""
+    """Tests for on_message updating moderation message."""
 
     async def test_screenshots_updates_mod_message(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que screenshots actualiza mensaje de mod."""
+        """Test that screenshots updates mod message."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -3981,14 +3981,14 @@ class TestOnMessageUpdateModMessage:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, object] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
-            "mod_message_template": "Verificacion de {username}",
+            "mod_message_template": "Verification from {username}",
             "verification_type_regular_display": "Normal",
-            "verification_type_ally_display": "Aliado",
-            "accept_button_text": "Aceptar",
-            "reject_button_text": "Rechazar",
-            "tracker_title": "📋 Verificaciones Pendientes",
+            "verification_type_ally_display": "Ally",
+            "accept_button_text": "Accept",
+            "reject_button_text": "Reject",
+            "tracker_title": "📋 Pending Verifications",
         }
 
         with patch.object(
@@ -3998,17 +3998,17 @@ class TestOnMessageUpdateModMessage:
 
             await verification_cog.on_message(message)
 
-            # Mod message fue editado
+            # Mod message was edited
             mock_mod_message.edit.assert_called_once()
 
 
 class TestUpdateModMessageNoMessageId:
-    """Tests para _update_mod_message_for_review sin mod_message_id."""
+    """Tests for _update_mod_message_for_review without mod_message_id."""
 
     async def test_early_return_when_no_mod_message_id(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna temprano sin mod_message_id."""
+        """Test that returns early without mod_message_id."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -4021,7 +4021,7 @@ class TestUpdateModMessageNoMessageId:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
-            # NO establecemos mod_message_id
+            # DO NOT set mod_message_id
             await session.commit()
             refreshed = await service.get_request(request.id)
             assert refreshed is not None
@@ -4034,15 +4034,15 @@ class TestUpdateModMessageNoMessageId:
                 mock_channel, request, service, {}
             )
 
-            # No deberia intentar fetch
+            # Should not try to fetch
             mock_channel.fetch_message.assert_not_called()
 
 
 class TestSetupAndTeardown:
-    """Tests para funciones setup y teardown del modulo."""
+    """Tests for module setup and teardown functions."""
 
     async def test_setup_registers_schema_and_adds_cog(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que setup registra schema y añade cog."""
+        """Test that setup registers schema and adds cog."""
         from discord_bot.common.services.config_schema_service import (
             get_config_schema_service,
         )
@@ -4052,16 +4052,16 @@ class TestSetupAndTeardown:
 
         await setup(mock_discord_bot)
 
-        # Verificar que el cog fue añadido
+        # Verify that the cog was added
         mock_discord_bot.add_cog.assert_called_once()
 
-        # Verificar que el schema fue registrado
+        # Verify that the schema was registered
         schema_service = get_config_schema_service()
         schema = schema_service.get_schema("verification")
         assert schema is not None
 
     async def test_teardown_unregisters_schema(self, mock_discord_bot: MagicMock) -> None:
-        """Probar que teardown desregistra el schema."""
+        """Test that teardown unregisters the schema."""
         from discord_bot.common.services.config_schema_service import (
             get_config_schema_service,
         )
@@ -4069,23 +4069,23 @@ class TestSetupAndTeardown:
 
         mock_discord_bot.add_cog = AsyncMock()
 
-        # Primero setup
+        # First setup
         await setup(mock_discord_bot)
 
-        # Luego teardown
+        # Then teardown
         await teardown(mock_discord_bot)
 
-        # Schema ya no debe existir
+        # Schema should no longer exist
         schema_service = get_config_schema_service()
         schema = schema_service.get_schema("verification")
         assert schema is None
 
 
 class TestOnConfigChanged:
-    """Tests para on_config_changed."""
+    """Tests for on_config_changed."""
 
     async def test_updates_panel_on_relevant_key(self, verification_cog: VerificationCog) -> None:
-        """Probar que actualiza panel cuando cambia una clave relevante."""
+        """Test that updates panel when a relevant key changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test Guild"
 
@@ -4097,7 +4097,7 @@ class TestOnConfigChanged:
             mock_check.assert_called_once_with(guild=mock_guild, recreate=True)
 
     async def test_ignores_irrelevant_key(self, verification_cog: VerificationCog) -> None:
-        """Probar que ignora claves no relacionadas con el panel."""
+        """Test that ignores keys not related to the panel."""
         mock_guild = MagicMock(spec=discord.Guild)
 
         with patch.object(
@@ -4109,12 +4109,12 @@ class TestOnConfigChanged:
 
 
 class TestCheckVerificationMessageRecreate:
-    """Tests para _check_verification_message con recreate=True."""
+    """Tests for _check_verification_message with recreate=True."""
 
     async def test_no_channel_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando no hay canal configurado."""
+        """Test when there is no configured channel."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -4123,13 +4123,13 @@ class TestCheckVerificationMessageRecreate:
         ) as mock_delete:
             await verification_cog._check_verification_message(guild=mock_guild, recreate=True)
 
-            # No debe intentar eliminar panel si no hay canal
+            # Should not try to delete panel if no channel
             mock_delete.assert_not_called()
 
     async def test_channel_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando el canal no existe."""
+        """Test when the channel does not exist."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.get_channel = MagicMock(return_value=None)
@@ -4151,7 +4151,7 @@ class TestCheckVerificationMessageRecreate:
     async def test_deletes_old_and_creates_new(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que elimina panel viejo y crea uno nuevo."""
+        """Test that deletes old panel and creates new one."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 111
 
@@ -4184,12 +4184,12 @@ class TestCheckVerificationMessageRecreate:
 
 
 class TestCreateVerificationMessagePermissions:
-    """Tests para _create_verification_message con diferentes estados de permisos."""
+    """Tests for _create_verification_message with different permission states."""
 
     async def test_disabled_manually(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar panel con verificacion deshabilitada manualmente."""
+        """Test panel with manually disabled verification."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 111
         mock_channel.send = AsyncMock(return_value=MagicMock(id=888))
@@ -4204,7 +4204,7 @@ class TestCreateVerificationMessagePermissions:
             config_service = ConfigService(session)
             await config_service.set_value(123, "verification", "verification_enabled", False)
             await config_service.set_value(
-                123, "verification", "verification_disabled_message", "Deshabilitado"
+                123, "verification", "verification_disabled_message", "Disabled"
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -4218,14 +4218,14 @@ class TestCreateVerificationMessagePermissions:
 
             mock_channel.send.assert_called_once()
             call_kwargs = mock_channel.send.call_args.kwargs
-            # El mensaje ahora es un embed
+            # The message is now an embed
             assert "embed" in call_kwargs
-            assert "Deshabilitado" in (call_kwargs["embed"].description or "")
+            assert "Disabled" in (call_kwargs["embed"].description or "")
 
     async def test_mod_channel_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar panel cuando canal de moderacion no existe."""
+        """Test panel when moderation channel does not exist."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 111
         mock_channel.send = AsyncMock(return_value=MagicMock(id=888))
@@ -4242,7 +4242,7 @@ class TestCreateVerificationMessagePermissions:
             await config_service.set_value(123, "verification", "verification_enabled", True)
             await config_service.set_value(123, "verification", "mod_notification_channel", 999)
             await config_service.set_value(
-                123, "verification", "verification_disabled_message", "Canal no encontrado"
+                123, "verification", "verification_disabled_message", "Channel not found"
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -4259,7 +4259,7 @@ class TestCreateVerificationMessagePermissions:
     async def test_no_send_permissions(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar panel cuando bot no tiene permisos de enviar."""
+        """Test panel when bot does not have send permissions."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 111
         mock_channel.send = AsyncMock(return_value=MagicMock(id=888))
@@ -4291,7 +4291,7 @@ class TestCreateVerificationMessagePermissions:
             await config_service.set_value(123, "verification", "verification_enabled", True)
             await config_service.set_value(123, "verification", "mod_notification_channel", 222)
             await config_service.set_value(
-                123, "verification", "verification_disabled_message", "Sin permisos"
+                123, "verification", "verification_disabled_message", "No permissions"
             )
 
             config = await config_service.get_all_config(guild_id=123, cog_name="verification")
@@ -4307,10 +4307,10 @@ class TestCreateVerificationMessagePermissions:
 
 
 class TestHandleVerificationStartExtended:
-    """Tests adicionales para handle_verification_start."""
+    """Additional tests for handle_verification_start."""
 
     async def test_verification_disabled(self, verification_cog: VerificationCog) -> None:
-        """Probar inicio cuando verificacion esta deshabilitada."""
+        """Test start when verification is disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -4324,7 +4324,7 @@ class TestHandleVerificationStartExtended:
 
         config_values: dict[str, object] = {
             "verification_enabled": False,
-            "verification_disabled_message": "La verificacion esta deshabilitada",
+            "verification_disabled_message": "Verification is disabled",
         }
 
         with patch.object(
@@ -4338,10 +4338,10 @@ class TestHandleVerificationStartExtended:
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
-            assert "deshabilitada" in args[0][0]
+            assert "disabled" in args[0][0]
 
     async def test_already_verified_regular(self, verification_cog: VerificationCog) -> None:
-        """Probar inicio cuando usuario ya tiene rol de verificacion regular."""
+        """Test start when user already has regular verification role."""
         mock_role = MagicMock()
         mock_role.id = 100
 
@@ -4360,7 +4360,7 @@ class TestHandleVerificationStartExtended:
         config_values: dict[str, object] = {
             "verification_enabled": True,
             "blocking_roles": [100, 200],
-            "already_verified_message": "Ya estas verificado",
+            "already_verified_message": "You are already verified",
         }
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -4379,10 +4379,10 @@ class TestHandleVerificationStartExtended:
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
-            assert "Ya estas verificado" in args[0][0]
+            assert "You are already verified" in args[0][0]
 
     async def test_already_verified_ally(self, verification_cog: VerificationCog) -> None:
-        """Probar inicio cuando usuario ya tiene rol de verificacion aliado."""
+        """Test start when user already has ally verification role."""
         mock_role = MagicMock()
         mock_role.id = 200
 
@@ -4401,7 +4401,7 @@ class TestHandleVerificationStartExtended:
         config_values: dict[str, object] = {
             "verification_enabled": True,
             "blocking_roles": [100, 200],
-            "already_verified_message": "Ya estas verificado como aliado",
+            "already_verified_message": "You are already verified as ally",
         }
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -4420,14 +4420,14 @@ class TestHandleVerificationStartExtended:
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
-            assert "Ya estas verificado" in args[0][0]
+            assert "You are already verified" in args[0][0]
 
     async def test_already_verified_cross_regular_to_ally(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que usuario con rol regular no puede verificarse como aliado."""
+        """Test that user with regular role cannot verify as ally."""
         mock_role = MagicMock()
-        mock_role.id = 100  # Rol de miembro regular
+        mock_role.id = 100  # Regular member role
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
@@ -4444,7 +4444,7 @@ class TestHandleVerificationStartExtended:
         config_values: dict[str, object] = {
             "verification_enabled": True,
             "blocking_roles": [100, 200],
-            "already_verified_message": "Ya estas verificado",
+            "already_verified_message": "You are already verified",
         }
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -4457,21 +4457,21 @@ class TestHandleVerificationStartExtended:
         ):
             mock_config.return_value = config_values
 
-            # Intentar verificar como aliado teniendo rol de miembro
+            # Try to verify as ally while having member role
             await verification_cog.handle_verification_start(
                 interaction=interaction, verification_type=VerificationType.ALLY
             )
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
-            assert "Ya estas verificado" in args[0][0]
+            assert "You are already verified" in args[0][0]
 
     async def test_already_verified_cross_ally_to_regular(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que usuario con rol aliado no puede verificarse como regular."""
+        """Test that user with ally role cannot verify as regular."""
         mock_role = MagicMock()
-        mock_role.id = 200  # Rol de aliado
+        mock_role.id = 200  # Ally role
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
@@ -4488,7 +4488,7 @@ class TestHandleVerificationStartExtended:
         config_values: dict[str, object] = {
             "verification_enabled": True,
             "blocking_roles": [100, 200],
-            "already_verified_message": "Ya estas verificado",
+            "already_verified_message": "You are already verified",
         }
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
@@ -4501,23 +4501,23 @@ class TestHandleVerificationStartExtended:
         ):
             mock_config.return_value = config_values
 
-            # Intentar verificar como regular teniendo rol de aliado
+            # Try to verify as regular while having ally role
             await verification_cog.handle_verification_start(
                 interaction=interaction, verification_type=VerificationType.REGULAR
             )
 
             interaction.followup.send.assert_called_once()
             args = interaction.followup.send.call_args
-            assert "Ya estas verificado" in args[0][0]
+            assert "You are already verified" in args[0][0]
 
 
 class TestOnInteraction:
-    """Tests para on_interaction listener."""
+    """Tests for on_interaction listener."""
 
     async def test_ignores_non_component_interaction(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que ignora interacciones que no son de componentes."""
+        """Test that ignores interactions that are not component interactions."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.application_command
 
@@ -4527,7 +4527,7 @@ class TestOnInteraction:
             mock_accept.assert_not_called()
 
     async def test_handles_accept_button(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de boton de aceptar."""
+        """Test handling of accept button."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:accept:123"}
@@ -4538,7 +4538,7 @@ class TestOnInteraction:
             mock_accept.assert_called_once_with(interaction=interaction, public_id="123")
 
     async def test_handles_reject_button(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de boton de rechazar."""
+        """Test handling of reject button."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:reject:test456"}
@@ -4551,7 +4551,7 @@ class TestOnInteraction:
             mock_reject.assert_called_once_with(interaction=interaction, public_id="test456")
 
     async def test_handles_any_string_accept_id(self, verification_cog: VerificationCog) -> None:
-        """Probar que acepta cualquier string como public_id."""
+        """Test that accepts any string as public_id."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:accept:anystring"}
@@ -4563,7 +4563,7 @@ class TestOnInteraction:
             mock_accept.assert_called_once_with(interaction=interaction, public_id="anystring")
 
     async def test_handles_any_string_reject_id(self, verification_cog: VerificationCog) -> None:
-        """Probar que acepta cualquier string como public_id para reject."""
+        """Test that accepts any string as public_id for reject."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:reject:some_nanoid"}
@@ -4576,7 +4576,7 @@ class TestOnInteraction:
             mock_reject.assert_called_once_with(interaction=interaction, public_id="some_nanoid")
 
     async def test_ignores_unrelated_custom_id(self, verification_cog: VerificationCog) -> None:
-        """Probar que ignora custom_ids no relacionados."""
+        """Test that ignores unrelated custom_ids."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "other:button:123"}
@@ -4593,7 +4593,7 @@ class TestOnInteraction:
             mock_reject.assert_not_called()
 
     async def test_handles_no_data(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo cuando interaction.data es None."""
+        """Test handling when interaction.data is None."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.type = discord.InteractionType.component
         interaction.data = None
@@ -4606,10 +4606,10 @@ class TestOnInteraction:
 
 
 class TestOnCogToggled:
-    """Tests para on_cog_toggled."""
+    """Tests for on_cog_toggled."""
 
     async def test_enabled_creates_panel(self, verification_cog: VerificationCog) -> None:
-        """Probar que habilitar el cog crea el panel."""
+        """Test that enabling the cog creates the panel."""
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123
         guild.name = "Test Guild"
@@ -4624,12 +4624,12 @@ class TestOnCogToggled:
     async def test_disabled_deletes_panel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que deshabilitar el cog elimina el panel."""
+        """Test that disabling the cog deletes the panel."""
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123
         guild.name = "Test Guild"
 
-        # Configurar panel existente
+        # Configure existing panel
         async with test_database.session() as session:
             config_service = ConfigService(session=session)
             await config_service.set_value(
@@ -4649,26 +4649,26 @@ class TestOnCogToggled:
             mock_delete.assert_called_once_with(guild=guild, channel_id=888, message_id=999)
 
     async def test_disabled_no_panel_configured(self, verification_cog: VerificationCog) -> None:
-        """Probar deshabilitar cuando no hay panel configurado."""
+        """Test disable when there is no panel configured."""
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123
         guild.name = "Test Guild"
 
-        # No deberia fallar
+        # Should not fail
         await verification_cog.on_cog_toggled(guild, enabled=False)
 
 
 class TestCheckVerificationMessageCogDisabled:
-    """Tests para _check_verification_message cuando el cog esta deshabilitado."""
+    """Tests for _check_verification_message when cog is disabled."""
 
     async def test_returns_early_when_cog_disabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123
 
-        # Deshabilitar explicitamente el cog (por defecto esta habilitado)
+        # Explicitly disable the cog (enabled by default)
         async with test_database.session() as session:
             config_service = ConfigService(session=session)
             await config_service.set_cog_enabled(
@@ -4681,21 +4681,21 @@ class TestCheckVerificationMessageCogDisabled:
         ) as mock_create:
             await verification_cog._check_verification_message(guild, recreate=False)
 
-            # No deberia crear mensaje si el cog esta deshabilitado
+            # Should not create message if cog is disabled
             mock_create.assert_not_called()
 
 
 class TestGetAllConfigWithService:
-    """Tests para _get_all_config con config_service proporcionado."""
+    """Tests for _get_all_config with provided config_service."""
 
     async def test_uses_provided_config_service(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que usa el config_service proporcionado."""
+        """Test that uses the provided config_service."""
         async with test_database.session() as session:
             config_service = ConfigService(session=session)
 
-            # Llamar con config_service proporcionado
+            # Call with provided config_service
             result = await verification_cog._get_all_config(
                 guild_id=123, config_service=config_service
             )
@@ -4704,10 +4704,10 @@ class TestGetAllConfigWithService:
 
 
 class TestGetModChannelEdgeCases:
-    """Tests para _get_mod_channel casos extremos."""
+    """Tests for _get_mod_channel edge cases."""
 
     def test_bot_user_none(self, verification_cog: VerificationCog) -> None:
-        """Probar cuando bot.user es None."""
+        """Test when bot.user is None."""
         with patch.object(verification_cog.bot, "user", None):
             guild = MagicMock(spec=discord.Guild)
             mod_channel = MagicMock(spec=discord.TextChannel)
@@ -4720,7 +4720,7 @@ class TestGetModChannelEdgeCases:
             assert result is None
 
     def test_bot_member_not_found(self, verification_cog: VerificationCog) -> None:
-        """Probar cuando el bot no es miembro del guild."""
+        """Test when bot is not a member of the guild."""
         mock_user = MagicMock()
         mock_user.id = 999
 
@@ -4738,12 +4738,12 @@ class TestGetModChannelEdgeCases:
 
 
 class TestValidateModActionEdgeCases:
-    """Tests para _validate_mod_action casos extremos."""
+    """Tests for _validate_mod_action edge cases."""
 
     async def test_no_guild(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando no hay guild."""
+        """Test when there is no guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
@@ -4753,7 +4753,7 @@ class TestValidateModActionEdgeCases:
                 public_id="test1",
                 session=session,
                 permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-                permission_error_default="Sin permisos",
+                permission_error_default="No permissions",
             )
 
         assert result is None
@@ -4761,7 +4761,7 @@ class TestValidateModActionEdgeCases:
     async def test_user_not_member(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando el usuario no es Member."""
+        """Test when user is not a Member."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.user = MagicMock(spec=discord.User)  # User, no Member
@@ -4772,17 +4772,17 @@ class TestValidateModActionEdgeCases:
                 public_id="test1",
                 session=session,
                 permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-                permission_error_default="Sin permisos",
+                permission_error_default="No permissions",
             )
 
         assert result is None
 
 
 class TestHandleVerificationStartCogDisabled:
-    """Tests para handle_verification_start cuando el cog esta deshabilitado."""
+    """Tests for handle_verification_start when cog is disabled."""
 
     async def test_cog_disabled_returns_early(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -4799,11 +4799,11 @@ class TestHandleVerificationStartCogDisabled:
                 interaction=interaction, verification_type=VerificationType.REGULAR
             )
 
-            # No deberia hacer defer si el cog esta deshabilitado
+            # Should not defer if cog is disabled
             interaction.response.defer.assert_not_called()
 
     async def test_mod_channel_not_accessible(self, verification_cog: VerificationCog) -> None:
-        """Probar cuando el canal de moderacion no es accesible."""
+        """Test when moderation channel is not accessible."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -4817,7 +4817,7 @@ class TestHandleVerificationStartCogDisabled:
         config_values = {
             "verification_enabled": True,
             "mod_notification_channel": 999,
-            "verification_disabled_message": "Sistema no disponible",
+            "verification_disabled_message": "System not available",
         }
 
         with (
@@ -4831,21 +4831,21 @@ class TestHandleVerificationStartCogDisabled:
         ):
             mock_enabled.return_value = True
             mock_config.return_value = config_values
-            mock_mod_channel.return_value = None  # Canal no accesible
+            mock_mod_channel.return_value = None  # Channel not accessible
 
             await verification_cog.handle_verification_start(
                 interaction=interaction, verification_type=VerificationType.REGULAR
             )
 
-            # Deberia enviar mensaje de sistema no disponible
+            # Should send system unavailable message
             interaction.followup.send.assert_called_once()
 
 
 class TestOnMessageCogDisabled:
-    """Tests para on_message cuando el cog esta deshabilitado."""
+    """Tests for on_message when cog is disabled."""
 
     async def test_cog_disabled_returns_early(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         verification_cog._pending_dm_verifications[456] = (123, 1)
 
         message = MagicMock(spec=discord.Message)
@@ -4863,18 +4863,18 @@ class TestOnMessageCogDisabled:
 
             await verification_cog.on_message(message)
 
-            # No deberia enviar nada si el cog esta deshabilitado
+            # Should not send anything if cog is disabled
             message.channel.send.assert_not_called()
 
 
 class TestUpdateModMessageWithRejectionReason:
-    """Tests para _update_mod_message_for_review con historial de rechazo."""
+    """Tests for _update_mod_message_for_review with rejection history."""
 
     async def test_history_includes_rejection_reason(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que el historial incluye el motivo de rechazo."""
-        # Crear una verificacion rechazada previamente
+        """Test that history includes the rejection reason."""
+        # Create a previously rejected verification
         async with test_database.session() as session:
             service = VerificationService(session)
             old_request = await service.create_request(
@@ -4885,12 +4885,10 @@ class TestUpdateModMessageWithRejectionReason:
                 verification_type=VerificationType.REGULAR,
             )
             await service.update_screenshots(old_request.id, "url1", "url2", "Test Guild")
-            await service.reject(
-                old_request.id, 789, "ModUser", "Capturas incorrectas", "Test Guild"
-            )
+            await service.reject(old_request.id, 789, "ModUser", "Incorrect captures", "Test Guild")
             await session.commit()
 
-        # Crear nueva verificacion con mod_message_id
+        # Create new verification with mod_message_id
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -4903,24 +4901,24 @@ class TestUpdateModMessageWithRejectionReason:
             await service.update_screenshots(
                 request_id=request.id, url1="url3", url2="url4", guild_name="Test Guild"
             )
-            request.mod_message_id = 777  # Necesario para que el metodo no retorne temprano
+            request.mod_message_id = 777  # Required so method doesn't return early
             await session.commit()
             public_id = request.public_id
 
-        # Mock del mensaje de moderacion
+        # Mock moderation message
         mod_message = MagicMock()
-        mod_message.content = "Mensaje original"
+        mod_message.content = "Original message"
         mod_message.edit = AsyncMock()
 
-        # Mock del canal
+        # Mock channel
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(return_value=mod_message)
 
         config_values: dict[str, Any] = {
             "mod_message_template": "{username} - {status}",
-            "status_pending_review": "Pendiente",
-            "accept_button_text": "Aceptar",
-            "reject_button_text": "Rechazar",
+            "status_pending_review": "Pending",
+            "accept_button_text": "Accept",
+            "reject_button_text": "Reject",
         }
 
         async with test_database.session() as session:
@@ -4935,25 +4933,25 @@ class TestUpdateModMessageWithRejectionReason:
                 config=config_values,
             )
 
-            # Verificar que el mensaje editado contiene el motivo de rechazo
+            # Verify that edited message contains rejection reason
             call_args = mod_message.edit.call_args
-            # El contenido ahora está en el primer embed
+            # Content is now in the first embed
             assert "embeds" in call_args.kwargs
             main_embed = call_args.kwargs["embeds"][0]
-            # Historial ahora es un campo con el motivo de rechazo
+            # History is now a field with the rejection reason
             history_field = next(
-                (f for f in main_embed.fields if f.name == "Historial"),
+                (f for f in main_embed.fields if f.name == "History"),
                 None,
             )
             assert history_field is not None
-            assert "Capturas incorrectas" in history_field.value
+            assert "Incorrect captures" in history_field.value
 
 
 class TestHandleAcceptCogDisabled:
-    """Tests para handle_accept cuando el cog esta deshabilitado."""
+    """Tests for handle_accept when cog is disabled."""
 
     async def test_cog_disabled_returns_early(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -4968,20 +4966,20 @@ class TestHandleAcceptCogDisabled:
 
             await verification_cog.handle_accept(interaction, public_id="test1")
 
-            # No deberia hacer nada si el cog esta deshabilitado
+            # Should not do anything if cog is disabled
             interaction.response.defer.assert_not_called()
 
 
 class TestHandleAcceptRoleNotFound:
-    """Tests para handle_accept cuando el rol no se encuentra."""
+    """Tests for handle_accept when role is not found."""
 
     async def test_role_add_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando un rol a agregar no existe en el guild."""
+        """Test when a role to add does not exist in the guild."""
         from discord_bot.verification.enums import VerificationType
 
-        # Crear solicitud
+        # Create request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5005,7 +5003,7 @@ class TestHandleAcceptRoleNotFound:
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
         mock_guild.get_member = MagicMock(return_value=mock_member)
-        mock_guild.get_role = MagicMock(return_value=None)  # Rol no encontrado
+        mock_guild.get_role = MagicMock(return_value=None)  # Role not found
         mock_guild.get_channel = MagicMock(return_value=None)
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -5023,9 +5021,9 @@ class TestHandleAcceptRoleNotFound:
 
         config_values = {
             "mod_roles": [],
-            "regular_roles_add": [999],  # Este rol no existe
+            "regular_roles_add": [999],  # This role does not exist
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -5036,16 +5034,16 @@ class TestHandleAcceptRoleNotFound:
 
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
-            # No deberia intentar agregar roles ya que no existe
+            # Should not try to add roles since it does not exist
             mock_member.add_roles.assert_not_called()
 
     async def test_role_remove_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar cuando un rol a quitar no existe en el guild."""
+        """Test when a role to remove does not exist in the guild."""
         from discord_bot.verification.enums import VerificationType
 
-        # Crear solicitud
+        # Create request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5069,7 +5067,7 @@ class TestHandleAcceptRoleNotFound:
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
         mock_guild.get_member = MagicMock(return_value=mock_member)
-        mock_guild.get_role = MagicMock(return_value=None)  # Rol no encontrado
+        mock_guild.get_role = MagicMock(return_value=None)  # Role not found
         mock_guild.get_channel = MagicMock(return_value=None)
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -5088,8 +5086,8 @@ class TestHandleAcceptRoleNotFound:
         config_values = {
             "mod_roles": [],
             "regular_roles_add": [],
-            "regular_roles_remove": [999],  # Este rol no existe
-            "approval_message_regular": "Aprobado!",
+            "regular_roles_remove": [999],  # This role does not exist
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": None,
         }
 
@@ -5100,20 +5098,20 @@ class TestHandleAcceptRoleNotFound:
 
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
-            # No deberia intentar quitar roles ya que no existe
+            # Should not try to remove roles since it does not exist
             mock_member.remove_roles.assert_not_called()
 
 
 class TestHandleAcceptDeleteModMessage:
-    """Tests para handle_accept eliminando mensaje de moderacion."""
+    """Tests for handle_accept deleting moderation message."""
 
     async def test_deletes_mod_message_when_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que elimina el mensaje de mod cuando esta configurado."""
+        """Test that deletes mod message when configured."""
         from discord_bot.verification.enums import VerificationType
 
-        # Crear solicitud con mod_message_id
+        # Create request with mod_message_id
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5164,9 +5162,9 @@ class TestHandleAcceptDeleteModMessage:
             "mod_roles": [],
             "regular_roles_add": [],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado!",
+            "approval_message_regular": "Approved!",
             "mod_notification_channel": 888,
-            "delete_processed_messages": True,  # Configurado para eliminar
+            "delete_processed_messages": True,  # Configured to delete
         }
 
         with patch.object(
@@ -5176,15 +5174,15 @@ class TestHandleAcceptDeleteModMessage:
 
             await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
 
-            # Deberia eliminar el mensaje
+            # Should delete the message
             mock_mod_message.delete.assert_called_once()
 
 
 class TestShowRejectionSelectCogDisabled:
-    """Tests para show_rejection_select cuando el cog esta deshabilitado."""
+    """Tests for show_rejection_select when cog is disabled."""
 
     async def test_cog_disabled_returns_early(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -5199,15 +5197,15 @@ class TestShowRejectionSelectCogDisabled:
 
             await verification_cog.show_rejection_select(interaction, public_id="test1")
 
-            # No deberia enviar nada si el cog esta deshabilitado
+            # Should not send anything if cog is disabled
             interaction.response.send_message.assert_not_called()
 
 
 class TestHandleRejectCogDisabled:
-    """Tests para handle_reject cuando el cog esta deshabilitado."""
+    """Tests for handle_reject when cog is disabled."""
 
     async def test_cog_disabled_returns_early(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna temprano si el cog esta deshabilitado."""
+        """Test that returns early if cog is disabled."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = MagicMock(spec=discord.Guild)
         interaction.guild.id = 123
@@ -5224,20 +5222,20 @@ class TestHandleRejectCogDisabled:
                 interaction=interaction, public_id="test1", reason="Test"
             )
 
-            # No deberia hacer nada si el cog esta deshabilitado
+            # Should not do anything if the cog is disabled
             interaction.response.defer.assert_not_called()
 
 
 class TestHandleRejectDeleteModMessage:
-    """Tests para handle_reject eliminando mensaje de moderacion."""
+    """Tests for handle_reject deleting moderation message."""
 
     async def test_deletes_mod_message_when_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que elimina el mensaje de mod cuando esta configurado."""
+        """Test that deletes mod message when configured."""
         from discord_bot.verification.enums import VerificationType
 
-        # Crear solicitud con mod_message_id
+        # Create request with mod_message_id
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5284,10 +5282,10 @@ class TestHandleRejectDeleteModMessage:
 
         config_values = {
             "mod_roles": [],
-            "rejection_message": "Tu verificacion fue rechazada: {reason}",
+            "rejection_message": "Your verification was rejected: {reason}",
             "verification_type_regular_display": "Normal",
             "mod_notification_channel": 888,
-            "delete_processed_messages": True,  # Configurado para eliminar
+            "delete_processed_messages": True,  # Configured to delete
         }
 
         with patch.object(
@@ -5296,18 +5294,18 @@ class TestHandleRejectDeleteModMessage:
             mock_config.return_value = config_values
 
             await verification_cog.handle_reject(
-                interaction, public_id, reason="Capturas incorrectas"
+                interaction, public_id, reason="Incorrect captures"
             )
 
-            # Deberia eliminar el mensaje
+            # Should delete the message
             mock_mod_message.delete.assert_called_once()
 
 
 class TestHandleReview:
-    """Tests para handle_review (revisión de auto-rechazos)."""
+    """Tests for handle_review (review of auto-rejects)."""
 
     async def test_review_no_guild(self, verification_cog: VerificationCog) -> None:
-        """Probar que revisa que hay guild."""
+        """Test that checks there is a guild."""
         interaction = MagicMock(spec=discord.Interaction)
         interaction.guild = None
 
@@ -5316,7 +5314,7 @@ class TestHandleReview:
     async def test_review_not_mod(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que requiere permisos de moderador."""
+        """Test that requires moderator permissions."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -5330,7 +5328,7 @@ class TestHandleReview:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        # Habilitar cog
+        # Enable cog
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
@@ -5339,8 +5337,8 @@ class TestHandleReview:
             await session.commit()
 
         config_values = {
-            "mod_roles": [999],  # Usuario no tiene este rol
-            "no_permission_reject_message": "No tienes permisos",
+            "mod_roles": [999],  # User does not have this role
+            "no_permission_reject_message": "You do not have permission",
         }
 
         with patch.object(
@@ -5357,8 +5355,8 @@ class TestHandleReview:
     async def test_review_not_auto_rejected(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que solo permite revisar auto-rechazos."""
-        # Crear solicitud rechazada manualmente (no Auto)
+        """Test that only allows reviewing auto-rejections."""
+        # Create manually rejected request (not Auto)
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5372,7 +5370,7 @@ class TestHandleReview:
                 request_id=request.id,
                 reviewer_id=789,
                 reviewer_username="ModUser",
-                reason="Motivo manual",
+                reason="Manual reason",
                 guild_name="Test Guild",
             )
             await session.commit()
@@ -5412,14 +5410,14 @@ class TestHandleReview:
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "no fue auto-rechazada" in call_args.kwargs["content"]
+            assert "was not auto-rejected" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
     async def test_review_not_latest(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que solo permite revisar la última verificación."""
-        # Crear dos solicitudes, rechazar ambas
+        """Test that only allows reviewing the latest verification."""
+        # Create two requests, reject both
         async with test_database.session() as session:
             service = VerificationService(session)
             request1 = await service.create_request(
@@ -5429,7 +5427,7 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            await service.reject(request1.id, 0, "Auto", "Razon auto", "Test Guild")
+            await service.reject(request1.id, 0, "Auto", "Auto reason", "Test Guild")
 
             request2 = await service.create_request(
                 guild_id=123,
@@ -5438,7 +5436,7 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.ALLY,
             )
-            await service.reject(request2.id, 0, "Auto", "Otra razon auto", "Test Guild")
+            await service.reject(request2.id, 0, "Auto", "Another auto reason", "Test Guild")
             await session.commit()
             old_request_public_id = request1.public_id
 
@@ -5473,19 +5471,19 @@ class TestHandleReview:
         ) as mock_config:
             mock_config.return_value = config_values
 
-            # Intentar revisar la solicitud antigua
+            # Try to review the old request
             await verification_cog.handle_review(interaction, old_request_public_id)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "última verificación" in call_args.kwargs["content"]
+            assert "latest verification" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
     async def test_review_success(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar revisión exitosa de auto-rechazo."""
-        # Crear solicitud auto-rechazada
+        """Test successful review of auto-reject."""
+        # Create auto-rejected request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -5495,23 +5493,23 @@ class TestHandleReview:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            # Rechazar con Auto
+            # Reject with Auto
             await service.reject(
                 request_id=request.id,
                 reviewer_id=0,
                 reviewer_username="Auto",
-                reason="Razon automatica",
+                reason="Auto reasonmatica",
                 guild_name="Test Guild",
             )
             await session.commit()
             public_id = request.public_id
             request_id = request.id
 
-        # Mock del mensaje de moderación
+        # Mock moderation message
         mock_mod_message = MagicMock()
         mock_mod_message.id = 999
         mock_embed = MagicMock(spec=discord.Embed)
-        mock_embed.description = "Solicitud de TestUser\n❌ Auto-rechazado"
+        mock_embed.description = "Request from TestUser\n❌ Auto-rejected"
         mock_mod_message.embeds = [mock_embed]
         mock_mod_message.edit = AsyncMock()
 
@@ -5553,14 +5551,14 @@ class TestHandleReview:
         config_values = {
             "mod_roles": [],
             "mod_notification_channel": 888,
-            "status_pending_review": "⏳ Pendiente",
-            "status_rejected": "❌ Auto-rechazado",
-            "accept_button_text": "Aceptar",
-            "reject_button_text": "Rechazar",
-            "tracker_title": "📋 Verificaciones Pendientes",
+            "status_pending_review": "⏳ Pending",
+            "status_rejected": "❌ Auto-rejected",
+            "accept_button_text": "Accept",
+            "reject_button_text": "Reject",
+            "tracker_title": "📋 Pending Verifications",
         }
 
-        # Guardar mod_message_id en la solicitud
+        # Save mod_message_id in the request
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.set_mod_message_id(request_id, 999)
@@ -5573,18 +5571,18 @@ class TestHandleReview:
 
             await verification_cog.handle_review(interaction, public_id)
 
-            # Verificar respuesta exitosa
+            # Verify successful response
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "revisión manual" in call_args.kwargs["content"]
+            assert "manual review" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
-            # Verificar que se editó el mensaje de moderación
+            # Verify that the moderation message was edited
             mock_mod_message.edit.assert_called_once()
             edit_kwargs = mock_mod_message.edit.call_args.kwargs
-            assert edit_kwargs["view"] is not None  # Tiene botones
+            assert edit_kwargs["view"] is not None  # Has buttons
 
-        # Verificar estado en DB
+        # Verify state in DB
         async with test_database.session() as session:
             service = VerificationService(session)
             updated_request = await service.get_by_public_id(public_id)
@@ -5596,7 +5594,7 @@ class TestHandleReview:
     async def test_review_cog_disabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que handle_review retorna si el cog está deshabilitado."""
+        """Test that handle_review returns if cog is disabled."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -5606,7 +5604,7 @@ class TestHandleReview:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        # Mockear cog deshabilitado
+        # Mock cog disabled
         with patch.object(
             verification_cog, "_is_cog_enabled", new_callable=AsyncMock
         ) as mock_enabled:
@@ -5614,13 +5612,13 @@ class TestHandleReview:
 
             await verification_cog.handle_review(interaction, public_id="test1")
 
-            # No debería llamar a send_message
+            # Should not call send_message
             interaction.response.send_message.assert_not_called()
 
     async def test_review_request_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que handle_review maneja solicitud no encontrada."""
+        """Test that handle_review handles request not found."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -5634,7 +5632,7 @@ class TestHandleReview:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        # Habilitar cog
+        # Enable cog
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
 
@@ -5644,7 +5642,7 @@ class TestHandleReview:
 
         config_values: dict[str, Any] = {
             "mod_roles": [],
-            "request_not_found_message": "Solicitud no existe",
+            "request_not_found_message": "Request does not exist",
         }
 
         with patch.object(
@@ -5656,17 +5654,17 @@ class TestHandleReview:
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "no existe" in call_args.kwargs["content"]
+            assert "does not exist" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
 
 class TestAutoProcessingEdgeCases:
-    """Tests para casos edge de auto-procesamiento."""
+    """Tests for auto-processing edge cases."""
 
     async def test_api_error_non_422_shows_error(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que errores API no-422 muestran mensaje de error."""
+        """Test that non-422 API errors show error message."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -5738,12 +5736,12 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.NONE,  # No auto-process
         }
 
-        # Mock API devuelve 500 (error interno)
+        # Mock API returns 500 (internal error)
         api_result = VerificationAPIResult(
             success=False,
             status_code=500,
@@ -5764,7 +5762,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud quedó en PENDING_REVIEW
+        # Verify that the request stayed in PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -5774,7 +5772,7 @@ class TestAutoProcessingEdgeCases:
     async def test_player_info_template_formatted(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que player_info_template se formatea correctamente."""
+        """Test that player_info_template is formatted correctly."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -5849,10 +5847,10 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.NONE,
-            "player_info_template": "Nombre: {name}, Nivel: {level}",
+            "player_info_template": "Name: {name}, Level: {level}",
         }
 
         api_response = VerificationAPIResponse(
@@ -5885,7 +5883,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud quedó en PENDING_REVIEW
+        # Verify that the request stayed in PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -5895,7 +5893,7 @@ class TestAutoProcessingEdgeCases:
     async def test_legacy_boolean_true_auto_mode(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar compatibilidad con valor booleano True para verification_automatic."""
+        """Test compatibility with boolean True value for verification_automatic."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -5976,12 +5974,12 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": True,  # Legacy boolean
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
+            "approval_message_regular": "Approved",
             "delete_processed_messages": True,
         }
 
@@ -6015,7 +6013,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se auto-aprobó (True = BOTH)
+        # Verify that was auto-approved (True = BOTH)
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -6025,7 +6023,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_approve_ally_uses_ally_roles(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-aprobación de aliado usa los roles de aliado."""
+        """Test that ally auto-approval uses ally roles."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6107,19 +6105,19 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "ally_roles_add": [888],
             "ally_roles_remove": [],
-            "approval_message_ally": "Bienvenido aliado",
+            "approval_message_ally": "Welcome ally",
             "delete_processed_messages": True,
         }
 
         api_response = VerificationAPIResponse(
             name="TestUser",
             level=10,
-            regiment="82DK",  # Tiene regimiento - OK para aliado
+            regiment="82DK",  # Has regiment - OK for ally
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
@@ -6146,20 +6144,20 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se auto-aprobó
+        # Verify that was auto-approved
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
             assert updated is not None
             assert updated.status == VerificationStatus.APPROVED
 
-        # Verificar que se añadió el rol de aliado
+        # Verify that ally role was added
         mock_member.add_roles.assert_called_once_with(mock_ally_role)
 
     async def test_auto_approve_forbidden_on_add_roles(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que Forbidden en add_roles no rompe el flujo."""
+        """Test that Forbidden on add_roles does not break the flow."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6244,12 +6242,12 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
+            "approval_message_regular": "Approved",
             "delete_processed_messages": True,
         }
 
@@ -6281,10 +6279,10 @@ class TestAutoProcessingEdgeCases:
             mock_config.return_value = config_values
             mock_api.return_value = api_result
 
-            # No debería lanzar excepción
+            # Should not throw exception
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud fue aprobada de todos modos
+        # Verify that the request was approved anyway
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -6294,7 +6292,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_approve_forbidden_on_send_dm(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que Forbidden en send DM no rompe el flujo."""
+        """Test that Forbidden on send DM does not break the flow."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6376,12 +6374,12 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
+            "approval_message_regular": "Approved",
             "delete_processed_messages": True,
         }
 
@@ -6415,7 +6413,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud fue aprobada
+        # Verify that the request was approved
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -6425,7 +6423,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_approve_no_delete_edits_message(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-aprobación sin delete_processed_messages edita el mensaje."""
+        """Test that auto-approval without delete_processed_messages edits the message."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6506,15 +6504,15 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
-            "delete_processed_messages": False,  # No borrar, editar
-            "status_pending_review": "⏳ Pendiente",
-            "status_approved": "✅ Aprobado por {moderator}",
+            "approval_message_regular": "Approved",
+            "delete_processed_messages": False,  # Don't delete, edit
+            "status_pending_review": "⏳ Pending",
+            "status_approved": "✅ Approved by {moderator}",
         }
 
         api_response = VerificationAPIResponse(
@@ -6547,14 +6545,14 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó en lugar de borrar
+        # Verify that was edited instead of deleted
         mock_mod_message.delete.assert_not_called()
         mock_mod_message.edit.assert_called_once()
 
     async def test_auto_reject_no_delete_edits_with_review_button(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-rechazo sin delete añade botón de revisión."""
+        """Test that auto-reject without delete adds review button."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -6624,15 +6622,15 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Rechazado: {reason}",
-            "delete_processed_messages": False,  # No borrar
-            "status_pending_review": "⏳ Pendiente",
-            "status_rejected": "❌ Rechazado: {reason}",
-            "auto_reject_review_window": 30,  # 30 minutos para revisión
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Rejected: {reason}",
+            "delete_processed_messages": False,  # Don't delete
+            "status_pending_review": "⏳ Pending",
+            "status_rejected": "❌ Rejected: {reason}",
+            "auto_reject_review_window": 30,  # 30 minutes for review
             "review_button_text": "Revisar",
         }
 
@@ -6656,7 +6654,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó con view
+        # Verify that was edited with view
         mock_mod_message.delete.assert_not_called()
         mock_mod_message.edit.assert_called_once()
         edit_kwargs = mock_mod_message.edit.call_args.kwargs
@@ -6665,7 +6663,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_reject_forbidden_on_send_dm(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que Forbidden en DM de rechazo no rompe el flujo."""
+        """Test that Forbidden on rejection DM does not break the flow."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -6736,11 +6734,11 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Rechazado: {reason}",
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Rejected: {reason}",
             "delete_processed_messages": True,
         }
 
@@ -6764,7 +6762,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud fue rechazada
+        # Verify that the request was rejected
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -6774,7 +6772,7 @@ class TestAutoProcessingEdgeCases:
     async def test_ready_for_manual_approval_reject_only_mode(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar listo para aprobación manual cuando modo es REJECT_ONLY."""
+        """Test ready for manual approval when mode is REJECT_ONLY."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6854,15 +6852,15 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
-            "verification_automatic": AutoProcessMode.REJECT_ONLY,  # Solo rechaza, no aprueba
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,  # Only rejects, doesn't approve
             "mod_roles": [999],
-            "status_pending_review": "⏳ Pendiente",
+            "status_pending_review": "⏳ Pending",
             "status_ready_for_approval": "✅ Listo - {roles}",
         }
 
-        # API devuelve respuesta exitosa que pasa todas las verificaciones
+        # API returns successful response that passes all verifications
         api_response = VerificationAPIResponse(
             name="TestUser",
             level=10,
@@ -6893,7 +6891,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud quedó en PENDING_REVIEW (no auto-aprobada)
+        # Verify that request stayed in PENDING_REVIEW (not auto-approved)
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -6903,7 +6901,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_approve_forbidden_on_remove_roles(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que Forbidden en remove_roles no rompe el flujo."""
+        """Test that Forbidden on remove_roles does not break the flow."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -6999,12 +6997,12 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
-            "regular_roles_remove": [888],  # Tiene roles a remover
-            "approval_message_regular": "Aprobado",
+            "regular_roles_remove": [888],  # Has roles to remove
+            "approval_message_regular": "Approved",
             "delete_processed_messages": True,
         }
 
@@ -7036,10 +7034,10 @@ class TestAutoProcessingEdgeCases:
             mock_config.return_value = config_values
             mock_api.return_value = api_result
 
-            # No debería lanzar excepción
+            # Should not throw exception
             await verification_cog.on_message(message)
 
-        # Verificar que la solicitud fue aprobada
+        # Verify that the request was approved
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -7049,7 +7047,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_approve_no_pending_status_appends(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que sin status_pending_review se añade al final."""
+        """Test that without status_pending_review it appends at the end."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -7130,15 +7128,15 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
+            "approval_message_regular": "Approved",
             "delete_processed_messages": False,
-            "status_pending_review": "",  # Sin status pendiente
-            "status_approved": "✅ Aprobado por {moderator}",
+            "status_pending_review": "",  # Without pending status
+            "status_approved": "✅ Approved by {moderator}",
         }
 
         api_response = VerificationAPIResponse(
@@ -7171,13 +7169,13 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó
+        # Verify that was edited
         mock_mod_message.edit.assert_called_once()
 
     async def test_auto_reject_no_review_window(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar auto-rechazo sin ventana de revisión (view=None)."""
+        """Test auto-reject without review window (view=None)."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -7247,15 +7245,15 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Rechazado: {reason}",
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Rejected: {reason}",
             "delete_processed_messages": False,
-            "status_pending_review": "⏳ Pendiente",
-            "status_rejected": "❌ Rechazado: {reason}",
-            "auto_reject_review_window": 0,  # Sin ventana de revisión
+            "status_pending_review": "⏳ Pending",
+            "status_rejected": "❌ Rejected: {reason}",
+            "auto_reject_review_window": 0,  # Without review window
         }
 
         api_result = VerificationAPIResult(
@@ -7278,7 +7276,7 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó sin view
+        # Verify that was edited without view
         mock_mod_message.edit.assert_called_once()
         edit_kwargs = mock_mod_message.edit.call_args.kwargs
         assert edit_kwargs["view"] is None
@@ -7286,7 +7284,7 @@ class TestAutoProcessingEdgeCases:
     async def test_auto_reject_no_pending_status_appends(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que sin status_pending_review se añade al final para rechazo."""
+        """Test that without status_pending_review it appends at end for reject."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -7356,14 +7354,14 @@ class TestAutoProcessingEdgeCases:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Rechazado: {reason}",
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Rejected: {reason}",
             "delete_processed_messages": False,
-            "status_pending_review": "",  # Sin status pendiente
-            "status_rejected": "❌ Rechazado: {reason}",
+            "status_pending_review": "",  # Without pending status
+            "status_rejected": "❌ Rejected: {reason}",
             "auto_reject_review_window": 0,
         }
 
@@ -7387,15 +7385,15 @@ class TestAutoProcessingEdgeCases:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó
+        # Verify that was edited
         mock_mod_message.edit.assert_called_once()
 
 
 class TestOnInteractionReview:
-    """Tests para on_interaction con botón de revisión."""
+    """Tests for on_interaction with review button."""
 
     async def test_review_button_invalid_id(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de ID inválido en botón de revisión."""
+        """Test handling of invalid ID in review button."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -7410,17 +7408,17 @@ class TestOnInteractionReview:
         interaction.response = MagicMock()
         interaction.response.send_message = AsyncMock()
 
-        # Habilitar cog
+        # Enable cog
         with patch.object(
             verification_cog, "_is_cog_enabled", new_callable=AsyncMock
         ) as mock_enabled:
             mock_enabled.return_value = True
 
-            # No debería lanzar excepción
+            # Should not throw exception
             await verification_cog.on_interaction(interaction)
 
     async def test_review_button_missing_parts(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de custom_id con partes faltantes."""
+        """Test handling of custom_id with missing parts."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -7428,18 +7426,18 @@ class TestOnInteractionReview:
         interaction.guild = mock_guild
         interaction.user = MagicMock(spec=discord.Member)
         interaction.type = discord.InteractionType.component
-        interaction.data = {"custom_id": "verification:review"}  # Sin request_id
+        interaction.data = {"custom_id": "verification:review"}  # Without request_id
 
         with patch.object(
             verification_cog, "_is_cog_enabled", new_callable=AsyncMock
         ) as mock_enabled:
             mock_enabled.return_value = True
 
-            # No debería lanzar excepción
+            # Should not throw exception
             await verification_cog.on_interaction(interaction)
 
     async def test_review_button_valid_id(self, verification_cog: VerificationCog) -> None:
-        """Probar manejo de ID válido en botón de revisión."""
+        """Test handling of valid ID in review button."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
 
@@ -7465,24 +7463,24 @@ class TestOnInteractionReview:
 
 
 class TestGetPendingVerification:
-    """Tests para _get_pending_verification."""
+    """Tests for _get_pending_verification."""
 
     async def test_returns_none_when_no_pending(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna None cuando no hay verificación pendiente."""
+        """Test that returns None when no pending verification."""
         result = await verification_cog._get_pending_verification(user_id=99999)
         assert result is None
 
 
 class TestHandleReviewRevertFails:
-    """Tests para handle_review cuando revert falla."""
+    """Tests for handle_review when revert fails."""
 
     async def test_revert_fails(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar manejo cuando revert_to_pending_review falla."""
-        # Crear solicitud auto-rechazada
+        """Test handling when revert_to_pending_review fails."""
+        # Create auto-rejected request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -7496,7 +7494,7 @@ class TestHandleReviewRevertFails:
                 request_id=request.id,
                 reviewer_id=0,
                 reviewer_username="Auto",
-                reason="Razon auto",
+                reason="Auto reason",
                 guild_name="Test Guild",
             )
             await session.commit()
@@ -7534,22 +7532,22 @@ class TestHandleReviewRevertFails:
             ) as mock_revert,
         ):
             mock_config.return_value = config_values
-            mock_revert.return_value = False  # Revert falla
+            mock_revert.return_value = False  # Revert fails
 
             await verification_cog.handle_review(interaction, public_id)
 
             interaction.response.send_message.assert_called_once()
             call_args = interaction.response.send_message.call_args
-            assert "No se pudo revertir" in call_args.kwargs["content"]
+            assert "Could not revert" in call_args.kwargs["content"]
 
 
 class TestLegacyBooleanAutoMode:
-    """Tests para compatibilidad con legacy boolean verification_automatic."""
+    """Tests for compatibility with legacy boolean verification_automatic."""
 
     async def test_legacy_false_disables_auto(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que False legacy desactiva auto-procesamiento."""
+        """Test that legacy False disables auto-processing."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -7624,7 +7622,7 @@ class TestLegacyBooleanAutoMode:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": False,  # Legacy boolean False
         }
@@ -7659,7 +7657,7 @@ class TestLegacyBooleanAutoMode:
 
             await verification_cog.on_message(message)
 
-        # No debería auto-aprobar, queda en PENDING_REVIEW
+        # Should not auto-approve, stays in PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
             updated = await service.get_by_public_id(public_id)
@@ -7668,12 +7666,12 @@ class TestLegacyBooleanAutoMode:
 
 
 class TestStatusReplacementInFormatted:
-    """Tests para reemplazo de status cuando SÍ está en formatted."""
+    """Tests for status replacement when it IS in formatted."""
 
     async def test_auto_approve_replaces_pending_status(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-aprobación reemplaza el status pendiente."""
+        """Test that auto-approval replaces the pending status."""
         from discord_bot.verification.api_client import (
             VerificationAPIResponse,
             VerificationAPIResult,
@@ -7695,9 +7693,9 @@ class TestStatusReplacementInFormatted:
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
 
-        # El mensaje ya tiene el status pendiente
+        # Message already has pending status
         mock_embed = MagicMock(spec=discord.Embed)
-        mock_embed.description = "Solicitud de TestUser\n\n⏳ Pendiente de revisión"
+        mock_embed.description = "Request from TestUser\n\n⏳ Pending review"
 
         mock_mod_message = MagicMock()
         mock_mod_message.id = 999
@@ -7758,16 +7756,16 @@ class TestStatusReplacementInFormatted:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.BOTH,
             "regular_roles_add": [999],
             "regular_roles_remove": [],
-            "approval_message_regular": "Aprobado",
+            "approval_message_regular": "Approved",
             "delete_processed_messages": False,
-            "mod_message_template": "Solicitud de {username}\n\n{status}",  # Template con status
-            "status_pending_review": "⏳ Pendiente de revisión",
-            "status_approved": "✅ Aprobado por {moderator}",
+            "mod_message_template": "Request from {username}\n\n{status}",  # Template with status
+            "status_pending_review": "⏳ Pending review",
+            "status_approved": "✅ Approved by {moderator}",
         }
 
         api_response = VerificationAPIResponse(
@@ -7800,13 +7798,13 @@ class TestStatusReplacementInFormatted:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó
+        # Verify that was edited
         mock_mod_message.edit.assert_called_once()
 
     async def test_auto_reject_replaces_pending_status(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-rechazo reemplaza el status pendiente."""
+        """Test that auto-rejection replaces pending status."""
         from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
 
@@ -7825,9 +7823,9 @@ class TestStatusReplacementInFormatted:
 
         verification_cog._pending_dm_verifications[456] = (123, request_id)
 
-        # El mensaje ya tiene el status pendiente
+        # Message already has pending status
         mock_embed = MagicMock(spec=discord.Embed)
-        mock_embed.description = "Solicitud de TestUser\n\n⏳ Pendiente"
+        mock_embed.description = "Request from TestUser\n\n⏳ Pending"
 
         mock_mod_message = MagicMock()
         mock_mod_message.id = 999
@@ -7880,15 +7878,15 @@ class TestStatusReplacementInFormatted:
         message.attachments = [attachment1, attachment2]
 
         config_values: dict[str, Any] = {
-            "screenshots_received_message": "Capturas recibidas",
+            "screenshots_received_message": "Screenshots received",
             "mod_notification_channel": 888,
             "verification_automatic": AutoProcessMode.REJECT_ONLY,
-            "reject_wrong_captures": "Capturas inválidas",
-            "rejection_message": "Rechazado: {reason}",
+            "reject_wrong_captures": "Invalid captures",
+            "rejection_message": "Rejected: {reason}",
             "delete_processed_messages": False,
-            "mod_message_template": "Solicitud de {username}\n\n{status}",  # Template con status
-            "status_pending_review": "⏳ Pendiente",
-            "status_rejected": "❌ Rechazado: {reason}",
+            "mod_message_template": "Request from {username}\n\n{status}",  # Template with status
+            "status_pending_review": "⏳ Pending",
+            "status_rejected": "❌ Rejected: {reason}",
             "auto_reject_review_window": 0,
         }
 
@@ -7912,18 +7910,18 @@ class TestStatusReplacementInFormatted:
 
             await verification_cog.on_message(message)
 
-        # Verificar que se editó
+        # Verify that was edited
         mock_mod_message.edit.assert_called_once()
 
 
 class TestHandleReviewRegexFallback:
-    """Tests para regex fallback en _update_mod_message_for_review."""
+    """Tests for regex fallback in _update_mod_message_for_review."""
 
     @pytest.mark.asyncio
     async def test_regex_fallback_finds_auto_reject_pattern(
         self, mock_discord_guild: MagicMock
     ) -> None:
-        """Probar que regex encuentra patrón de auto-rechazo."""
+        """Test that regex finds auto-reject pattern."""
         request = MagicMock()
         request.mod_message_id = 999
         request.username = "TestUser"
@@ -7934,7 +7932,7 @@ class TestHandleReviewRegexFallback:
         mock_mod_channel.guild = mock_discord_guild
 
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_message.content = "Info\n\n❌ Auto-rechazado: razón\n\nMás info"
+        mock_mod_message.content = "Info\n\n❌ Auto-rejected: reason\n\nMore info"
         mock_mod_message.embeds = []
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
@@ -7943,8 +7941,8 @@ class TestHandleReviewRegexFallback:
 
         config: dict[str, Any] = {
             "mod_notification_channel": 888,
-            "status_pending_review": "⏳ Pendiente de revisión",
-            "status_rejected": "ESTADO DIFERENTE",
+            "status_pending_review": "⏳ Pending review",
+            "status_rejected": "DIFFERENT STATUS",
         }
 
         from discord_bot.verification.handlers import update_mod_message_for_manual_review
@@ -7962,7 +7960,7 @@ class TestHandleReviewRegexFallback:
     async def test_regex_fallback_appends_when_no_match(
         self, mock_discord_guild: MagicMock
     ) -> None:
-        """Probar que añade estado pendiente si no hay match."""
+        """Test that adds pending status if no match."""
         request = MagicMock()
         request.mod_message_id = 999
         request.username = "TestUser"
@@ -7973,7 +7971,7 @@ class TestHandleReviewRegexFallback:
         mock_mod_channel.guild = mock_discord_guild
 
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_message.content = "Info sin estado de rechazo"
+        mock_mod_message.content = "Info without rejection status"
         mock_mod_message.embeds = []
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
@@ -7982,7 +7980,7 @@ class TestHandleReviewRegexFallback:
 
         config: dict[str, Any] = {
             "mod_notification_channel": 888,
-            "status_pending_review": "⏳ Pendiente de revisión",
+            "status_pending_review": "⏳ Pending review",
             "status_rejected": "",
         }
 
@@ -7999,21 +7997,21 @@ class TestHandleReviewRegexFallback:
 
 
 class TestGetLockedOptions:
-    """Tests para get_locked_options."""
+    """Tests for get_locked_options."""
 
     def test_returns_empty_dict(self, verification_cog: VerificationCog) -> None:
-        """Probar que retorna un diccionario vacío."""
+        """Test that returns an empty dictionary."""
         result = verification_cog.get_locked_options()
         assert result == {}
 
 
 class TestIsCogEnabled:
-    """Tests para _is_cog_enabled."""
+    """Tests for _is_cog_enabled."""
 
     async def test_returns_true_when_enabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna True cuando el cog está habilitado."""
+        """Test that returns True when cog is enabled."""
         async with test_database.session() as session:
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(
@@ -8028,30 +8026,30 @@ class TestIsCogEnabled:
     async def test_returns_false_when_disabled(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que retorna False cuando el cog está deshabilitado."""
+        """Test that returns False when cog is disabled."""
         cog = VerificationCog(verification_cog.bot)
         result = await cog._is_cog_enabled(999)
         assert result is False
 
 
 class TestCreatePanelEmbed:
-    """Tests para _create_panel_embed."""
+    """Tests for _create_panel_embed."""
 
     def test_creates_embed_with_text(self, verification_cog: VerificationCog) -> None:
-        """Probar que crea un embed con el texto proporcionado."""
-        text = "Panel de verificación"
+        """Test that creates an embed with the provided text."""
+        text = "Verification panel"
         embed = verification_cog._create_panel_embed(text)
         assert embed is not None
         assert isinstance(embed, discord.Embed)
 
 
 class TestRebuildSingleEmbed:
-    """Tests para _rebuild_single_embed."""
+    """Tests for _rebuild_single_embed."""
 
     async def test_returns_false_without_mod_message_id(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que retorna False si no hay mod_message_id."""
+        """Test that returns False if there is no mod_message_id."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_request = MagicMock()
@@ -8068,7 +8066,7 @@ class TestRebuildSingleEmbed:
     async def test_returns_false_when_message_not_found(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que retorna False si el mensaje no existe."""
+        """Test that returns False if the message does not exist."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.name = "Test Guild"
 
@@ -8087,7 +8085,7 @@ class TestRebuildSingleEmbed:
         assert result is False
 
     async def test_rebuilds_embed_successfully(self, verification_cog: VerificationCog) -> None:
-        """Probar que reconstruye el embed correctamente."""
+        """Test that rebuilds the embed correctly."""
         mock_member = MagicMock(spec=discord.Member)
         mock_member.mention = "<@456>"
 
@@ -8096,7 +8094,7 @@ class TestRebuildSingleEmbed:
         mock_guild.get_member = MagicMock(return_value=mock_member)
 
         mock_embed = MagicMock()
-        mock_embed.description = "Usuario: Test\n⏳ Estado: Esperando"
+        mock_embed.description = "User: Test\n⏳ Status: Waiting"
 
         mock_message = MagicMock(spec=discord.Message)
         mock_message.embeds = [mock_embed]
@@ -8118,14 +8116,14 @@ class TestRebuildSingleEmbed:
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
             ConfigKey.MOD_EMBED_ALLY: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
-            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando capturas",
-            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
-            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Awaiting screenshots",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Accept",
+            ConfigKey.REJECT_BUTTON_TEXT: "Reject",
         }
 
         # Mock database session for history lookup
@@ -8152,7 +8150,7 @@ class TestRebuildSingleEmbed:
         mock_message.edit.assert_called_once()
 
     async def test_preserves_screenshot_embeds(self, verification_cog: VerificationCog) -> None:
-        """Probar que preserva los embeds de capturas de pantalla."""
+        """Test that preserves screenshot embeds."""
         mock_member = MagicMock(spec=discord.Member)
         mock_member.mention = "<@456>"
 
@@ -8161,7 +8159,7 @@ class TestRebuildSingleEmbed:
         mock_guild.get_member = MagicMock(return_value=mock_member)
 
         main_embed = MagicMock()
-        main_embed.description = "Usuario: Test\n⏳ Estado"
+        main_embed.description = "User: Test\n⏳ Status"
         main_embed.image = MagicMock()
         main_embed.image.url = None  # Main embed has no image
 
@@ -8193,14 +8191,14 @@ class TestRebuildSingleEmbed:
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
             ConfigKey.MOD_EMBED_ALLY: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
-            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
-            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
-            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pending",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Accept",
+            ConfigKey.REJECT_BUTTON_TEXT: "Reject",
         }
 
         # Mock database session for history lookup
@@ -8229,7 +8227,7 @@ class TestRebuildSingleEmbed:
         assert len(embeds) == 3
 
     async def test_handles_empty_embeds(self, verification_cog: VerificationCog) -> None:
-        """Probar que maneja mensajes sin embeds."""
+        """Test that handles messages without embeds."""
         mock_member = MagicMock(spec=discord.Member)
         mock_member.mention = "<@456>"
 
@@ -8257,12 +8255,12 @@ class TestRebuildSingleEmbed:
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
             ConfigKey.MOD_EMBED_ALLY: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
-            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Esperando",
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Waiting",
         }
 
         # Mock database session for history lookup
@@ -8290,12 +8288,12 @@ class TestRebuildSingleEmbed:
 
 
 class TestRebuildPendingEmbedsForGuild:
-    """Tests para _rebuild_pending_embeds_for_guild."""
+    """Tests for _rebuild_pending_embeds_for_guild."""
 
     async def test_no_pending_for_guild(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no hace nada si no hay verificaciones para el guild."""
+        """Test that does nothing if there are no verifications for the guild."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -8305,7 +8303,7 @@ class TestRebuildPendingEmbedsForGuild:
     async def test_rebuilds_only_guild_verifications(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que solo reconstruye verificaciones del guild especificado."""
+        """Test that only rebuilds verifications of the specified guild."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8349,7 +8347,7 @@ class TestRebuildPendingEmbedsForGuild:
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_message.embeds = [MagicMock(description="Usuario: Test\n⏳ Pendiente")]
+        mock_message.embeds = [MagicMock(description="User: Test\n⏳ Pending")]
         mock_message.edit = AsyncMock()
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
@@ -8357,14 +8355,14 @@ class TestRebuildPendingEmbedsForGuild:
         config: dict[str, Any] = {
             ConfigKey.MOD_NOTIFICATION_CHANNEL: 888,
             ConfigKey.MOD_EMBED_REGULAR: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
             ConfigKey.MOD_EMBED_ALLY: {
-                "sections": [{"type": "text", "content": "Usuario: {username}\n{status}"}]
+                "sections": [{"type": "text", "content": "User: {username}\n{status}"}]
             },
-            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pendiente",
-            ConfigKey.ACCEPT_BUTTON_TEXT: "Aceptar",
-            ConfigKey.REJECT_BUTTON_TEXT: "Rechazar",
+            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pending",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Accept",
+            ConfigKey.REJECT_BUTTON_TEXT: "Reject",
         }
 
         with patch.object(
@@ -8380,7 +8378,7 @@ class TestRebuildPendingEmbedsForGuild:
     async def test_skips_no_mod_channel_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no hace nada si no hay canal de mod configurado."""
+        """Test that does nothing if no mod channel is configured."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8407,14 +8405,14 @@ class TestRebuildPendingEmbedsForGuild:
             ConfigService,
             "get_all_config",
             new_callable=AsyncMock,
-            return_value={},  # Sin MOD_NOTIFICATION_CHANNEL
+            return_value={},  # Without MOD_NOTIFICATION_CHANNEL
         ):
             await verification_cog._rebuild_pending_embeds_for_guild(mock_guild)
 
     async def test_skips_invalid_mod_channel(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no hace nada si el canal de mod no es válido."""
+        """Test that does nothing if mod channel is not valid."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8449,7 +8447,7 @@ class TestRebuildPendingEmbedsForGuild:
     async def test_handles_rebuild_error(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que continúa si falla la reconstrucción de un embed."""
+        """Test that continues if embed reconstruction fails."""
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8486,12 +8484,12 @@ class TestRebuildPendingEmbedsForGuild:
 
 
 class TestOnConfigChangedModEmbed:
-    """Tests para on_config_changed con claves de embed de moderación."""
+    """Tests for on_config_changed with moderation embed keys."""
 
     async def test_rebuilds_on_mod_embed_color_change(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que reconstruye embeds al cambiar color."""
+        """Test that rebuilds embeds when color changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -8507,7 +8505,7 @@ class TestOnConfigChangedModEmbed:
     async def test_rebuilds_on_mod_embed_icon_change(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que reconstruye embeds al cambiar icono."""
+        """Test that rebuilds embeds when icon changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -8523,7 +8521,7 @@ class TestOnConfigChangedModEmbed:
     async def test_rebuilds_on_accept_button_change(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que reconstruye embeds al cambiar texto del botón."""
+        """Test that rebuilds embeds when button text changes."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -8537,7 +8535,7 @@ class TestOnConfigChangedModEmbed:
             mock_rebuild.assert_called_once_with(mock_guild)
 
     async def test_no_rebuild_on_unrelated_key(self, verification_cog: VerificationCog) -> None:
-        """Probar que no reconstruye con claves no relacionadas."""
+        """Test that does not rebuild with unrelated keys."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -8552,12 +8550,12 @@ class TestOnConfigChangedModEmbed:
 
 
 class TestScreenshotTimer:
-    """Tests para el timer de timeout de capturas."""
+    """Tests for the timer for screenshot timeout."""
 
     async def test_start_screenshot_timer_creates_task(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que start_screenshot_timer crea una tarea."""
+        """Test that start_screenshot_timer creates a task."""
         verification_cog.start_screenshot_timer(
             request_id=123,
             guild_id=456,
@@ -8575,10 +8573,10 @@ class TestScreenshotTimer:
     async def test_start_screenshot_timer_cancels_existing(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que start_screenshot_timer cancela timer existente."""
+        """Test that start_screenshot_timer cancels existing timer."""
         import asyncio
 
-        # Crear primer timer
+        # Create first timer
         verification_cog.start_screenshot_timer(
             request_id=123,
             guild_id=456,
@@ -8587,7 +8585,7 @@ class TestScreenshotTimer:
         )
         first_task = verification_cog._screenshot_timers[123]
 
-        # Crear segundo timer para el mismo request
+        # Create second timer for the same request
         verification_cog.start_screenshot_timer(
             request_id=123,
             guild_id=456,
@@ -8596,7 +8594,7 @@ class TestScreenshotTimer:
         )
         second_task = verification_cog._screenshot_timers[123]
 
-        # Esperar a que se procese la cancelación
+        # Wait for the cancellation to process
         await asyncio.sleep(0)
 
         assert first_task.cancelled() or first_task.done()
@@ -8608,7 +8606,7 @@ class TestScreenshotTimer:
     async def test_cancel_screenshot_timer_returns_true(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que cancel_screenshot_timer retorna True si cancela."""
+        """Test that cancel_screenshot_timer returns True if it cancels."""
         verification_cog.start_screenshot_timer(
             request_id=123,
             guild_id=456,
@@ -8624,13 +8622,13 @@ class TestScreenshotTimer:
     def test_cancel_screenshot_timer_returns_false_if_not_exists(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que cancel_screenshot_timer retorna False si no existe."""
+        """Test that cancel_screenshot_timer returns False if it does not exist."""
         result = verification_cog.cancel_screenshot_timer(999)
 
         assert result is False
 
     async def test_cog_unload_cancels_all_timers(self, verification_cog: VerificationCog) -> None:
-        """Probar que cog_unload cancela todos los timers."""
+        """Test that cog_unload cancels all timers."""
         import asyncio
 
         verification_cog.start_screenshot_timer(
@@ -8651,7 +8649,7 @@ class TestScreenshotTimer:
 
         await verification_cog.cog_unload()
 
-        # Esperar a que se procesen las cancelaciones
+        # Wait for cancellations to process
         await asyncio.sleep(0)
 
         assert task1.cancelled() or task1.done()
@@ -8660,13 +8658,13 @@ class TestScreenshotTimer:
 
 
 class TestAutoRejectByTimeout:
-    """Tests para auto-rechazo por timeout de capturas."""
+    """Tests for auto-reject due to screenshot timeout."""
 
     async def test_auto_reject_updates_status(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-rechazo cambia el estado a REJECTED."""
-        # Crear solicitud pendiente
+        """Test that auto-rejection changes the state to REJECTED."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8680,7 +8678,7 @@ class TestAutoRejectByTimeout:
             public_id = request.public_id
             request_id = request.id
 
-        # Ejecutar auto-rechazo
+        # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
             mock_bot.user = MagicMock()
@@ -8693,7 +8691,7 @@ class TestAutoRejectByTimeout:
                 user_id=456,
             )
 
-        # Verificar estado
+        # Verify state
         async with test_database.session() as session:
             service = VerificationService(session)
             updated_request = await service.get_by_public_id(public_id)
@@ -8703,8 +8701,8 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_skips_if_not_pending_screenshots(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no rechaza si ya no está esperando capturas."""
-        # Crear solicitud y actualizarla a PENDING_REVIEW
+        """Test that does not reject if no longer waiting for screenshots."""
+        # Create request and update it to PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8724,7 +8722,7 @@ class TestAutoRejectByTimeout:
             public_id = request.public_id
             request_id = request.id
 
-        # Ejecutar auto-rechazo
+        # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
             mock_bot.user = MagicMock()
@@ -8736,7 +8734,7 @@ class TestAutoRejectByTimeout:
                 user_id=456,
             )
 
-        # Verificar que sigue en PENDING_REVIEW
+        # Verify it stays in PENDING_REVIEW
         async with test_database.session() as session:
             service = VerificationService(session)
             updated_request = await service.get_by_public_id(public_id)
@@ -8746,8 +8744,8 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_clears_pending_dm(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que limpia _pending_dm_verifications."""
-        # Crear solicitud
+        """Test that cleans _pending_dm_verifications."""
+        # Create request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8760,10 +8758,10 @@ class TestAutoRejectByTimeout:
             await session.commit()
             request_id = request.id
 
-        # Añadir a pending
+        # Add a pending
         verification_cog._pending_dm_verifications[456] = (123, request_id)
 
-        # Ejecutar auto-rechazo
+        # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
             mock_bot.user = MagicMock()
@@ -8781,11 +8779,11 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_request_not_found(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no falla si la solicitud no existe."""
+        """Test that does not fail if the request does not exist."""
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
 
-            # No debe lanzar excepción
+            # Should not throw exception
             await verification_cog._auto_reject_by_timeout(
                 request_id=99999,
                 guild_id=123,
@@ -8795,8 +8793,8 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_with_guild_updates_mod_message(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que actualiza el mensaje de moderación cuando hay guild."""
-        # Crear solicitud pendiente
+        """Test that updates moderation message when guild exists."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8841,8 +8839,8 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_notifies_member(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que notifica al usuario por DM."""
-        # Crear solicitud pendiente
+        """Test that notifies user via DM."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8890,8 +8888,8 @@ class TestAutoRejectByTimeout:
     async def test_auto_reject_handles_forbidden_dm(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que maneja error Forbidden al enviar DM."""
-        # Crear solicitud pendiente
+        """Test that handles Forbidden error when sending DM."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -8928,7 +8926,7 @@ class TestAutoRejectByTimeout:
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = mock_guild
 
-            # No debe lanzar excepción
+            # Should not throw exception
             await verification_cog._auto_reject_by_timeout(
                 request_id=request_id,
                 guild_id=123,
@@ -8937,23 +8935,23 @@ class TestAutoRejectByTimeout:
 
 
 class TestScreenshotTimerTask:
-    """Tests para la tarea del timer de capturas."""
+    """Tests for the task for the screenshot timer."""
 
     async def test_timer_task_calls_auto_reject_on_timeout(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Probar que el timer llama a auto_reject cuando expira."""
+        """Test that timer calls auto_reject when it expires."""
         with patch.object(
             verification_cog,
             "_auto_reject_by_timeout",
             new_callable=AsyncMock,
         ) as mock_reject:
-            # Ejecutar con timeout muy corto
+            # Run with very short timeout
             await verification_cog._screenshot_timer_task(
                 request_id=123,
                 guild_id=456,
                 user_id=789,
-                timeout_minutes=0,  # 0 minutos = inmediato
+                timeout_minutes=0,  # 0 minutes = immediate
             )
 
             mock_reject.assert_called_once_with(
@@ -8963,7 +8961,7 @@ class TestScreenshotTimerTask:
             )
 
     async def test_timer_task_handles_exception(self, verification_cog: VerificationCog) -> None:
-        """Probar que el timer maneja excepciones correctamente."""
+        """Test that timer handles exceptions correctly."""
         verification_cog._screenshot_timers[123] = MagicMock()
 
         with patch.object(
@@ -8972,7 +8970,7 @@ class TestScreenshotTimerTask:
             new_callable=AsyncMock,
             side_effect=Exception("Test error"),
         ):
-            # No debe lanzar excepción
+            # Should not throw exception
             await verification_cog._screenshot_timer_task(
                 request_id=123,
                 guild_id=456,
@@ -8980,11 +8978,11 @@ class TestScreenshotTimerTask:
                 timeout_minutes=0,
             )
 
-        # Debe limpiar el timer del dict
+        # Should clean up timer from dict
         assert 123 not in verification_cog._screenshot_timers
 
     async def test_timer_task_cleans_up_on_cancel(self, verification_cog: VerificationCog) -> None:
-        """Probar que el timer limpia al ser cancelado."""
+        """Test that timer cleans up when cancelled."""
         import asyncio
 
         verification_cog._screenshot_timers[123] = MagicMock()
@@ -8994,7 +8992,7 @@ class TestScreenshotTimerTask:
                 request_id=123,
                 guild_id=456,
                 user_id=789,
-                timeout_minutes=999,  # Muy largo
+                timeout_minutes=999,  # Very long
             )
         )
 
@@ -9006,18 +9004,18 @@ class TestScreenshotTimerTask:
         except asyncio.CancelledError:
             pass
 
-        # Debe limpiar el timer del dict
+        # Should clean up timer from dict
         assert 123 not in verification_cog._screenshot_timers
 
 
 class TestRestorePendingVerificationsWithTimer:
-    """Tests para restauración de verificaciones con timer."""
+    """Tests for restoration of verifications with timer."""
 
     async def test_restore_starts_timer_if_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que restaura timers si están configurados."""
-        # Crear solicitud pendiente
+        """Test that restores timers if configured."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -9032,7 +9030,7 @@ class TestRestorePendingVerificationsWithTimer:
         verification_cog._pending_dm_verifications.clear()
         verification_cog._screenshot_timers.clear()
 
-        # Mock config con timeout
+        # Mock config with timeout
         with patch.object(
             ConfigService,
             "get_all_config",
@@ -9041,19 +9039,19 @@ class TestRestorePendingVerificationsWithTimer:
         ):
             await verification_cog._restore_pending_verifications()
 
-        # Verificar que se creó el timer
+        # Verify that the timer was created
         assert 456 in verification_cog._pending_dm_verifications
-        # El timer debería existir (o haberse ejecutado si el tiempo ya pasó)
+        # The timer should exist (or have executed if time already passed)
 
-        # Limpiar timers
+        # Clean up timers
         for task in verification_cog._screenshot_timers.values():
             task.cancel()
 
     async def test_restore_no_timer_if_not_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que no crea timer si timeout es 0."""
-        # Crear solicitud pendiente
+        """Test that does not create timer if timeout is 0."""
+        # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
             await service.create_request(
@@ -9068,7 +9066,7 @@ class TestRestorePendingVerificationsWithTimer:
         verification_cog._pending_dm_verifications.clear()
         verification_cog._screenshot_timers.clear()
 
-        # Mock config sin timeout
+        # Mock config without timeout
         with patch.object(
             ConfigService,
             "get_all_config",
@@ -9077,14 +9075,14 @@ class TestRestorePendingVerificationsWithTimer:
         ):
             await verification_cog._restore_pending_verifications()
 
-        # Verificar que no se creó timer
+        # Verify that no timer was created
         assert len(verification_cog._screenshot_timers) == 0
 
     async def test_restore_auto_rejects_if_time_expired(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Probar que auto-rechaza si el tiempo ya expiró."""
-        # Crear solicitud pendiente con fecha antigua
+        """Test that auto-rejects if time already expired."""
+        # Create pending request with old date
         async with test_database.session() as session:
             service = VerificationService(session)
             request = await service.create_request(
@@ -9094,7 +9092,7 @@ class TestRestorePendingVerificationsWithTimer:
                 guild_name="Test Guild",
                 verification_type=VerificationType.REGULAR,
             )
-            # Modificar created_at para que sea hace 1 hora
+            # Modify created_at to be 1 hour ago
             from datetime import timedelta
 
             request.created_at = datetime.now(UTC) - timedelta(hours=1)
@@ -9104,7 +9102,7 @@ class TestRestorePendingVerificationsWithTimer:
         verification_cog._pending_dm_verifications.clear()
         verification_cog._screenshot_timers.clear()
 
-        # Mock config con timeout de 5 minutos (ya expirado)
+        # Mock config with 5 minute timeout (already expired)
         with (
             patch.object(
                 ConfigService,
@@ -9120,12 +9118,12 @@ class TestRestorePendingVerificationsWithTimer:
         ):
             await verification_cog._restore_pending_verifications()
 
-            # Esperar a que se ejecute el task creado
+            # Wait for the created task to execute
             import asyncio
 
             await asyncio.sleep(0.1)
 
-            # Verificar que se llamó auto_reject
+            # Verify that auto_reject was called
             mock_reject.assert_called_once_with(
                 request_id=request_id,
                 guild_id=123,

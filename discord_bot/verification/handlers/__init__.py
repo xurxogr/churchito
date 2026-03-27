@@ -1,10 +1,10 @@
-"""Manejadores de flujo de verificación.
+"""Verification flow handlers.
 
-Este paquete contiene los handlers para el flujo de verificación:
-- flow: Flujo principal y acciones de moderador
-- mod_messages: Gestión de mensajes de moderación y tracker
-- auto_processing: Procesamiento automático (auto-aprobación/rechazo)
-- utils: Utilidades específicas de verificación
+This package contains handlers for the verification flow:
+- flow: Main flow and moderator actions
+- mod_messages: Moderation messages and tracker management
+- auto_processing: Automatic processing (auto-approval/rejection)
+- utils: Verification-specific utilities
 """
 
 from discord_bot.verification.handlers.flow import (

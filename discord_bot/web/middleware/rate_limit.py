@@ -1,11 +1,11 @@
-"""Middleware de rate limiting para protección contra abuso.
+"""Rate limiting middleware for abuse protection.
 
-IMPORTANTE: Este rate limiter usa almacenamiento en memoria local.
-NO escala en despliegues multi-worker (cada worker tiene su propio estado).
+IMPORTANT: This rate limiter uses local in-memory storage.
+It does NOT scale in multi-worker deployments (each worker has its own state).
 
-Para producción con múltiples workers, se recomienda:
-1. Desactivar este middleware (WEB__RATE_LIMIT_ENABLED=false)
-2. Usar rate limiting externo: nginx, HAProxy, Cloudflare, etc.
+For production with multiple workers, it is recommended to:
+1. Disable this middleware (WEB__RATE_LIMIT_ENABLED=false)
+2. Use external rate limiting: nginx, HAProxy, Cloudflare, etc.
 """
 
 import time
@@ -18,81 +18,81 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-# Configuración de límites por ruta
+# Rate limits configuration by route
 RATE_LIMITS: dict[str, tuple[int, int]] = {
     # (requests, window_seconds)
-    "/auth/login": (10, 60),  # 10 requests por minuto
-    "/auth/callback": (10, 60),  # 10 requests por minuto
+    "/auth/login": (10, 60),  # 10 requests per minute
+    "/auth/callback": (10, 60),  # 10 requests per minute
 }
 
-# Límite por defecto para rutas POST de configuración
-DEFAULT_POST_LIMIT = (30, 60)  # 30 requests por minuto
+# Default limit for POST configuration routes
+DEFAULT_POST_LIMIT = (30, 60)  # 30 requests per minute
 
 
 @dataclass
 class RateLimitState:
-    """Estado de rate limiting para una IP/ruta."""
+    """Rate limiting state for an IP/route."""
 
     requests: list[float] = field(default_factory=list)
 
     def clean_old_requests(self, window_seconds: int) -> None:
-        """Eliminar requests fuera de la ventana de tiempo."""
+        """Remove requests outside the time window."""
         cutoff = time.time() - window_seconds
         self.requests = [t for t in self.requests if t > cutoff]
 
     def is_limited(self, max_requests: int, window_seconds: int) -> bool:
-        """Verificar si se excedió el límite."""
+        """Check if the limit has been exceeded."""
         self.clean_old_requests(window_seconds)
         return len(self.requests) >= max_requests
 
     def add_request(self) -> None:
-        """Registrar una nueva request."""
+        """Record a new request."""
         self.requests.append(time.time())
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Middleware para limitar la tasa de requests.
+    """Middleware to limit request rate.
 
-    Implementa un algoritmo de ventana deslizante simple.
-    Los límites se aplican por IP + ruta.
+    Implements a simple sliding window algorithm.
+    Limits are applied per IP + route.
     """
 
     def __init__(self, app: ASGIApp) -> None:
-        """Inicializar el middleware.
+        """Initialize the middleware.
 
         Args:
-            app (ASGIApp): Aplicación ASGI
+            app (ASGIApp): ASGI application
         """
         super().__init__(app)
-        # Estado por (ip, path_pattern)
+        # State per (ip, path_pattern)
         self._state: dict[tuple[str, str], RateLimitState] = defaultdict(RateLimitState)
         self._last_cleanup = time.time()
 
     def _get_client_ip(self, request: Request) -> str:
-        """Obtener IP del cliente considerando proxies."""
-        # X-Forwarded-For puede contener múltiples IPs
+        """Get client IP considering proxies."""
+        # X-Forwarded-For may contain multiple IPs
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            # Tomar la primera IP (cliente original)
+            # Take the first IP (original client)
             return forwarded.split(",")[0].strip()
 
-        # X-Real-IP es otra opción común
+        # X-Real-IP is another common option
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return real_ip
 
-        # Fallback al cliente directo
+        # Fallback to direct client
         if request.client:
             return request.client.host
 
         return "unknown"
 
     def _get_path_pattern(self, path: str) -> str:
-        """Obtener patrón de ruta para rate limiting.
+        """Get route pattern for rate limiting.
 
-        Normaliza rutas con IDs variables.
+        Normalizes routes with variable IDs.
         """
-        # Para rutas de config, agrupar por patrón
+        # For config routes, group by pattern
         parts = path.split("/")
         if len(parts) >= 4 and parts[1] == "guild":
             # /guild/{id}/cog/{name}/... -> /guild/*/cog/*/*
@@ -103,30 +103,30 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return path
 
     def _get_limit(self, path: str, method: str) -> tuple[int, int] | None:
-        """Obtener límite para una ruta.
+        """Get limit for a route.
 
         Returns:
-            Tuple (max_requests, window_seconds) o None si no hay límite.
+            Tuple (max_requests, window_seconds) or None if no limit.
         """
-        # Verificar límites específicos
+        # Check specific limits
         if path in RATE_LIMITS:
             return RATE_LIMITS[path]
 
-        # Aplicar límite por defecto a POSTs en /guild/
+        # Apply default limit to POSTs on /guild/
         if method == "POST" and path.startswith("/guild/"):
             return DEFAULT_POST_LIMIT
 
         return None
 
     def _periodic_cleanup(self) -> None:
-        """Limpiar estados antiguos periódicamente."""
+        """Clean old states periodically."""
         now = time.time()
-        # Limpiar cada 5 minutos
+        # Clean every 5 minutes
         if now - self._last_cleanup < 300:
             return
 
         self._last_cleanup = now
-        # Eliminar estados sin requests recientes (más de 10 minutos)
+        # Remove states without recent requests (more than 10 minutes)
         keys_to_delete = []
         for key, state in self._state.items():
             state.clean_old_requests(600)
@@ -141,7 +141,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        """Procesar request aplicando rate limiting."""
+        """Process request applying rate limiting."""
         self._periodic_cleanup()
 
         path = request.url.path

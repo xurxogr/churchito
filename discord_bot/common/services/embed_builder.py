@@ -1,4 +1,4 @@
-"""Servicio para construir embeds configurables con placeholders."""
+"""Service for building configurable embeds with placeholders."""
 
 from __future__ import annotations
 
@@ -43,11 +43,11 @@ ANSI_RESET = "\u001b[0m"
 
 @dataclass
 class PlaceholderContext:
-    """Contexto con datos para resolver placeholders.
+    """Context with data for resolving placeholders.
 
-    Los placeholders globales (server_*, user_*) se resuelven automáticamente
-    si se proporcionan guild y/o member. Los placeholders adicionales se
-    pueden pasar en extra_data.
+    Global placeholders (server_*, user_*) are resolved automatically
+    if guild and/or member are provided. Additional placeholders can
+    be passed in extra_data.
     """
 
     guild: Guild | None = None
@@ -55,15 +55,15 @@ class PlaceholderContext:
     extra_data: dict[str, Any] = field(default_factory=dict)
 
     def resolve(self, key: str) -> str | None:
-        """Resolver un placeholder por su clave.
+        """Resolve a placeholder by its key.
 
         Args:
-            key: Nombre del placeholder sin llaves.
+            key: Placeholder name without braces.
 
         Returns:
-            Valor resuelto o None si no existe.
+            Resolved value or None if not found.
         """
-        # Primero buscar en extra_data (permite override de globales)
+        # First look in extra_data (allows override of globals)
         if key in self.extra_data:
             value = self.extra_data[key]
             return str(value) if value is not None else None
@@ -72,7 +72,7 @@ class PlaceholderContext:
         if key in DOT_EMOJIS:
             return DOT_EMOJIS[key]
 
-        # Placeholders de servidor
+        # Server placeholders
         if self.guild:
             if key == "server_name":
                 return self.guild.name
@@ -81,7 +81,7 @@ class PlaceholderContext:
             if key == "server_member_count":
                 return str(self.guild.member_count)
 
-        # Placeholders de usuario
+        # User placeholders
         if self.member:
             if key == "user_name":
                 return self.member.display_name
@@ -109,43 +109,43 @@ class PlaceholderContext:
         return None
 
 
-# Lista de placeholders globales disponibles
+# List of available global placeholders
 GLOBAL_PLACEHOLDERS: list[dict[str, str]] = [
-    # Servidor
-    {"key": "server_name", "description": "Nombre del servidor"},
-    {"key": "server_id", "description": "ID del servidor"},
-    {"key": "server_member_count", "description": "Cantidad de miembros"},
-    # Usuario
-    {"key": "user_name", "description": "Nombre del usuario"},
-    {"key": "user_mention", "description": "Mención del usuario"},
-    {"key": "user_id", "description": "ID del usuario"},
-    {"key": "user_avatar_url", "description": "URL del avatar"},
-    {"key": "user_joined_server", "description": "Fecha de entrada al servidor"},
-    {"key": "user_joined_server_relative", "description": "Tiempo desde que entró (relativo)"},
-    {"key": "user_joined_discord", "description": "Fecha de creación de cuenta"},
-    {"key": "user_joined_discord_relative", "description": "Antigüedad de cuenta (relativo)"},
+    # Server
+    {"key": "server_name", "description": "Server name"},
+    {"key": "server_id", "description": "Server ID"},
+    {"key": "server_member_count", "description": "Member count"},
+    # User
+    {"key": "user_name", "description": "User's name"},
+    {"key": "user_mention", "description": "User mention"},
+    {"key": "user_id", "description": "User ID"},
+    {"key": "user_avatar_url", "description": "Avatar URL"},
+    {"key": "user_joined_server", "description": "Server join date"},
+    {"key": "user_joined_server_relative", "description": "Time since joined (relative)"},
+    {"key": "user_joined_discord", "description": "Account creation date"},
+    {"key": "user_joined_discord_relative", "description": "Account age (relative)"},
     # Dot emojis (colored circles)
-    {"key": "dot_red", "description": "🔴 Círculo rojo"},
-    {"key": "dot_green", "description": "🟢 Círculo verde"},
-    {"key": "dot_yellow", "description": "🟡 Círculo amarillo"},
-    {"key": "dot_blue", "description": "🔵 Círculo azul"},
-    {"key": "dot_white", "description": "⚪ Círculo blanco"},
-    {"key": "dot_black", "description": "⚫ Círculo negro"},
-    {"key": "dot_orange", "description": "🟠 Círculo naranja"},
-    {"key": "dot_purple", "description": "🟣 Círculo morado"},
-    {"key": "dot_brown", "description": "🟤 Círculo marrón"},
+    {"key": "dot_red", "description": "🔴 Red circle"},
+    {"key": "dot_green", "description": "🟢 Green circle"},
+    {"key": "dot_yellow", "description": "🟡 Yellow circle"},
+    {"key": "dot_blue", "description": "🔵 Blue circle"},
+    {"key": "dot_white", "description": "⚪ White circle"},
+    {"key": "dot_black", "description": "⚫ Black circle"},
+    {"key": "dot_orange", "description": "🟠 Orange circle"},
+    {"key": "dot_purple", "description": "🟣 Purple circle"},
+    {"key": "dot_brown", "description": "🟤 Brown circle"},
 ]
 
 # Color tags available for ANSI formatting
 COLOR_TAGS: list[dict[str, str]] = [
-    {"tag": "{red}...{/red}", "description": "Texto en rojo (ANSI)"},
-    {"tag": "{green}...{/green}", "description": "Texto en verde (ANSI)"},
-    {"tag": "{yellow}...{/yellow}", "description": "Texto en amarillo (ANSI)"},
-    {"tag": "{blue}...{/blue}", "description": "Texto en azul (ANSI)"},
-    {"tag": "{pink}...{/pink}", "description": "Texto en rosa (ANSI)"},
-    {"tag": "{cyan}...{/cyan}", "description": "Texto en cian (ANSI)"},
-    {"tag": "{white}...{/white}", "description": "Texto en blanco (ANSI)"},
-    {"tag": "{gray}...{/gray}", "description": "Texto en gris (ANSI)"},
+    {"tag": "{red}...{/red}", "description": "Red text (ANSI)"},
+    {"tag": "{green}...{/green}", "description": "Green text (ANSI)"},
+    {"tag": "{yellow}...{/yellow}", "description": "Yellow text (ANSI)"},
+    {"tag": "{blue}...{/blue}", "description": "Blue text (ANSI)"},
+    {"tag": "{pink}...{/pink}", "description": "Pink text (ANSI)"},
+    {"tag": "{cyan}...{/cyan}", "description": "Cyan text (ANSI)"},
+    {"tag": "{white}...{/white}", "description": "White text (ANSI)"},
+    {"tag": "{gray}...{/gray}", "description": "Gray text (ANSI)"},
 ]
 
 
@@ -186,17 +186,17 @@ def _apply_ansi_colors(text: str) -> str:
 
 
 def format_placeholders(template: str, context: PlaceholderContext) -> str:
-    """Reemplazar placeholders en una plantilla.
+    """Replace placeholders in a template.
 
     Args:
-        template: Texto con placeholders en formato {nombre}.
-        context: Contexto con datos para resolver.
+        template: Text with placeholders in {name} format.
+        context: Context with data for resolution.
 
     Returns:
-        Texto con placeholders reemplazados.
+        Text with placeholders replaced.
     """
     result = template
-    # Encontrar todos los placeholders {xxx}
+    # Find all placeholders {xxx}
     import re
 
     placeholders = re.findall(r"\{(\w+)\}", template)
@@ -239,17 +239,17 @@ def create_progress_bar(
     filled_char: str = "█",
     empty_char: str = "░",
 ) -> str:
-    """Crear una barra de progreso con caracteres Unicode.
+    """Create a progress bar with Unicode characters.
 
     Args:
-        value: Valor actual.
-        max_value: Valor máximo.
-        length: Longitud de la barra en caracteres.
-        filled_char: Caracter para la parte llena.
-        empty_char: Caracter para la parte vacía.
+        value: Current value.
+        max_value: Maximum value.
+        length: Bar length in characters.
+        filled_char: Character for filled part.
+        empty_char: Character for empty part.
 
     Returns:
-        Barra de progreso como string.
+        Progress bar as string.
     """
     if max_value <= 0:
         return empty_char * length
@@ -260,7 +260,7 @@ def create_progress_bar(
 
 
 def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
-    """Parsear un color hexadecimal a discord.Color."""
+    """Parse a hexadecimal color to discord.Color."""
     if not hex_color:
         return None
     hex_color = hex_color.strip().lstrip("#")
@@ -273,10 +273,10 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
 
 
 def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[str, Any]:
-    """Renderizar una sección a datos para el embed.
+    """Render a section to embed data.
 
     Returns:
-        Dict con 'fields' (campos a agregar). Todas las secciones ahora son campos.
+        Dict with 'fields' (fields to add). All sections are now fields.
     """
     # Zero-width space for empty field names/values (Discord requires non-empty)
     EMPTY = "\u200b"
@@ -315,16 +315,16 @@ def _render_section(section: EmbedSection, context: PlaceholderContext) -> dict[
 
 
 class EmbedFieldLimitError(Exception):
-    """Error cuando se excede el límite de 25 campos en un embed."""
+    """Error when the 25 field limit is exceeded in an embed."""
 
     def __init__(self, field_count: int) -> None:
-        """Inicializar el error.
+        """Initialize the error.
 
         Args:
-            field_count: Número de campos que se intentaron agregar.
+            field_count: Number of fields attempted to add.
         """
         self.field_count = field_count
-        super().__init__(f"El embed excede el límite de 25 campos ({field_count} campos)")
+        super().__init__(f"Embed exceeds the 25 field limit ({field_count} fields)")
 
 
 def build_embed(
@@ -335,42 +335,42 @@ def build_embed(
     default_color: discord.Color | None = None,
     validate_fields: bool = True,
 ) -> discord.Embed:
-    """Construir un embed desde una configuración de secciones.
+    """Build an embed from a section configuration.
 
     Args:
-        config: Configuración del embed con secciones.
-        context: Contexto con datos para resolver placeholders.
-        title: Título opcional (sobrescribe config.title si se proporciona).
-        default_color: Color por defecto si no hay color en config.
-        validate_fields: Si True, lanza error si se exceden 25 campos.
+        config: Embed configuration with sections.
+        context: Context with data for resolving placeholders.
+        title: Optional title (overrides config.title if provided).
+        default_color: Default color if no color in config.
+        validate_fields: If True, raises error if 25 fields exceeded.
 
     Returns:
-        discord.Embed construido.
+        Built discord.Embed.
 
     Raises:
-        EmbedFieldLimitError: Si validate_fields=True y se exceden 25 campos.
+        EmbedFieldLimitError: If validate_fields=True and 25 fields exceeded.
     """
-    # Validar límite de campos
+    # Validate field limit
     if validate_fields:
         field_count = config.count_fields()
         if field_count > 25:
             raise EmbedFieldLimitError(field_count)
 
-    # Determinar título (parámetro > config)
+    # Determine title (parameter > config)
     embed_title = title
     if embed_title is None and config.title:
         embed_title = format_placeholders(config.title, context)
 
-    # Determinar color
+    # Determine color
     color = _parse_hex_color(config.color) or default_color or discord.Color.blurple()
 
     embed = discord.Embed(title=embed_title, color=color)
 
-    # Descripción (aparece antes de los campos)
+    # Description (appears before fields)
     if config.description:
         embed.description = format_placeholders(config.description, context)
 
-    # Construir campos desde secciones (todas las secciones son campos ahora)
+    # Build fields from sections (all sections are fields now)
     for section in config.sections:
         rendered = _render_section(section, context)
         for field_data in rendered["fields"]:
@@ -386,7 +386,7 @@ def build_embed(
         if "{" not in url:
             embed.set_thumbnail(url=url)
 
-    # Imagen principal (skip if placeholder unresolved)
+    # Main image (skip if placeholder unresolved)
     if config.image_url:
         url = format_placeholders(config.image_url, context)
         if "{" not in url:
@@ -415,20 +415,20 @@ def build_embeds(
     title: str | None = None,
     default_color: discord.Color | None = None,
 ) -> list[discord.Embed]:
-    """Construir un embed desde una configuración de secciones.
+    """Build an embed from a section configuration.
 
-    Todas las secciones se renderizan como campos de Discord. Esta función
-    devuelve una lista para mantener compatibilidad con código existente,
-    pero siempre devuelve un único embed (ya no hay auto-split).
+    All sections are rendered as Discord fields. This function
+    returns a list for compatibility with existing code,
+    but always returns a single embed (no auto-split anymore).
 
     Args:
-        config: Configuración del embed con secciones.
-        context: Contexto con datos para resolver placeholders.
-        title: Título opcional (sobrescribe config.title).
-        default_color: Color por defecto si no hay color en config.
+        config: Embed configuration with sections.
+        context: Context with data for resolving placeholders.
+        title: Optional title (overrides config.title).
+        default_color: Default color if no color in config.
 
     Returns:
-        Lista con un único discord.Embed construido.
+        List with a single built discord.Embed.
     """
     embed = build_embed(
         config,
@@ -453,27 +453,27 @@ def build_embed_from_rows(
     default_color: discord.Color | None = None,
     validate_fields: bool = True,
 ) -> discord.Embed:
-    """Construir un embed directamente desde filas de configuración de tabla.
+    """Build an embed directly from table configuration rows.
 
-    Atajo para usar con valores de ConfigOptionType.TABLE.
+    Shortcut for use with ConfigOptionType.TABLE values.
 
     Args:
-        rows: Lista de filas de la tabla de configuración.
-        context: Contexto con datos para resolver placeholders.
-        title: Título del embed (soporta placeholders).
-        color: Color en formato hex.
-        thumbnail_url: URL del thumbnail.
-        image_url: URL de la imagen principal.
-        footer_text: Texto del footer.
-        footer_icon_url: URL del icono del footer.
-        default_color: Color por defecto si no hay color.
-        validate_fields: Si True, lanza error si se exceden 25 campos.
+        rows: List of rows from the configuration table.
+        context: Context with data for resolving placeholders.
+        title: Embed title (supports placeholders).
+        color: Color in hex format.
+        thumbnail_url: Thumbnail URL.
+        image_url: Main image URL.
+        footer_text: Footer text.
+        footer_icon_url: Footer icon URL.
+        default_color: Default color if no color.
+        validate_fields: If True, raises error if 25 fields exceeded.
 
     Returns:
-        discord.Embed construido.
+        Built discord.Embed.
 
     Raises:
-        EmbedFieldLimitError: Si validate_fields=True y se exceden 25 campos.
+        EmbedFieldLimitError: If validate_fields=True and 25 fields exceeded.
     """
     config = EmbedConfig.from_table_rows(rows)
     config.title = title

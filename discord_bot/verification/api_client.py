@@ -1,4 +1,4 @@
-"""Cliente para API de verificación externa."""
+"""Client for external verification API."""
 
 import asyncio
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class VerificationAPIResponse:
-    """Respuesta de la API de verificación."""
+    """Verification API response."""
 
     name: str
     level: int
@@ -26,7 +26,7 @@ class VerificationAPIResponse:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "VerificationAPIResponse":
-        """Crear instancia desde diccionario."""
+        """Create instance from dictionary."""
         return cls(
             name=data.get("name", ""),
             level=data.get("level", 0),
@@ -41,7 +41,7 @@ class VerificationAPIResponse:
 
 @dataclass
 class VerificationAPIResult:
-    """Resultado de llamada a la API de verificación."""
+    """Verification API call result."""
 
     success: bool
     status_code: int
@@ -57,18 +57,18 @@ async def call_verification_api(
     timeout_seconds: int = 30,
     guild_name: str = "Unknown",
 ) -> VerificationAPIResult:
-    """Llamar a la API de verificación con las imágenes.
+    """Call the verification API with the images.
 
     Args:
-        url: URL del endpoint de verificación
-        api_key: API key (opcional)
-        image1_url: URL de la primera imagen (Discord CDN)
-        image2_url: URL de la segunda imagen (Discord CDN)
-        timeout_seconds: Timeout en segundos
-        guild_name: Nombre del guild para logs
+        url: Verification endpoint URL
+        api_key: API key (optional)
+        image1_url: URL of the first image (Discord CDN)
+        image2_url: URL of the second image (Discord CDN)
+        timeout_seconds: Timeout in seconds
+        guild_name: Guild name for logs
 
     Returns:
-        VerificationAPIResult con el resultado de la llamada
+        VerificationAPIResult with the call result
     """
     headers: dict[str, str] = {}
     if api_key:

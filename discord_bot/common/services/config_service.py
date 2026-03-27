@@ -1,4 +1,4 @@
-"""Servicio para operaciones CRUD de configuración de guilds."""
+"""Service for guild configuration CRUD operations."""
 
 import logging
 from typing import Any, cast
@@ -17,38 +17,38 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigService:
-    """Servicio para operaciones de configuración en base de datos.
+    """Service for database configuration operations.
 
-    Este servicio maneja las operaciones CRUD para valores de configuración
-    almacenados en la base de datos. Utiliza el ConfigSchemaService para
-    validación y valores por defecto.
+    This service handles CRUD operations for configuration values
+    stored in the database. It uses the ConfigSchemaService for
+    validation and default values.
     """
 
     def __init__(
         self, session: AsyncSession, schema_service: ConfigSchemaService | None = None
     ) -> None:
-        """Inicializar el servicio de configuración.
+        """Initialize the configuration service.
 
         Args:
-            session (AsyncSession): Sesión de base de datos
-            schema_service (ConfigSchemaService | None): Servicio de esquemas
-                (usa singleton si no se proporciona)
+            session (AsyncSession): Database session
+            schema_service (ConfigSchemaService | None): Schema service
+                (uses singleton if not provided)
         """
         self._session = session
         self._schema_service = schema_service or get_config_schema_service()
 
     async def get_value(self, guild_id: int, cog_name: str, key: str) -> Any:
-        """Obtener un valor de configuración.
+        """Get a configuration value.
 
-        Si no existe un valor almacenado, devuelve el valor por defecto del esquema.
+        If no stored value exists, returns the default value from the schema.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
-            key (str): Clave de la opción
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
+            key (str): Option key
 
         Returns:
-            Any: Valor de configuración o valor por defecto
+            Any: Configuration value or default value
         """
         result = await self._session.execute(
             select(GuildConfig.value).where(
@@ -68,18 +68,18 @@ class ConfigService:
     async def set_value(
         self, guild_id: int, cog_name: str, key: str, value: Any
     ) -> tuple[bool, str | None]:
-        """Establecer un valor de configuración.
+        """Set a configuration value.
 
-        Valida el valor contra el esquema antes de guardarlo.
+        Validates the value against the schema before saving.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
-            key (str): Clave de la opción
-            value (Any): Valor a establecer
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
+            key (str): Option key
+            value (Any): Value to set
 
         Returns:
-            tuple[bool, str | None]: (éxito, mensaje_error)
+            tuple[bool, str | None]: (success, error_message)
         """
         option = self._schema_service.get_option(cog_name, key)
         if option:
@@ -103,20 +103,20 @@ class ConfigService:
             self._session.add(config)
 
         await self._session.flush()
-        logger.debug(f"Configuración actualizada: {cog_name}.{key} = {value}")
+        logger.debug(f"Configuration updated: {cog_name}.{key} = {value}")
         return True, None
 
     async def get_all_config(self, guild_id: int, cog_name: str) -> dict[str, Any]:
-        """Obtener toda la configuración de un cog para un guild.
+        """Get all configuration for a cog in a guild.
 
-        Combina valores almacenados con valores por defecto del esquema.
+        Combines stored values with default values from the schema.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
 
         Returns:
-            dict[str, Any]: Diccionario de configuración completa
+            dict[str, Any]: Complete configuration dictionary
         """
         schema = self._schema_service.get_schema(cog_name)
         config: dict[str, Any] = {}
@@ -138,14 +138,14 @@ class ConfigService:
         return config
 
     async def reset_config(self, guild_id: int, cog_name: str) -> int:
-        """Eliminar toda la configuración de un cog para un guild.
+        """Delete all configuration for a cog in a guild.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
 
         Returns:
-            int: Número de opciones eliminadas
+            int: Number of options deleted
         """
         result = cast(
             CursorResult[Any],
@@ -157,21 +157,21 @@ class ConfigService:
         )
         await self._session.flush()
         logger.info(
-            f"Configuración reiniciada para guild {guild_id}, "
-            f"cog '{cog_name}': {result.rowcount} opciones eliminadas"
+            f"Configuration reset for guild {guild_id}, "
+            f"cog '{cog_name}': {result.rowcount} options deleted"
         )
         return int(result.rowcount)
 
     async def is_cog_enabled(self, guild_id: int, cog_name: str, default: bool = False) -> bool:
-        """Verificar si un cog está habilitado en un guild.
+        """Check if a cog is enabled in a guild.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
-            default (bool): Valor por defecto si no hay registro
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
+            default (bool): Default value if no record exists
 
         Returns:
-            bool: True si está habilitado
+            bool: True if enabled
         """
         result = await self._session.execute(
             select(GuildCogEnabled.enabled).where(
@@ -183,12 +183,12 @@ class ConfigService:
         return row if row is not None else default
 
     async def set_cog_enabled(self, guild_id: int, cog_name: str, enabled: bool) -> None:
-        """Establecer si un cog está habilitado en un guild.
+        """Set whether a cog is enabled in a guild.
 
         Args:
-            guild_id (int): ID del guild
-            cog_name (str): Nombre del cog
-            enabled (bool): True para habilitar, False para deshabilitar
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
+            enabled (bool): True to enable, False to disable
         """
         result = await self._session.execute(
             select(GuildCogEnabled).where(
@@ -205,19 +205,19 @@ class ConfigService:
             self._session.add(cog_enabled)
 
         await self._session.flush()
-        status = "habilitado" if enabled else "deshabilitado"
-        logger.info(f"Cog '{cog_name}' {status} en guild {guild_id}")
+        status = "enabled" if enabled else "disabled"
+        logger.info(f"Cog '{cog_name}' {status} in guild {guild_id}")
 
     async def get_enabled_cogs(self, guild_id: int) -> dict[str, bool]:
-        """Obtener el estado de habilitación de todos los cogs para un guild.
+        """Get the enabled state of all cogs for a guild.
 
-        Solo devuelve cogs que tienen un registro explícito en la base de datos.
+        Only returns cogs that have an explicit record in the database.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            dict[str, bool]: Diccionario de cog_name -> enabled
+            dict[str, bool]: Dictionary of cog_name -> enabled
         """
         result = await self._session.execute(
             select(GuildCogEnabled.cog_name, GuildCogEnabled.enabled).where(

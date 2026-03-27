@@ -1,4 +1,4 @@
-"""Utilidades para los handlers de verificación."""
+"""Utilities for verification handlers."""
 
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -22,15 +22,15 @@ API_ERROR_MESSAGES: dict[int, str] = {
 
 
 def calculate_expires_timestamp(created_at: datetime, timeout_minutes: int) -> str:
-    """Calcular el timestamp de expiración para el placeholder {expires}.
+    """Calculate expiration timestamp for the {expires} placeholder.
 
     Args:
-        created_at: Fecha de creación de la solicitud.
-        timeout_minutes: Minutos de timeout configurados.
+        created_at: Request creation date.
+        timeout_minutes: Configured timeout minutes.
 
     Returns:
-        Timestamp relativo de Discord (ej: "<t:1234567890:R>") o cadena vacía
-        si el timeout está desactivado (0).
+        Discord relative timestamp (e.g.: "<t:1234567890:R>") or empty string
+        if timeout is disabled (0).
     """
     if timeout_minutes <= 0:
         return ""
@@ -53,21 +53,21 @@ def get_api_error_message(status_code: int) -> str:
 
 
 def create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discord.Embed]:
-    """Crear embeds para mostrar las capturas de pantalla.
+    """Create embeds to display screenshots.
 
-    Crea embeds con la misma URL base para que Discord los muestre
-    como miniaturas en una fila en lugar de imágenes grandes apiladas.
+    Creates embeds with the same base URL so Discord displays them
+    as thumbnails in a row instead of stacked large images.
 
     Args:
-        url1: URL de la primera captura
-        url2: URL de la segunda captura
+        url1: URL of the first screenshot
+        url2: URL of the second screenshot
 
     Returns:
-        Lista de embeds con las imágenes
+        List of embeds with the images
     """
     embeds = []
-    # Usar una URL común para que Discord muestre las imágenes en fila
-    # Esto es un truco de Discord: embeds con la misma url se agrupan visualmente
+    # Use a common URL so Discord displays images in a row
+    # This is a Discord trick: embeds with the same url are grouped visually
     common_url = "https://discord.com"
 
     if url1:
@@ -87,14 +87,14 @@ def get_ready_for_approval_status(
     config: dict[str, Any],
     guild: discord.Guild,
 ) -> str:
-    """Obtener el texto de estado 'listo para aprobar' incluyendo roles.
+    """Get the 'ready for approval' status text including roles.
 
     Args:
-        config: Configuración del cog
-        guild: Guild para obtener los roles
+        config: Cog configuration
+        guild: Guild to get roles from
 
     Returns:
-        Texto del estado formateado
+        Formatted status text
     """
     mod_role_ids = config.get(ConfigKey.MOD_ROLES) or []
     role_mentions = []
@@ -104,7 +104,7 @@ def get_ready_for_approval_status(
         if role:
             role_mentions.append(role.mention)
 
-    roles_text = ", ".join(role_mentions) if role_mentions else "moderadores"
+    roles_text = ", ".join(role_mentions) if role_mentions else "moderators"
 
     status_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
     return format_message(status_template, roles=roles_text)
@@ -116,16 +116,16 @@ async def get_embed_additional_sections(
     verification_service: "VerificationService",
     player_info: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
-    """Obtener secciones adicionales (player info + historial) para el embed.
+    """Get additional sections (player info + history) for the embed.
 
     Args:
-        request: Solicitud de verificación
-        config: Configuración del cog
-        verification_service: Servicio de verificación
-        player_info: Info del jugador (si None, se lee de request.player_info)
+        request: Verification request
+        config: Cog configuration
+        verification_service: Verification service
+        player_info: Player info (if None, reads from request.player_info)
 
     Returns:
-        Tupla de (additional_sections, sections_context)
+        Tuple of (additional_sections, sections_context)
     """
     if player_info is None:
         player_info = request.player_info

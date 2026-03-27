@@ -1,4 +1,4 @@
-"""Tests para VerificationService."""
+"""Tests for VerificationService."""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,10 +7,10 @@ from discord_bot.verification.service import VerificationService
 
 
 class TestVerificationService:
-    """Tests para VerificationService."""
+    """Tests for VerificationService."""
 
     async def test_create_request(self, test_session: AsyncSession) -> None:
-        """Probar creacion de solicitud."""
+        """Test request creation."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -29,7 +29,7 @@ class TestVerificationService:
         assert request.status == VerificationStatus.PENDING_SCREENSHOTS
 
     async def test_create_request_ally(self, test_session: AsyncSession) -> None:
-        """Probar creacion de solicitud de aliado."""
+        """Test ally request creation."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -43,7 +43,7 @@ class TestVerificationService:
         assert request.verification_type == VerificationType.ALLY
 
     async def test_get_request(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de solicitud por ID."""
+        """Test getting request by ID."""
         service = VerificationService(test_session)
 
         created = await service.create_request(
@@ -60,13 +60,13 @@ class TestVerificationService:
         assert retrieved.username == "TestUser"
 
     async def test_get_request_not_found(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de solicitud inexistente."""
+        """Test getting non-existent request."""
         service = VerificationService(test_session)
         result = await service.get_request(99999)
         assert result is None
 
     async def test_get_pending_by_user(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de solicitud pendiente por usuario."""
+        """Test getting pending request by user."""
         service = VerificationService(test_session)
 
         await service.create_request(
@@ -82,13 +82,13 @@ class TestVerificationService:
         assert pending.user_id == 456
 
     async def test_get_pending_by_user_no_pending(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de solicitud pendiente cuando no hay ninguna."""
+        """Test getting pending request when there are none."""
         service = VerificationService(test_session)
         pending = await service.get_pending_by_user(guild_id=123, user_id=456)
         assert pending is None
 
     async def test_get_pending_by_user_ignores_completed(self, test_session: AsyncSession) -> None:
-        """Probar que get_pending_by_user ignora solicitudes completadas."""
+        """Test that get_pending_by_user ignores completed requests."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -109,10 +109,10 @@ class TestVerificationService:
         assert pending is None
 
     async def test_get_any_pending_by_user(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de cualquier solicitud pendiente de un usuario."""
+        """Test getting any pending request from a user."""
         service = VerificationService(test_session)
 
-        # Crear solicitud en un guild
+        # Create request in a guild
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -121,14 +121,14 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
 
-        # Buscar sin especificar guild
+        # Search without specifying guild
         pending = await service.get_any_pending_by_user(456)
         assert pending is not None
         assert pending.id == request.id
         assert pending.guild_id == 123
 
     async def test_get_any_pending_by_user_no_pending(self, test_session: AsyncSession) -> None:
-        """Probar get_any_pending_by_user cuando no hay solicitudes pendientes."""
+        """Test get_any_pending_by_user when there are no pending requests."""
         service = VerificationService(test_session)
         pending = await service.get_any_pending_by_user(456)
         assert pending is None
@@ -136,10 +136,10 @@ class TestVerificationService:
     async def test_get_any_pending_by_user_ignores_pending_review(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que get_any_pending_by_user solo devuelve PENDING_SCREENSHOTS."""
+        """Test that get_any_pending_by_user only returns PENDING_SCREENSHOTS."""
         service = VerificationService(test_session)
 
-        # Crear solicitud y actualizar a PENDING_REVIEW
+        # Create request and update to PENDING_REVIEW
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -151,17 +151,17 @@ class TestVerificationService:
             request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
 
-        # No debe encontrar porque ya tiene capturas (PENDING_REVIEW)
+        # Should not find because it already has screenshots (PENDING_REVIEW)
         pending = await service.get_any_pending_by_user(456)
         assert pending is None
 
     async def test_get_any_pending_by_user_returns_most_recent(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que get_any_pending_by_user devuelve la mas reciente."""
+        """Test that get_any_pending_by_user returns the most recent."""
         service = VerificationService(test_session)
 
-        # Crear solicitud en guild 111
+        # Create request in guild 111
         await service.create_request(
             guild_id=111,
             user_id=456,
@@ -170,7 +170,7 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
 
-        # Crear solicitud en guild 222 (mas reciente)
+        # Create request in guild 222 (more recent)
         request2 = await service.create_request(
             guild_id=222,
             user_id=456,
@@ -185,10 +185,10 @@ class TestVerificationService:
         assert pending.guild_id == 222
 
     async def test_get_all_pending_screenshots(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de todas las solicitudes esperando capturas."""
+        """Test getting all requests awaiting screenshots."""
         service = VerificationService(test_session)
 
-        # Crear varias solicitudes
+        # Create multiple requests
         await service.create_request(
             guild_id=111,
             user_id=456,
@@ -208,7 +208,7 @@ class TestVerificationService:
         assert len(pending) == 2
 
     async def test_get_all_pending_screenshots_empty(self, test_session: AsyncSession) -> None:
-        """Probar get_all_pending_screenshots cuando no hay solicitudes."""
+        """Test get_all_pending_screenshots when there are no requests."""
         service = VerificationService(test_session)
         pending = await service.get_all_pending_screenshots()
         assert pending == []
@@ -216,10 +216,10 @@ class TestVerificationService:
     async def test_get_all_pending_screenshots_ignores_other_statuses(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que get_all_pending_screenshots ignora otros estados."""
+        """Test that get_all_pending_screenshots ignores other statuses."""
         service = VerificationService(test_session)
 
-        # Crear solicitud y aprobarla
+        # Create request and approve it
         request1 = await service.create_request(
             guild_id=111,
             user_id=456,
@@ -234,7 +234,7 @@ class TestVerificationService:
             guild_name="Test Guild",
         )
 
-        # Crear solicitud y actualizarla a PENDING_REVIEW
+        # Create request and update to PENDING_REVIEW
         request2 = await service.create_request(
             guild_id=222,
             user_id=789,
@@ -246,7 +246,7 @@ class TestVerificationService:
             request_id=request2.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
 
-        # Crear solicitud pendiente de capturas
+        # Create request pending screenshots
         await service.create_request(
             guild_id=333,
             user_id=101,
@@ -260,7 +260,7 @@ class TestVerificationService:
         assert pending[0].user_id == 101
 
     async def test_get_user_history(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de historial de usuario."""
+        """Test getting user history."""
         service = VerificationService(test_session)
 
         request1 = await service.create_request(
@@ -291,13 +291,13 @@ class TestVerificationService:
         assert history[1].verification_type == VerificationType.REGULAR
 
     async def test_get_user_history_empty(self, test_session: AsyncSession) -> None:
-        """Probar historial vacio."""
+        """Test empty history."""
         service = VerificationService(test_session)
         history = await service.get_user_history(guild_id=123, user_id=456)
         assert history == []
 
     async def test_update_screenshots(self, test_session: AsyncSession) -> None:
-        """Probar actualizacion de capturas."""
+        """Test updating screenshots."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -322,7 +322,7 @@ class TestVerificationService:
         assert updated.screenshots_submitted_at is not None
 
     async def test_update_screenshots_not_found(self, test_session: AsyncSession) -> None:
-        """Probar actualizacion de capturas para solicitud inexistente."""
+        """Test updating screenshots for non-existent request."""
         service = VerificationService(test_session)
         result = await service.update_screenshots(
             request_id=99999, url1="url1", url2="url2", guild_name="Test Guild"
@@ -330,7 +330,7 @@ class TestVerificationService:
         assert result is None
 
     async def test_set_mod_message_id(self, test_session: AsyncSession) -> None:
-        """Probar guardado de ID de mensaje de moderacion."""
+        """Test saving moderation message ID."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -348,13 +348,13 @@ class TestVerificationService:
         assert updated.mod_message_id == 111
 
     async def test_set_mod_message_id_not_found(self, test_session: AsyncSession) -> None:
-        """Probar set_mod_message_id para solicitud inexistente."""
+        """Test set_mod_message_id for non-existent request."""
         service = VerificationService(test_session)
-        # No deberia fallar, solo retornar sin hacer nada
+        # Should not fail, just return without doing anything
         await service.set_mod_message_id(request_id=99999, message_id=111)
 
     async def test_approve(self, test_session: AsyncSession) -> None:
-        """Probar aprobacion de solicitud."""
+        """Test request approval."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -379,7 +379,7 @@ class TestVerificationService:
         assert approved.reviewed_at is not None
 
     async def test_approve_not_found(self, test_session: AsyncSession) -> None:
-        """Probar aprobacion de solicitud inexistente."""
+        """Test approving non-existent request."""
         service = VerificationService(test_session)
         result = await service.approve(
             request_id=99999,
@@ -390,7 +390,7 @@ class TestVerificationService:
         assert result is None
 
     async def test_reject(self, test_session: AsyncSession) -> None:
-        """Probar rechazo de solicitud."""
+        """Test request rejection."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -405,7 +405,7 @@ class TestVerificationService:
             request_id=request.id,
             reviewer_id=789,
             reviewer_username="ModUser",
-            reason="Capturas invalidas",
+            reason="Invalid screenshots",
             guild_name="Test Guild",
         )
 
@@ -413,11 +413,11 @@ class TestVerificationService:
         assert rejected.status == VerificationStatus.REJECTED
         assert rejected.reviewed_by_id == 789
         assert rejected.reviewed_by_username == "ModUser"
-        assert rejected.rejection_reason == "Capturas invalidas"
+        assert rejected.rejection_reason == "Invalid screenshots"
         assert rejected.reviewed_at is not None
 
     async def test_reject_not_found(self, test_session: AsyncSession) -> None:
-        """Probar rechazo de solicitud inexistente."""
+        """Test rejecting non-existent request."""
         service = VerificationService(test_session)
         result = await service.reject(
             request_id=99999,
@@ -429,7 +429,7 @@ class TestVerificationService:
         assert result is None
 
     async def test_cancel(self, test_session: AsyncSession) -> None:
-        """Probar cancelacion de solicitud."""
+        """Test request cancellation."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -446,13 +446,13 @@ class TestVerificationService:
         assert cancelled.status == VerificationStatus.CANCELLED
 
     async def test_cancel_not_found(self, test_session: AsyncSession) -> None:
-        """Probar cancelacion de solicitud inexistente."""
+        """Test cancelling non-existent request."""
         service = VerificationService(test_session)
         result = await service.cancel(request_id=99999, guild_name="Test Guild")
         assert result is None
 
     async def test_different_guilds_isolated(self, test_session: AsyncSession) -> None:
-        """Probar que diferentes guilds tienen datos aislados."""
+        """Test that different guilds have isolated data."""
         service = VerificationService(test_session)
 
         await service.create_request(
@@ -480,7 +480,7 @@ class TestVerificationService:
         assert pending_222.verification_type == VerificationType.ALLY
 
     async def test_revert_to_pending_review(self, test_session: AsyncSession) -> None:
-        """Probar reversion de solicitud rechazada a pendiente de revision."""
+        """Test reverting rejected request to pending review."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -491,16 +491,16 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
 
-        # Rechazar primero
+        # Reject first
         await service.reject(
             request_id=request.id,
             reviewer_id=789,
             reviewer_username="Auto",
-            reason="Razon automatica",
+            reason="Automatic reason",
             guild_name="Test Guild",
         )
 
-        # Revertir a pendiente de revision
+        # Revert to pending review
         reverted = await service.revert_to_pending_review(
             request_id=request.id, guild_name="Test Guild"
         )
@@ -513,7 +513,7 @@ class TestVerificationService:
         assert reverted.reviewed_at is None
 
     async def test_revert_to_pending_review_not_rejected(self, test_session: AsyncSession) -> None:
-        """Probar que no se puede revertir solicitud que no esta rechazada."""
+        """Test that cannot revert request that is not rejected."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -524,7 +524,7 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
 
-        # Intentar revertir sin rechazar primero
+        # Try to revert without rejecting first
         result = await service.revert_to_pending_review(
             request_id=request.id, guild_name="Test Guild"
         )
@@ -532,16 +532,16 @@ class TestVerificationService:
         assert result is None
 
     async def test_revert_to_pending_review_not_found(self, test_session: AsyncSession) -> None:
-        """Probar reversion de solicitud inexistente."""
+        """Test reverting non-existent request."""
         service = VerificationService(test_session)
         result = await service.revert_to_pending_review(request_id=99999, guild_name="Test Guild")
         assert result is None
 
     async def test_get_latest_by_user(self, test_session: AsyncSession) -> None:
-        """Probar obtener ultima solicitud de un usuario."""
+        """Test getting latest request from a user."""
         service = VerificationService(test_session)
 
-        # Crear primera solicitud
+        # Create first request
         request1 = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -551,7 +551,7 @@ class TestVerificationService:
         )
         await service.cancel(request_id=request1.id, guild_name="Test Guild")
 
-        # Crear segunda solicitud
+        # Create second request
         request2 = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -567,16 +567,16 @@ class TestVerificationService:
         assert latest.verification_type == VerificationType.ALLY
 
     async def test_get_latest_by_user_not_found(self, test_session: AsyncSession) -> None:
-        """Probar obtener ultima solicitud de usuario sin solicitudes."""
+        """Test getting latest request from user with no requests."""
         service = VerificationService(test_session)
         result = await service.get_latest_by_user(guild_id=123, user_id=456)
         assert result is None
 
     async def test_get_pending_with_mod_messages(self, test_session: AsyncSession) -> None:
-        """Probar obtencion de solicitudes pendientes con mensaje de moderacion."""
+        """Test getting pending requests with moderation message."""
         service = VerificationService(test_session)
 
-        # Crear solicitud con mod_message_id y estado PENDING_REVIEW
+        # Create request with mod_message_id and PENDING_REVIEW status
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -594,7 +594,7 @@ class TestVerificationService:
         assert pending[0].mod_message_id == 789
 
     async def test_get_pending_with_mod_messages_empty(self, test_session: AsyncSession) -> None:
-        """Probar get_pending_with_mod_messages cuando no hay solicitudes."""
+        """Test get_pending_with_mod_messages when there are no requests."""
         service = VerificationService(test_session)
         pending = await service.get_pending_with_mod_messages()
         assert pending == []
@@ -602,10 +602,10 @@ class TestVerificationService:
     async def test_get_pending_with_mod_messages_ignores_without_mod_message(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que ignora solicitudes sin mod_message_id."""
+        """Test that ignores requests without mod_message_id."""
         service = VerificationService(test_session)
 
-        # Crear solicitud sin mod_message_id
+        # Create request without mod_message_id
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -616,7 +616,7 @@ class TestVerificationService:
         await service.update_screenshots(
             request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
-        # No establecer mod_message_id
+        # Do not set mod_message_id
 
         pending = await service.get_pending_with_mod_messages()
         assert pending == []
@@ -624,11 +624,11 @@ class TestVerificationService:
     async def test_get_pending_with_mod_messages_includes_pending_screenshots(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que incluye solicitudes en estado PENDING_SCREENSHOTS con mod_message."""
+        """Test that includes requests in PENDING_SCREENSHOTS status with mod_message."""
         service = VerificationService(test_session)
 
-        # Crear solicitud en PENDING_SCREENSHOTS con mod_message_id
-        # (el mensaje de mod se crea cuando el usuario inicia la verificación)
+        # Create request in PENDING_SCREENSHOTS with mod_message_id
+        # (the mod message is created when the user starts verification)
         request = await service.create_request(
             guild_id=123,
             user_id=456,
@@ -637,7 +637,7 @@ class TestVerificationService:
             verification_type=VerificationType.REGULAR,
         )
         await service.set_mod_message_id(request_id=request.id, message_id=789)
-        # No actualizar screenshots, sigue en PENDING_SCREENSHOTS
+        # Do not update screenshots, stays in PENDING_SCREENSHOTS
 
         pending = await service.get_pending_with_mod_messages()
         assert len(pending) == 1
@@ -647,7 +647,7 @@ class TestVerificationService:
     async def test_get_pending_with_mod_messages_ignores_approved(
         self, test_session: AsyncSession
     ) -> None:
-        """Probar que ignora solicitudes aprobadas."""
+        """Test that ignores approved requests."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -672,7 +672,7 @@ class TestVerificationService:
         assert pending == []
 
     async def test_set_player_info(self, test_session: AsyncSession) -> None:
-        """Probar guardado de información del jugador."""
+        """Test saving player information."""
         service = VerificationService(test_session)
 
         request = await service.create_request(
@@ -691,7 +691,7 @@ class TestVerificationService:
         assert updated.player_info == player_info
 
     async def test_set_player_info_not_found(self, test_session: AsyncSession) -> None:
-        """Probar set_player_info para solicitud inexistente."""
+        """Test set_player_info for non-existent request."""
         service = VerificationService(test_session)
-        # No deberia fallar, solo retornar sin hacer nada
+        # Should not fail, just return without doing anything
         await service.set_player_info(request_id=99999, player_info={"name": "Test"})

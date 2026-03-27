@@ -1,4 +1,4 @@
-"""Enumeraciones comunes."""
+"""Common enums."""
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.enums.embed_section_type import EmbedSectionType

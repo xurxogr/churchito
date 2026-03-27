@@ -1,1 +1,1 @@
-"""Conectores a servicios externos."""
+"""External service connectors."""

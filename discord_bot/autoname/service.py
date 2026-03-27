@@ -1,4 +1,4 @@
-"""Funciones puras para el calculo de nicknames."""
+"""Pure functions for nickname calculation."""
 
 import re
 from functools import lru_cache
@@ -7,28 +7,28 @@ from typing import Any
 
 @lru_cache(maxsize=32)
 def build_tag_pattern(tag_format: str) -> re.Pattern[str]:
-    """Construir regex para detectar tags en el formato configurado.
+    """Build regex to detect tags in the configured format.
 
-    Convierte "[ABC | {tag}]" en un patron que coincide con "[ABC | CAP]", etc.
+    Converts "[ABC | {tag}]" into a pattern that matches "[ABC | CAP]", etc.
 
     Args:
-        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
+        tag_format (str): Tag format (e.g.: "[ABC | {tag}]")
 
     Returns:
-        re.Pattern[str]: Patron regex compilado
+        re.Pattern[str]: Compiled regex pattern
     """
-    # Escapar caracteres especiales de regex
+    # Escape special regex characters
     escaped = re.escape(tag_format)
-    # Reemplazar el placeholder {tag} escapado con patron para cualquier valor
+    # Replace the escaped {tag} placeholder with pattern for any value
     tag_pattern = escaped.replace(r"\{tag\}", r"[^\]]+")
-    # Patron completo: prefijo opcional (1-5 chars, sin espacio) + tag + espacio + nombre
+    # Full pattern: optional prefix (1-5 chars, no space) + tag + space + name
     full_pattern = rf"^(?:[^\[\]]{{1,5}})?{tag_pattern}\s+(.+)$"
     return re.compile(full_pattern)
 
 
-# Patron generico de fallback para tags con estructura [ALGO | ALGO]
-# Usado cuando el formato cambia para limpiar tags del formato anterior
-# El prefijo (1-5 chars, sin espacio) solo se elimina si va seguido de un tag entre corchetes
+# Generic fallback pattern for tags with structure [SOMETHING | SOMETHING]
+# Used when format changes to clean tags from previous format
+# The prefix (1-5 chars, no space) is only removed if followed by a bracketed tag
 GENERIC_TAG_RE = re.compile(r"^(?:(?:[^\[\]]{1,5})?\[[^\]]+\]\s+)?(.+)$")
 
 
@@ -37,37 +37,37 @@ def extract_base_name(
     tag_format: str,
     known_prefixes: list[str] | None = None,
 ) -> str:
-    """Extraer el nombre base quitando el tag y/o prefix si coinciden.
+    """Extract base name by removing tag and/or prefix if they match.
 
-    Primero intenta coincidir con el formato configurado.
-    Si no coincide, usa un patron generico como fallback (para cambios de formato).
-    Finalmente, intenta quitar prefijos conocidos si no hay tag.
+    First tries to match the configured format.
+    If no match, uses a generic pattern as fallback (for format changes).
+    Finally, tries to remove known prefixes if there's no tag.
 
     Args:
-        display_name (str): Nombre actual a mostrar
-        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
-        known_prefixes (list[str] | None): Lista de prefijos conocidos a quitar
+        display_name (str): Current display name
+        tag_format (str): Tag format (e.g.: "[ABC | {tag}]")
+        known_prefixes (list[str] | None): List of known prefixes to remove
 
     Returns:
-        str: Nombre base sin tags ni prefijos
+        str: Base name without tags or prefixes
     """
     name = display_name.strip()
 
-    # Intentar con el formato configurado
+    # Try with configured format
     pattern = build_tag_pattern(tag_format)
     match = pattern.match(name)
     if match:
         return match.group(1).strip()
 
-    # Fallback: patron generico para limpiar tags de formato anterior
+    # Fallback: generic pattern to clean tags from previous format
     match = GENERIC_TAG_RE.match(name)
     if match:
         extracted = match.group(1).strip()
-        # Si el fallback extrajo algo diferente, usarlo
+        # If fallback extracted something different, use it
         if extracted != name:
             return extracted
 
-    # Quitar prefijo conocido si no hay tag (ej: "★ Xurxo" -> "Xurxo")
+    # Remove known prefix if there's no tag (e.g.: "★ Xurxo" -> "Xurxo")
     if known_prefixes:
         for prefix in known_prefixes:
             if prefix and name.startswith(prefix + " "):
@@ -81,17 +81,17 @@ def find_matching_value(
     roles_config: list[dict[str, Any]],
     value_key: str,
 ) -> str | None:
-    """Encontrar el primer valor que coincida con un rol del miembro.
+    """Find the first value that matches a member's role.
 
-    La lista roles_config esta ordenada por prioridad (primer match gana).
+    The roles_config list is ordered by priority (first match wins).
 
     Args:
-        member_role_ids (list[int]): IDs de roles del miembro
-        roles_config (list[dict[str, Any]]): Lista de {"role_id": int|str, value_key: str}
-        value_key (str): Clave del valor a extraer (ej: "tag" o "prefix")
+        member_role_ids (list[int]): Member's role IDs
+        roles_config (list[dict[str, Any]]): List of {"role_id": int|str, value_key: str}
+        value_key (str): Key of the value to extract (e.g.: "tag" or "prefix")
 
     Returns:
-        str | None: Valor del primer rol coincidente o None
+        str | None: Value of first matching role or None
     """
     member_role_set = set(member_role_ids)
     for role_config in roles_config:
@@ -114,23 +114,23 @@ def build_nickname(
     prefix: str,
     tag_format: str,
 ) -> str:
-    """Construir el nickname completo con prefix, tag y nombre.
+    """Build complete nickname with prefix, tag and name.
 
     Args:
-        base_name (str): Nombre base del usuario
-        tag (str): Tag a insertar (ej: "CAP")
-        prefix (str): Prefijo unicode (ej: "★")
-        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
+        base_name (str): User's base name
+        tag (str): Tag to insert (e.g.: "CAP")
+        prefix (str): Unicode prefix (e.g.: "★")
+        tag_format (str): Tag format (e.g.: "[ABC | {tag}]")
 
     Returns:
-        str: Nickname completo, truncado a 32 caracteres si es necesario
+        str: Complete nickname, truncated to 32 characters if necessary
     """
-    # Si hay prefix o tag, siempre aplicar el formato (tag puede estar vacio)
-    # Ej: prefix="★ ", tag="" → "★ [ABC | ] Xurxo" (espacio incluido en prefix)
+    # If there's prefix or tag, always apply the format (tag can be empty)
+    # E.g.: prefix="★ ", tag="" → "★ [ABC | ] Xurxo" (space included in prefix)
     formatted_tag = tag_format.format(tag=tag) if (tag or prefix) else ""
 
-    # Construir nickname: prefix se pega directamente (sin espacio extra)
-    # Si el usuario quiere espacio, lo incluye en el prefix: "★ " en vez de "★"
+    # Build nickname: prefix attaches directly (no extra space)
+    # If user wants space, include it in prefix: "★ " instead of "★"
     if prefix and formatted_tag:
         prefix_part = f"{prefix}{formatted_tag}"
         nickname = f"{prefix_part} {base_name}"
@@ -144,15 +144,15 @@ def build_nickname(
         prefix_part = ""
         nickname = base_name
 
-    # Truncar a 32 caracteres (limite de Discord)
+    # Truncate to 32 characters (Discord limit)
     if len(nickname) > 32:
         if prefix_part:
-            # Calcular espacio disponible para el nombre base
+            # Calculate available space for base name
             available = 32 - len(prefix_part) - 1  # -1 for space
             if available > 0:
                 nickname = f"{prefix_part} {base_name[:available]}"
             else:
-                # No hay espacio suficiente, usar solo nombre truncado
+                # Not enough space, use only truncated name
                 nickname = base_name[:32]
         else:
             nickname = base_name[:32]
@@ -168,28 +168,28 @@ def compute_nickname(
     prefixes_config: list[dict[str, Any]],
     tag_format: str,
 ) -> str | None:
-    """Calcular el nuevo nickname para un miembro.
+    """Calculate the new nickname for a member.
 
     Args:
-        display_name (str): Nombre a mostrar actual (nick o username)
-        current_nick (str | None): Nick actual del miembro (puede ser None)
-        member_role_ids (list[int]): IDs de roles del miembro
-        tags_config (list[dict[str, Any]]): Lista de {"role_id": int, "tag": str}
-        prefixes_config (list[dict[str, Any]]): Lista de {"role_id": int, "prefix": str}
-        tag_format (str): Formato del tag (ej: "[ABC | {tag}]")
+        display_name (str): Current display name (nick or username)
+        current_nick (str | None): Member's current nick (can be None)
+        member_role_ids (list[int]): Member's role IDs
+        tags_config (list[dict[str, Any]]): List of {"role_id": int, "tag": str}
+        prefixes_config (list[dict[str, Any]]): List of {"role_id": int, "prefix": str}
+        tag_format (str): Tag format (e.g.: "[ABC | {tag}]")
 
     Returns:
-        str | None: Nuevo nickname o None si no hay cambio necesario
+        str | None: New nickname or None if no change needed
     """
-    # Extraer prefijos conocidos de la config
+    # Extract known prefixes from config
     known_prefixes = [cfg.get("prefix", "") for cfg in prefixes_config if cfg.get("prefix")]
 
-    # Extraer nombre base usando el formato configurado y prefijos conocidos
+    # Extract base name using configured format and known prefixes
     base_name = extract_base_name(
         display_name=display_name, tag_format=tag_format, known_prefixes=known_prefixes
     )
 
-    # Encontrar tag y prefix coincidentes (independientes)
+    # Find matching tag and prefix (independent)
     tag = find_matching_value(
         member_role_ids=member_role_ids, roles_config=tags_config, value_key="tag"
     )
@@ -197,18 +197,18 @@ def compute_nickname(
         member_role_ids=member_role_ids, roles_config=prefixes_config, value_key="prefix"
     )
 
-    # Si no hay ni tag ni prefix, limpiar el nickname si tenia algo
+    # If there's neither tag nor prefix, clean nickname if it had something
     if tag is None and prefix is None:
         if base_name != display_name and base_name != current_nick:
             return base_name
         return None
 
-    # Construir nuevo nickname
+    # Build new nickname
     new_nickname = build_nickname(
         base_name=base_name, tag=tag or "", prefix=prefix or "", tag_format=tag_format
     )
 
-    # Verificar si hay cambio
+    # Check if there's a change
     if new_nickname == current_nick or new_nickname == display_name:
         return None
 

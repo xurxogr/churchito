@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{{ guild.name }} - Configuración{% endblock %}
+{% block title %}{{ guild.name }} - {{ _('ui.buttons.configure', lang) }}{% endblock %}
 
 {% block content %}
 <div class="guild-config">
     <div class="page-header">
-        <a href="{{ root_path }}/dashboard" class="btn btn-secondary" onclick="return handleBackClick(event)">← Volver</a>
+        <a href="{{ root_path }}/dashboard" class="btn btn-secondary" onclick="return handleBackClick(event)">← {{ _('ui.buttons.back', lang) }}</a>
         <h1>
             {% if guild.icon %}
             <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png" alt="" class="guild-header-icon">
@@ -36,7 +36,7 @@
 
         <section class="cog-content" id="cog-settings">
             <div class="empty-state">
-                <p>Selecciona una categoria de arriba para ver y editar su configuracion.</p>
+                <p>{{ _('ui.messages.select_category', lang) }}</p>
             </div>
         </section>
     </div>

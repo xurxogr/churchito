@@ -1,4 +1,4 @@
-"""Tests para OAuth."""
+"""Tests for OAuth."""
 
 import pytest
 from fastapi import FastAPI
@@ -9,13 +9,13 @@ from discord_bot.web.auth.oauth import router
 
 @pytest.fixture
 def oauth_app(simple_app: FastAPI) -> FastAPI:
-    """Crear aplicación con router OAuth.
+    """Create application with OAuth router.
 
     Args:
-        simple_app (FastAPI): Aplicación base
+        simple_app (FastAPI): Base application
 
     Returns:
-        FastAPI: Aplicación con OAuth
+        FastAPI: Application with OAuth
     """
     simple_app.include_router(router)
     return simple_app
@@ -23,22 +23,22 @@ def oauth_app(simple_app: FastAPI) -> FastAPI:
 
 @pytest.fixture
 def oauth_client(oauth_app: FastAPI) -> TestClient:
-    """Crear cliente para OAuth.
+    """Create client for OAuth.
 
     Args:
-        oauth_app (FastAPI): Aplicación
+        oauth_app (FastAPI): Application
 
     Returns:
-        TestClient: Cliente de prueba
+        TestClient: Test client
     """
     return TestClient(oauth_app)
 
 
 class TestLogin:
-    """Tests para el endpoint de login."""
+    """Tests for the login endpoint."""
 
     def test_login_redirects_to_discord(self, oauth_client: TestClient) -> None:
-        """Probar que login redirige a Discord."""
+        """Test that login redirects to Discord."""
         response = oauth_client.get("/auth/login", follow_redirects=False)
 
         assert response.status_code == 307
@@ -47,7 +47,7 @@ class TestLogin:
     def test_login_without_client_id_fails(
         self, oauth_app: FastAPI, oauth_client: TestClient
     ) -> None:
-        """Probar que login falla sin client_id."""
+        """Test that login fails without client_id."""
         oauth_app.state.settings.web.client_id = None
 
         response = oauth_client.get("/auth/login")
@@ -55,24 +55,24 @@ class TestLogin:
 
 
 class TestCallback:
-    """Tests para el endpoint de callback."""
+    """Tests for the callback endpoint."""
 
     def test_callback_with_error_redirects(self, oauth_client: TestClient) -> None:
-        """Probar que callback con error redirige a login."""
+        """Test that callback with error redirects to login."""
         response = oauth_client.get("/auth/callback?error=access_denied", follow_redirects=False)
 
         assert response.status_code == 307
         assert "error=oauth_denied" in response.headers["location"]
 
     def test_callback_without_code_redirects(self, oauth_client: TestClient) -> None:
-        """Probar que callback sin código redirige a login."""
+        """Test that callback without code redirects to login."""
         response = oauth_client.get("/auth/callback", follow_redirects=False)
 
         assert response.status_code == 307
         assert "error=no_code" in response.headers["location"]
 
     def test_callback_with_invalid_state_redirects(self, oauth_client: TestClient) -> None:
-        """Probar que callback con estado inválido redirige a login."""
+        """Test that callback with invalid state redirects to login."""
         response = oauth_client.get(
             "/auth/callback?code=test&state=invalid", follow_redirects=False
         )
@@ -82,10 +82,10 @@ class TestCallback:
 
 
 class TestLogout:
-    """Tests para el endpoint de logout."""
+    """Tests for the logout endpoint."""
 
     def test_logout_clears_session(self, oauth_client: TestClient) -> None:
-        """Probar que logout limpia la sesión."""
+        """Test that logout clears the session."""
         response = oauth_client.get("/auth/logout", follow_redirects=False)
 
         assert response.status_code == 307
@@ -93,11 +93,11 @@ class TestLogout:
 
 
 class TestCallbackStateValidation:
-    """Tests para validación del state en callback."""
+    """Tests for state validation in callback."""
 
     def test_callback_validates_state(self, oauth_client: TestClient) -> None:
-        """Probar que callback valida el state correctamente."""
-        # Sin state previo en sesión, cualquier state es inválido
+        """Test that callback validates the state correctly."""
+        # Without previous state in session, any state is invalid
         response = oauth_client.get(
             "/auth/callback?code=test&state=any_state", follow_redirects=False
         )
@@ -105,7 +105,7 @@ class TestCallbackStateValidation:
         assert "error=invalid_state" in response.headers["location"]
 
     def test_callback_missing_state_fails(self, oauth_client: TestClient) -> None:
-        """Probar que callback sin state falla."""
+        """Test that callback without state fails."""
         response = oauth_client.get("/auth/callback?code=test", follow_redirects=False)
         assert response.status_code == 307
         assert "error=invalid_state" in response.headers["location"]

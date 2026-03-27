@@ -1,17 +1,17 @@
-"""Configuración de la base de datos."""
+"""Database configuration."""
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class DatabaseSettings(BaseModel):
-    """Configuración para la base de datos."""
+    """Configuration for the database."""
 
     url: str = Field(
-        description="URL de la base de datos",
+        description="Database URL",
         default="sqlite+aiosqlite:///data/bot.db",
     )
-    echo: bool = Field(description="Mostrar declaraciones SQL", default=False)
-    pool_recycle: int = Field(description="Tiempo de reciclaje del pool en segundos", default=3600)
+    echo: bool = Field(description="Show SQL statements", default=False)
+    pool_recycle: int = Field(description="Pool recycle time in seconds", default=3600)
 
     model_config = ConfigDict(
         extra="forbid",

@@ -1,1 +1,1 @@
-"""Tests para el módulo web."""
+"""Tests for the web module."""

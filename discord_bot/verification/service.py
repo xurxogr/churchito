@@ -1,4 +1,4 @@
-"""Servicio para operaciones de verificacion de usuarios."""
+"""Service for user verification operations."""
 
 import logging
 from datetime import UTC, datetime
@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class VerificationService:
-    """Servicio para operaciones CRUD de verificacion.
+    """Service for verification CRUD operations.
 
-    Maneja la creacion, actualizacion y consulta de solicitudes
-    de verificacion de usuarios.
+    Handles the creation, update and query of user
+    verification requests.
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Inicializar el servicio de verificacion.
+        """Initialize the verification service.
 
         Args:
-            session (AsyncSession): Sesion de base de datos
+            session (AsyncSession): Database session
         """
         self._session = session
 
@@ -35,17 +35,17 @@ class VerificationService:
         guild_name: str,
         verification_type: VerificationType,
     ) -> VerificationRequest:
-        """Crear una nueva solicitud de verificacion.
+        """Create a new verification request.
 
         Args:
-            guild_id (int): ID del guild
-            user_id (int): ID del usuario
-            username (str): Nombre de usuario de Discord
-            guild_name (str): Nombre del guild
-            verification_type (VerificationType): Tipo de verificacion
+            guild_id (int): Guild ID
+            user_id (int): User ID
+            username (str): Discord username
+            guild_name (str): Guild name
+            verification_type (VerificationType): Verification type
 
         Returns:
-            VerificationRequest: Solicitud creada
+            VerificationRequest: Created request
         """
         request = VerificationRequest(
             guild_id=guild_id,
@@ -57,19 +57,19 @@ class VerificationService:
         self._session.add(request)
         await self._session.flush()
         logger.info(
-            f"[{guild_name}] Solicitud de verificacion creada: "
+            f"[{guild_name}] Verification request created: "
             f"{username}, type={verification_type} (ID: {request.id})"
         )
         return request
 
     async def get_request(self, request_id: int) -> VerificationRequest | None:
-        """Obtener una solicitud por ID.
+        """Get a request by ID.
 
         Args:
-            request_id (int): ID de la solicitud
+            request_id (int): Request ID
 
         Returns:
-            VerificationRequest | None: Solicitud o None si no existe
+            VerificationRequest | None: Request or None if it doesn't exist
         """
         result = await self._session.execute(
             select(VerificationRequest).where(VerificationRequest.id == request_id)
@@ -77,13 +77,13 @@ class VerificationService:
         return result.scalar_one_or_none()
 
     async def get_by_public_id(self, public_id: str) -> VerificationRequest | None:
-        """Obtener una solicitud por public_id.
+        """Get a request by public_id.
 
         Args:
-            public_id (str): ID público de la solicitud (NanoID)
+            public_id (str): Public request ID (NanoID)
 
         Returns:
-            VerificationRequest | None: Solicitud o None si no existe
+            VerificationRequest | None: Request or None if it doesn't exist
         """
         result = await self._session.execute(
             select(VerificationRequest).where(VerificationRequest.public_id == public_id)
@@ -91,16 +91,16 @@ class VerificationService:
         return result.scalar_one_or_none()
 
     async def get_pending_by_user(self, guild_id: int, user_id: int) -> VerificationRequest | None:
-        """Obtener solicitud pendiente de un usuario.
+        """Get pending request for a user.
 
-        Busca solicitudes con estado PENDING_SCREENSHOTS o PENDING_REVIEW.
+        Searches for requests with PENDING_SCREENSHOTS or PENDING_REVIEW status.
 
         Args:
-            guild_id (int): ID del guild
-            user_id (int): ID del usuario
+            guild_id (int): Guild ID
+            user_id (int): User ID
 
         Returns:
-            VerificationRequest | None: Solicitud pendiente o None
+            VerificationRequest | None: Pending request or None
         """
         result = await self._session.execute(
             select(VerificationRequest).where(
@@ -117,16 +117,16 @@ class VerificationService:
         return result.scalar_one_or_none()
 
     async def get_any_pending_by_user(self, user_id: int) -> VerificationRequest | None:
-        """Obtener cualquier solicitud pendiente de un usuario en cualquier guild.
+        """Get any pending request for a user in any guild.
 
-        Busca solicitudes con estado PENDING_SCREENSHOTS (esperando capturas).
-        Util para recuperar verificaciones cuando el bot reinicia.
+        Searches for requests with PENDING_SCREENSHOTS status (awaiting screenshots).
+        Useful for recovering verifications when the bot restarts.
 
         Args:
-            user_id (int): ID del usuario
+            user_id (int): User ID
 
         Returns:
-            VerificationRequest | None: Solicitud pendiente o None
+            VerificationRequest | None: Pending request or None
         """
         result = await self._session.execute(
             select(VerificationRequest)
@@ -140,12 +140,12 @@ class VerificationService:
         return result.scalar_one_or_none()
 
     async def get_all_pending_screenshots(self) -> list[VerificationRequest]:
-        """Obtener todas las solicitudes esperando capturas.
+        """Get all requests awaiting screenshots.
 
-        Util para restaurar el estado en memoria cuando el bot reinicia.
+        Useful for restoring in-memory state when the bot restarts.
 
         Returns:
-            list[VerificationRequest]: Lista de solicitudes pendientes
+            list[VerificationRequest]: List of pending requests
         """
         result = await self._session.execute(
             select(VerificationRequest).where(
@@ -155,12 +155,12 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def get_all_pending(self) -> list[VerificationRequest]:
-        """Obtener todas las solicitudes pendientes (screenshots o review).
+        """Get all pending requests (screenshots or review).
 
-        Util para limpiar verificaciones de usuarios que salieron del servidor.
+        Useful for cleaning up verifications from users who left the server.
 
         Returns:
-            list[VerificationRequest]: Lista de solicitudes pendientes
+            list[VerificationRequest]: List of pending requests
         """
         result = await self._session.execute(
             select(VerificationRequest).where(
@@ -175,16 +175,16 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def get_pending_for_guild(self, guild_id: int) -> list[VerificationRequest]:
-        """Obtener todas las solicitudes pendientes para un guild.
+        """Get all pending requests for a guild.
 
-        Incluye tanto PENDING_SCREENSHOTS como PENDING_REVIEW.
-        Ordenadas por fecha de creación (más antiguas primero).
+        Includes both PENDING_SCREENSHOTS and PENDING_REVIEW.
+        Ordered by creation date (oldest first).
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            list[VerificationRequest]: Lista de solicitudes pendientes
+            list[VerificationRequest]: List of pending requests
         """
         result = await self._session.execute(
             select(VerificationRequest)
@@ -202,13 +202,13 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def get_pending_with_mod_messages(self) -> list[VerificationRequest]:
-        """Obtener solicitudes pendientes que tienen mensaje de moderación.
+        """Get pending requests that have a moderation message.
 
-        Incluye tanto PENDING_SCREENSHOTS como PENDING_REVIEW ya que el mensaje
-        de moderación se crea cuando el usuario inicia la verificación.
+        Includes both PENDING_SCREENSHOTS and PENDING_REVIEW since the
+        moderation message is created when the user starts verification.
 
         Returns:
-            list[VerificationRequest]: Lista de solicitudes con mensaje de mod
+            list[VerificationRequest]: List of requests with mod message
         """
         result = await self._session.execute(
             select(VerificationRequest).where(
@@ -224,14 +224,14 @@ class VerificationService:
         return list(result.scalars().all())
 
     async def get_user_history(self, guild_id: int, user_id: int) -> list[VerificationRequest]:
-        """Obtener historial de verificaciones de un usuario.
+        """Get verification history for a user.
 
         Args:
-            guild_id (int): ID del guild
-            user_id (int): ID del usuario
+            guild_id (int): Guild ID
+            user_id (int): User ID
 
         Returns:
-            list[VerificationRequest]: Lista de todas las solicitudes
+            list[VerificationRequest]: List of all requests
         """
         result = await self._session.execute(
             select(VerificationRequest)
@@ -246,18 +246,18 @@ class VerificationService:
     async def update_screenshots(
         self, request_id: int, url1: str, url2: str, guild_name: str
     ) -> VerificationRequest | None:
-        """Actualizar solicitud con las capturas de pantalla.
+        """Update request with screenshots.
 
-        Cambia el estado a PENDING_REVIEW.
+        Changes status to PENDING_REVIEW.
 
         Args:
-            request_id (int): ID de la solicitud
-            url1 (str): URL de la primera captura
-            url2 (str): URL de la segunda captura
-            guild_name (str): Nombre del guild
+            request_id (int): Request ID
+            url1 (str): URL of the first screenshot
+            url2 (str): URL of the second screenshot
+            guild_name (str): Guild name
 
         Returns:
-            VerificationRequest | None: Solicitud actualizada o None
+            VerificationRequest | None: Updated request or None
         """
         request = await self.get_request(request_id)
         if not request:
@@ -269,7 +269,7 @@ class VerificationService:
         request.screenshots_submitted_at = datetime.now(UTC)
         await self._session.flush()
 
-        logger.info(f"[{guild_name}] Capturas actualizadas: {request.username} (ID: {request_id})")
+        logger.info(f"[{guild_name}] Screenshots updated: {request.username} (ID: {request_id})")
         return request
 
     async def set_mod_message_id(
@@ -277,11 +277,11 @@ class VerificationService:
         request_id: int,
         message_id: int,
     ) -> None:
-        """Guardar ID del mensaje de moderacion.
+        """Save moderation message ID.
 
         Args:
-            request_id (int): ID de la solicitud
-            message_id (int): ID del mensaje en el canal de moderacion
+            request_id (int): Request ID
+            message_id (int): Message ID in the moderation channel
         """
         request = await self.get_request(request_id)
         if not request:
@@ -295,11 +295,11 @@ class VerificationService:
         request_id: int,
         player_info: dict[str, str],
     ) -> None:
-        """Guardar información del jugador extraída por OCR.
+        """Save player information extracted by OCR.
 
         Args:
-            request_id (int): ID de la solicitud
-            player_info (dict[str, str]): Datos del jugador (name, regiment, level, etc.)
+            request_id (int): Request ID
+            player_info (dict[str, str]): Player data (name, regiment, level, etc.)
         """
         request = await self.get_request(request_id)
         if not request:
@@ -315,16 +315,16 @@ class VerificationService:
         reviewer_username: str,
         guild_name: str,
     ) -> VerificationRequest | None:
-        """Aprobar una solicitud de verificacion.
+        """Approve a verification request.
 
         Args:
-            request_id (int): ID de la solicitud
-            reviewer_id (int): ID del moderador
-            reviewer_username (str): Nombre del moderador
-            guild_name (str): Nombre del guild
+            request_id (int): Request ID
+            reviewer_id (int): Moderator ID
+            reviewer_username (str): Moderator name
+            guild_name (str): Guild name
 
         Returns:
-            VerificationRequest | None: Solicitud actualizada o None
+            VerificationRequest | None: Updated request or None
         """
         request = await self.get_request(request_id)
         if not request:
@@ -337,8 +337,8 @@ class VerificationService:
         await self._session.flush()
 
         logger.info(
-            f"[{guild_name}] Solicitud {request_id} aprobada: "
-            f"usuario={request.username}, moderador={reviewer_username}"
+            f"[{guild_name}] Request {request_id} approved: "
+            f"user={request.username}, moderator={reviewer_username}"
         )
         return request
 
@@ -350,17 +350,17 @@ class VerificationService:
         reason: str,
         guild_name: str,
     ) -> VerificationRequest | None:
-        """Rechazar una solicitud de verificacion.
+        """Reject a verification request.
 
         Args:
-            request_id (int): ID de la solicitud
-            reviewer_id (int): ID del moderador
-            reviewer_username (str): Nombre del moderador
-            reason (str): Motivo del rechazo
-            guild_name (str): Nombre del guild
+            request_id (int): Request ID
+            reviewer_id (int): Moderator ID
+            reviewer_username (str): Moderator name
+            reason (str): Rejection reason
+            guild_name (str): Guild name
 
         Returns:
-            VerificationRequest | None: Solicitud actualizada o None
+            VerificationRequest | None: Updated request or None
         """
         request = await self.get_request(request_id)
         if not request:
@@ -374,22 +374,22 @@ class VerificationService:
         await self._session.flush()
 
         logger.info(
-            f"[{guild_name}] Solicitud {request_id} rechazada: "
-            f"usuario={request.username}, moderador={reviewer_username}, razón={reason}"
+            f"[{guild_name}] Request {request_id} rejected: "
+            f"user={request.username}, moderator={reviewer_username}, reason={reason}"
         )
         return request
 
     async def cancel(self, request_id: int, guild_name: str) -> VerificationRequest | None:
-        """Cancelar una solicitud de verificacion.
+        """Cancel a verification request.
 
-        Usado cuando el usuario sale del servidor.
+        Used when the user leaves the server.
 
         Args:
-            request_id (int): ID de la solicitud
-            guild_name (str): Nombre del guild
+            request_id (int): Request ID
+            guild_name (str): Guild name
 
         Returns:
-            VerificationRequest | None: Solicitud actualizada o None
+            VerificationRequest | None: Updated request or None
         """
         request = await self.get_request(request_id)
         if not request:
@@ -398,22 +398,22 @@ class VerificationService:
         request.status = VerificationStatus.CANCELLED
         await self._session.flush()
 
-        logger.info(f"[{guild_name}] Solicitud {request_id} cancelada: usuario={request.username}")
+        logger.info(f"[{guild_name}] Request {request_id} cancelled: user={request.username}")
         return request
 
     async def revert_to_pending_review(
         self, request_id: int, guild_name: str
     ) -> VerificationRequest | None:
-        """Revertir una solicitud rechazada a pendiente de revisión.
+        """Revert a rejected request to pending review.
 
-        Usado para permitir revisión manual de auto-rechazos.
+        Used to allow manual review of auto-rejections.
 
         Args:
-            request_id (int): ID de la solicitud
-            guild_name (str): Nombre del guild
+            request_id (int): Request ID
+            guild_name (str): Guild name
 
         Returns:
-            VerificationRequest | None: Solicitud actualizada o None
+            VerificationRequest | None: Updated request or None
         """
         request = await self.get_request(request_id)
         if not request:
@@ -430,20 +430,20 @@ class VerificationService:
         await self._session.flush()
 
         logger.info(
-            f"[{guild_name}] Solicitud {request_id} revertida a revisión pendiente: "
-            f"usuario={request.username}"
+            f"[{guild_name}] Request {request_id} reverted to pending review: "
+            f"user={request.username}"
         )
         return request
 
     async def get_latest_by_user(self, guild_id: int, user_id: int) -> VerificationRequest | None:
-        """Obtener la última solicitud de un usuario.
+        """Get the latest request from a user.
 
         Args:
-            guild_id (int): ID del guild
-            user_id (int): ID del usuario
+            guild_id (int): Guild ID
+            user_id (int): User ID
 
         Returns:
-            VerificationRequest | None: Última solicitud o None
+            VerificationRequest | None: Latest request or None
         """
         result = await self._session.execute(
             select(VerificationRequest)

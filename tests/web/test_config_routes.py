@@ -1,4 +1,4 @@
-"""Tests para las rutas de configuración."""
+"""Tests for configuration routes."""
 
 import json
 from typing import Any
@@ -25,10 +25,10 @@ from discord_bot.web.routers.config import (
 
 @pytest.fixture
 def mock_schema_service() -> ConfigSchemaService:
-    """Crear schema service con datos de prueba.
+    """Create schema service with test data.
 
     Returns:
-        ConfigSchemaService: Servicio de esquemas
+        ConfigSchemaService: Schema service
     """
     service = ConfigSchemaService()
     service.register_schema(
@@ -74,14 +74,14 @@ def mock_schema_service() -> ConfigSchemaService:
 
 @pytest.fixture
 def mock_config_request(simple_app: FastAPI, test_user: dict[str, Any]) -> MagicMock:
-    """Crear request mock para config.
+    """Create mock request for config.
 
     Args:
-        simple_app (FastAPI): Aplicación
-        test_user (dict[str, Any]): Usuario
+        simple_app (FastAPI): Application
+        test_user (dict[str, Any]): User
 
     Returns:
-        MagicMock: Request mock
+        MagicMock: Mock request
     """
     request = MagicMock(spec=Request)
     request.app = simple_app
@@ -103,7 +103,7 @@ def mock_config_request(simple_app: FastAPI, test_user: dict[str, Any]) -> Magic
 
 
 class TestGuildConfig:
-    """Tests para la ruta de configuración de guild."""
+    """Tests for the guild configuration route."""
 
     async def test_guild_config_shows_cogs(
         self,
@@ -112,7 +112,7 @@ class TestGuildConfig:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que guild_config muestra los cogs."""
+        """Test that guild_config shows the cogs."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -140,15 +140,15 @@ class TestGuildConfig:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que guild_config lanza 404 cuando el bot no está en el guild."""
-        # Bot no encuentra el guild
+        """Test that guild_config raises 404 when bot is not in guild."""
+        # Bot doesn't find the guild
         mock_config_request.app.state.bot.get_guild.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
             await guild_config(mock_config_request, 999888777, test_user, test_session)
 
         assert exc_info.value.status_code == 404
-        assert "No tienes permisos" in exc_info.value.detail
+        assert "don't have permission" in exc_info.value.detail
 
     async def test_guild_config_no_bot(
         self,
@@ -156,7 +156,7 @@ class TestGuildConfig:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que guild_config lanza 404 cuando no hay bot."""
+        """Test that guild_config raises 404 when there is no bot."""
         mock_config_request.app.state.bot = None
 
         with pytest.raises(HTTPException) as exc_info:
@@ -166,7 +166,7 @@ class TestGuildConfig:
 
 
 class TestCogSettings:
-    """Tests para la ruta de configuración de cog."""
+    """Tests for the cog configuration route."""
 
     async def test_cog_settings_shows_options(
         self,
@@ -175,7 +175,7 @@ class TestCogSettings:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que cog_settings muestra las opciones."""
+        """Test that cog_settings shows the options."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -205,7 +205,7 @@ class TestCogSettings:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar cog_settings cuando el bot está en el guild."""
+        """Test cog_settings when bot is in guild."""
         # Setup mock Discord guild
         mock_channel = MagicMock()
         mock_channel.id = 123
@@ -272,7 +272,7 @@ class TestCogSettings:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar cog_settings cuando el cog no existe."""
+        """Test cog_settings when cog doesn't exist."""
         empty_service = ConfigSchemaService()
 
         with (
@@ -293,7 +293,7 @@ class TestCogSettings:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que get_locked_options exception no crashea."""
+        """Test that get_locked_options exception doesn't crash."""
         # Setup mock cog that raises exception
         mock_cog = MagicMock()
         mock_cog.get_locked_options = MagicMock(side_effect=RuntimeError("Test error"))
@@ -324,7 +324,7 @@ class TestCogSettings:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que las opciones bloqueadas no aparecen en la lista."""
+        """Test that locked options don't appear in the list."""
         # Setup mock cog that locks string_option
         mock_cog = MagicMock()
         mock_cog.get_locked_options.return_value = {"string_option": "Locked reason"}
@@ -359,7 +359,7 @@ class TestCogSettings:
 
 
 class TestToggleCog:
-    """Tests para toggle_cog."""
+    """Tests for toggle_cog."""
 
     async def test_toggle_cog_enables(
         self,
@@ -368,7 +368,7 @@ class TestToggleCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que toggle_cog alterna el estado."""
+        """Test that toggle_cog toggles the state."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -384,14 +384,14 @@ class TestToggleCog:
 
             await toggle_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
 
-            # Verificar que se llamó a set_cog_enabled con False (toggle de True)
+            # Verify set_cog_enabled was called with False (toggle from True)
             mock_config_service.set_cog_enabled.assert_called_once_with(
                 111222333, "test_cog", False
             )
 
 
 class TestUpdateOption:
-    """Tests para update_option."""
+    """Tests for update_option."""
 
     async def test_update_option_success(
         self,
@@ -400,7 +400,7 @@ class TestUpdateOption:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar actualización de opción exitosa."""
+        """Test successful option update."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -432,7 +432,7 @@ class TestUpdateOption:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar actualización de opción inexistente."""
+        """Test update of nonexistent option."""
         empty_service = ConfigSchemaService()
 
         with (
@@ -454,7 +454,7 @@ class TestUpdateOption:
 
 
 class TestReloadCog:
-    """Tests para reload_cog."""
+    """Tests for reload_cog."""
 
     async def test_reload_cog_success(
         self,
@@ -463,7 +463,7 @@ class TestReloadCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar reload de cog exitoso."""
+        """Test successful cog reload."""
         mock_bot = MagicMock()
         mock_bot.reload_extension = AsyncMock()
         mock_config_request.app.state.bot = mock_bot
@@ -490,8 +490,8 @@ class TestReloadCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que no se puede recargar el cog 'bot'."""
-        # Crear schema service con "bot" registrado
+        """Test that 'bot' cog cannot be reloaded."""
+        # Create schema service with "bot" registered
         service = ConfigSchemaService()
         service.register_schema(
             CogConfigSchema(
@@ -509,12 +509,12 @@ class TestReloadCog:
         ):
             await reload_cog(mock_config_request, 111222333, "bot", test_user, test_session)
 
-            # Debe retornar el template con un error
+            # Should return template with error
             mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
             assert "error" in context
-            assert "no se puede recargar" in context["error"]
+            assert "cannot be reloaded" in context["error"]
 
     async def test_reload_cog_bot_not_available(
         self,
@@ -523,7 +523,7 @@ class TestReloadCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar reload cuando el bot no está disponible."""
+        """Test reload when bot is not available."""
         mock_config_request.app.state.bot = None
 
         with patch(
@@ -532,12 +532,12 @@ class TestReloadCog:
         ):
             await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
 
-            # Debe retornar el template con un error
+            # Should return template with error
             mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
             assert "error" in context
-            assert "Bot no disponible" in context["error"]
+            assert "Bot not available" in context["error"]
 
     async def test_reload_cog_exception(
         self,
@@ -546,7 +546,7 @@ class TestReloadCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar reload cuando la extensión falla al recargar."""
+        """Test reload when extension fails to reload."""
         mock_bot = MagicMock()
         mock_bot.reload_extension = AsyncMock(side_effect=Exception("Extension not found"))
         mock_config_request.app.state.bot = mock_bot
@@ -565,16 +565,16 @@ class TestReloadCog:
 
             await reload_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
 
-            # Debe retornar el template con un error
+            # Should return template with error
             mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
             assert "error" in context
-            assert "Error al recargar" in context["error"]
+            assert "Error reloading" in context["error"]
 
 
 class TestCogSettingsDisplayValues:
-    """Tests para display_value de CHANNEL_LIST y ROLE_LIST."""
+    """Tests for display_value of CHANNEL_LIST and ROLE_LIST."""
 
     async def test_cog_settings_channel_list_display(
         self,
@@ -583,8 +583,8 @@ class TestCogSettingsDisplayValues:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar display value de CHANNEL_LIST."""
-        # Setup mock Discord guild con canales
+        """Test display value of CHANNEL_LIST."""
+        # Setup mock Discord guild with channels
         mock_channel1 = MagicMock()
         mock_channel1.id = 111
         mock_channel1.name = "general"
@@ -632,7 +632,7 @@ class TestCogSettingsDisplayValues:
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
 
-            # Verificar que las opciones incluyen channel_list con display_value
+            # Verify options include channel_list with display_value
             channel_list_opt = next(
                 (o for o in context["options"] if o["key"] == "channel_list"), None
             )
@@ -647,7 +647,7 @@ class TestCogSettingsDisplayValues:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar display value de ROLE_LIST."""
+        """Test display value of ROLE_LIST."""
         mock_role1 = MagicMock()
         mock_role1.id = 333
         mock_role1.name = "Admin"
@@ -706,7 +706,7 @@ class TestCogSettingsDisplayValues:
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
 
-            # Verificar que las opciones incluyen role_list con display_value
+            # Verify options include role_list with display_value
             role_list_opt = next((o for o in context["options"] if o["key"] == "role_list"), None)
             assert role_list_opt is not None
             assert "@Admin" in role_list_opt["display_value"]
@@ -719,7 +719,7 @@ class TestCogSettingsDisplayValues:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar display value cuando los IDs no se encuentran."""
+        """Test display value when IDs are not found."""
         mock_guild = MagicMock()
         mock_guild.text_channels = []
         mock_guild.roles = []
@@ -747,7 +747,7 @@ class TestCogSettingsDisplayValues:
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
 
-            # Debe mostrar "ID: xxx" cuando no se encuentra
+            # Should show "ID: xxx" when not found
             channel_list_opt = next(
                 (o for o in context["options"] if o["key"] == "channel_list"), None
             )
@@ -760,7 +760,7 @@ class TestCogSettingsDisplayValues:
 
 
 class TestUpdateOptionError:
-    """Tests para errores en update_option."""
+    """Tests for errors in update_option."""
 
     async def test_update_option_set_value_fails(
         self,
@@ -769,7 +769,7 @@ class TestUpdateOptionError:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar actualización de opción cuando set_value falla."""
+        """Test option update when set_value fails."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -779,8 +779,8 @@ class TestUpdateOptionError:
             patch("discord_bot.web.routers.config.logger") as mock_logger,
         ):
             mock_config_service = MagicMock()
-            # Simular fallo en set_value
-            mock_config_service.set_value = AsyncMock(return_value=(False, "Error de validación"))
+            # Simulate failure in set_value
+            mock_config_service.set_value = AsyncMock(return_value=(False, "Validation error"))
             mock_config_service.get_all_config = AsyncMock(return_value={})
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service
@@ -795,25 +795,25 @@ class TestUpdateOptionError:
                 value="invalid_value",
             )
 
-            # Debe loguear el warning
+            # Should log the warning
             mock_logger.warning.assert_called_once()
             warning_message = mock_logger.warning.call_args[0][0]
-            assert "Error al guardar configuración" in warning_message
+            assert "Error saving configuration" in warning_message
 
 
 class TestNotifyCogConfigChanged:
-    """Tests para _notify_cog_config_changed."""
+    """Tests for _notify_cog_config_changed."""
 
     async def test_bot_is_none(
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando bot es None."""
+        """Test that it doesn't fail when bot is None."""
         from discord_bot.web.routers.config import _notify_cog_config_changed
 
         mock_config_request.app.state.bot = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_config_changed(
             request=mock_config_request,
             guild_id=123,
@@ -825,12 +825,12 @@ class TestNotifyCogConfigChanged:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando guild no existe."""
+        """Test that it doesn't fail when guild doesn't exist."""
         from discord_bot.web.routers.config import _notify_cog_config_changed
 
         mock_config_request.app.state.bot.get_guild.return_value = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_config_changed(
             request=mock_config_request,
             guild_id=123,
@@ -842,7 +842,7 @@ class TestNotifyCogConfigChanged:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que llama on_config_changed cuando el cog existe."""
+        """Test that it calls on_config_changed when cog exists."""
         from discord_bot.web.routers.config import _notify_cog_config_changed
 
         mock_guild = MagicMock()
@@ -865,18 +865,18 @@ class TestNotifyCogConfigChanged:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que maneja excepciones en on_config_changed."""
+        """Test that it handles exceptions in on_config_changed."""
         from discord_bot.web.routers.config import _notify_cog_config_changed
 
         mock_guild = MagicMock()
         mock_cog = MagicMock()
-        mock_cog.on_config_changed = AsyncMock(side_effect=Exception("Error de prueba"))
+        mock_cog.on_config_changed = AsyncMock(side_effect=Exception("Test error"))
 
         mock_config_request.app.state.bot.get_guild.return_value = mock_guild
         mock_config_request.app.state.bot.get_cog.return_value = mock_cog
 
         with patch("discord_bot.web.routers.config.logger") as mock_logger:
-            # No debería fallar
+            # Should not fail
             await _notify_cog_config_changed(
                 request=mock_config_request,
                 guild_id=123,
@@ -890,14 +890,14 @@ class TestNotifyCogConfigChanged:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando el cog no existe."""
+        """Test that it doesn't fail when cog doesn't exist."""
         from discord_bot.web.routers.config import _notify_cog_config_changed
 
         mock_guild = MagicMock()
         mock_config_request.app.state.bot.get_guild.return_value = mock_guild
         mock_config_request.app.state.bot.get_cog.return_value = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_config_changed(
             request=mock_config_request,
             guild_id=123,
@@ -907,18 +907,18 @@ class TestNotifyCogConfigChanged:
 
 
 class TestNotifyCogToggled:
-    """Tests para _notify_cog_toggled."""
+    """Tests for _notify_cog_toggled."""
 
     async def test_bot_is_none(
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando bot es None."""
+        """Test that it doesn't fail when bot is None."""
         from discord_bot.web.routers.config import _notify_cog_toggled
 
         mock_config_request.app.state.bot = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_toggled(
             request=mock_config_request,
             guild_id=123,
@@ -930,12 +930,12 @@ class TestNotifyCogToggled:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando guild no existe."""
+        """Test that it doesn't fail when guild doesn't exist."""
         from discord_bot.web.routers.config import _notify_cog_toggled
 
         mock_config_request.app.state.bot.get_guild.return_value = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_toggled(
             request=mock_config_request,
             guild_id=123,
@@ -947,7 +947,7 @@ class TestNotifyCogToggled:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que llama on_cog_toggled cuando el cog existe."""
+        """Test that it calls on_cog_toggled when cog exists."""
         from discord_bot.web.routers.config import _notify_cog_toggled
 
         mock_guild = MagicMock()
@@ -970,18 +970,18 @@ class TestNotifyCogToggled:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que maneja excepciones en on_cog_toggled."""
+        """Test that it handles exceptions in on_cog_toggled."""
         from discord_bot.web.routers.config import _notify_cog_toggled
 
         mock_guild = MagicMock()
         mock_cog = MagicMock()
-        mock_cog.on_cog_toggled = AsyncMock(side_effect=Exception("Error de prueba"))
+        mock_cog.on_cog_toggled = AsyncMock(side_effect=Exception("Test error"))
 
         mock_config_request.app.state.bot.get_guild.return_value = mock_guild
         mock_config_request.app.state.bot.get_cog.return_value = mock_cog
 
         with patch("discord_bot.web.routers.config.logger") as mock_logger:
-            # No debería fallar
+            # Should not fail
             await _notify_cog_toggled(
                 request=mock_config_request,
                 guild_id=123,
@@ -995,14 +995,14 @@ class TestNotifyCogToggled:
         self,
         mock_config_request: MagicMock,
     ) -> None:
-        """Probar que no falla cuando el cog no existe."""
+        """Test that it doesn't fail when cog doesn't exist."""
         from discord_bot.web.routers.config import _notify_cog_toggled
 
         mock_guild = MagicMock()
         mock_config_request.app.state.bot.get_guild.return_value = mock_guild
         mock_config_request.app.state.bot.get_cog.return_value = None
 
-        # No debería fallar
+        # Should not fail
         await _notify_cog_toggled(
             request=mock_config_request,
             guild_id=123,
@@ -1012,7 +1012,7 @@ class TestNotifyCogToggled:
 
 
 class TestChannelPermissionValidation:
-    """Tests para validación de permisos de canal."""
+    """Tests for channel permission validation."""
 
     async def test_channel_permission_error(
         self,
@@ -1021,7 +1021,7 @@ class TestChannelPermissionValidation:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que muestra error cuando el bot no tiene permisos en el canal."""
+        """Test that it shows error when bot doesn't have permissions in channel."""
         with (
             patch(
                 "discord_bot.web.routers.config.get_config_schema_service",
@@ -1035,8 +1035,8 @@ class TestChannelPermissionValidation:
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service
 
-            # Simular error de permisos
-            mock_validate.return_value = "El bot no puede enviar mensajes en ese canal"
+            # Simulate permission error
+            mock_validate.return_value = "Bot cannot send messages in that channel"
 
             await update_option(
                 mock_config_request,
@@ -1045,18 +1045,18 @@ class TestChannelPermissionValidation:
                 "channel_option",
                 test_user,
                 test_session,
-                value="123456789",  # ID de canal
+                value="123456789",  # Channel ID
             )
 
-            # Debe mostrar error
+            # Should show error
             mock_config_request.app.state.templates.TemplateResponse.assert_called_once()
             call_kwargs = mock_config_request.app.state.templates.TemplateResponse.call_args.kwargs
             context = call_kwargs["context"]
-            assert context.get("error") == "El bot no puede enviar mensajes en ese canal"
+            assert context.get("error") == "Bot cannot send messages in that channel"
 
 
 class TestToggleCogInvalidCog:
-    """Tests para toggle_cog con cog inválido."""
+    """Tests for toggle_cog with invalid cog."""
 
     async def test_toggle_cog_invalid_cog_raises_404(
         self,
@@ -1064,7 +1064,7 @@ class TestToggleCogInvalidCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que toggle_cog lanza 404 para cog inexistente."""
+        """Test that toggle_cog raises 404 for nonexistent cog."""
         empty_service = ConfigSchemaService()
 
         with (
@@ -1079,11 +1079,11 @@ class TestToggleCogInvalidCog:
             )
 
         assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Cog no encontrado"
+        assert exc_info.value.detail == "Cog not found"
 
 
 class TestReloadCogInvalidCog:
-    """Tests para reload_cog con cog inválido."""
+    """Tests for reload_cog with invalid cog."""
 
     async def test_reload_cog_invalid_cog_raises_404(
         self,
@@ -1091,7 +1091,7 @@ class TestReloadCogInvalidCog:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que reload_cog lanza 404 para cog inexistente."""
+        """Test that reload_cog raises 404 for nonexistent cog."""
         empty_service = ConfigSchemaService()
 
         with (
@@ -1106,21 +1106,21 @@ class TestReloadCogInvalidCog:
             )
 
         assert exc_info.value.status_code == 404
-        assert exc_info.value.detail == "Cog no encontrado"
+        assert exc_info.value.detail == "Cog not found"
 
 
 class TestConvertFormValueTable:
-    """Tests para _convert_form_value con tipo TABLE."""
+    """Tests for _convert_form_value with TABLE type."""
 
     def test_table_valid_json_list(self) -> None:
-        """Probar conversión de JSON válido como lista."""
+        """Test conversion of valid JSON as list."""
         value = '[{"key": "value"}]'
         result = _convert_form_value(value, ConfigOptionType.TABLE)
         assert result == [{"key": "value"}]
 
     def test_table_json_too_large(self) -> None:
-        """Probar que JSON demasiado grande retorna None."""
-        # Crear JSON de más de 100KB
+        """Test that JSON too large returns None."""
+        # Create JSON larger than 100KB
         large_value = "[" + ",".join(['{"x": "y"}'] * 20000) + "]"
         assert len(large_value) > 100_000
 
@@ -1128,19 +1128,19 @@ class TestConvertFormValueTable:
         assert result is None
 
     def test_table_invalid_json(self) -> None:
-        """Probar que JSON inválido retorna None."""
+        """Test that invalid JSON returns None."""
         value = "not valid json {"
         result = _convert_form_value(value, ConfigOptionType.TABLE)
         assert result is None
 
     def test_table_not_a_list(self) -> None:
-        """Probar que JSON que no es lista retorna None."""
+        """Test that JSON that is not a list returns None."""
         value = '{"key": "value"}'
         result = _convert_form_value(value, ConfigOptionType.TABLE)
         assert result is None
 
     def test_table_with_columns_filters_keys(self) -> None:
-        """Probar que se filtran claves inválidas según columns."""
+        """Test that invalid keys are filtered according to columns."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1157,7 +1157,7 @@ class TestConvertFormValueTable:
         assert result == [{"valid_key": "v1", "another_key": "v3"}]
 
     def test_table_with_role_column_converts_to_int(self) -> None:
-        """Probar que columnas de tipo role se convierten a int."""
+        """Test that role type columns are converted to int."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1174,7 +1174,7 @@ class TestConvertFormValueTable:
         assert result == [{"role_id": 123456, "name": "Test"}]
 
     def test_table_with_channel_column_converts_to_int(self) -> None:
-        """Probar que columnas de tipo channel se convierten a int."""
+        """Test that channel type columns are converted to int."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1190,7 +1190,7 @@ class TestConvertFormValueTable:
         assert result == [{"channel_id": 789012}]
 
     def test_table_with_invalid_role_value_removes_key(self) -> None:
-        """Probar que valores inválidos en columnas role se eliminan."""
+        """Test that invalid values in role columns are removed."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1207,7 +1207,7 @@ class TestConvertFormValueTable:
         assert result == [{"name": "Test"}]
 
     def test_table_with_already_int_value(self) -> None:
-        """Probar que valores ya int se mantienen."""
+        """Test that values already int are kept."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1216,7 +1216,7 @@ class TestConvertFormValueTable:
                 {"key": "role_id", "name": "Role", "type": "role"},
             ],
         )
-        # JSON con número ya como int
+        # JSON with number already as int
         value = '[{"role_id": 123456}]'
 
         result = _convert_form_value(value, ConfigOptionType.TABLE, option)
@@ -1224,7 +1224,7 @@ class TestConvertFormValueTable:
         assert result == [{"role_id": 123456}]
 
     def test_table_skips_non_dict_rows(self) -> None:
-        """Probar que filas que no son dict se ignoran."""
+        """Test that rows that are not dict are ignored."""
         option = ConfigOption(
             key="test_table",
             name="Test Table",
@@ -1241,17 +1241,17 @@ class TestConvertFormValueTable:
 
 
 class TestConvertFormValueEmbed:
-    """Tests para _convert_form_value con tipo EMBED."""
+    """Tests for _convert_form_value with EMBED type."""
 
     def test_embed_valid_json_dict(self) -> None:
-        """Probar conversión de JSON válido como diccionario."""
-        value = '{"title": "Mi Embed", "color": "#ff0000"}'
+        """Test conversion of valid JSON as dictionary."""
+        value = '{"title": "My Embed", "color": "#ff0000"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
-        assert result == {"title": "Mi Embed", "color": "#ff0000"}
+        assert result == {"title": "My Embed", "color": "#ff0000"}
 
     def test_embed_json_too_large(self) -> None:
-        """Probar que JSON demasiado grande retorna None."""
-        # Crear JSON de más de 100KB
+        """Test that JSON too large returns None."""
+        # Create JSON larger than 100KB
         large_title = "x" * 100_001
         large_value = '{"title": "' + large_title + '"}'
         assert len(large_value) > 100_000
@@ -1260,28 +1260,28 @@ class TestConvertFormValueEmbed:
         assert result is None
 
     def test_embed_invalid_json(self) -> None:
-        """Probar que JSON inválido retorna None."""
+        """Test that invalid JSON returns None."""
         value = "not valid json {"
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         assert result is None
 
     def test_embed_not_a_dict(self) -> None:
-        """Probar que JSON que no es diccionario retorna None."""
+        """Test that JSON that is not a dictionary returns None."""
         value = '["item1", "item2"]'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         assert result is None
 
     def test_embed_filters_invalid_keys(self) -> None:
-        """Probar que se filtran claves inválidas."""
+        """Test that invalid keys are filtered."""
         value = '{"title": "Test", "invalid_key": "value", "color": "#000"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         assert result == {"title": "Test", "color": "#000"}
         assert "invalid_key" not in result
 
     def test_embed_with_all_valid_keys(self) -> None:
-        """Probar que todas las claves válidas se mantienen."""
+        """Test that all valid keys are kept."""
         value = """{
-            "title": "Mi Embed",
+            "title": "My Embed",
             "color": "#ff0000",
             "thumbnail_url": "https://example.com/thumb.png",
             "image_url": "https://example.com/image.png",
@@ -1290,7 +1290,7 @@ class TestConvertFormValueEmbed:
             "sections": []
         }"""
         result = _convert_form_value(value, ConfigOptionType.EMBED)
-        assert result["title"] == "Mi Embed"
+        assert result["title"] == "My Embed"
         assert result["color"] == "#ff0000"
         assert result["thumbnail_url"] == "https://example.com/thumb.png"
         assert result["image_url"] == "https://example.com/image.png"
@@ -1299,37 +1299,37 @@ class TestConvertFormValueEmbed:
         assert result["sections"] == []
 
     def test_embed_sections_not_list_becomes_empty(self) -> None:
-        """Probar que sections que no es lista se convierte a lista vacía."""
+        """Test that sections that is not a list becomes empty list."""
         value = '{"title": "Test", "sections": "not a list"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         assert result["sections"] == []
 
     def test_embed_with_sections(self) -> None:
-        """Probar embed con secciones."""
+        """Test embed with sections."""
         value = """{
-            "title": "Estadísticas",
+            "title": "Statistics",
             "sections": [
-                {"type": "header", "content": "Información"},
-                {"type": "text", "content": "Descripción"},
+                {"type": "header", "content": "Information"},
+                {"type": "text", "content": "Description"},
                 {"type": "progress", "value_key": "health", "max_value": 100}
             ]
         }"""
         result = _convert_form_value(value, ConfigOptionType.EMBED)
-        assert result["title"] == "Estadísticas"
+        assert result["title"] == "Statistics"
         assert len(result["sections"]) == 3
         assert result["sections"][0]["type"] == "header"
         assert result["sections"][1]["type"] == "text"
         assert result["sections"][2]["type"] == "progress"
 
     def test_embed_url_empty_after_strip(self) -> None:
-        """Probar que URL vacía después de strip se ignora."""
+        """Test that URL empty after strip is ignored."""
         value = '{"title": "Test", "thumbnail_url": "   "}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         # Should not have thumbnail_url since it's empty after strip
         assert "thumbnail_url" not in result or result.get("thumbnail_url") == "   "
 
     def test_embed_url_invalid_removed(self) -> None:
-        """Probar que URL inválida (no placeholder ni http) se elimina."""
+        """Test that invalid URL (not placeholder nor http) is removed."""
         value = '{"title": "Test", "thumbnail_url": "invalid_url", "image_url": "https://valid.com/img.png"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         # Invalid URL should be removed
@@ -1338,39 +1338,39 @@ class TestConvertFormValueEmbed:
         assert result["image_url"] == "https://valid.com/img.png"
 
     def test_embed_url_placeholder_valid(self) -> None:
-        """Probar que URL placeholder es válida."""
+        """Test that placeholder URL is valid."""
         value = '{"title": "Test", "thumbnail_url": "{user_avatar}"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED)
         assert result["thumbnail_url"] == "{user_avatar}"
 
 
 class TestConvertFormValueEmbedSections:
-    """Tests para _convert_form_value con tipo EMBED_SECTIONS."""
+    """Tests for _convert_form_value with EMBED_SECTIONS type."""
 
     def test_embed_sections_list(self) -> None:
-        """Probar conversión de lista directa."""
+        """Test conversion of direct list."""
         value = '[{"type": "text", "content": "Hello"}]'
         result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
         assert result == [{"type": "text", "content": "Hello"}]
 
     def test_embed_sections_dict_with_sections_key(self) -> None:
-        """Probar conversión de dict con clave 'sections'."""
+        """Test conversion of dict with 'sections' key."""
         value = '{"sections": [{"type": "text", "content": "Hello"}]}'
         result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
         assert result == [{"type": "text", "content": "Hello"}]
 
     def test_embed_sections_not_list(self) -> None:
-        """Probar que valor que no es lista retorna None."""
+        """Test that value that is not a list returns None."""
         value = '{"type": "text"}'
         result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
         assert result is None
 
 
 class TestConvertFormValueDefault:
-    """Tests para _convert_form_value con tipos desconocidos."""
+    """Tests for _convert_form_value with unknown types."""
 
     def test_unknown_type_returns_value_as_is(self) -> None:
-        """Probar que tipo desconocido retorna valor sin cambios."""
+        """Test that unknown type returns value unchanged."""
         # Use a mock type that doesn't match any case
         from unittest.mock import MagicMock
 
@@ -1381,7 +1381,7 @@ class TestConvertFormValueDefault:
 
 
 class TestUpdateOptionsBatch:
-    """Tests para update_options_batch."""
+    """Tests for update_options_batch."""
 
     async def test_empty_options_returns_early(
         self,
@@ -1390,7 +1390,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que opciones vacías retorna sin guardar."""
+        """Test that empty options returns without saving."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.json = AsyncMock(return_value={"options": {}})
@@ -1429,7 +1429,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que JSON inválido retorna 400."""
+        """Test that invalid JSON returns 400."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.json = AsyncMock(
@@ -1446,7 +1446,7 @@ class TestUpdateOptionsBatch:
             )
 
         assert exc_info.value.status_code == 400
-        assert "JSON inválido" in exc_info.value.detail
+        assert "Invalid JSON" in exc_info.value.detail
 
     async def test_invalid_content_type_raises_415(
         self,
@@ -1454,7 +1454,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que Content-Type inválido retorna 415."""
+        """Test that invalid Content-Type returns 415."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.headers = {"content-type": "text/plain"}
@@ -1477,7 +1477,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que Content-Type ausente retorna 415."""
+        """Test that missing Content-Type returns 415."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.headers = {}
@@ -1500,7 +1500,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que opción no encontrada agrega error."""
+        """Test that option not found adds error."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.json = AsyncMock(
@@ -1545,7 +1545,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar guardado batch exitoso."""
+        """Test successful batch save."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.json = AsyncMock(
@@ -1595,7 +1595,7 @@ class TestUpdateOptionsBatch:
         test_user: dict[str, Any],
         test_session: AsyncSession,
     ) -> None:
-        """Probar que error de validación se agrega a la lista de errores."""
+        """Test that validation error is added to error list."""
         from discord_bot.web.routers.config import update_options_batch
 
         mock_config_request.json = AsyncMock(return_value={"options": {"string_option": "value"}})

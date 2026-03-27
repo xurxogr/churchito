@@ -1,0 +1,845 @@
+{
+  "ui": {
+    "nav": {
+      "dashboard": "Panel",
+      "logout": "Cerrar sesión"
+    },
+    "buttons": {
+      "save": "Guardar cambios",
+      "saving": "Guardando...",
+      "configure": "Configurar",
+      "back": "Volver",
+      "reload": "Recargar",
+      "invite_first": "Invitar primero"
+    },
+    "labels": {
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "language": "Idioma",
+      "on": "Sí",
+      "off": "No",
+      "select_channel": "-- Seleccionar canal --",
+      "select_role": "-- Seleccionar rol --"
+    },
+    "messages": {
+      "bot_present": "Bot presente",
+      "bot_not_present": "Bot no presente",
+      "no_permission": "Sin permisos",
+      "select_category": "Selecciona una categoría arriba para ver y editar su configuración.",
+      "no_servers": "No tienes ningún servidor donde puedas gestionar el bot.",
+      "need_permission": "Necesitas el permiso \"Gestionar Servidor\" o ser el propietario del servidor."
+    },
+    "dashboard": {
+      "your_servers": "Tus Servidores",
+      "select_server": "Selecciona un servidor para configurar el bot."
+    },
+    "config": {
+      "markdown_info": "Los campos de mensaje soportan formato de Discord (negrita, cursiva, etc.).",
+      "formatting_guide": "Ver guía de formato",
+      "placeholders_title": "Placeholders globales disponibles",
+      "placeholders_intro": "Los placeholders se reemplazan automáticamente con datos reales. Escríbelos entre llaves: {placeholder}",
+      "server": "Servidor",
+      "user": "Usuario",
+      "color_emojis": "Emojis de Color",
+      "server_name": "Nombre del servidor",
+      "server_id": "ID del servidor",
+      "member_count": "Número de miembros",
+      "username": "Nombre de usuario",
+      "user_mention": "Mención del usuario",
+      "user_id": "ID del usuario",
+      "avatar_url": "URL del avatar",
+      "server_join_date": "Fecha de entrada al servidor",
+      "time_since_join": "Tiempo desde entrada",
+      "account_creation": "Fecha de creación de cuenta",
+      "account_age": "Antigüedad de cuenta",
+      "red_circle": "Círculo rojo",
+      "green_circle": "Círculo verde",
+      "yellow_circle": "Círculo amarillo",
+      "blue_circle": "Círculo azul",
+      "orange_circle": "Círculo naranja",
+      "purple_circle": "Círculo morado",
+      "white_circle": "Círculo blanco",
+      "black_circle": "Círculo negro",
+      "placeholder": "Placeholder",
+      "description": "Descripción",
+      "example": "Ejemplo",
+      "available": "Disponibles",
+      "selected": "Seleccionados",
+      "preview": "VISTA PREVIA",
+      "embed_configuration": "Configuración del Embed",
+      "embeds_auto_split": "{count} embeds (auto-dividido)",
+      "brown_circle": "Círculo marrón",
+      "ansi_colors": "Colores ANSI (solo valores)",
+      "ansi_colors_hint": "Usar en valores de campos. El texto se mostrará en un bloque de código coloreado.",
+      "tag": "Etiqueta",
+      "red_text": "Texto rojo",
+      "green_text": "Texto verde",
+      "yellow_text": "Texto amarillo",
+      "blue_text": "Texto azul",
+      "pink_text": "Texto rosa",
+      "cyan_text": "Texto cian",
+      "white_text": "Texto blanco",
+      "gray_text": "Texto gris"
+    },
+    "time": {
+      "seconds_ago": "hace unos segundos",
+      "minute_ago": "hace {count} minuto",
+      "minutes_ago": "hace {count} minutos",
+      "hour_ago": "hace {count} hora",
+      "hours_ago": "hace {count} horas",
+      "day_ago": "hace {count} día",
+      "days_ago": "hace {count} días",
+      "month_ago": "hace {count} mes",
+      "months_ago": "hace {count} meses",
+      "year_ago": "hace {count} año",
+      "years_ago": "hace {count} años"
+    },
+    "footer": {
+      "copyright": "Panel del Bot"
+    },
+    "login": {
+      "title": "Iniciar sesión",
+      "button": "Iniciar sesión con Discord",
+      "error_denied": "Autorización denegada. Por favor, inténtalo de nuevo.",
+      "error_no_code": "Código de autorización no recibido.",
+      "error_invalid_state": "Estado de sesión inválido. Por favor, inténtalo de nuevo.",
+      "error_expired": "Sesión expirada. Por favor, inténtalo de nuevo.",
+      "error_api": "Error al comunicarse con Discord. Por favor, inténtalo más tarde.",
+      "error_unknown": "Error desconocido. Por favor, inténtalo de nuevo."
+    }
+  },
+  "cogs": {
+    "bot": {
+      "display_name": "Bot",
+      "description": "Configuración general del bot y permisos de administración",
+      "options": {
+        "admin_roles": {
+          "name": "Roles de administrador",
+          "description": "Roles que pueden configurar el bot desde el panel web. El usuario que invitó al bot y el propietario del servidor siempre tienen acceso."
+        }
+      }
+    },
+    "autoname": {
+      "display_name": "Autonombre",
+      "description": "Formato automático de apodos basado en roles del servidor",
+      "options": {
+        "required_roles": {
+          "name": "Roles requeridos",
+          "description": "Solo se modificarán los apodos de miembros con uno de estos roles. Deja vacío para procesar todos los miembros."
+        },
+        "role_tags": {
+          "name": "Etiquetas de rol",
+          "description": "Lista ordenada de roles y sus etiquetas. El primer rol coincidente gana."
+        },
+        "role_prefixes": {
+          "name": "Prefijos de rol",
+          "description": "Lista ordenada de roles y sus prefijos. El primer rol coincidente gana. Sugerencias: ★ ☆ ◆ ◇ ● ○ ■ □ ▲ △ ♦ ♢ ✦ ✧ ⬥ ⬦ ◈ ❖ ✪ ⚜"
+        },
+        "tag_format": {
+          "name": "Formato de etiqueta",
+          "description": "Formato de la etiqueta. Usa {tag} como placeholder. Ejemplo: [ABC | {tag}]"
+        },
+        "sync_interval": {
+          "name": "Intervalo de sincronización (minutos)",
+          "description": "Frecuencia de sincronización periódica de apodos (0 para deshabilitar)"
+        },
+        "log_channel": {
+          "name": "Canal de logs",
+          "description": "Canal donde se enviarán los logs de cambios de apodo"
+        },
+        "log_message_success": {
+          "name": "Mensaje de cambio exitoso",
+          "description": "Mensaje cuando se cambia un apodo. Placeholders: {old_name}, {new_name}. Deja vacío para no enviar.",
+          "default": "Apodo cambiado de **{old_name}** a **{new_name}**"
+        },
+        "log_message_no_perms": {
+          "name": "Mensaje sin permisos",
+          "description": "Mensaje cuando no se puede cambiar un apodo por falta de permisos. Placeholder: {name}. Deja vacío para no enviar.",
+          "default": "No se pudo cambiar el apodo de **{name}** (sin permisos)"
+        }
+      },
+      "columns": {
+        "role_id": "Rol",
+        "tag": "Etiqueta",
+        "prefix": "Prefijo"
+      }
+    },
+    "verification": {
+      "display_name": "Verificación",
+      "description": "Sistema de verificación de usuarios con capturas de pantalla",
+      "groups": {
+        "Options": "Opciones",
+        "Verification Panel": "Panel de Verificación",
+        "Verification (Normal)": "Verificación (Normal)",
+        "Verification (Ally)": "Verificación (Aliado)",
+        "Moderation Panel": "Panel de Moderación",
+        "User Messages": "Mensajes al Usuario",
+        "Moderation Messages": "Mensajes de Moderación",
+        "Verification API": "API de Verificación"
+      },
+      "options": {
+        "verification_enabled": {
+          "name": "Verificación habilitada",
+          "description": "Habilitar o deshabilitar el sistema de verificación"
+        },
+        "blocking_roles": {
+          "name": "Roles que bloquean verificación",
+          "description": "Los usuarios con alguno de estos roles no podrán iniciar verificación. Usa para evitar que usuarios ya verificados verifiquen de nuevo."
+        },
+        "auto_reject_review_window": {
+          "name": "Ventana de revisión (minutos)",
+          "description": "Minutos durante los cuales un moderador puede revisar un rechazo automático. 0 para deshabilitar."
+        },
+        "screenshot_timeout_minutes": {
+          "name": "Tiempo límite capturas (minutos)",
+          "description": "Minutos que tiene el usuario para enviar capturas antes de que la solicitud sea rechazada automáticamente. 0 para deshabilitar."
+        },
+        "verification_channel": {
+          "name": "Canal de verificación",
+          "description": "Canal donde se publica el panel de verificación con botones. Solo se muestran canales donde el bot tiene permiso de escritura."
+        },
+        "verification_panel_message": {
+          "name": "Mensaje del panel",
+          "description": "Mensaje que aparece en el panel de verificación. Si incluyes una URL de imagen (terminada en .png, .jpg, .gif, etc.) se mostrará como imagen en el embed.",
+          "default": "**¡Bienvenido a {server_name}!**\n\nPara acceder al servidor, necesitas verificarte. Haz clic en el botón correspondiente para comenzar."
+        },
+        "verify_button_text": {
+          "name": "Texto botón verificar",
+          "description": "Texto del botón de verificación normal",
+          "default": "Verificar"
+        },
+        "verify_ally_button_text": {
+          "name": "Texto botón aliado",
+          "description": "Texto del botón de verificación de aliado",
+          "default": "Verificar como Aliado"
+        },
+        "health_check_interval": {
+          "name": "Intervalo de verificación (minutos)",
+          "description": "Frecuencia de verificación del panel (0 para deshabilitar)"
+        },
+        "verification_type_regular_display": {
+          "name": "Nombre tipo normal",
+          "description": "Nombre a mostrar para verificación normal en mensajes",
+          "default": "Normal"
+        },
+        "dm_instructions_message": {
+          "name": "Instrucciones por DM",
+          "description": "Mensaje enviado al usuario por DM con instrucciones",
+          "default": "**Instrucciones de Verificación**\n\n¡Hola {username}! Para completar tu verificación en **{server_name}**, envía **2 capturas de pantalla** en un solo mensaje."
+        },
+        "regular_roles_add": {
+          "name": "Roles a añadir",
+          "description": "Roles que se añaden al aprobar verificación normal"
+        },
+        "regular_roles_remove": {
+          "name": "Roles a quitar",
+          "description": "Roles que se quitan al aprobar verificación normal"
+        },
+        "approval_message_regular": {
+          "name": "Mensaje de aprobación",
+          "description": "Mensaje enviado al usuario cuando es aprobado",
+          "default": "**¡Verificación aprobada!**\n\nTu verificación en **{server_name}** ha sido aprobada. Ahora tienes acceso completo al servidor."
+        },
+        "verification_type_ally_display": {
+          "name": "Nombre tipo aliado",
+          "description": "Nombre a mostrar para verificación de aliado en mensajes",
+          "default": "Aliado"
+        },
+        "dm_instructions_ally_message": {
+          "name": "Instrucciones por DM",
+          "description": "Mensaje enviado al usuario por DM con instrucciones",
+          "default": "**Instrucciones de Verificación (Aliado)**\n\n¡Hola {username}! Para completar tu verificación como aliado en **{server_name}**, envía **2 capturas de pantalla** en un solo mensaje."
+        },
+        "ally_roles_add": {
+          "name": "Roles a añadir",
+          "description": "Roles que se añaden al aprobar verificación de aliado"
+        },
+        "ally_roles_remove": {
+          "name": "Roles a quitar",
+          "description": "Roles que se quitan al aprobar verificación de aliado"
+        },
+        "approval_message_ally": {
+          "name": "Mensaje de aprobación",
+          "description": "Mensaje enviado al usuario cuando es aprobado como aliado",
+          "default": "**¡Verificación de aliado aprobada!**\n\nTu verificación como aliado en **{server_name}** ha sido aprobada. Ahora tienes acceso como aliado al servidor."
+        },
+        "mod_notification_channel": {
+          "name": "Canal de moderación",
+          "description": "Canal donde los moderadores reciben notificaciones de verificación. Solo se muestran canales donde el bot tiene permiso de escritura."
+        },
+        "tracker_title": {
+          "name": "Título del rastreador",
+          "description": "Título del mensaje con la lista de verificaciones pendientes. Deja vacío para deshabilitar el rastreador.",
+          "default": "📋 Verificaciones Pendientes"
+        },
+        "mod_roles": {
+          "name": "Roles de moderador",
+          "description": "Roles que pueden aprobar/rechazar verificaciones"
+        },
+        "mod_embed_regular": {
+          "name": "Embed moderación (Normal)",
+          "description": "Configuración del embed para verificaciones normales"
+        },
+        "mod_embed_ally": {
+          "name": "Embed moderación (Aliado)",
+          "description": "Configuración del embed para verificaciones de aliado"
+        },
+        "mod_ping_message": {
+          "name": "Mensaje de ping a moderadores",
+          "description": "Mensaje enviado para notificar a moderadores cuando hay una verificación pendiente. Usa {roles} para mencionar roles. Deja vacío para no enviar ping.",
+          "default": "{roles} - Nueva verificación pendiente de revisión"
+        },
+        "delete_processed_messages": {
+          "name": "Eliminar mensajes procesados",
+          "description": "Eliminar mensajes del canal de moderación después de aprobar/rechazar"
+        },
+        "accept_button_text": {
+          "name": "Texto botón aceptar",
+          "description": "Texto del botón de aceptar para moderadores. Usa {verification_type} para mostrar el tipo de verificación.",
+          "default": "Aceptar"
+        },
+        "reject_button_text": {
+          "name": "Texto botón rechazar",
+          "description": "Texto del botón de rechazar para moderadores",
+          "default": "Rechazar"
+        },
+        "review_button_text": {
+          "name": "Texto botón revisar",
+          "description": "Texto del botón para revisar rechazos automáticos",
+          "default": "Revisar"
+        },
+        "history_label": {
+          "name": "Etiqueta historial",
+          "description": "Texto para la sección de historial en el mensaje de revisión",
+          "default": "Historial"
+        },
+        "status_awaiting_screenshots": {
+          "name": "Estado: Esperando capturas",
+          "description": "Texto de estado cuando se espera que el usuario envíe capturas",
+          "default": "⏳ **Estado:** Esperando capturas..."
+        },
+        "status_pending_review": {
+          "name": "Estado: Pendiente revisión",
+          "description": "Texto de estado cuando las capturas están listas para revisión",
+          "default": "🔍 **Estado:** Pendiente de revisión"
+        },
+        "status_ready_for_approval": {
+          "name": "Estado: Listo para aprobar",
+          "description": "Texto de estado cuando las verificaciones automáticas pasan pero requiere aprobación manual. Usa {roles} para mencionar los roles que pueden aprobar.",
+          "default": "✅ **Estado:** Listo para aprobar - {roles}"
+        },
+        "status_approved": {
+          "name": "Estado: Aprobado",
+          "description": "Texto de estado cuando la verificación fue aprobada",
+          "default": "✅ **Estado:** Aprobado por {moderator}"
+        },
+        "status_rejected": {
+          "name": "Estado: Rechazado",
+          "description": "Texto de estado cuando la verificación fue rechazada",
+          "default": "❌ **Estado:** Rechazado por {moderator}\n**Razón:** {reason}"
+        },
+        "status_cancelled": {
+          "name": "Estado: Cancelado",
+          "description": "Texto de estado cuando la verificación fue cancelada",
+          "default": "🚫 **Estado:** Cancelado (el usuario abandonó el servidor)"
+        },
+        "reject_screenshot_timeout": {
+          "name": "Rechazo: Tiempo agotado capturas",
+          "description": "Razón cuando el usuario no envía capturas a tiempo",
+          "default": "Tiempo agotado esperando capturas"
+        },
+        "reject_wrong_captures": {
+          "name": "Rechazo: Capturas incorrectas",
+          "description": "Razón cuando las capturas son incorrectas o ilegibles (error API 422)",
+          "default": "Capturas incorrectas o ilegibles"
+        },
+        "reject_name_mismatch": {
+          "name": "Rechazo: Nombre no coincide",
+          "description": "Razón cuando el nombre del juego no coincide con Discord",
+          "default": "El nombre de usuario no coincide"
+        },
+        "reject_has_regiment": {
+          "name": "Rechazo: Tiene regimiento",
+          "description": "Razón cuando el usuario ya pertenece a un regimiento",
+          "default": "El usuario ya pertenece a un regimiento"
+        },
+        "reject_time_diff": {
+          "name": "Rechazo: Captura antigua",
+          "description": "Razón cuando la captura es muy antigua",
+          "default": "Captura demasiado antigua"
+        },
+        "reject_wrong_shard": {
+          "name": "Rechazo: Shard incorrecto",
+          "description": "Razón cuando el shard es incorrecto. Usa {shard} para el esperado",
+          "default": "Shard incorrecto, debe ser {shard}"
+        },
+        "reject_wrong_faction": {
+          "name": "Rechazo: Facción incorrecta",
+          "description": "Razón cuando la facción es incorrecta",
+          "default": "Facción incorrecta"
+        },
+        "rejection_select_placeholder": {
+          "name": "Placeholder selector rechazo",
+          "description": "Texto placeholder para el selector de razón de rechazo",
+          "default": "Selecciona razón de rechazo..."
+        },
+        "rejection_select_message": {
+          "name": "Mensaje selector rechazo",
+          "description": "Mensaje mostrado al moderador antes del selector de razón de rechazo",
+          "default": "Selecciona razón de rechazo:"
+        },
+        "rejection_other_label": {
+          "name": "Etiqueta 'Otra razón'",
+          "description": "Texto de la opción para escribir una razón personalizada",
+          "default": "Otra razón..."
+        },
+        "rejection_other_description": {
+          "name": "Descripción 'Otra razón'",
+          "description": "Descripción de la opción para escribir una razón personalizada",
+          "default": "Escribe una razón personalizada"
+        },
+        "rejection_modal_title": {
+          "name": "Título modal rechazo",
+          "description": "Título del modal para escribir una razón personalizada",
+          "default": "Razón de Rechazo"
+        },
+        "rejection_modal_label": {
+          "name": "Etiqueta campo modal rechazo",
+          "description": "Etiqueta del campo de texto en el modal de rechazo",
+          "default": "Razón"
+        },
+        "rejection_modal_placeholder": {
+          "name": "Placeholder modal rechazo",
+          "description": "Texto de ayuda en el campo de texto del modal de rechazo",
+          "default": "Explica por qué se rechaza la verificación..."
+        },
+        "verification_started_message": {
+          "name": "Verificación iniciada",
+          "description": "Mensaje mostrado al usuario al iniciar verificación",
+          "default": "Revisa tus mensajes directos para continuar con la verificación."
+        },
+        "screenshots_received_message": {
+          "name": "Capturas recibidas",
+          "description": "Mensaje de confirmación cuando el usuario envía capturas",
+          "default": "Tus capturas han sido recibidas correctamente. Un moderador revisará tu solicitud pronto."
+        },
+        "rejection_message": {
+          "name": "Mensaje de rechazo",
+          "description": "Mensaje enviado al usuario cuando es rechazado",
+          "default": "**Verificación rechazada**\n\nTu verificación en **{server_name}** ha sido rechazada.\n**Razón:** {reason}\n\nPuedes intentarlo de nuevo si lo deseas."
+        },
+        "wrong_images_message": {
+          "name": "Error: imágenes incorrectas",
+          "description": "Mensaje cuando no se envían exactamente 2 imágenes",
+          "default": "Debes enviar exactamente **2 capturas de pantalla** en el mismo mensaje. Por favor, inténtalo de nuevo."
+        },
+        "dm_disabled_message": {
+          "name": "Error: DMs deshabilitados",
+          "description": "Mensaje cuando no se puede enviar DM al usuario",
+          "default": "No pude enviarte un mensaje directo. Por favor, habilita los DMs de miembros del servidor e inténtalo de nuevo."
+        },
+        "already_pending_message": {
+          "name": "Error: verificación pendiente",
+          "description": "Mensaje cuando el usuario ya tiene una verificación pendiente",
+          "default": "Ya tienes una solicitud de verificación pendiente. Por favor, espera."
+        },
+        "already_verified_message": {
+          "name": "Error: ya verificado",
+          "description": "Mensaje cuando el usuario ya tiene roles de verificación",
+          "default": "Ya tienes roles de verificación. No necesitas verificarte de nuevo."
+        },
+        "verification_disabled_message": {
+          "name": "Error: verificación deshabilitada",
+          "description": "Mensaje mostrado cuando la verificación no está configurada",
+          "default": "⚠️ **Verificación no disponible**\n\nLa verificación está temporalmente deshabilitada. Por favor, contacta a un administrador."
+        },
+        "request_not_found_message": {
+          "name": "Error: solicitud no encontrada",
+          "description": "Mensaje cuando no se encuentra la solicitud de verificación",
+          "default": "Error: No se encontró tu solicitud de verificación."
+        },
+        "no_pending_verification_message": {
+          "name": "Error: sin verificación activa",
+          "description": "Mensaje cuando el usuario envía DM sin tener verificación en progreso",
+          "default": "No tienes ninguna verificación en progreso. Si quieres verificarte, usa el panel de verificación en el servidor."
+        },
+        "pending_in_other_server_message": {
+          "name": "Error: verificación en otro servidor",
+          "description": "Mensaje cuando el usuario tiene verificación pendiente en otro servidor",
+          "default": "Ya tienes verificación en progreso en otro servidor. Debes completarla o esperar a que sea procesada antes de iniciar otra."
+        },
+        "mod_approved_confirmation": {
+          "name": "Confirmación de aprobación",
+          "description": "Mensaje mostrado al moderador al aprobar",
+          "default": "Verificación aprobada para {username}."
+        },
+        "mod_rejected_confirmation": {
+          "name": "Confirmación de rechazo",
+          "description": "Mensaje mostrado al moderador al rechazar",
+          "default": "Verificación rechazada para {username}."
+        },
+        "request_already_processed_message": {
+          "name": "Error: solicitud ya procesada",
+          "description": "Mensaje cuando se intenta procesar una solicitud ya procesada",
+          "default": "Esta solicitud ya ha sido procesada."
+        },
+        "no_permission_approve_message": {
+          "name": "Error: sin permiso para aprobar",
+          "description": "Mensaje cuando el moderador no tiene permiso para aprobar",
+          "default": "No tienes permiso para aprobar verificaciones."
+        },
+        "no_permission_reject_message": {
+          "name": "Error: sin permiso para rechazar",
+          "description": "Mensaje cuando el moderador no tiene permiso para rechazar",
+          "default": "No tienes permiso para rechazar verificaciones."
+        },
+        "verification_faction": {
+          "name": "Facción requerida",
+          "description": "Facción que los usuarios deben tener para pasar la verificación"
+        },
+        "verification_shard": {
+          "name": "Shard requerido",
+          "description": "Shard que los usuarios deben tener para pasar la verificación"
+        },
+        "verification_time_diff": {
+          "name": "Diferencia máxima de tiempo (días)",
+          "description": "Diferencia máxima entre el tiempo del juego y el actual (0 para deshabilitar)"
+        },
+        "verification_automatic": {
+          "name": "Procesamiento automático",
+          "description": "Aprobar/rechazar automáticamente según las reglas configuradas"
+        },
+        "verification_match_name": {
+          "name": "Verificar nombre",
+          "description": "Modo de comparación entre nombre de Discord y nombre del juego"
+        },
+        "verification_valid_regiment": {
+          "name": "Regimiento válido",
+          "description": "ID del regimiento permitido para verificación normal. Usa el contenido completo entre corchetes (ej: para '[7-HP#8707] 7th Hispanic Platoon' usa '7-HP#8707'). Si está vacío, cualquier usuario con regimiento es rechazado."
+        },
+        "player_info_sections": {
+          "name": "Secciones de información del jugador",
+          "description": "Secciones para mostrar información del jugador en el mensaje de moderación. Usa el tipo 'Campos (3 col)' para mostrar datos en columnas."
+        }
+      },
+      "choices": {
+        "faction": {
+          "Colonial": "Colonial",
+          "Warden": "Warden"
+        },
+        "shard": {
+          "ABLE": "ABLE",
+          "CHARLIE": "CHARLIE"
+        },
+        "auto_process": {
+          "None": "Ninguno",
+          "Rejections only": "Solo rechazos",
+          "Approvals only": "Solo aprobaciones",
+          "Both": "Ambos"
+        },
+        "name_match": {
+          "Do not check": "No verificar",
+          "Exact": "Exacto",
+          "Must contain": "Debe contener"
+        }
+      }
+    },
+    "purge": {
+      "display_name": "Purga",
+      "description": "Sistema de purga para gestión de actividad de miembros",
+      "sections": {
+        "Common": "Común",
+        "Purge: War end": "Purga: Fin de guerra",
+        "Purge: Global": "Purga: Global"
+      },
+      "groups": {
+        "Moderation": "Moderación",
+        "Users": "Usuarios",
+        "General": "General",
+        "Execution messages": "Mensajes de ejecución"
+      },
+      "options": {
+        "mod_channel": {
+          "name": "Canal de moderación",
+          "description": "Canal donde los moderadores activan y gestionan purgas"
+        },
+        "mod_message_template": {
+          "name": "Plantilla mensaje autorización",
+          "description": "Mensaje mostrado cuando se inicia una purga. Se actualiza dinámicamente con estado y lista de autorizadores.",
+          "default": "**{purge_type}**\n\nEstado: {status}\nAutorizaciones requeridas: {required_reactions}\nFecha de ejecución: {date}\n\nAutorizado por: {authorized_by}\nCancelaciones: {cancellations}\n\nReacciona al botón para autorizar la purga."
+        },
+        "mod_button_color": {
+          "name": "Color botón autorización",
+          "description": "Color del botón que usan los moderadores para autorizar"
+        },
+        "mod_button_text": {
+          "name": "Texto botón autorización",
+          "description": "Texto que aparece en el botón (puede incluir emojis)",
+          "default": "🔑 Autorizar purga"
+        },
+        "mod_required_reactions": {
+          "name": "Reacciones requeridas",
+          "description": "Número de moderadores que deben autorizar para activar la purga"
+        },
+        "mod_reaction_timeout": {
+          "name": "Límite de tiempo (minutos)",
+          "description": "Minutos para obtener las autorizaciones requeridas. 0 = sin límite."
+        },
+        "mod_message_retention": {
+          "name": "Retención de mensaje (minutos)",
+          "description": "Minutos que permanece el mensaje después de completarse. 0 = permanente."
+        },
+        "mod_status_pending": {
+          "name": "Estado: Pendiente",
+          "description": "Texto cuando se esperan más autorizaciones",
+          "default": "⏳ Pendiente de aprobación"
+        },
+        "mod_status_authorized": {
+          "name": "Estado: Autorizado",
+          "description": "Texto cuando se obtienen las autorizaciones requeridas",
+          "default": "✅ Autorizado"
+        },
+        "mod_status_expired": {
+          "name": "Estado: Expirado",
+          "description": "Texto cuando no se obtienen autorizaciones a tiempo",
+          "default": "⌛ Expirado"
+        },
+        "mod_status_cancel_pending": {
+          "name": "Estado: Cancelación pendiente",
+          "description": "Texto cuando se inicia cancelación pero faltan votos",
+          "default": "🟡 Cancelación pendiente"
+        },
+        "mod_status_cancelled": {
+          "name": "Estado: Cancelado",
+          "description": "Texto cuando la purga es cancelada",
+          "default": "❌ Cancelado"
+        },
+        "mod_status_executed": {
+          "name": "Estado: Ejecutado",
+          "description": "Texto cuando la purga se ejecuta correctamente",
+          "default": "✅ Ejecutado"
+        },
+        "mod_stop_button_text": {
+          "name": "Texto botón detener",
+          "description": "Texto del botón para detener una purga activa",
+          "default": "🛑 Detener purga"
+        },
+        "mod_active_purge_text": {
+          "name": "Mensaje: Purga activa",
+          "description": "Mensaje cuando se intenta iniciar otra purga mientras hay una activa",
+          "default": "Ya hay una purga activa. Espera a que termine o cancélala."
+        },
+        "mod_no_permission_text": {
+          "name": "Mensaje: Sin permisos",
+          "description": "Mensaje cuando el usuario no tiene el rol para usar el comando",
+          "default": "No tienes permiso para ejecutar este comando."
+        },
+        "user_channel": {
+          "name": "Canal de usuarios",
+          "description": "Canal donde los usuarios ven el mensaje de purga y reaccionan"
+        },
+        "user_button_color": {
+          "name": "Color botón confirmación",
+          "description": "Color del botón que usan los usuarios para confirmar"
+        },
+        "user_button_text": {
+          "name": "Texto botón confirmación",
+          "description": "Texto del botón que presionan los usuarios (puede incluir emojis)",
+          "default": "🛡️ Confirmar permanencia"
+        },
+        "user_reaction_role": {
+          "name": "Rol al reaccionar",
+          "description": "Rol asignado a los usuarios cuando reaccionan al botón"
+        },
+        "user_first_reaction_text": {
+          "name": "Mensaje: Primera reacción",
+          "description": "Mensaje (efímero) cuando el usuario confirma por primera vez",
+          "default": "Has confirmado tu permanencia. ¡Gracias!"
+        },
+        "user_removed_reaction_text": {
+          "name": "Mensaje: Confirmación retirada",
+          "description": "Mensaje (efímero) cuando el usuario retira su confirmación",
+          "default": "Has retirado tu confirmación."
+        },
+        "test_mode": {
+          "name": "Modo prueba",
+          "description": "Permite saltar restricciones mínimas: solo requiere 1 autorización y ejecuta en 2 minutos."
+        },
+        "audit_level": {
+          "name": "Nivel de auditoría",
+          "description": "0 = Sin mensajes, 1 = Solo títulos, 2 = Todas las acciones"
+        },
+        "log_channel": {
+          "name": "Canal de logs",
+          "description": "Canal donde se enviarán los logs de purga. Deja vacío para deshabilitar."
+        },
+        "log_created": {
+          "name": "Log: Purga creada",
+          "description": "Placeholders: {user}, {purge_type}, {hours}, {scheduled_for}",
+          "default": "Purga **{purge_type}** creada por **{user}** - Ejecución: {scheduled_for} ({hours}h)"
+        },
+        "log_authorized": {
+          "name": "Log: Autorización",
+          "description": "Placeholders: {user}, {auth_count}, {required}",
+          "default": "**{user}** autorizó ({auth_count}/{required})"
+        },
+        "log_cancelled": {
+          "name": "Log: Cancelación",
+          "description": "Placeholders: {user}",
+          "default": "Cancelado por **{user}**"
+        },
+        "exec_msg_simulation": {
+          "name": "Mensaje: Modo prueba",
+          "description": "Indicador al inicio de logs cuando se ejecuta en modo prueba",
+          "default": "🧪 **[MODO PRUEBA]**"
+        },
+        "exec_msg_init": {
+          "name": "Mensaje: Inicio purga",
+          "description": "Mensaje al iniciar ejecución (nivel 1+)",
+          "default": "🔥 **Iniciando purga...**"
+        },
+        "exec_msg_cleaning_role": {
+          "name": "Mensaje: Limpiando rol",
+          "description": "Mensaje por cada rol afectado (nivel 2). Placeholder: {role}",
+          "default": "🧹 Aplicando purga al rol {role}..."
+        },
+        "exec_msg_user_cleaned": {
+          "name": "Mensaje: Usuario purgado",
+          "description": "Mensaje por cada usuario purgado (nivel 2). Placeholder: {user}",
+          "default": "  ↳ 🧹 Purgado: {user}"
+        },
+        "exec_msg_promotions_start": {
+          "name": "Mensaje: Inicio promociones",
+          "description": "Mensaje al iniciar promociones (nivel 1+)",
+          "default": "⬆️ **Aplicando promociones...**"
+        },
+        "exec_msg_promotion_role": {
+          "name": "Mensaje: Promoción de rol",
+          "description": "Mensaje por cada promoción de rol (nivel 2). Placeholders: {from_role}, {to_role}",
+          "default": "📈 Promocionando {from_role} → {to_role}..."
+        },
+        "exec_msg_user_promoted": {
+          "name": "Mensaje: Usuario promocionado",
+          "description": "Mensaje por cada usuario promocionado (nivel 2). Placeholders: {user}, {from_role}, {to_role}",
+          "default": "  ↳ ⬆️ Promocionado: {user} ({from_role} → {to_role})"
+        },
+        "exec_msg_promotion_default": {
+          "name": "Mensaje: Rol para no afectados",
+          "description": "Mensaje al aplicar rol a usuarios que confirmaron sin estar en roles afectados (nivel 2). Placeholder: {role}",
+          "default": "🏷️ Marcando usuarios no afectados ({role})..."
+        },
+        "exec_msg_user_promoted_default": {
+          "name": "Mensaje: Usuario no afectado",
+          "description": "Mensaje por cada usuario no afectado que recibe el rol (nivel 2). Placeholders: {user}, {role}",
+          "default": "  ↳ 🏷️ Marcado: {user} (→ {role})"
+        },
+        "exec_msg_global_remove_start": {
+          "name": "Mensaje: Inicio limpieza global",
+          "description": "Mensaje al iniciar remoción global de roles (nivel 1+)",
+          "default": "🧹 **Eliminando roles globales...**"
+        },
+        "exec_msg_global_remove_user": {
+          "name": "Mensaje: Usuario limpieza global",
+          "description": "Mensaje por cada usuario con roles globales eliminados (nivel 2). Placeholders: {user}, {roles}",
+          "default": "  ↳ 🧹 Roles eliminados: {user} ({roles})"
+        },
+        "war_command_name": {
+          "name": "Nombre del comando",
+          "description": "Nombre del comando slash para iniciar la purga de fin de guerra",
+          "default": "purga_guerra"
+        },
+        "war_display_name": {
+          "name": "Nombre a mostrar",
+          "description": "Nombre que aparece en el mensaje de moderación (ej: 'Fin de guerra')",
+          "default": "Purga fin de guerra"
+        },
+        "war_message_template": {
+          "name": "Plantilla mensaje usuarios",
+          "description": "Mensaje que ven los usuarios cuando la purga está activa. {date} muestra fecha con cuenta regresiva dinámica de Discord.",
+          "default": "**PURGA ACTIVA**\n\nSe ha iniciado una purga. Los siguientes roles están afectados:\n{roles}\n\nFecha de ejecución: {date}\n\nReacciona al botón para confirmar tu permanencia y obtener el rol {reaction_role}."
+        },
+        "war_admin_roles": {
+          "name": "Roles de admin",
+          "description": "Roles que pueden iniciar y autorizar la purga"
+        },
+        "war_affected_roles": {
+          "name": "Roles afectados",
+          "description": "Roles cuyos miembros deben confirmar para quedarse o serán purgados"
+        },
+        "war_roles_to_remove": {
+          "name": "Roles a quitar (purgados)",
+          "description": "Roles que se quitan a los miembros purgados. Deja vacío para quitar todos los roles."
+        },
+        "war_roles_to_add": {
+          "name": "Roles a asignar (purgados)",
+          "description": "Roles que se asignan a los miembros purgados después de quitar roles"
+        },
+        "war_global_roles_to_remove": {
+          "name": "Roles a quitar (todos)",
+          "description": "Roles que se quitan a TODOS los miembros del servidor, sin importar si reaccionaron o están en roles afectados"
+        },
+        "war_promotions": {
+          "name": "Promociones",
+          "description": "Reemplazo de rol para miembros que confirman. Si el rol origen está en 'Roles afectados', se reemplaza. Si no, se añade el rol destino sin quitar el origen."
+        },
+        "war_default_promotion": {
+          "name": "Rol para no afectados",
+          "description": "Rol a asignar a usuarios que confirmaron pero NO tenían ningún rol afectado. Útil para identificar quién reaccionó sin estar en el grupo objetivo. Deja vacío para ignorarlos."
+        },
+        "war_exec_msg_finish": {
+          "name": "Mensaje: Fin purga",
+          "description": "Mensaje de estadísticas al completarse. Placeholders: {cleaned}, {promoted_in_group}, {promoted_not_in_group}, {global_removed}",
+          "default": "✅ **Purga completada.**\n\n🧹 Purgados: {cleaned}\n⬆️ Promocionados (grupo): {promoted_in_group}\n⬆️ Promocionados (otros): {promoted_not_in_group}\n🗑️ Roles globales eliminados: {global_removed}"
+        },
+        "global_command_name": {
+          "name": "Nombre del comando",
+          "description": "Nombre del comando slash para iniciar la purga global",
+          "default": "purga_global"
+        },
+        "global_display_name": {
+          "name": "Nombre a mostrar",
+          "description": "Nombre que aparece en el mensaje de moderación (ej: 'Purga global')",
+          "default": "Purga global"
+        },
+        "global_message_template": {
+          "name": "Plantilla mensaje usuarios",
+          "description": "Mensaje que ven los usuarios cuando la purga global está activa. {date} muestra fecha con cuenta regresiva dinámica de Discord.",
+          "default": "**PURGA GLOBAL ACTIVA**\n\nSe ha iniciado una purga global que afecta a **todos los miembros**.\n\nFecha de ejecución: {date}\n\nReacciona al botón para confirmar tu permanencia y obtener el rol {reaction_role}."
+        },
+        "global_admin_roles": {
+          "name": "Roles de admin",
+          "description": "Roles que pueden iniciar y autorizar purgas globales"
+        },
+        "global_excluded_roles": {
+          "name": "Roles excluidos",
+          "description": "Roles que NO serán afectados por la purga global (ej: moderadores, bots, roles especiales)"
+        },
+        "global_roles_to_remove": {
+          "name": "Roles a quitar",
+          "description": "Roles que se quitan a los miembros que no confirman"
+        },
+        "global_roles_to_add": {
+          "name": "Roles a asignar",
+          "description": "Roles que se asignan a los miembros que no confirman (útil para marcarlos como inactivos)"
+        },
+        "global_exec_msg_finish": {
+          "name": "Mensaje: Fin purga",
+          "description": "Mensaje de estadísticas al completarse. Placeholders: {cleaned}",
+          "default": "✅ **Purga global completada.**\n\n🧹 Usuarios purgados: {cleaned}"
+        }
+      },
+      "choices": {
+        "button_color": {
+          "Blue": "Azul",
+          "Grey": "Gris",
+          "Green": "Verde",
+          "Red": "Rojo"
+        }
+      },
+      "columns": {
+        "from_role": "Rol origen",
+        "to_role": "Rol destino"
+      }
+    }
+  }
+}

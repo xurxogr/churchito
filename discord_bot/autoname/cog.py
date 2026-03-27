@@ -1,4 +1,4 @@
-"""Cog de autoname para formateo automatico de nicknames."""
+"""Autoname cog for automatic nickname formatting."""
 
 import logging
 from datetime import UTC, datetime
@@ -17,72 +17,72 @@ logger = logging.getLogger(__name__)
 
 
 class AutonameCog(commands.Cog):
-    """Cog para formateo automatico de nicknames basado en roles."""
+    """Cog for automatic nickname formatting based on roles."""
 
     def __init__(self, bot: DiscordBot) -> None:
-        """Inicializar el cog de autoname.
+        """Initialize the autoname cog.
 
         Args:
-            bot (DiscordBot): Instancia del bot
+            bot (DiscordBot): Bot instance
         """
         self.bot = bot
         self._last_sync: dict[int, datetime] = {}
         self._sync_started = False
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
-        """Obtener opciones bloqueadas por configuración de despliegue.
+        """Get options locked by deployment configuration.
 
         Returns:
-            dict[str, dict[str, Any]]: Mapa de key -> {locked, reason}
+            dict[str, dict[str, Any]]: Map of key -> {locked, reason}
         """
         return {}
 
     async def cog_load(self) -> None:
-        """Iniciar tareas al cargar el cog."""
+        """Start tasks when loading the cog."""
         if not self._sync_started:
             self.sync_loop.start()
             self._sync_started = True
 
     async def cog_unload(self) -> None:
-        """Detener tareas al descargar el cog."""
+        """Stop tasks when unloading the cog."""
         if self._sync_started:
             self.sync_loop.cancel()
             self._sync_started = False
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
-        """Verificar si el cog esta habilitado para un guild.
+        """Check if the cog is enabled for a guild.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            bool: True si el cog esta habilitado
+            bool: True if the cog is enabled
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
 
     async def _get_config(self, guild_id: int) -> dict[str, Any]:
-        """Obtener toda la configuracion del cog para un guild.
+        """Get all cog configuration for a guild.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            dict[str, Any]: Configuracion del cog
+            dict[str, Any]: Cog configuration
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
 
     async def _get_sync_interval(self, guild_id: int) -> int:
-        """Obtener el intervalo de sincronizacion configurado para un guild.
+        """Get the configured sync interval for a guild.
 
         Args:
-            guild_id (int): ID del guild
+            guild_id (int): Guild ID
 
         Returns:
-            int: Intervalo en minutos (0 si desactivado, 30 por defecto)
+            int: Interval in minutes (0 if disabled, 30 by default)
         """
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
@@ -104,13 +104,13 @@ class AutonameCog(commands.Cog):
         message_key: str,
         **placeholders: str,
     ) -> None:
-        """Enviar mensaje al canal de logs si esta configurado.
+        """Send message to the log channel if configured.
 
         Args:
-            guild (discord.Guild): Guild donde enviar el log
-            config (dict[str, Any]): Configuracion del cog
-            message_key (str): Clave del mensaje en la config
-            **placeholders (str): Valores para reemplazar en el mensaje
+            guild (discord.Guild): Guild where to send the log
+            config (dict[str, Any]): Cog configuration
+            message_key (str): Message key in the config
+            **placeholders (str): Values to replace in the message
         """
         channel_id = config.get(ConfigKey.LOG_CHANNEL)
         if not channel_id:
@@ -127,25 +127,25 @@ class AutonameCog(commands.Cog):
                 message = message_template.format(**placeholders)
                 await channel.send(message)
         except (ValueError, TypeError, KeyError) as e:
-            logger.warning(f"[{guild.name}] Error formateando mensaje de log: {e}")
+            logger.warning(f"[{guild.name}] Error formatting log message: {e}")
         except discord.HTTPException as e:
-            logger.warning(f"[{guild.name}] Error enviando log al canal: {e}")
+            logger.warning(f"[{guild.name}] Error sending log to channel: {e}")
 
     async def apply_nickname(self, member: discord.Member) -> bool:
-        """Aplicar nickname formateado a un miembro.
+        """Apply formatted nickname to a member.
 
         Args:
-            member (discord.Member): Miembro a actualizar
+            member (discord.Member): Member to update
 
         Returns:
-            bool: True si se actualizo el nickname
+            bool: True if the nickname was updated
         """
         if member.bot:
             return False
 
         config = await self._get_config(member.guild.id)
 
-        # Verificar roles requeridos si están configurados
+        # Check required roles if configured
         required_roles = config.get(ConfigKey.REQUIRED_ROLES) or []
         if required_roles:
             member_role_ids_set = {r.id for r in member.roles}
@@ -201,7 +201,7 @@ class AutonameCog(commands.Cog):
             )
             return True
         except discord.Forbidden:
-            logger.warning(f"[{member.guild.name}] Sin permisos para '{original_name}'")
+            logger.warning(f"[{member.guild.name}] No permission for '{original_name}'")
             await self._send_log(
                 guild=member.guild,
                 config=config,
@@ -210,22 +210,22 @@ class AutonameCog(commands.Cog):
             )
             return False
         except discord.HTTPException as e:
-            logger.error(f"[{member.guild.name}] Error con '{original_name}': {e}")
+            logger.error(f"[{member.guild.name}] Error with '{original_name}': {e}")
             return False
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
-        """Manejar actualizaciones de miembros para detectar cambios de rol.
+        """Handle member updates to detect role changes.
 
         Args:
-            before (discord.Member): Estado anterior del miembro
-            after (discord.Member): Estado actual del miembro
+            before (discord.Member): Previous member state
+            after (discord.Member): Current member state
         """
-        # Solo procesar si cambiaron los roles
+        # Only process if roles changed
         if before.roles == after.roles:
             return
 
-        # Verificar si el cog esta habilitado
+        # Check if the cog is enabled
         if not await self._is_cog_enabled(after.guild.id):
             return
 
@@ -233,25 +233,25 @@ class AutonameCog(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def sync_loop(self) -> None:
-        """Loop de sincronizacion periodica de nicknames.
+        """Periodic nickname sync loop.
 
-        Cada guild tiene su propio intervalo configurado. Este loop corre
-        cada minuto y verifica si cada guild esta listo para sincronizar.
+        Each guild has its own configured interval. This loop runs
+        every minute and checks if each guild is ready to sync.
         """
         await self._run_sync()
 
     @sync_loop.before_loop
     async def before_sync(self) -> None:
-        """Esperar a que el bot este listo antes de iniciar el sync."""
+        """Wait for the bot to be ready before starting sync."""
         await self.bot.wait_until_ready()
-        # Ejecutar inmediatamente al iniciar
+        # Execute immediately on startup
         await self._run_sync(force_all=True)
 
     async def _run_sync(self, force_all: bool = False) -> None:
-        """Ejecutar sincronizacion de nicknames en guilds que esten listos.
+        """Run nickname sync on guilds that are ready.
 
         Args:
-            force_all (bool): Si True, ejecuta para todos los guilds ignorando intervalos
+            force_all (bool): If True, execute for all guilds ignoring intervals
         """
         now = datetime.now(UTC)
 
@@ -273,13 +273,13 @@ class AutonameCog(commands.Cog):
                 self._last_sync[guild.id] = now
 
             except Exception as e:
-                logger.error(f"[{guild.name}] Error en sync: {e}")
+                logger.error(f"[{guild.name}] Error in sync: {e}")
 
     async def _sync_guild(self, guild: discord.Guild) -> None:
-        """Sincronizar nicknames de todos los miembros de un guild.
+        """Sync nicknames of all members in a guild.
 
         Args:
-            guild (discord.Guild): Guild a sincronizar
+            guild (discord.Guild): Guild to sync
         """
         if not await self._is_cog_enabled(guild.id):
             return
@@ -301,36 +301,36 @@ class AutonameCog(commands.Cog):
                     updated += 1
             except Exception as e:
                 logger.error(
-                    "Error aplicando nickname a '%s' en '%s': %s",
+                    "Error applying nickname to '%s' in '%s': %s",
                     member.display_name,
                     guild.name,
                     e,
                 )
 
         if updated > 0:
-            logger.info(f"[{guild.name}] Autoname sync: {updated} nicknames actualizados")
+            logger.info(f"[{guild.name}] Autoname sync: {updated} nicknames updated")
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
-        """Manejar cuando el cog es habilitado o deshabilitado.
+        """Handle when the cog is enabled or disabled.
 
         Args:
-            guild (discord.Guild): Guild donde cambió el estado
-            enabled (bool): True si fue habilitado, False si fue deshabilitado
+            guild (discord.Guild): Guild where the state changed
+            enabled (bool): True if enabled, False if disabled
         """
         if enabled:
-            logger.info(f"[{guild.name}] Autoname habilitado, sincronizando nicknames")
+            logger.info(f"[{guild.name}] Autoname enabled, syncing nicknames")
             await self._sync_guild(guild)
         else:
-            logger.info(f"[{guild.name}] Autoname deshabilitado")
+            logger.info(f"[{guild.name}] Autoname disabled")
 
     async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
-        """Callback cuando cambia la configuracion del cog.
+        """Callback when the cog configuration changes.
 
         Args:
-            guild (discord.Guild): Guild donde cambio la config
-            keys (list[str]): Lista de claves de configuracion que cambiaron
+            guild (discord.Guild): Guild where config changed
+            keys (list[str]): List of configuration keys that changed
         """
-        # Re-sincronizar si cambia la configuracion de roles, prefijos, formato o rol requerido
+        # Re-sync if role, prefix, format or required role configuration changes
         resync_keys = {
             ConfigKey.ROLE_TAGS,
             ConfigKey.ROLE_PREFIXES,
@@ -339,24 +339,24 @@ class AutonameCog(commands.Cog):
         }
         if set(keys) & resync_keys:
             changed = set(keys) & resync_keys
-            logger.info(f"[{guild.name}] Configuración {changed} cambió, re-sincronizando")
+            logger.info(f"[{guild.name}] Configuration {changed} changed, re-syncing")
             await self._sync_guild(guild)
 
 
 async def setup(bot: DiscordBot) -> None:
-    """Cargar el cog de autoname.
+    """Load the autoname cog.
 
     Args:
-        bot (DiscordBot): Instancia del bot
+        bot (DiscordBot): Bot instance
     """
     get_config_schema_service().register_schema(AUTONAME_CONFIG_SCHEMA)
     await bot.add_cog(AutonameCog(bot))
 
 
 async def teardown(bot: DiscordBot) -> None:
-    """Descargar el cog de autoname.
+    """Unload the autoname cog.
 
     Args:
-        bot (DiscordBot): Instancia del bot
+        bot (DiscordBot): Bot instance
     """
     get_config_schema_service().unregister_schema(COG_NAME)

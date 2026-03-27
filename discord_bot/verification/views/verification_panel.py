@@ -1,4 +1,4 @@
-"""Vista del panel de verificacion."""
+"""Verification panel view."""
 
 import discord
 
@@ -7,7 +7,7 @@ from discord_bot.verification.views.protocols import get_verification_cog
 
 
 class VerificationButton(discord.ui.Button["VerificationPanelView"]):
-    """Boton de verificacion con tipo configurable."""
+    """Verification button with configurable type."""
 
     def __init__(
         self,
@@ -16,22 +16,22 @@ class VerificationButton(discord.ui.Button["VerificationPanelView"]):
         style: discord.ButtonStyle,
         custom_id: str,
     ) -> None:
-        """Inicializar el boton de verificacion.
+        """Initialize the verification button.
 
         Args:
-            label (str): Texto del boton
-            verification_type (VerificationType): Tipo de verificacion
-            style (discord.ButtonStyle): Estilo del boton
-            custom_id (str): ID unico del boton
+            label (str): Button text
+            verification_type (VerificationType): Verification type
+            style (discord.ButtonStyle): Button style
+            custom_id (str): Unique button ID
         """
         super().__init__(label=label, style=style, custom_id=custom_id)
         self.verification_type = verification_type
 
     async def callback(self, interaction: discord.Interaction[discord.Client]) -> None:
-        """Manejar clic en boton de verificacion.
+        """Handle verification button click.
 
         Args:
-            interaction (discord.Interaction[discord.Client]): Interaccion del usuario
+            interaction (discord.Interaction[discord.Client]): User interaction
         """
         cog = get_verification_cog(interaction)
         if not cog:
@@ -43,22 +43,22 @@ class VerificationButton(discord.ui.Button["VerificationPanelView"]):
 
 
 class VerificationPanelView(discord.ui.View):
-    """Vista persistente con botones de verificacion.
+    """Persistent view with verification buttons.
 
-    Esta vista se muestra en el canal de verificacion y permite
-    a los usuarios iniciar el proceso de verificacion.
+    This view is displayed in the verification channel and allows
+    users to start the verification process.
     """
 
     def __init__(
         self,
-        verify_label: str = "Verificar",
-        ally_label: str = "Verificar como Aliado",
+        verify_label: str = "Verify",
+        ally_label: str = "Verify as Ally",
     ) -> None:
-        """Inicializar la vista del panel.
+        """Initialize the panel view.
 
         Args:
-            verify_label (str): Texto del boton de verificacion normal
-            ally_label (str): Texto del boton de verificacion de aliado
+            verify_label (str): Normal verification button text
+            ally_label (str): Ally verification button text
         """
         super().__init__(timeout=None)
 

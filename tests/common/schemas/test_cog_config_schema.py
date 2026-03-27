@@ -1,4 +1,4 @@
-"""Tests para CogConfigSchema."""
+"""Tests for CogConfigSchema."""
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
@@ -6,10 +6,10 @@ from discord_bot.common.schemas.config_option import ConfigOption
 
 
 class TestCogConfigSchema:
-    """Tests para CogConfigSchema."""
+    """Tests for CogConfigSchema."""
 
     def test_get_option_found(self) -> None:
-        """Probar obtener una opción existente."""
+        """Test getting an existing option."""
         schema = CogConfigSchema(
             cog_name="test",
             display_name="Test Cog",
@@ -32,7 +32,7 @@ class TestCogConfigSchema:
         assert option.name == "Option 1"
 
     def test_get_option_not_found(self) -> None:
-        """Probar obtener una opción inexistente."""
+        """Test getting a non-existent option."""
         schema = CogConfigSchema(
             cog_name="test",
             display_name="Test Cog",
@@ -48,7 +48,7 @@ class TestCogConfigSchema:
         assert option is None
 
     def test_get_default_values(self) -> None:
-        """Probar obtener valores por defecto."""
+        """Test getting default values."""
         schema = CogConfigSchema(
             cog_name="test",
             display_name="Test Cog",
@@ -85,7 +85,7 @@ class TestCogConfigSchema:
         assert defaults["no_default"] is None
 
     def test_empty_options(self) -> None:
-        """Probar esquema sin opciones."""
+        """Test schema without options."""
         schema = CogConfigSchema(
             cog_name="empty",
             display_name="Empty Cog",

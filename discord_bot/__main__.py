@@ -1,4 +1,4 @@
-"""Punto de entrada principal para el bot de Discord."""
+"""Main entry point for the Discord bot."""
 
 import argparse
 import asyncio
@@ -18,54 +18,54 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-    """Procesa los argumentos de línea de comandos.
+    """Parse command line arguments.
 
     Returns:
-        argparse.Namespace: Argumentos procesados
+        argparse.Namespace: Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="Bot de Discord con arquitectura basada en cogs",
+        description="Discord bot with cog-based architecture",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
         "--config",
         type=Path,
-        help="Ruta al archivo de configuración (por defecto: ~/.config/discord-bot/config.json)",
+        help="Path to configuration file (default: ~/.config/discord-bot/config.json)",
     )
 
     parser.add_argument(
         "--token",
         type=str,
-        help="Token del bot de Discord (anula el archivo de configuración)",
+        help="Discord bot token (overrides configuration file)",
     )
 
     parser.add_argument(
         "--log-level",
         type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Nivel de registro (anula el archivo de configuración)",
+        help="Log level (overrides configuration file)",
     )
 
     return parser.parse_args()
 
 
 def load_settings(args: argparse.Namespace) -> AppSettings:
-    """Carga la configuración de la aplicación.
+    """Load application settings.
 
     Args:
-        args (argparse.Namespace): Argumentos de línea de comandos procesados
+        args (argparse.Namespace): Parsed command line arguments
 
     Returns:
-        AppSettings: Configuración de la aplicación
+        AppSettings: Application settings
     """
-    # Anula la ruta del archivo de configuración si se proporciona
+    # Override config file path if provided
     if args.config:
         AppSettings.model_config["json_file"] = str(args.config)
 
     settings = get_settings()
 
-    # Anula con argumentos de línea de comandos
+    # Override with command line arguments
     if args.token:
         settings.bot.token = args.token
 
@@ -76,23 +76,23 @@ def load_settings(args: argparse.Namespace) -> AppSettings:
 
 
 async def run_bot(bot: DiscordBot, token: str) -> None:
-    """Ejecuta el bot de Discord.
+    """Run the Discord bot.
 
     Args:
-        bot (DiscordBot): Instancia del bot
-        token (str): Token de autenticación
+        bot (DiscordBot): Bot instance
+        token (str): Authentication token
     """
     async with bot:
         await bot.start(token)
 
 
 async def run_web(settings: AppSettings, database: DatabaseService, bot: DiscordBot) -> None:
-    """Ejecuta el servidor web del dashboard.
+    """Run the web dashboard server.
 
     Args:
-        settings (AppSettings): Configuración de la aplicación
-        database (DatabaseService): Servicio de base de datos
-        bot (DiscordBot): Instancia del bot (para acceder a guilds, etc.)
+        settings (AppSettings): Application settings
+        database (DatabaseService): Database service
+        bot (DiscordBot): Bot instance (for accessing guilds, etc.)
     """
     app = create_app(settings, database, bot)
 
@@ -107,63 +107,59 @@ async def run_web(settings: AppSettings, database: DatabaseService, bot: Discord
 
 
 async def main() -> None:
-    """Punto de entrada principal del bot."""
-    # Procesa argumentos
+    """Main entry point for the bot."""
+    # Parse arguments
     args = parse_args()
 
-    # Carga configuración
+    # Load settings
     try:
         settings = load_settings(args)
     except Exception as e:
-        print(f"Error al cargar la configuración: {e}", file=sys.stderr)
+        print(f"Error loading configuration: {e}", file=sys.stderr)
         print(
-            "\nPor favor, crea un archivo de configuración en ~/.config/discord-bot/config.json",
+            "\nPlease create a configuration file at ~/.config/discord-bot/config.json",
             file=sys.stderr,
         )
-        print("o usa --config para especificar una ubicación diferente.", file=sys.stderr)
-        print("\nEjemplo de configuración:", file=sys.stderr)
-        print('{\n  "bot": {"token": "TU_TOKEN_DEL_BOT"}\n}', file=sys.stderr)
+        print("or use --config to specify a different location.", file=sys.stderr)
+        print("\nConfiguration example:", file=sys.stderr)
+        print('{\n  "bot": {"token": "YOUR_BOT_TOKEN"}\n}', file=sys.stderr)
         sys.exit(1)
 
-    # Configura el registro de eventos
+    # Set up logging
     setup_logging(settings.logging)
-    logger.info("Iniciando el bot de Discord...")
+    logger.info("Starting Discord bot...")
 
-    # Valida el token del bot
+    # Validate bot token
     if not settings.bot.token:
-        logger.error("Token del bot no configurado")
-        logger.error(
-            "Establece la variable de entorno BOT__TOKEN o añádelo al archivo de configuración"
-        )
+        logger.error("Bot token not configured")
+        logger.error("Set the BOT__TOKEN environment variable or add it to the configuration file")
         sys.exit(1)
 
-    # Inicializa el servicio de base de datos
+    # Initialize database service
     database = DatabaseService(settings.database)
 
-    # Crea el bot
+    # Create the bot
     bot = DiscordBot(settings, database)
 
     try:
         if settings.web.enabled:
-            # Ejecutar bot y web dashboard en paralelo
-            logger.info(
-                f"Dashboard web habilitado en http://{settings.web.host}:{settings.web.port}"
-            )
+            # Run bot and web dashboard in parallel
+            logger.info(f"Web dashboard enabled at http://{settings.web.host}:{settings.web.port}")
             async with asyncio.TaskGroup() as tg:
                 tg.create_task(run_bot(bot, settings.bot.token))
                 tg.create_task(run_web(settings, database, bot))
         else:
-            # Solo ejecutar el bot
+            # Run bot only
             await run_bot(bot, settings.bot.token)
     except KeyboardInterrupt:
-        logger.info("Interrupción por teclado recibida, apagando...")
+        logger.info("Keyboard interrupt received, shutting down...")
     except Exception as e:
-        logger.error(f"Error fatal: {e}", exc_info=True)
+        logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
 
 
 def run() -> None:
-    """Ejecuta el bot (wrapper síncrono)."""
+    """Run the bot (synchronous wrapper)."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

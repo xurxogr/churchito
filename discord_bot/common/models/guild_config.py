@@ -1,4 +1,4 @@
-"""Modelo para almacenar valores de configuración de guilds."""
+"""Model for storing guild configuration values."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -10,10 +10,10 @@ from discord_bot.common.models import Base
 
 
 class GuildConfig(Base):
-    """Modelo para almacenar valores de configuración por guild y cog.
+    """Model for storing configuration values per guild and cog.
 
-    Este modelo almacena los valores de configuración establecidos
-    por cada guild para cada cog del bot.
+    This model stores configuration values set by each guild
+    for each bot cog.
     """
 
     __tablename__ = "guild_configs"
@@ -35,9 +35,9 @@ class GuildConfig(Base):
     )
 
     def __repr__(self) -> str:
-        """Representación en cadena.
+        """String representation.
 
         Returns:
-            str: Representación en cadena de la configuración
+            str: String representation of the configuration
         """
         return f"<GuildConfig(guild_id={self.guild_id}, cog={self.cog_name!r}, key={self.key!r})>"

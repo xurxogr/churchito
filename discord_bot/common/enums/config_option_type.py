@@ -1,10 +1,10 @@
-"""Enumeraciones de tipos de opciones de configuración."""
+"""Configuration option type enumerations."""
 
 from enum import StrEnum
 
 
 class ConfigOptionType(StrEnum):
-    """Tipos de opciones de configuración para cogs."""
+    """Configuration option types for cogs."""
 
     STRING = "string"
     TEXTAREA = "textarea"

@@ -1,72 +1,72 @@
-"""Configuración del dashboard web."""
+"""Web dashboard configuration."""
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# Discord snowflake mínimo válido (aproximadamente enero 2015)
-# Los snowflakes de Discord codifican timestamp desde su epoch (1420070400000)
-MIN_DISCORD_SNOWFLAKE = 10_000_000_000_000_000  # ~17 dígitos mínimo
+# Minimum valid Discord snowflake (approximately January 2015)
+# Discord snowflakes encode timestamp from their epoch (1420070400000)
+MIN_DISCORD_SNOWFLAKE = 10_000_000_000_000_000  # ~17 digits minimum
 
 
 class WebSettings(BaseModel):
-    """Configuración para el dashboard web con Discord OAuth."""
+    """Configuration for web dashboard with Discord OAuth."""
 
     enabled: bool = Field(
-        description="Habilitar el dashboard web",
+        description="Enable the web dashboard",
         default=False,
     )
     host: str = Field(
-        description="Host para el servidor web",
+        description="Host for the web server",
         default="0.0.0.0",  # noqa: S104 - Intentional for server binding
     )
     port: int = Field(
-        description="Puerto para el servidor web",
+        description="Port for the web server",
         default=8000,
     )
     root_path: str = Field(
-        description="Ruta base cuando se sirve detrás de un proxy (ej: /bot)",
+        description="Base path when served behind a proxy (e.g., /bot)",
         default="",
     )
     secret_key: str = Field(
-        description="Clave secreta para sesiones (generada automáticamente si está vacía)",
+        description="Secret key for sessions (auto-generated if empty)",
         default="",
     )
     client_id: str = Field(
-        description="ID de cliente de la aplicación Discord OAuth",
+        description="Discord OAuth application client ID",
         default="",
     )
     client_secret: str = Field(
-        description="Secreto de cliente de la aplicación Discord OAuth",
+        description="Discord OAuth application client secret",
         default="",
     )
     redirect_uri: str = Field(
-        description="URI de redirección para OAuth (ej: http://localhost:8000/auth/callback)",
+        description="OAuth redirect URI (e.g., http://localhost:8000/auth/callback)",
         default="http://localhost:8000/auth/callback",
     )
     owner_ids: list[int] = Field(
-        description="IDs de usuarios con acceso de administrador al dashboard",
+        description="User IDs with admin access to the dashboard",
         default_factory=list,
     )
     https_only: bool = Field(
-        description="Solo enviar cookie de sesión sobre HTTPS (usar True en producción)",
+        description="Only send session cookie over HTTPS (use True in production)",
         default=True,
     )
     session_max_age: int = Field(
-        description="Duración máxima de la sesión en segundos (default: 2 horas)",
+        description="Maximum session duration in seconds (default: 2 hours)",
         default=7200,
     )
     trusted_hosts: list[str] = Field(
         description=(
-            "Hosts de confianza para proxy headers (X-Forwarded-For, X-Forwarded-Proto). "
-            "Usar ['*'] si hay un proxy reverse delante que limpia estos headers. "
-            "Por defecto ['127.0.0.1'] si no se configura."
+            "Trusted hosts for proxy headers (X-Forwarded-For, X-Forwarded-Proto). "
+            "Use ['*'] if there's a reverse proxy in front that sanitizes these headers. "
+            "Defaults to ['127.0.0.1'] if not configured."
         ),
         default_factory=list,
     )
     rate_limit_enabled: bool = Field(
         description=(
-            "Habilitar rate limiting interno. NOTA: El rate limiter usa memoria local, "
-            "por lo que NO escala en despliegues multi-worker. En producción con múltiples "
-            "workers, desactivar esto y usar rate limiting externo (nginx, Cloudflare, etc.)."
+            "Enable internal rate limiting. NOTE: The rate limiter uses local memory, "
+            "so it does NOT scale in multi-worker deployments. In production with multiple "
+            "workers, disable this and use external rate limiting (nginx, Cloudflare, etc.)."
         ),
         default=True,
     )
@@ -74,22 +74,22 @@ class WebSettings(BaseModel):
     @field_validator("owner_ids")
     @classmethod
     def validate_owner_ids(cls, v: list[int]) -> list[int]:
-        """Validar que los owner_ids son Discord snowflakes válidos.
+        """Validate that owner_ids are valid Discord snowflakes.
 
         Args:
-            v (list[int]): Lista de IDs
+            v (list[int]): List of IDs
 
         Returns:
-            list[int]: Lista validada
+            list[int]: Validated list
 
         Raises:
-            ValueError: Si algún ID no es un snowflake válido
+            ValueError: If any ID is not a valid snowflake
         """
         for user_id in v:
             if user_id < MIN_DISCORD_SNOWFLAKE:
                 raise ValueError(
-                    f"owner_id {user_id} no es un Discord snowflake válido "
-                    f"(debe ser >= {MIN_DISCORD_SNOWFLAKE})"
+                    f"owner_id {user_id} is not a valid Discord snowflake "
+                    f"(must be >= {MIN_DISCORD_SNOWFLAKE})"
                 )
         return v
 
@@ -101,9 +101,9 @@ class WebSettings(BaseModel):
                 "host": "0.0.0.0",  # noqa: S104
                 "port": 8000,
                 "root_path": "/bot",
-                "secret_key": "tu-clave-secreta-aqui",
-                "client_id": "tu-client-id-de-discord",
-                "client_secret": "tu-client-secret-de-discord",
+                "secret_key": "your-secret-key-here",
+                "client_id": "your-discord-client-id",
+                "client_secret": "your-discord-client-secret",
                 "redirect_uri": "http://localhost:8000/auth/callback",
                 "owner_ids": [123456789012345678],
                 "https_only": True,

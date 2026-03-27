@@ -1,4 +1,4 @@
-"""Fixtures para tests del módulo web."""
+"""Fixtures for web module tests."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -15,10 +15,10 @@ from discord_bot.common.services import DatabaseService
 
 @pytest.fixture
 def web_settings() -> WebSettings:
-    """Crear configuración web de prueba.
+    """Create test web settings.
 
     Returns:
-        WebSettings: Configuración web
+        WebSettings: Web settings
     """
     return WebSettings(
         enabled=True,
@@ -34,14 +34,14 @@ def web_settings() -> WebSettings:
 
 @pytest.fixture
 def test_app_settings(test_settings: AppSettings, web_settings: WebSettings) -> AppSettings:
-    """Crear configuración de aplicación con web habilitado.
+    """Create application settings with web enabled.
 
     Args:
-        test_settings (AppSettings): Configuración base
-        web_settings (WebSettings): Configuración web
+        test_settings (AppSettings): Base settings
+        web_settings (WebSettings): Web settings
 
     Returns:
-        AppSettings: Configuración completa
+        AppSettings: Complete settings
     """
     test_settings.web = web_settings
     return test_settings
@@ -49,10 +49,10 @@ def test_app_settings(test_settings: AppSettings, web_settings: WebSettings) -> 
 
 @pytest.fixture
 def mock_db_service() -> MagicMock:
-    """Crear servicio de base de datos mock.
+    """Create mock database service.
 
     Returns:
-        MagicMock: Mock del servicio de base de datos
+        MagicMock: Mock of the database service
     """
     service = MagicMock(spec=DatabaseService)
     session_mock = AsyncMock()
@@ -64,10 +64,10 @@ def mock_db_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bot() -> MagicMock:
-    """Crear bot mock.
+    """Create mock bot.
 
     Returns:
-        MagicMock: Mock del bot
+        MagicMock: Mock of the bot
     """
     bot = MagicMock()
     bot.guilds = []
@@ -80,10 +80,10 @@ def mock_bot() -> MagicMock:
 
 @pytest.fixture
 def test_user() -> dict[str, Any]:
-    """Crear usuario de prueba.
+    """Create test user.
 
     Returns:
-        dict[str, Any]: Datos del usuario (no guilds - stored in bot cache)
+        dict[str, Any]: User data (no guilds - stored in bot cache)
     """
     return {
         "id": "123456789012345678",  # Valid Discord snowflake
@@ -98,15 +98,15 @@ def simple_app(
     mock_db_service: MagicMock,
     mock_bot: MagicMock,
 ) -> FastAPI:
-    """Crear aplicación FastAPI simple para tests.
+    """Create simple FastAPI application for tests.
 
     Args:
-        test_app_settings (AppSettings): Configuración
-        mock_db_service (MagicMock): Mock del servicio de base de datos
-        mock_bot (MagicMock): Mock del bot
+        test_app_settings (AppSettings): Settings
+        mock_db_service (MagicMock): Mock of the database service
+        mock_bot (MagicMock): Mock of the bot
 
     Returns:
-        FastAPI: Aplicación para tests
+        FastAPI: Application for tests
     """
     from pathlib import Path
 
@@ -127,6 +127,13 @@ def simple_app(
     templates_dir = Path(__file__).parent.parent.parent / "discord_bot" / "web" / "templates"
     if templates_dir.exists():
         app.state.templates = Jinja2Templates(directory=str(templates_dir))
+        # Register i18n globals for templates
+        from discord_bot.i18n import get_i18n_service
+
+        i18n = get_i18n_service()
+        app.state.templates.env.globals["_"] = i18n.translate
+        app.state.templates.env.globals["LANGUAGES"] = i18n.SUPPORTED_LANGUAGES
+        app.state.i18n = i18n
     else:
         app.state.templates = MagicMock()
 
@@ -135,12 +142,12 @@ def simple_app(
 
 @pytest.fixture
 def client(simple_app: FastAPI) -> TestClient:
-    """Crear cliente de prueba.
+    """Create test client.
 
     Args:
-        simple_app (FastAPI): Aplicación
+        simple_app (FastAPI): Application
 
     Returns:
-        TestClient: Cliente de prueba
+        TestClient: Test client
     """
     return TestClient(simple_app)

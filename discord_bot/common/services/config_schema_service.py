@@ -1,4 +1,4 @@
-"""Servicio para registro de esquemas de configuración de cogs."""
+"""Service for registering cog configuration schemas."""
 
 import logging
 from functools import lru_cache
@@ -10,74 +10,74 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigSchemaService:
-    """Servicio en memoria para registro y consulta de esquemas de configuración.
+    """In-memory service for registering and querying configuration schemas.
 
-    Este servicio mantiene en memoria los esquemas de configuración registrados
-    por cada cog. No tiene dependencias de base de datos - solo almacena
-    los metadatos de las opciones de configuración disponibles.
+    This service maintains in memory the configuration schemas registered
+    by each cog. It has no database dependencies - it only stores
+    the metadata of available configuration options.
     """
 
     def __init__(self) -> None:
-        """Inicializar el servicio de esquemas de configuración."""
+        """Initialize the configuration schema service."""
         self._schemas: dict[str, CogConfigSchema] = {}
 
     def register_schema(self, schema: CogConfigSchema) -> None:
-        """Registrar el esquema de configuración de un cog.
+        """Register a cog's configuration schema.
 
         Args:
-            schema (CogConfigSchema): Esquema de configuración a registrar
+            schema (CogConfigSchema): Configuration schema to register
         """
         if schema.cog_name in self._schemas:
-            logger.warning(f"Sobrescribiendo esquema existente para cog '{schema.cog_name}'")
+            logger.warning(f"Overwriting existing schema for cog '{schema.cog_name}'")
         self._schemas[schema.cog_name] = schema
         logger.info(
-            f"Esquema de configuración registrado para cog '{schema.cog_name}' "
-            f"con {len(schema.options)} opciones"
+            f"Configuration schema registered for cog '{schema.cog_name}' "
+            f"with {len(schema.options)} options"
         )
 
     def unregister_schema(self, cog_name: str) -> bool:
-        """Desregistrar el esquema de configuración de un cog.
+        """Unregister a cog's configuration schema.
 
         Args:
-            cog_name (str): Nombre del cog a desregistrar
+            cog_name (str): Name of the cog to unregister
 
         Returns:
-            bool: True si se desregistró, False si no existía
+            bool: True if unregistered, False if it didn't exist
         """
         if cog_name in self._schemas:
             del self._schemas[cog_name]
-            logger.info(f"Esquema de configuración desregistrado para cog '{cog_name}'")
+            logger.info(f"Configuration schema unregistered for cog '{cog_name}'")
             return True
         return False
 
     def get_schema(self, cog_name: str) -> CogConfigSchema | None:
-        """Obtener el esquema de configuración de un cog.
+        """Get a cog's configuration schema.
 
         Args:
-            cog_name (str): Nombre del cog
+            cog_name (str): Name of the cog
 
         Returns:
-            CogConfigSchema | None: Esquema si existe, None en caso contrario
+            CogConfigSchema | None: Schema if it exists, None otherwise
         """
         return self._schemas.get(cog_name)
 
     def get_all_schemas(self) -> dict[str, CogConfigSchema]:
-        """Obtener todos los esquemas de configuración registrados.
+        """Get all registered configuration schemas.
 
         Returns:
-            dict[str, CogConfigSchema]: Diccionario de todos los esquemas
+            dict[str, CogConfigSchema]: Dictionary of all schemas
         """
         return self._schemas.copy()
 
     def get_option(self, cog_name: str, key: str) -> ConfigOption | None:
-        """Obtener una opción de configuración específica.
+        """Get a specific configuration option.
 
         Args:
-            cog_name (str): Nombre del cog
-            key (str): Clave de la opción
+            cog_name (str): Name of the cog
+            key (str): Option key
 
         Returns:
-            ConfigOption | None: La opción si existe, None en caso contrario
+            ConfigOption | None: The option if it exists, None otherwise
         """
         schema = self.get_schema(cog_name)
         if schema:
@@ -85,30 +85,30 @@ class ConfigSchemaService:
         return None
 
     def has_schema(self, cog_name: str) -> bool:
-        """Verificar si existe un esquema para un cog.
+        """Check if a schema exists for a cog.
 
         Args:
-            cog_name (str): Nombre del cog
+            cog_name (str): Name of the cog
 
         Returns:
-            bool: True si existe el esquema
+            bool: True if the schema exists
         """
         return cog_name in self._schemas
 
     def get_cog_names(self) -> list[str]:
-        """Obtener la lista de nombres de cogs con esquemas registrados.
+        """Get the list of cog names with registered schemas.
 
         Returns:
-            list[str]: Lista de nombres de cogs
+            list[str]: List of cog names
         """
         return list(self._schemas.keys())
 
 
 @lru_cache
 def get_config_schema_service() -> ConfigSchemaService:
-    """Obtener el singleton del servicio de esquemas de configuración.
+    """Get the configuration schema service singleton.
 
     Returns:
-        ConfigSchemaService: Instancia del servicio
+        ConfigSchemaService: Service instance
     """
     return ConfigSchemaService()

@@ -1,1 +1,1 @@
-"""Cog de verificacion de usuarios."""
+"""User verification cog."""

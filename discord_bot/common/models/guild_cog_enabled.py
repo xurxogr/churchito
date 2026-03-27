@@ -1,4 +1,4 @@
-"""Modelo para almacenar el estado de habilitación de cogs por guild."""
+"""Model for storing cog enabled state per guild."""
 
 from sqlalchemy import BigInteger, Boolean, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,10 +7,10 @@ from discord_bot.common.models import Base
 
 
 class GuildCogEnabled(Base):
-    """Modelo para almacenar si un cog está habilitado en un guild.
+    """Model for storing whether a cog is enabled in a guild.
 
-    Este modelo permite a cada guild habilitar o deshabilitar
-    cogs individuales del bot.
+    This model allows each guild to enable or disable
+    individual bot cogs.
     """
 
     __tablename__ = "guild_cogs_enabled"
@@ -26,10 +26,10 @@ class GuildCogEnabled(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     def __repr__(self) -> str:
-        """Representación en cadena.
+        """String representation.
 
         Returns:
-            str: Representación en cadena del estado
+            str: String representation of the state
         """
-        status = "habilitado" if self.enabled else "deshabilitado"
+        status = "enabled" if self.enabled else "disabled"
         return f"<GuildCogEnabled(guild_id={self.guild_id}, cog={self.cog_name!r}, {status})>"

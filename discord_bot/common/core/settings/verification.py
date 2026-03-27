@@ -1,21 +1,21 @@
-"""Configuración de verificación."""
+"""Verification configuration."""
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class VerificationSettings(BaseModel):
-    """Configuración para el servicio de verificación externa."""
+    """Configuration for external verification service."""
 
     api_url: str = Field(
-        description="URL del endpoint de la API de verificación (vacío para desactivar)",
+        description="Verification API endpoint URL (empty to disable)",
         default="",
     )
     api_key: str = Field(
-        description="Clave de API para autenticación (se envía como X-API-Key header)",
+        description="API key for authentication (sent as X-API-Key header)",
         default="",
     )
     api_timeout: int = Field(
-        description="Timeout en segundos para llamadas a la API",
+        description="Timeout in seconds for API calls",
         default=30,
         gt=0,
         le=120,

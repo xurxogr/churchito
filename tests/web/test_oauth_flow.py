@@ -1,4 +1,4 @@
-"""Tests para el flujo completo de OAuth."""
+"""Tests for the complete OAuth flow."""
 
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,17 +11,17 @@ from discord_bot.web.auth.oauth import OAUTH_STATE_MAX_AGE, callback
 
 
 class TestOAuthCallbackFlow:
-    """Tests para el flujo de callback OAuth."""
+    """Tests for the OAuth callback flow."""
 
     @pytest.fixture
     def mock_request(self, simple_app: FastAPI) -> MagicMock:
-        """Crear request mock con sesión.
+        """Create mock request with session.
 
         Args:
-            simple_app (FastAPI): Aplicación
+            simple_app (FastAPI): Application
 
         Returns:
-            MagicMock: Request mock
+            MagicMock: Mock request
         """
         request = MagicMock(spec=Request)
         request.app = simple_app
@@ -37,7 +37,7 @@ class TestOAuthCallbackFlow:
     async def test_callback_success_flow(
         self, mock_request: MagicMock, simple_app: FastAPI
     ) -> None:
-        """Probar flujo de callback exitoso."""
+        """Test successful callback flow."""
         mock_token_response = MagicMock()
         mock_token_response.json.return_value = {
             "access_token": "test_token",
@@ -67,7 +67,7 @@ class TestOAuthCallbackFlow:
             assert response.status_code == 303
             assert response.headers["location"] == "/dashboard"
 
-            # Verificar que se guardó el usuario en sesión (no guilds - too large for cookie)
+            # Verify user was saved in session (no guilds - too large for cookie)
             user = mock_request.session["user"]
             assert user["id"] == "123456789"
             assert user["username"] == "testuser"
@@ -75,7 +75,7 @@ class TestOAuthCallbackFlow:
             assert "guilds" not in user  # Guilds are no longer stored in session
 
     async def test_callback_http_error(self, mock_request: MagicMock, simple_app: FastAPI) -> None:
-        """Probar callback con error HTTP."""
+        """Test callback with HTTP error."""
         mock_response = MagicMock()
         mock_response.status_code = 401
 
@@ -97,7 +97,7 @@ class TestOAuthCallbackFlow:
     async def test_callback_generic_error(
         self, mock_request: MagicMock, simple_app: FastAPI
     ) -> None:
-        """Probar callback con error genérico."""
+        """Test callback with generic error."""
         with patch("discord_bot.web.auth.oauth.httpx.AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.post.side_effect = Exception("Network error")
@@ -111,32 +111,32 @@ class TestOAuthCallbackFlow:
             assert "error=unknown" in response.headers["location"]
 
     async def test_callback_with_oauth_error(self, mock_request: MagicMock) -> None:
-        """Probar callback con error de OAuth."""
+        """Test callback with OAuth error."""
         response = await callback(mock_request, error="access_denied")
         assert response.status_code == 307
         assert "error=oauth_denied" in response.headers["location"]
 
     async def test_callback_without_code(self, mock_request: MagicMock) -> None:
-        """Probar callback sin código."""
+        """Test callback without code."""
         response = await callback(mock_request, code=None)
         assert response.status_code == 307
         assert "error=no_code" in response.headers["location"]
 
     async def test_callback_invalid_state(self, mock_request: MagicMock) -> None:
-        """Probar callback con state inválido."""
+        """Test callback with invalid state."""
         response = await callback(mock_request, code="test", state="wrong_state")
         assert response.status_code == 307
         assert "error=invalid_state" in response.headers["location"]
 
     async def test_callback_missing_state(self, mock_request: MagicMock) -> None:
-        """Probar callback sin state en sesión."""
+        """Test callback without state in session."""
         mock_request.session = {}
         response = await callback(mock_request, code="test", state="any")
         assert response.status_code == 307
         assert "error=invalid_state" in response.headers["location"]
 
     async def test_callback_expired_state(self, mock_request: MagicMock) -> None:
-        """Probar callback con state expirado."""
+        """Test callback with expired state."""
         mock_request.session = {
             "oauth_state": {
                 "value": "valid_state",
@@ -146,5 +146,5 @@ class TestOAuthCallbackFlow:
         response = await callback(mock_request, code="test", state="valid_state")
         assert response.status_code == 307
         assert "error=state_expired" in response.headers["location"]
-        # Verificar que se limpió el state de la sesión
+        # Verify state was cleared from session
         assert "oauth_state" not in mock_request.session

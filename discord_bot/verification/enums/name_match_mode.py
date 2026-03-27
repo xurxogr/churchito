@@ -1,11 +1,11 @@
-"""Modos de comparación de nombre para verificación."""
+"""Name comparison modes for verification."""
 
 from enum import StrEnum
 
 
 class NameMatchMode(StrEnum):
-    """Modos de comparación entre nombre de Discord y nombre del juego."""
+    """Comparison modes between Discord name and game name."""
 
-    NONE = "none"  # No comprobar
-    EXACT = "exact"  # Comparación exacta
-    CONTAINS = "contains"  # Uno debe contener al otro
+    NONE = "none"  # Don't check
+    EXACT = "exact"  # Exact comparison
+    CONTAINS = "contains"  # One must contain the other

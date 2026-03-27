@@ -1,4 +1,4 @@
-"""Protocolos para tipado de vistas de verificacion."""
+"""Protocols for verification view typing."""
 
 from typing import Protocol, cast
 
@@ -9,35 +9,35 @@ from discord_bot.verification.enums import VerificationType
 
 
 class VerificationCogProtocol(Protocol):
-    """Protocolo que define los metodos del cog usados por las vistas."""
+    """Protocol that defines cog methods used by views."""
 
     async def handle_verification_start(
         self, interaction: discord.Interaction, verification_type: VerificationType
     ) -> None:
-        """Manejar inicio de verificacion."""
+        """Handle verification start."""
 
     async def handle_accept(self, interaction: discord.Interaction, public_id: str) -> None:
-        """Manejar aprobacion de verificacion."""
+        """Handle verification approval."""
 
     async def handle_reject(
         self, interaction: discord.Interaction, public_id: str, reason: str
     ) -> None:
-        """Manejar rechazo de verificacion."""
+        """Handle verification rejection."""
 
     async def show_rejection_select(self, interaction: discord.Interaction, public_id: str) -> None:
-        """Mostrar selector de motivos de rechazo."""
+        """Show rejection reason selector."""
 
 
 def get_verification_cog(
     interaction: discord.Interaction[discord.Client],
 ) -> VerificationCogProtocol | None:
-    """Obtener el cog de verificacion con el tipo correcto.
+    """Get the verification cog with the correct type.
 
     Args:
-        interaction (discord.Interaction): Interaccion de Discord
+        interaction (discord.Interaction): Discord interaction
 
     Returns:
-        VerificationCogProtocol | None: Cog de verificacion o None
+        VerificationCogProtocol | None: Verification cog or None
     """
     bot = cast(commands.Bot, interaction.client)
     cog = bot.get_cog("VerificationCog")

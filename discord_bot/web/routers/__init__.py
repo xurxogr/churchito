@@ -1,1 +1,1 @@
-"""Routers para el dashboard web."""
+"""Routers for the web dashboard."""

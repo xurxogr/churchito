@@ -1,4 +1,4 @@
-"""Esquema de opción de configuración para cogs."""
+"""Configuration option schema for cogs."""
 
 from typing import Any
 
@@ -8,82 +8,82 @@ from discord_bot.common.enums.config_option_type import ConfigOptionType
 
 
 class ConfigOption(BaseModel):
-    """Definición de una opción de configuración para un cog.
+    """Definition of a configuration option for a cog.
 
-    Este modelo representa los metadatos de una opción de configuración,
-    incluyendo su tipo, valor por defecto, validaciones y restricciones.
+    This model represents the metadata of a configuration option,
+    including its type, default value, validations and constraints.
     """
 
-    key: str = Field(description="Identificador único de la opción dentro del cog")
-    name: str = Field(description="Nombre legible para mostrar en la UI")
-    description: str = Field(default="", description="Descripción de la opción")
-    option_type: ConfigOptionType = Field(description="Tipo de dato de la opción")
-    default: Any = Field(default=None, description="Valor por defecto si no se configura")
-    required: bool = Field(default=False, description="Si la opción es obligatoria")
+    key: str = Field(description="Unique identifier for the option within the cog")
+    name: str = Field(description="Human-readable name to display in the UI")
+    description: str = Field(default="", description="Description of the option")
+    option_type: ConfigOptionType = Field(description="Data type of the option")
+    default: Any = Field(default=None, description="Default value if not configured")
+    required: bool = Field(default=False, description="Whether the option is required")
     section: str | None = Field(
         default=None,
-        description="Sección de alto nivel para organizar grupos de opciones (título principal)",
+        description="Top-level section for organizing option groups (main title)",
     )
     group: str | None = Field(
         default=None,
-        description="Grupo para organizar opciones relacionadas dentro de una sección",
+        description="Group for organizing related options within a section",
     )
     choices: list[tuple[str, Any]] | None = Field(
         default=None,
-        description="Lista de opciones válidas (label, value) para TEXT_CHOICE",
+        description="List of valid options (label, value) for TEXT_CHOICE",
     )
-    min_value: int | None = Field(default=None, description="Valor mínimo para INTEGER")
-    max_value: int | None = Field(default=None, description="Valor máximo para INTEGER")
-    max_length: int | None = Field(default=None, description="Longitud máxima para STRING")
+    min_value: int | None = Field(default=None, description="Minimum value for INTEGER")
+    max_value: int | None = Field(default=None, description="Maximum value for INTEGER")
+    max_length: int | None = Field(default=None, description="Maximum length for STRING")
     placeholders: list[str] | None = Field(
         default=None,
-        description="Lista de placeholders disponibles para TEXTAREA",
+        description="List of available placeholders for TEXTAREA",
     )
     columns: list[dict[str, Any]] | None = Field(
         default=None,
-        description="Definición de columnas para TABLE (key, name, type, required, etc.)",
+        description="Column definition for TABLE (key, name, type, required, etc.)",
     )
 
     def validate_value(self, value: Any) -> tuple[bool, str | None]:
-        """Validar un valor contra las restricciones de esta opción.
+        """Validate a value against this option's constraints.
 
         Args:
-            value (Any): Valor a validar
+            value (Any): Value to validate
 
         Returns:
-            tuple[bool, str | None]: (es_valido, mensaje_error)
+            tuple[bool, str | None]: (is_valid, error_message)
         """
         if value is None:
             if self.required:
-                return False, f"La opción '{self.name}' es obligatoria"
+                return False, f"Option '{self.name}' is required"
             return True, None
 
         match self.option_type:
             case ConfigOptionType.STRING | ConfigOptionType.TEXTAREA:
                 if not isinstance(value, str):
-                    return False, f"'{self.name}' debe ser texto"
+                    return False, f"'{self.name}' must be text"
                 if self.max_length and len(value) > self.max_length:
-                    return False, f"'{self.name}' no puede exceder {self.max_length} caracteres"
+                    return False, f"'{self.name}' cannot exceed {self.max_length} characters"
 
             case ConfigOptionType.INTEGER:
                 if not isinstance(value, int):
-                    return False, f"'{self.name}' debe ser un número entero"
+                    return False, f"'{self.name}' must be an integer"
                 if self.min_value is not None and value < self.min_value:
-                    return False, f"'{self.name}' debe ser al menos {self.min_value}"
+                    return False, f"'{self.name}' must be at least {self.min_value}"
                 if self.max_value is not None and value > self.max_value:
-                    return False, f"'{self.name}' no puede exceder {self.max_value}"
+                    return False, f"'{self.name}' cannot exceed {self.max_value}"
 
             case ConfigOptionType.BOOLEAN:
                 if not isinstance(value, bool):
-                    return False, f"'{self.name}' debe ser verdadero o falso"
+                    return False, f"'{self.name}' must be true or false"
 
             case ConfigOptionType.CHANNEL | ConfigOptionType.ROLE:
                 if not isinstance(value, int):
-                    return False, f"'{self.name}' debe ser un ID válido"
+                    return False, f"'{self.name}' must be a valid ID"
 
             case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
                 if not isinstance(value, list) or not all(isinstance(v, int) for v in value):
-                    return False, f"'{self.name}' debe ser una lista de IDs"
+                    return False, f"'{self.name}' must be a list of IDs"
 
             case ConfigOptionType.TEXT_CHOICE:
                 if self.choices:
@@ -92,21 +92,21 @@ class ConfigOption(BaseModel):
                     if value == "" and not self.required:
                         pass
                     elif value not in valid_values:
-                        return False, f"'{self.name}' debe ser una de las opciones válidas"
+                        return False, f"'{self.name}' must be one of the valid options"
 
             case ConfigOptionType.TABLE:
                 if not isinstance(value, list):
-                    return False, f"'{self.name}' debe ser una lista"
+                    return False, f"'{self.name}' must be a list"
                 for i, row in enumerate(value):
                     if not isinstance(row, dict):
-                        return False, f"'{self.name}' fila {i + 1} debe ser un objeto"
+                        return False, f"'{self.name}' row {i + 1} must be an object"
                     # Validate required columns
                     if self.columns:
                         for col in self.columns:
                             if col.get("required") and not row.get(col["key"]):
                                 return (
                                     False,
-                                    f"'{self.name}' fila {i + 1}: '{col['name']}' es obligatorio",
+                                    f"'{self.name}' row {i + 1}: '{col['name']}' is required",
                                 )
 
         return True, None

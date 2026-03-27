@@ -39,34 +39,22 @@ def upgrade() -> None:
     connection.execute(text("UPDATE verification_requests SET public_id = CAST(id AS TEXT)"))
     connection.execute(text("UPDATE purga_records SET public_id = CAST(id AS TEXT)"))
 
-    # 3. Make columns NOT NULL
-    op.alter_column(
-        "verification_requests",
-        "public_id",
-        nullable=False,
-    )
-    op.alter_column(
-        "purga_records",
-        "public_id",
-        nullable=False,
-    )
+    # 3. Make columns NOT NULL and add unique constraints using batch mode (SQLite compatible)
+    with op.batch_alter_table("verification_requests") as batch_op:
+        batch_op.alter_column("public_id", nullable=False)
+        batch_op.create_unique_constraint("uq_verification_public_id", ["public_id"])
 
-    # 4. Create unique constraints
-    op.create_unique_constraint(
-        "uq_verification_public_id",
-        "verification_requests",
-        ["public_id"],
-    )
-    op.create_unique_constraint(
-        "uq_purga_public_id",
-        "purga_records",
-        ["public_id"],
-    )
+    with op.batch_alter_table("purga_records") as batch_op:
+        batch_op.alter_column("public_id", nullable=False)
+        batch_op.create_unique_constraint("uq_purga_public_id", ["public_id"])
 
 
 def downgrade() -> None:
     """Remove public_id columns."""
-    op.drop_constraint("uq_purga_public_id", "purga_records", type_="unique")
-    op.drop_constraint("uq_verification_public_id", "verification_requests", type_="unique")
-    op.drop_column("purga_records", "public_id")
-    op.drop_column("verification_requests", "public_id")
+    with op.batch_alter_table("purga_records") as batch_op:
+        batch_op.drop_constraint("uq_purga_public_id", type_="unique")
+        batch_op.drop_column("public_id")
+
+    with op.batch_alter_table("verification_requests") as batch_op:
+        batch_op.drop_constraint("uq_verification_public_id", type_="unique")
+        batch_op.drop_column("public_id")

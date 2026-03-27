@@ -1,4 +1,4 @@
-"""Bot de Discord con arquitectura basada en cogs."""
+"""Discord bot with cog-based architecture."""
 
 from discord_bot.__version__ import __version__
 

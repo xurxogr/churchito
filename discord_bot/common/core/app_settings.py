@@ -1,4 +1,4 @@
-"""Configuración principal de la aplicación."""
+"""Main application settings."""
 
 from pathlib import Path
 
@@ -18,7 +18,7 @@ from discord_bot.common.core.settings.web import WebSettings
 
 
 class AppSettings(BaseSettings):
-    """Configuración principal de la aplicación."""
+    """Main application settings."""
 
     bot: BotSettings = Field(default_factory=BotSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)

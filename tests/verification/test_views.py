@@ -1,4 +1,4 @@
-"""Tests para las vistas de verificacion."""
+"""Tests for verification views."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -22,19 +22,19 @@ from discord_bot.verification.views.verification_panel import (
 
 
 class TestVerificationPanelView:
-    """Tests para VerificationPanelView."""
+    """Tests for VerificationPanelView."""
 
     async def test_init_default_labels(self) -> None:
-        """Probar inicializacion con labels por defecto."""
+        """Test initialization with default labels."""
         view = VerificationPanelView()
 
         assert len(view.children) == 2
         buttons = [child for child in view.children if isinstance(child, VerificationButton)]
-        assert buttons[0].label == "Verificar"
-        assert buttons[1].label == "Verificar como Aliado"
+        assert buttons[0].label == "Verify"
+        assert buttons[1].label == "Verify as Ally"
 
     async def test_init_custom_labels(self) -> None:
-        """Probar inicializacion con labels personalizados."""
+        """Test initialization with custom labels."""
         view = VerificationPanelView(verify_label="Custom Verify", ally_label="Custom Ally")
 
         buttons = [child for child in view.children if isinstance(child, VerificationButton)]
@@ -42,7 +42,7 @@ class TestVerificationPanelView:
         assert buttons[1].label == "Custom Ally"
 
     async def test_button_custom_ids(self) -> None:
-        """Probar que los botones tienen custom_id correcto."""
+        """Test that buttons have correct custom_id."""
         view = VerificationPanelView()
 
         buttons = [child for child in view.children if isinstance(child, VerificationButton)]
@@ -50,7 +50,7 @@ class TestVerificationPanelView:
         assert buttons[1].custom_id == "verification:ally"
 
     async def test_button_styles(self) -> None:
-        """Probar estilos de botones."""
+        """Test button styles."""
         view = VerificationPanelView()
 
         buttons = [child for child in view.children if isinstance(child, VerificationButton)]
@@ -58,10 +58,10 @@ class TestVerificationPanelView:
         assert buttons[1].style == discord.ButtonStyle.secondary
 
     async def test_regular_button_callback(self) -> None:
-        """Probar callback del boton regular."""
+        """Test regular button callback."""
         view = VerificationPanelView()
 
-        # Mock interaction y bot
+        # Mock interaction and bot
         interaction = MagicMock(spec=discord.Interaction)
         bot = MagicMock(spec=commands.Bot)
         mock_cog = MagicMock()
@@ -69,7 +69,7 @@ class TestVerificationPanelView:
         bot.get_cog.return_value = mock_cog
         interaction.client = bot
 
-        # Obtener el boton y llamar su callback
+        # Get the button and call its callback
         regular_button = view.children[0]
         await regular_button.callback(interaction)
 
@@ -79,7 +79,7 @@ class TestVerificationPanelView:
         )
 
     async def test_ally_button_callback(self) -> None:
-        """Probar callback del boton aliado."""
+        """Test ally button callback."""
         view = VerificationPanelView()
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -97,7 +97,7 @@ class TestVerificationPanelView:
         )
 
     async def test_button_callback_no_cog(self) -> None:
-        """Probar callback cuando el cog no existe."""
+        """Test callback when cog does not exist."""
         view = VerificationPanelView()
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -105,35 +105,35 @@ class TestVerificationPanelView:
         bot.get_cog.return_value = None
         interaction.client = bot
 
-        # No deberia fallar
+        # Should not fail
         regular_button = view.children[0]
         await regular_button.callback(interaction)
 
 
 class TestModReviewView:
-    """Tests para ModReviewView."""
+    """Tests for ModReviewView."""
 
     async def test_init_default_labels(self) -> None:
-        """Probar inicializacion con labels por defecto."""
+        """Test initialization with default labels."""
         view = ModReviewView(public_id="test123")
 
         assert len(view.children) == 2
         accept_btn = next(c for c in view.children if isinstance(c, AcceptButton))
         reject_btn = next(c for c in view.children if isinstance(c, RejectButton))
-        assert accept_btn.label == "Aceptar"
-        assert reject_btn.label == "Rechazar"
+        assert accept_btn.label == "Accept"
+        assert reject_btn.label == "Reject"
 
     async def test_init_custom_labels(self) -> None:
-        """Probar inicializacion con labels personalizados."""
-        view = ModReviewView(public_id="test123", accept_label="Aprobar", reject_label="Denegar")
+        """Test initialization with custom labels."""
+        view = ModReviewView(public_id="test123", accept_label="Approve", reject_label="Deny")
 
         accept_btn = next(c for c in view.children if isinstance(c, AcceptButton))
         reject_btn = next(c for c in view.children if isinstance(c, RejectButton))
-        assert accept_btn.label == "Aprobar"
-        assert reject_btn.label == "Denegar"
+        assert accept_btn.label == "Approve"
+        assert reject_btn.label == "Deny"
 
     async def test_button_custom_ids(self) -> None:
-        """Probar que los botones tienen custom_id con public_id."""
+        """Test that buttons have custom_id with public_id."""
         view = ModReviewView(public_id="test456")
 
         accept_btn = next(c for c in view.children if isinstance(c, AcceptButton))
@@ -142,7 +142,7 @@ class TestModReviewView:
         assert reject_btn.custom_id == "verification:reject:test456"
 
     async def test_button_styles(self) -> None:
-        """Probar estilos de botones."""
+        """Test button styles."""
         view = ModReviewView(public_id="test123")
 
         accept_btn = next(c for c in view.children if isinstance(c, AcceptButton))
@@ -150,16 +150,16 @@ class TestModReviewView:
         assert accept_btn.style == discord.ButtonStyle.success
         assert reject_btn.style == discord.ButtonStyle.danger
 
-    # Los botones no tienen callbacks propios.
-    # Las interacciones son manejadas por on_interaction del cog.
+    # Buttons do not have their own callbacks.
+    # Interactions are handled by the cog's on_interaction.
 
 
 class TestRejectionReasonView:
-    """Tests para RejectionReasonView."""
+    """Tests for RejectionReasonView."""
 
     async def test_init_creates_select(self) -> None:
-        """Probar que se crea el selector."""
-        reasons = ["Motivo 1", "Motivo 2"]
+        """Test that the select is created."""
+        reasons = ["Reason 1", "Reason 2"]
         view = RejectionReasonView(public_id="test123", reasons=reasons)
 
         assert len(view.children) == 1
@@ -167,35 +167,35 @@ class TestRejectionReasonView:
         assert isinstance(select, discord.ui.Select)
 
     async def test_select_options(self) -> None:
-        """Probar opciones del selector."""
-        reasons = ["Motivo 1", "Motivo 2"]
+        """Test select options."""
+        reasons = ["Reason 1", "Reason 2"]
         view = RejectionReasonView(public_id="test123", reasons=reasons)
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
-        # 2 motivos + "Otro motivo..."
+        # 2 reasons + "Other reason..."
         assert len(select.options) == 3
-        assert select.options[0].label == "Motivo 1"
-        assert select.options[1].label == "Motivo 2"
+        assert select.options[0].label == "Reason 1"
+        assert select.options[1].label == "Reason 2"
         assert select.options[2].value == "__OTHER__"
 
     async def test_select_custom_id(self) -> None:
-        """Probar custom_id del selector."""
-        view = RejectionReasonView(public_id="test456", reasons=["Motivo"])
+        """Test select custom_id."""
+        view = RejectionReasonView(public_id="test456", reasons=["Reason"])
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
         assert select.custom_id == "verification:reject_reason:test456"
 
     async def test_ignores_empty_reasons(self) -> None:
-        """Probar que ignora motivos vacios."""
-        reasons = ["Motivo 1", "", "  ", "Motivo 2"]
+        """Test that ignores empty reasons."""
+        reasons = ["Reason 1", "", "  ", "Reason 2"]
         view = RejectionReasonView(public_id="test123", reasons=reasons)
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
-        # Solo 2 motivos validos + "Otro"
+        # Only 2 valid reasons + "Other"
         assert len(select.options) == 3
 
     async def test_truncates_long_reasons(self) -> None:
-        """Probar que trunca motivos largos a 100 caracteres."""
+        """Test that truncates long reasons to 100 characters."""
         long_reason = "A" * 150
         view = RejectionReasonView(public_id="test123", reasons=[long_reason])
 
@@ -203,8 +203,8 @@ class TestRejectionReasonView:
         assert len(select.options[0].label) == 100
 
     async def test_select_predefined_reason_callback(self) -> None:
-        """Probar callback con motivo predefinido."""
-        view = RejectionReasonView(public_id="test789", reasons=["Motivo test"])
+        """Test callback with predefined reason."""
+        view = RejectionReasonView(public_id="test789", reasons=["Test reason"])
 
         interaction = MagicMock(spec=discord.Interaction)
         bot = MagicMock(spec=commands.Bot)
@@ -215,17 +215,17 @@ class TestRejectionReasonView:
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
         # Set the internal values list directly
-        object.__setattr__(select, "_values", ["Motivo test"])
+        object.__setattr__(select, "_values", ["Test reason"])
 
         await select.callback(interaction)
 
         mock_cog.handle_reject.assert_called_once_with(
-            interaction=interaction, public_id="test789", reason="Motivo test"
+            interaction=interaction, public_id="test789", reason="Test reason"
         )
 
     async def test_select_other_reason_callback(self) -> None:
-        """Probar callback con 'Otro motivo'."""
-        view = RejectionReasonView(public_id="test789", reasons=["Motivo"])
+        """Test callback with 'Other reason'."""
+        view = RejectionReasonView(public_id="test789", reasons=["Reason"])
 
         interaction = MagicMock(spec=discord.Interaction)
         interaction.response = MagicMock()
@@ -242,8 +242,8 @@ class TestRejectionReasonView:
         assert isinstance(modal, RejectionReasonModal)
 
     async def test_select_predefined_reason_callback_no_cog(self) -> None:
-        """Probar callback con motivo predefinido cuando el cog no existe."""
-        view = RejectionReasonView(public_id="test789", reasons=["Motivo test"])
+        """Test callback with predefined reason when cog does not exist."""
+        view = RejectionReasonView(public_id="test789", reasons=["Test reason"])
 
         interaction = MagicMock(spec=discord.Interaction)
         bot = MagicMock(spec=commands.Bot)
@@ -251,33 +251,33 @@ class TestRejectionReasonView:
         interaction.client = bot
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
-        object.__setattr__(select, "_values", ["Motivo test"])
+        object.__setattr__(select, "_values", ["Test reason"])
 
-        # No deberia fallar, solo retornar temprano
+        # Should not fail, just return early
         await select.callback(interaction)
 
         bot.get_cog.assert_called_once_with("VerificationCog")
 
 
 class TestRejectionReasonModal:
-    """Tests para RejectionReasonModal."""
+    """Tests for RejectionReasonModal."""
 
     async def test_init(self) -> None:
-        """Probar inicializacion del modal."""
+        """Test modal initialization."""
         modal = RejectionReasonModal(public_id="test123")
 
         assert modal.public_id == "test123"
-        assert modal.title == "Motivo de Rechazo"
+        assert modal.title == "Rejection Reason"
 
     async def test_has_text_input(self) -> None:
-        """Probar que tiene un campo de texto."""
+        """Test that has a text input field."""
         modal = RejectionReasonModal(public_id="test123")
 
-        # El modal tiene children (TextInput)
+        # The modal has children (TextInput)
         assert len(modal.children) == 1
 
     async def test_on_submit_calls_handle_reject(self) -> None:
-        """Probar que on_submit llama a handle_reject."""
+        """Test that on_submit calls handle_reject."""
         modal = RejectionReasonModal(public_id="test789")
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -287,18 +287,18 @@ class TestRejectionReasonModal:
         bot.get_cog.return_value = mock_cog
         interaction.client = bot
 
-        # Simular valor del TextInput usando mock
+        # Simulate TextInput value using mock
         modal.reason = MagicMock()
-        modal.reason.value = "Motivo personalizado"
+        modal.reason.value = "Custom reason"
 
         await modal.on_submit(interaction)
 
         mock_cog.handle_reject.assert_called_once_with(
-            interaction=interaction, public_id="test789", reason="Motivo personalizado"
+            interaction=interaction, public_id="test789", reason="Custom reason"
         )
 
     async def test_on_submit_no_cog(self) -> None:
-        """Probar on_submit cuando el cog no existe."""
+        """Test on_submit when cog does not exist."""
         modal = RejectionReasonModal(public_id="test789")
 
         interaction = MagicMock(spec=discord.Interaction)
@@ -307,19 +307,19 @@ class TestRejectionReasonModal:
         interaction.client = bot
 
         modal.reason = MagicMock()
-        modal.reason.value = "Motivo personalizado"
+        modal.reason.value = "Custom reason"
 
-        # No deberia fallar, solo retornar temprano
+        # Should not fail, just return early
         await modal.on_submit(interaction)
 
         bot.get_cog.assert_called_once_with("VerificationCog")
 
 
 class TestAutoRejectReviewView:
-    """Tests para AutoRejectReviewView."""
+    """Tests for AutoRejectReviewView."""
 
     async def test_init_default_label(self) -> None:
-        """Probar inicializacion con label por defecto."""
+        """Test initialization with default label."""
         from discord_bot.verification.views.auto_reject_review import (
             AutoRejectReviewView,
             ReviewButton,
@@ -332,7 +332,7 @@ class TestAutoRejectReviewView:
         assert button.label == "Revisar"
 
     async def test_init_custom_label(self) -> None:
-        """Probar inicializacion con label personalizado."""
+        """Test initialization with custom label."""
         from discord_bot.verification.views.auto_reject_review import (
             AutoRejectReviewView,
             ReviewButton,
@@ -344,7 +344,7 @@ class TestAutoRejectReviewView:
         assert button.label == "Review Now"
 
     async def test_button_custom_id(self) -> None:
-        """Probar que el boton tiene custom_id correcto."""
+        """Test that button has correct custom_id."""
         from discord_bot.verification.views.auto_reject_review import (
             AutoRejectReviewView,
             ReviewButton,
@@ -356,28 +356,28 @@ class TestAutoRejectReviewView:
         assert button.custom_id == "verification:review:test456"
 
     async def test_timeout_default(self) -> None:
-        """Probar timeout por defecto (30 minutos)."""
+        """Test default timeout (30 minutes)."""
         from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
 
         view = AutoRejectReviewView(public_id="test123")
-        assert view.timeout == 30 * 60  # 30 minutos en segundos
+        assert view.timeout == 30 * 60  # 30 minutes in seconds
 
     async def test_timeout_custom(self) -> None:
-        """Probar timeout personalizado."""
+        """Test custom timeout."""
         from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
 
         view = AutoRejectReviewView(public_id="test123", timeout_minutes=60)
-        assert view.timeout == 60 * 60  # 60 minutos en segundos
+        assert view.timeout == 60 * 60  # 60 minutes in seconds
 
     async def test_timeout_disabled(self) -> None:
-        """Probar timeout desactivado (0 minutos)."""
+        """Test disabled timeout (0 minutes)."""
         from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
 
         view = AutoRejectReviewView(public_id="test123", timeout_minutes=0)
         assert view.timeout is None
 
     async def test_button_style(self) -> None:
-        """Probar estilo del boton."""
+        """Test button style."""
         from discord_bot.verification.views.auto_reject_review import (
             AutoRejectReviewView,
             ReviewButton,

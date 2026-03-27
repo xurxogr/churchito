@@ -1,20 +1,20 @@
-"""Configuración sobre Bot."""
+"""Bot configuration."""
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class BotSettings(BaseModel):
-    """Configuración para bot de Discord."""
+    """Configuration for Discord bot."""
 
-    token: str = Field(description="Token del bot de Discord", default="")
-    command_prefix: str = Field(description="Prefijo de comandos", default="!")
-    owner_id: int | None = Field(description="ID de usuario del propietario del bot", default=None)
+    token: str = Field(description="Discord bot token", default="")
+    command_prefix: str = Field(description="Command prefix", default="!")
+    owner_id: int | None = Field(description="Bot owner user ID", default=None)
     description: str = Field(
-        description="Descripción del bot",
-        default="Un bot de Discord con arquitectura basada en cogs",
+        description="Bot description",
+        default="A Discord bot with cog-based architecture",
     )
     event_loop_warning_threshold: float = Field(
-        description="Umbral de advertencia para retrasos en el bucle de eventos (en segundos)",
+        description="Warning threshold for event loop delays (in seconds)",
         default=0.5,
         gt=0,
     )
@@ -23,10 +23,10 @@ class BotSettings(BaseModel):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "token": "TU_TOKEN_DEL_BOT",
+                "token": "YOUR_BOT_TOKEN",
                 "command_prefix": "!",
                 "owner_id": None,
-                "description": "Un bot de Discord con arquitectura basada en cogs",
+                "description": "A Discord bot with cog-based architecture",
                 "event_loop_warning_threshold": 0.5,
             }
         },

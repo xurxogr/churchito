@@ -1,13 +1,13 @@
-"""Tests del model UserContext.
+"""Tests for the UserContext model.
 
-Estos tests son temporales, hasta que haya un servicio que los utilice.
+These tests are temporary, until there is a service that uses them.
 """
 
 from discord_bot.common.schemas import UserContext
 
 
 def test_user_context_creation() -> None:
-    """Test para crear UserContext."""
+    """Test creating UserContext."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -22,7 +22,7 @@ def test_user_context_creation() -> None:
 
 
 def test_user_context_minimal() -> None:
-    """Test para crear UserContext con los campos mínimos."""
+    """Test creating UserContext with minimum fields."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -30,12 +30,12 @@ def test_user_context_minimal() -> None:
 
     assert context.user_id == 123456789
     assert context.guild_id == 987654321
-    assert context.role_ids == []  # Por defecto
-    assert context.username is None  # Por defecto
+    assert context.role_ids == []  # Default
+    assert context.username is None  # Default
 
 
 def test_user_context_has_role() -> None:
-    """Test del método has_role."""
+    """Test the has_role method."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -48,7 +48,7 @@ def test_user_context_has_role() -> None:
 
 
 def test_user_context_has_any_role() -> None:
-    """Test del método has_any_role."""
+    """Test the has_any_role method."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -69,7 +69,7 @@ def test_user_context_has_any_role() -> None:
 
 
 def test_user_context_has_all_roles() -> None:
-    """Test del método has_all_roles."""
+    """Test the has_all_roles method."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,
@@ -90,7 +90,7 @@ def test_user_context_has_all_roles() -> None:
 
 
 def test_user_context_no_roles() -> None:
-    """Test de UserContext sin roles."""
+    """Test UserContext without roles."""
     context = UserContext(
         user_id=123456789,
         guild_id=987654321,

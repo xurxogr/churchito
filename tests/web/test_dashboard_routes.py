@@ -1,4 +1,4 @@
-"""Tests para las rutas del dashboard."""
+"""Tests for the dashboard routes."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -12,7 +12,7 @@ from discord_bot.web.routers.dashboard import _check_guild_access, dashboard, in
 
 
 class TestDashboardRoutes:
-    """Tests para rutas del dashboard."""
+    """Tests for dashboard routes."""
 
     @pytest.fixture
     def mock_session(self) -> AsyncMock:
@@ -26,14 +26,14 @@ class TestDashboardRoutes:
 
     @pytest.fixture
     def mock_request_with_user(self, simple_app: FastAPI, test_user: dict[str, Any]) -> MagicMock:
-        """Crear request mock con usuario.
+        """Create mock request with user.
 
         Args:
-            simple_app (FastAPI): Aplicación
-            test_user (dict[str, Any]): Usuario de prueba
+            simple_app (FastAPI): Application
+            test_user (dict[str, Any]): Test user
 
         Returns:
-            MagicMock: Request mock
+            MagicMock: Mock request
         """
         request = MagicMock(spec=Request)
         request.app = simple_app
@@ -44,13 +44,13 @@ class TestDashboardRoutes:
 
     @pytest.fixture
     def mock_request_without_user(self, simple_app: FastAPI) -> MagicMock:
-        """Crear request mock sin usuario.
+        """Create mock request without user.
 
         Args:
-            simple_app (FastAPI): Aplicación
+            simple_app (FastAPI): Application
 
         Returns:
-            MagicMock: Request mock
+            MagicMock: Mock request
         """
         request = MagicMock(spec=Request)
         request.app = simple_app
@@ -62,7 +62,7 @@ class TestDashboardRoutes:
     async def test_index_with_user_redirects(
         self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
     ) -> None:
-        """Probar que index con usuario redirige al dashboard."""
+        """Test that index with user redirects to dashboard."""
         response = await index(mock_request_with_user, test_user)
         assert response.status_code == 307
         assert response.headers["location"] == "/dashboard"
@@ -70,8 +70,8 @@ class TestDashboardRoutes:
     async def test_index_without_user_shows_login(
         self, mock_request_without_user: MagicMock
     ) -> None:
-        """Probar que index sin usuario muestra login."""
-        # Necesitamos templates reales o mock
+        """Test that index without user shows login."""
+        # Need real or mock templates
         mock_request_without_user.app.state.templates = MagicMock(spec=Jinja2Templates)
         mock_response = MagicMock()
         mock_request_without_user.app.state.templates.TemplateResponse.return_value = mock_response
@@ -84,7 +84,7 @@ class TestDashboardRoutes:
     async def test_login_page_with_user_redirects(
         self, mock_request_with_user: MagicMock, test_user: dict[str, Any]
     ) -> None:
-        """Probar que login_page con usuario redirige al dashboard."""
+        """Test that login_page with user redirects to dashboard."""
         response = await login_page(mock_request_with_user, test_user)
         assert response.status_code == 307
         assert response.headers["location"] == "/dashboard"
@@ -92,7 +92,7 @@ class TestDashboardRoutes:
     async def test_login_page_without_user_shows_login(
         self, mock_request_without_user: MagicMock
     ) -> None:
-        """Probar que login_page sin usuario muestra login."""
+        """Test that login_page without user shows login."""
         mock_request_without_user.app.state.templates = MagicMock(spec=Jinja2Templates)
         mock_response = MagicMock()
         mock_request_without_user.app.state.templates.TemplateResponse.return_value = mock_response
@@ -108,7 +108,7 @@ class TestDashboardRoutes:
         test_user: dict[str, Any],
         mock_session: AsyncMock,
     ) -> None:
-        """Probar que dashboard muestra los guilds del usuario."""
+        """Test that dashboard shows user's guilds."""
         # Setup mock templates
         mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
         mock_response = MagicMock()
@@ -123,11 +123,11 @@ class TestDashboardRoutes:
 
         await dashboard(request=mock_request_with_user, user=test_user, session=mock_session)
 
-        # Verificar que se llamó a TemplateResponse
+        # Verify TemplateResponse was called
         mock_request_with_user.app.state.templates.TemplateResponse.assert_called_once()
         call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
 
-        # Verificar contexto
+        # Verify context
         context = call_kwargs["context"]
         assert "user" in context
         assert "guilds" in context
@@ -139,7 +139,7 @@ class TestDashboardRoutes:
         test_user: dict[str, Any],
         mock_session: AsyncMock,
     ) -> None:
-        """Probar dashboard para owner del bot."""
+        """Test dashboard for bot owner."""
         # Setup owner
         mock_request_with_user.app.state.settings.web.owner_ids = [123456789012345678]
 
@@ -165,13 +165,13 @@ class TestDashboardRoutes:
         test_user: dict[str, Any],
         mock_session: AsyncMock,
     ) -> None:
-        """Probar dashboard cuando el bot está en el guild del usuario."""
+        """Test dashboard when bot is in user's guild."""
         # Setup mock templates
         mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
         mock_response = MagicMock()
         mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
 
-        # Setup mock bot con guild
+        # Setup mock bot with guild
         mock_guild = MagicMock()
         mock_guild.id = 111222333
         mock_request_with_user.app.state.bot = MagicMock()
@@ -186,7 +186,7 @@ class TestDashboardRoutes:
         call_kwargs = mock_request_with_user.app.state.templates.TemplateResponse.call_args.kwargs
         context = call_kwargs["context"]
 
-        # Verificar que el guild tiene bot_present=True
+        # Verify guild has bot_present=True
         guilds = context["guilds"]
         guild_with_bot = next((g for g in guilds if g["id"] == "111222333"), None)
         assert guild_with_bot is not None
@@ -197,7 +197,7 @@ class TestDashboardRoutes:
         mock_request_with_user: MagicMock,
         mock_session: AsyncMock,
     ) -> None:
-        """Probar dashboard para non-owner cuando el bot está en el guild."""
+        """Test dashboard for non-owner when bot is in guild."""
         # User is NOT a bot owner but IS a guild owner
         mock_request_with_user.app.state.settings.web.owner_ids = []
 
@@ -213,7 +213,7 @@ class TestDashboardRoutes:
         mock_response = MagicMock()
         mock_request_with_user.app.state.templates.TemplateResponse.return_value = mock_response
 
-        # Setup mock bot con guild where user is owner
+        # Setup mock bot with guild where user is owner
         mock_guild = MagicMock()
         mock_guild.id = 111222333
         mock_guild.name = "Test Guild"
@@ -245,7 +245,7 @@ class TestDashboardRoutes:
         test_user: dict[str, Any],
         mock_session: AsyncMock,
     ) -> None:
-        """Probar que non-owner no ve guild sin acceso."""
+        """Test that non-owner doesn't see guild without access."""
         # User is NOT an owner
         mock_request_with_user.app.state.settings.web.owner_ids = []
 
@@ -269,7 +269,7 @@ class TestDashboardRoutes:
 
 
 class TestCheckGuildAccess:
-    """Tests para _check_guild_access."""
+    """Tests for _check_guild_access."""
 
     @pytest.fixture
     def mock_session(self) -> AsyncMock:
@@ -294,7 +294,7 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar que el owner del guild tiene acceso."""
+        """Test that guild owner has access."""
         # User is guild owner
         mock_bot.get_guild.return_value.owner_id = 123456789012345678
 
@@ -307,7 +307,7 @@ class TestCheckGuildAccess:
         )
 
         assert result is True
-        # No debería hacer consultas a la DB
+        # Should not make DB queries
         mock_session.execute.assert_not_called()
 
     async def test_invited_by_has_access(
@@ -315,10 +315,10 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar que quien invitó al bot tiene acceso."""
-        # Mock Guild con invited_by_id
+        """Test that user who invited the bot has access."""
+        # Mock Guild with invited_by_id
         mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = 123456789012345678  # El usuario invitó al bot
+        mock_guild_record.invited_by_id = 123456789012345678  # User invited the bot
 
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_guild_record
@@ -339,8 +339,8 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar que un usuario con rol admin tiene acceso."""
-        # Mock Guild record sin invited_by
+        """Test that user with admin role has access."""
+        # Mock Guild record without invited_by
         mock_guild_record = MagicMock()
         mock_guild_record.invited_by_id = None
 
@@ -351,10 +351,10 @@ class TestCheckGuildAccess:
         mock_config_result = MagicMock()
         mock_config_result.scalar_one_or_none.return_value = [999888777]  # admin role ID
 
-        # Dos llamadas a execute: Guild y GuildConfig
+        # Two calls to execute: Guild and GuildConfig
         mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
 
-        # Mock Discord guild con miembro que tiene el rol
+        # Mock Discord guild with member that has the role
         mock_role = MagicMock()
         mock_role.id = 999888777
 
@@ -382,15 +382,15 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar que usuario sin acceso retorna False."""
-        # Mock Guild record sin invited_by
+        """Test that user without access returns False."""
+        # Mock Guild record without invited_by
         mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = 999  # Otro usuario invitó
+        mock_guild_record.invited_by_id = 999  # Another user invited
 
         mock_guild_result = MagicMock()
         mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
 
-        # Sin admin roles configurados
+        # No admin roles configured
         mock_config_result = MagicMock()
         mock_config_result.scalar_one_or_none.return_value = None
 
@@ -411,21 +411,21 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar cuando el usuario no está en el guild de Discord."""
-        # Mock Guild record sin invited_by
+        """Test when user is not in the Discord guild."""
+        # Mock Guild record without invited_by
         mock_guild_record = MagicMock()
         mock_guild_record.invited_by_id = None
 
         mock_guild_result = MagicMock()
         mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
 
-        # Admin roles configurados
+        # Admin roles configured
         mock_config_result = MagicMock()
         mock_config_result.scalar_one_or_none.return_value = [999888777]
 
         mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
 
-        # Discord guild existe pero el usuario no es miembro
+        # Discord guild exists but user is not a member
         mock_discord_guild = MagicMock()
         mock_discord_guild.owner_id = 0
         mock_discord_guild.get_member.return_value = None
@@ -450,8 +450,8 @@ class TestCheckGuildAccess:
         mock_session: AsyncMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar cuando el bot no está en el guild."""
-        # Bot no está en el guild
+        """Test when bot is not in the guild."""
+        # Bot is not in the guild
         mock_bot.get_guild.return_value = None
 
         result = await _check_guild_access(
@@ -463,5 +463,5 @@ class TestCheckGuildAccess:
         )
 
         assert result is False
-        # No debería hacer consultas a la DB si el bot no está en el guild
+        # Should not make DB queries if bot is not in the guild
         mock_session.execute.assert_not_called()

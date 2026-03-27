@@ -1,4 +1,4 @@
-"""Tests para discord_bot/verification/config.py."""
+"""Tests for discord_bot/verification/config.py."""
 
 from discord_bot.verification.config import (
     COG_NAME,
@@ -7,67 +7,67 @@ from discord_bot.verification.config import (
 
 
 class TestCogName:
-    """Tests para COG_NAME."""
+    """Tests for COG_NAME."""
 
     def test_cog_name_value(self) -> None:
-        """Probar que el nombre del cog es correcto."""
+        """Test that the cog name is correct."""
         assert COG_NAME == "verification"
 
 
 class TestVerificationConfigSchema:
-    """Tests para VERIFICATION_CONFIG_SCHEMA."""
+    """Tests for VERIFICATION_CONFIG_SCHEMA."""
 
     def test_schema_cog_name(self) -> None:
-        """Probar nombre del cog en el schema."""
+        """Test cog name in the schema."""
         assert VERIFICATION_CONFIG_SCHEMA.cog_name == "verification"
 
     def test_schema_display_name(self) -> None:
-        """Probar nombre de display."""
-        assert VERIFICATION_CONFIG_SCHEMA.display_name == "Verificación"
+        """Test display name."""
+        assert VERIFICATION_CONFIG_SCHEMA.display_name == "Verification"
 
     def test_schema_has_icon(self) -> None:
-        """Probar que el schema tiene un icono."""
+        """Test that the schema has an icon."""
         assert VERIFICATION_CONFIG_SCHEMA.icon is not None
         assert VERIFICATION_CONFIG_SCHEMA.icon == "✅"
 
     def test_schema_has_options(self) -> None:
-        """Probar que el schema tiene opciones."""
+        """Test that the schema has options."""
         assert len(VERIFICATION_CONFIG_SCHEMA.options) > 0
 
     def test_schema_has_verification_enabled_option(self) -> None:
-        """Probar que existe la opcion de verificacion habilitada."""
+        """Test that verification enabled option exists."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "verification_enabled" in keys
 
     def test_schema_has_verification_channel_option(self) -> None:
-        """Probar que existe la opcion de canal de verificacion."""
+        """Test that verification channel option exists."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "verification_channel" in keys
 
     def test_schema_has_mod_channel_option(self) -> None:
-        """Probar que existe la opcion de canal de moderacion."""
+        """Test that moderation channel option exists."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "mod_notification_channel" in keys
 
     def test_schema_has_mod_roles_option(self) -> None:
-        """Probar que existe la opcion de roles de moderador."""
+        """Test that moderator roles option exists."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "mod_roles" in keys
 
     def test_schema_has_regular_roles_options(self) -> None:
-        """Probar que existen las opciones de roles para verificacion normal."""
+        """Test that regular verification role options exist."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "regular_roles_add" in keys
         assert "regular_roles_remove" in keys
 
     def test_schema_has_ally_roles_options(self) -> None:
-        """Probar que existen las opciones de roles para verificacion de aliado."""
+        """Test that ally verification role options exist."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "ally_roles_add" in keys
         assert "ally_roles_remove" in keys
 
     def test_schema_has_rejection_reason_options(self) -> None:
-        """Probar que existen las opciones de motivos de rechazo."""
+        """Test that rejection reason options exist."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "reject_wrong_captures" in keys
         assert "reject_name_mismatch" in keys
@@ -77,7 +77,7 @@ class TestVerificationConfigSchema:
         assert "reject_wrong_faction" in keys
 
     def test_schema_has_status_options(self) -> None:
-        """Probar que existen las opciones de estados."""
+        """Test that status options exist."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "status_awaiting_screenshots" in keys
         assert "status_pending_review" in keys
@@ -85,17 +85,17 @@ class TestVerificationConfigSchema:
         assert "status_rejected" in keys
 
     def test_schema_has_message_template_options(self) -> None:
-        """Probar que existen las opciones de plantillas de mensaje."""
+        """Test that message template options exist."""
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "verification_panel_message" in keys
         assert "dm_instructions_message" in keys
         assert "dm_instructions_ally_message" in keys
-        # mod_message_template fue reemplazado por los embeds configurables
+        # mod_message_template was replaced by configurable embeds
         assert "mod_embed_regular" in keys
         assert "mod_embed_ally" in keys
 
     def test_schema_has_api_verification_options(self) -> None:
-        """Probar que existen las opciones de API de verificación."""
+        """Test that API verification options exist."""
         # Note: api_url and api_key are in global settings, not per-guild config
         keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
         assert "verification_faction" in keys

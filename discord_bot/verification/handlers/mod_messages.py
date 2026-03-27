@@ -1,4 +1,4 @@
-"""Gestión de mensajes de moderación y tracker."""
+"""Moderation messages and tracker management."""
 
 import logging
 import re
@@ -49,18 +49,18 @@ async def update_mod_message_for_review(
     config: dict[str, Any],
     api_result: "VerificationAPIResult | None" = None,
 ) -> bool:
-    """Actualizar mensaje de moderacion cuando se reciben las capturas.
+    """Update moderation message when screenshots are received.
 
     Args:
-        cog: Instancia del cog.
-        channel: Canal de moderacion.
-        request: Solicitud de verificacion.
-        verification_service: Servicio de verificacion.
-        config: Configuracion del cog.
-        api_result: Resultado de la API de verificación.
+        cog: Cog instance.
+        channel: Moderation channel.
+        request: Verification request.
+        verification_service: Verification service.
+        config: Cog configuration.
+        api_result: Verification API result.
 
     Returns:
-        True si se realizó auto-aprobación/rechazo, False si requiere revisión manual.
+        True if auto-approval/rejection was performed, False if manual review required.
     """
     from discord_bot.verification.auto_processor import process_verification
 
@@ -70,9 +70,7 @@ async def update_mod_message_for_review(
     try:
         mod_message = await channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(
-            f"[{channel.guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}"
-        )
+        logger.warning(f"[{channel.guild.name}] Mod message not found: {request.mod_message_id}")
         return False
 
     verification_type = VerificationType(request.verification_type)
@@ -105,7 +103,7 @@ async def update_mod_message_for_review(
                 player_info=player_info,
             )
         elif api_result.status_code == 422:
-            reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
+            reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Invalid captures"
             additional_content += f"\n\n⚠️ **{reject_msg}**"
         else:
             error_msg = get_api_error_message(api_result.status_code)
@@ -133,7 +131,7 @@ async def update_mod_message_for_review(
         guild = channel.guild
 
         if api_result.status_code == 422 and auto_reject:
-            reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Capturas inválidas"
+            reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Invalid captures"
             await handle_auto_rejection(
                 cog=cog,
                 guild=guild,
@@ -183,10 +181,10 @@ async def update_mod_message_for_review(
                 status_text = get_ready_for_approval_status(config=config, guild=guild)
 
     accept_label = format_message(
-        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Accept",
         verification_type=type_display,
     )
-    reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+    reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Reject"
     view = ModReviewView(
         public_id=request.public_id, accept_label=accept_label, reject_label=reject_label
     )
@@ -222,17 +220,17 @@ async def update_mod_message_status(
     color: discord.Color,
     verification_service: "VerificationService | None" = None,
 ) -> None:
-    """Actualizar el mensaje de moderación con un nuevo estado.
+    """Update the moderation message with a new status.
 
-    Regenera el embed completo usando los datos de la request.
+    Regenerates the complete embed using request data.
 
     Args:
-        guild: Guild donde está el canal de moderación
-        request: Solicitud de verificación
-        config: Configuración del cog
-        status: Nuevo texto de estado
-        color: Color del embed
-        verification_service: Servicio de verificación (para historial)
+        guild: Guild where the moderation channel is
+        request: Verification request
+        config: Cog configuration
+        status: New status text
+        color: Embed color
+        verification_service: Verification service (for history)
     """
     if not request.mod_message_id:
         return
@@ -248,7 +246,7 @@ async def update_mod_message_status(
     try:
         mod_message = await mod_channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
+        logger.warning(f"[{guild.name}] Mod message not found: {request.mod_message_id}")
         return
 
     if config.get(ConfigKey.DELETE_PROCESSED_MESSAGES):
@@ -303,17 +301,17 @@ async def update_mod_message_cancelled(
     config: dict[str, Any],
     verification_service: "VerificationService | None" = None,
 ) -> None:
-    """Actualizar el mensaje de moderación cuando una verificación es cancelada.
+    """Update the moderation message when a verification is cancelled.
 
-    Se usa cuando un usuario sale del servidor mientras tiene una verificación pendiente.
+    Used when a user leaves the server while having a pending verification.
 
     Args:
-        guild: Guild donde está el canal de moderación
-        request: Solicitud de verificación cancelada
-        config: Configuración del cog
-        verification_service: Servicio de verificación (para historial)
+        guild: Guild where the moderation channel is
+        request: Cancelled verification request
+        config: Cog configuration
+        verification_service: Verification service (for history)
     """
-    cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Estado:** Cancelado"
+    cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Status:** Cancelled"
     await update_mod_message_status(
         guild=guild,
         request=request,
@@ -330,13 +328,13 @@ async def update_mod_message_for_manual_review(
     config: dict[str, Any],
     public_id: str,
 ) -> None:
-    """Actualizar mensaje de moderación para revisión manual.
+    """Update moderation message for manual review.
 
     Args:
-        guild: Guild donde está el mensaje
-        request: Solicitud de verificación
-        config: Configuración del cog
-        public_id: ID público de la solicitud (NanoID)
+        guild: Guild where the message is
+        request: Verification request
+        config: Cog configuration
+        public_id: Public request ID (NanoID)
     """
     if not request.mod_message_id:
         return
@@ -352,20 +350,20 @@ async def update_mod_message_for_manual_review(
     try:
         mod_message = await mod_channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
-        logger.warning(f"[{guild.name}] Mensaje de mod no encontrado: {request.mod_message_id}")
+        logger.warning(f"[{guild.name}] Mod message not found: {request.mod_message_id}")
         return
 
     current_content = ""
     if mod_message.embeds:
         current_content = mod_message.embeds[0].description or ""
 
-    pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pendiente de revisión"
+    pending_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
     rejected_status = config.get(ConfigKey.STATUS_REJECTED) or ""
 
     if rejected_status and rejected_status in current_content:
         new_content = current_content.replace(rejected_status, pending_status)
     else:
-        pattern = r"❌[^\n]*(?:Auto|rechazo)[^\n]*"
+        pattern = r"❌[^\n]*(?:Auto|reject)[^\n]*"
         new_content = re.sub(pattern, pending_status, current_content)
         if new_content == current_content:
             new_content = current_content + f"\n\n{pending_status}"
@@ -380,10 +378,10 @@ async def update_mod_message_for_manual_review(
         verification_type=VerificationType(request.verification_type), config=config
     )
     accept_label = format_message(
-        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Aceptar",
+        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Accept",
         verification_type=type_display,
     )
-    reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Rechazar"
+    reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Reject"
     view = ModReviewView(
         public_id=public_id,
         accept_label=accept_label,
@@ -399,16 +397,16 @@ async def update_tracker_message(
     verification_service: "VerificationService",
     config_service: "ConfigService",
 ) -> None:
-    """Actualizar o crear el mensaje de seguimiento de verificaciones pendientes.
+    """Update or create the pending verifications tracker message.
 
-    Este mensaje siempre debe ser el último en el canal de moderación y
-    muestra una lista de todas las verificaciones pendientes.
+    This message should always be the last one in the moderation channel and
+    displays a list of all pending verifications.
 
     Args:
-        guild: Guild donde está el canal de moderación
-        config: Configuración del cog
-        verification_service: Servicio de verificación para obtener solicitudes
-        config_service: Servicio de configuración para guardar/obtener mensaje ID
+        guild: Guild where the moderation channel is
+        config: Cog configuration
+        verification_service: Verification service to get requests
+        config_service: Config service to save/get message ID
     """
     tracker_title = config.get(ConfigKey.TRACKER_TITLE)
     tracker_enabled = bool(tracker_title)
@@ -485,6 +483,4 @@ async def update_tracker_message(
                 value=new_message.id,
             )
         except discord.Forbidden:
-            logger.warning(
-                f"[{guild.name}] No se pudo enviar mensaje de tracker en #{mod_channel.name}"
-            )
+            logger.warning(f"[{guild.name}] Could not send tracker message in #{mod_channel.name}")

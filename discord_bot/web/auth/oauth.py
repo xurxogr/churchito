@@ -1,4 +1,4 @@
-"""Rutas de autenticación OAuth con Discord."""
+"""OAuth authentication routes with Discord."""
 
 import logging
 import secrets
@@ -17,24 +17,24 @@ DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
 DISCORD_OAUTH_TOKEN_URL = "https://discord.com/api/oauth2/token"  # noqa: S105
 
-# Tiempo máximo para completar el flujo OAuth (10 minutos)
+# Maximum time to complete OAuth flow (10 minutes)
 OAUTH_STATE_MAX_AGE = 600
 
 
 @router.get("/login")
 async def login(request: Request) -> RedirectResponse:
-    """Iniciar el flujo de OAuth con Discord.
+    """Start the OAuth flow with Discord.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Returns:
-        RedirectResponse: Redirección a Discord para autenticación
+        RedirectResponse: Redirect to Discord for authentication
     """
     settings = request.app.state.settings.web
 
     if not settings.client_id:
-        raise HTTPException(status_code=500, detail="OAuth no configurado")
+        raise HTTPException(status_code=500, detail="OAuth not configured")
 
     state = secrets.token_urlsafe(32)
     request.session["oauth_state"] = {
@@ -61,23 +61,23 @@ async def callback(
     state: str | None = None,
     error: str | None = None,
 ) -> RedirectResponse:
-    """Manejar el callback de OAuth de Discord.
+    """Handle the OAuth callback from Discord.
 
     Args:
-        request (Request): Request de FastAPI
-        code (str | None): Código de autorización
-        state (str | None): Estado para verificar CSRF
-        error (str | None): Error de OAuth si lo hay
+        request (Request): FastAPI request
+        code (str | None): Authorization code
+        state (str | None): State for CSRF verification
+        error (str | None): OAuth error if any
 
     Returns:
-        RedirectResponse: Redirección al dashboard o login
+        RedirectResponse: Redirect to dashboard or login
     """
     root_path = request.scope.get("root_path", "")
 
     if error:
-        # Sanitizar error para prevenir log injection (limitar longitud, eliminar newlines)
+        # Sanitize error to prevent log injection (limit length, remove newlines)
         safe_error = str(error)[:100].replace("\n", " ").replace("\r", " ")
-        logger.warning(f"Error en OAuth callback: {safe_error}")
+        logger.warning(f"Error in OAuth callback: {safe_error}")
         return RedirectResponse(url=f"{root_path}/login?error=oauth_denied")
 
     if not code:
@@ -85,20 +85,20 @@ async def callback(
 
     stored_state_data = request.session.get("oauth_state")
     if not stored_state_data or not isinstance(stored_state_data, dict):
-        logger.warning("Estado OAuth no encontrado en sesión")
+        logger.warning("OAuth state not found in session")
         return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
 
     stored_state = stored_state_data.get("value")
     created_at = stored_state_data.get("created_at", 0)
 
-    # Verificar que el state no ha expirado
+    # Verify the state has not expired
     if time.time() - created_at > OAUTH_STATE_MAX_AGE:
-        logger.warning("Estado OAuth expirado")
+        logger.warning("OAuth state expired")
         request.session.pop("oauth_state", None)
         return RedirectResponse(url=f"{root_path}/login?error=state_expired")
 
     if not state or state != stored_state:
-        logger.warning("Estado OAuth inválido")
+        logger.warning("Invalid OAuth state")
         return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
 
     request.session.pop("oauth_state", None)
@@ -138,28 +138,28 @@ async def callback(
             "avatar": user_data.get("avatar"),
         }
 
-        logger.info(f"Usuario autenticado: {user_data['username']} (ID: {user_data['id']})")
+        logger.info(f"User authenticated: {user_data['username']} (ID: {user_data['id']})")
 
         # Use status_code=303 (See Other) to ensure proper redirect after POST-like operation
         return RedirectResponse(url=f"{root_path}/dashboard", status_code=303)
 
     except httpx.HTTPStatusError as e:
-        logger.exception(f"Error HTTP en OAuth: {e.response.status_code}")
+        logger.exception(f"HTTP error in OAuth: {e.response.status_code}")
         return RedirectResponse(url=f"{root_path}/login?error=api_error")
     except Exception:
-        logger.exception("Error en OAuth callback")
+        logger.exception("Error in OAuth callback")
         return RedirectResponse(url=f"{root_path}/login?error=unknown")
 
 
 @router.get("/logout")
 async def logout(request: Request) -> RedirectResponse:
-    """Cerrar la sesión del usuario.
+    """Log out the user.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Returns:
-        RedirectResponse: Redirección a la página de login
+        RedirectResponse: Redirect to the login page
     """
     root_path = request.scope.get("root_path", "")
     request.session.clear()

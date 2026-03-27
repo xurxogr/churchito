@@ -505,6 +505,39 @@ a:hover {
     flex-shrink: 0;
 }
 
+/* Language Selector */
+.language-selector {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.language-selector label {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.language-selector select {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.language-selector select:hover {
+    border-color: var(--accent-primary);
+}
+
+.language-selector select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
 /* Config Tabs Layout - Discord Sidebar Style */
 .config-tabs {
     display: flex;
@@ -1537,7 +1570,7 @@ a:hover {
 }
 
 .textarea-preview-content:empty::after {
-    content: 'El texto aparecera aqui...';
+    content: 'Text will appear here...';
     color: var(--text-muted);
     font-style: italic;
 }

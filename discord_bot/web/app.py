@@ -1,4 +1,4 @@
-"""Factory para crear la aplicación FastAPI del dashboard."""
+"""Factory to create the FastAPI dashboard application."""
 
 import logging
 import secrets
@@ -14,6 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
+from discord_bot.i18n import get_i18n_service
 from discord_bot.web.auth.oauth import router as auth_router
 from discord_bot.web.dependencies import NotAuthenticatedException
 from discord_bot.web.middleware import (
@@ -35,19 +36,19 @@ def create_app(
     db_service: DatabaseService,
     bot: object | None = None,
 ) -> FastAPI:
-    """Crear la aplicación FastAPI del dashboard.
+    """Create the FastAPI dashboard application.
 
     Args:
-        settings (AppSettings): Configuración de la aplicación
-        db_service (DatabaseService): Servicio de base de datos
-        bot (object | None): Instancia del bot de Discord (opcional)
+        settings (AppSettings): Application settings
+        db_service (DatabaseService): Database service
+        bot (object | None): Discord bot instance (optional)
 
     Returns:
-        FastAPI: Aplicación configurada
+        FastAPI: Configured application
     """
     app = FastAPI(
         title="Bot Dashboard",
-        description="Dashboard web para configuración del bot de Discord",
+        description="Web dashboard for Discord bot configuration",
         version="1.0.0",
         root_path=settings.web.root_path,
     )
@@ -56,13 +57,13 @@ def create_app(
     if not secret_key:
         secret_key = secrets.token_urlsafe(32)
         logger.warning(
-            "No se configuró WEB__SECRET_KEY, usando clave generada automáticamente. "
-            "Las sesiones no persistirán entre reinicios."
+            "WEB__SECRET_KEY not configured, using auto-generated key. "
+            "Sessions will not persist between restarts."
         )
 
-    # Middleware se procesa en orden inverso al que se añade
-    # (el último añadido procesa primero)
-    # SecurityHeadersMiddleware se añade primero para que procese último (añade headers a respuesta)
+    # Middleware is processed in reverse order of addition
+    # (the last added processes first)
+    # SecurityHeadersMiddleware is added first so it processes last (adds headers to response)
     app.add_middleware(
         SecurityHeadersMiddleware,
         https_only=settings.web.https_only,
@@ -70,9 +71,9 @@ def create_app(
     if settings.web.rate_limit_enabled:
         app.add_middleware(RateLimitMiddleware)
         logger.warning(
-            "Rate limiting interno habilitado. NOTA: Usa memoria local y NO escala "
-            "en despliegues multi-worker. Para producción con múltiples workers, "
-            "configurar WEB__RATE_LIMIT_ENABLED=false y usar rate limiting externo."
+            "Internal rate limiting enabled. NOTE: Uses local memory and does NOT scale "
+            "in multi-worker deployments. For production with multiple workers, "
+            "set WEB__RATE_LIMIT_ENABLED=false and use external rate limiting."
         )
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(
@@ -83,14 +84,14 @@ def create_app(
         same_site="lax",
         https_only=settings.web.https_only,
     )
-    # ProxyHeadersMiddleware lee X-Forwarded-Proto y X-Forwarded-For
-    # para que FastAPI sepa el protocolo/IP real cuando está detrás de un proxy
+    # ProxyHeadersMiddleware reads X-Forwarded-Proto and X-Forwarded-For
+    # so FastAPI knows the real protocol/IP when behind a proxy
     app.add_middleware(
         ProxyHeadersMiddleware,
         trusted_hosts=settings.web.trusted_hosts or ["127.0.0.1"],
     )
-    # ContentSizeLimitMiddleware se añade último para procesar primero
-    # y rechazar bodies grandes antes de otro procesamiento
+    # ContentSizeLimitMiddleware is added last to process first
+    # and reject large bodies before other processing
     app.add_middleware(ContentSizeLimitMiddleware)
 
     app.state.settings = settings
@@ -101,6 +102,12 @@ def create_app(
     static_dir = WEB_DIR / "static"
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
+
+    # Register i18n globals for templates
+    i18n = get_i18n_service()
+    app.state.templates.env.globals["_"] = i18n.translate
+    app.state.templates.env.globals["LANGUAGES"] = i18n.SUPPORTED_LANGUAGES
+    app.state.i18n = i18n
 
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -122,10 +129,10 @@ def create_app(
         templates: Jinja2Templates = app.state.templates
         root_path = request.scope.get("root_path", "")
 
-        # Para errores 5xx, no exponer detalles internos
+        # For 5xx errors, don't expose internal details
         if exc.status_code >= 500:
             logger.error(f"Error {exc.status_code}: {exc.detail}")
-            detail = "Error interno del servidor"
+            detail = "Internal server error"
         else:
             detail = exc.detail
 
@@ -146,8 +153,8 @@ def create_app(
         templates: Jinja2Templates = app.state.templates
         root_path = request.scope.get("root_path", "")
 
-        # Loguear el error real pero no exponerlo al usuario
-        logger.exception("Error no manejado")
+        # Log the real error but don't expose it to the user
+        logger.exception("Unhandled error")
 
         return templates.TemplateResponse(
             request=request,
@@ -155,17 +162,17 @@ def create_app(
             context={
                 "root_path": root_path,
                 "status_code": 500,
-                "detail": "Error interno del servidor",
+                "detail": "Internal server error",
             },
             status_code=500,
         )
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
-        """Endpoint de verificación de salud para Docker healthcheck."""
+        """Health check endpoint for Docker healthcheck."""
         return {"status": "ok"}
 
-    logger.info("Dashboard web inicializado")
+    logger.info("Web dashboard initialized")
     return app
 
 
@@ -174,12 +181,12 @@ async def run_web_server(
     db_service: DatabaseService,
     bot: object | None = None,
 ) -> None:
-    """Ejecutar el servidor web.
+    """Run the web server.
 
     Args:
-        settings (AppSettings): Configuración de la aplicación
-        db_service (DatabaseService): Servicio de base de datos
-        bot (object | None): Instancia del bot de Discord (opcional)
+        settings (AppSettings): Application settings
+        db_service (DatabaseService): Database service
+        bot (object | None): Discord bot instance (optional)
     """
     app = create_app(settings, db_service, bot)
 

@@ -1,4 +1,4 @@
-"""Módulo de configuración para la aplicación."""
+"""Configuration module for the application."""
 
 from functools import lru_cache
 
@@ -7,15 +7,15 @@ from discord_bot.common.core.app_settings import AppSettings
 
 @lru_cache
 def get_settings() -> AppSettings:
-    """Obtiene la configuración.
+    """Get the application settings.
 
     Returns:
-        AppSettings: La configuración
+        AppSettings: The settings
     """
     return AppSettings()
 
 
-# Alias para compatibilidad
+# Alias for compatibility
 get_app_settings = get_settings
 
 

@@ -1,4 +1,4 @@
-"""Tests para discord_bot/verification/api_client.py."""
+"""Tests for discord_bot/verification/api_client.py."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,10 +12,10 @@ from discord_bot.verification.api_client import (
 
 
 class TestVerificationAPIResponse:
-    """Tests para VerificationAPIResponse."""
+    """Tests for VerificationAPIResponse."""
 
     def test_from_dict_all_fields(self) -> None:
-        """Probar creación desde diccionario con todos los campos."""
+        """Test creation from dictionary with all fields."""
         data = {
             "name": "TestPlayer",
             "level": 25,
@@ -39,7 +39,7 @@ class TestVerificationAPIResponse:
         assert response.current_ingame_time == "278, 08:34"
 
     def test_from_dict_missing_fields(self) -> None:
-        """Probar creación desde diccionario con campos faltantes."""
+        """Test creation from dictionary with missing fields."""
         data = {
             "name": "TestPlayer",
         }
@@ -56,7 +56,7 @@ class TestVerificationAPIResponse:
         assert response.current_ingame_time == ""
 
     def test_from_dict_empty(self) -> None:
-        """Probar creación desde diccionario vacío."""
+        """Test creation from empty dictionary."""
         data: dict[str, object] = {}
 
         response = VerificationAPIResponse.from_dict(data)
@@ -72,11 +72,11 @@ class TestVerificationAPIResponse:
 
 
 class TestCallVerificationApi:
-    """Tests para call_verification_api."""
+    """Tests for call_verification_api."""
 
     @pytest.mark.asyncio
     async def test_success(self) -> None:
-        """Probar llamada exitosa a la API."""
+        """Test successful API call."""
         mock_img_response = MagicMock()
         mock_img_response.status_code = 200
         mock_img_response.content = b"fake image data"
@@ -117,7 +117,7 @@ class TestCallVerificationApi:
 
     @pytest.mark.asyncio
     async def test_image1_download_fails(self) -> None:
-        """Probar fallo al descargar imagen 1."""
+        """Test failure downloading image 1."""
         mock_img1_response = MagicMock()
         mock_img1_response.status_code = 404
 
@@ -147,7 +147,7 @@ class TestCallVerificationApi:
 
     @pytest.mark.asyncio
     async def test_image2_download_fails(self) -> None:
-        """Probar fallo al descargar imagen 2."""
+        """Test failure downloading image 2."""
         mock_img1_response = MagicMock()
         mock_img1_response.status_code = 200
         mock_img1_response.content = b"fake image data"
@@ -177,7 +177,7 @@ class TestCallVerificationApi:
 
     @pytest.mark.asyncio
     async def test_api_error_response(self) -> None:
-        """Probar respuesta de error de la API."""
+        """Test API error response."""
         mock_img_response = MagicMock()
         mock_img_response.status_code = 200
         mock_img_response.content = b"fake image data"
@@ -208,7 +208,7 @@ class TestCallVerificationApi:
 
     @pytest.mark.asyncio
     async def test_http_error(self) -> None:
-        """Probar manejo de HTTPError."""
+        """Test HTTPError handling."""
         mock_client = MagicMock()
         mock_client.get = AsyncMock(side_effect=httpx.HTTPError("Connection failed"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -231,7 +231,7 @@ class TestCallVerificationApi:
 
     @pytest.mark.asyncio
     async def test_unexpected_error(self) -> None:
-        """Probar manejo de error inesperado."""
+        """Test unexpected error handling."""
         mock_client = MagicMock()
         mock_client.get = AsyncMock(side_effect=ValueError("Unexpected error"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)

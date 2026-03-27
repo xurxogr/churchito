@@ -1,10 +1,10 @@
-"""Enumeraciones de tipos de eventos."""
+"""Event type enumerations."""
 
 from enum import StrEnum
 
 
 class EventType(StrEnum):
-    """Tipos de eventos para el bus de eventos."""
+    """Event types for the event bus."""
 
     BOT_READY = "bot.ready"
     BOT_SHUTDOWN = "bot.shutdown"

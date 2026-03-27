@@ -1,4 +1,4 @@
-"""Middleware CSRF para protección contra Cross-Site Request Forgery."""
+"""CSRF middleware for Cross-Site Request Forgery protection."""
 
 import secrets
 from collections.abc import Awaitable, Callable
@@ -11,26 +11,26 @@ CSRF_TOKEN_KEY = "csrf_token"  # noqa: S105 - Key name, not a secret
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_FORM_FIELD = "csrf_token"
 
-# Rutas exentas de verificación CSRF
+# Routes exempt from CSRF verification
 EXEMPT_PATHS = frozenset(
     {
-        "/auth/callback",  # OAuth callback necesita permitir POST sin CSRF
+        "/auth/callback",  # OAuth callback needs to allow POST without CSRF
         "/health",
     }
 )
 
-# Métodos que requieren verificación CSRF
+# Methods that require CSRF verification
 UNSAFE_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
 
 
 def get_csrf_token(request: Request) -> str:
-    """Obtener o generar el token CSRF de la sesión.
+    """Get or generate the CSRF token from the session.
 
     Args:
-        request (Request): Request de Starlette
+        request (Request): Starlette request
 
     Returns:
-        str: Token CSRF
+        str: CSRF token
     """
     if CSRF_TOKEN_KEY not in request.session:
         request.session[CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
@@ -39,24 +39,24 @@ def get_csrf_token(request: Request) -> str:
 
 
 def _is_exempt(path: str) -> bool:
-    """Verificar si una ruta está exenta de CSRF.
+    """Check if a route is exempt from CSRF.
 
     Args:
-        path (str): Ruta de la request
+        path (str): Request path
 
     Returns:
-        bool: True si está exenta
+        bool: True if exempt
     """
     return path in EXEMPT_PATHS
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    """Middleware para protección CSRF.
+    """Middleware for CSRF protection.
 
-    Genera un token CSRF por sesión y lo valida en requests POST/PUT/DELETE.
-    El token puede enviarse como:
-    - Header X-CSRF-Token (para HTMX/fetch)
-    - Campo de formulario csrf_token
+    Generates a CSRF token per session and validates it on POST/PUT/DELETE requests.
+    The token can be sent as:
+    - Header X-CSRF-Token (for HTMX/fetch)
+    - Form field csrf_token
     """
 
     async def dispatch(
@@ -64,40 +64,40 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        """Procesar la request verificando CSRF si es necesario.
+        """Process the request by verifying CSRF if necessary.
 
         Args:
-            request (Request): Request entrante
-            call_next (Callable[[Request], Awaitable[Response]]): Siguiente handler
+            request (Request): Incoming request
+            call_next (Callable[[Request], Awaitable[Response]]): Next handler
 
         Returns:
-            Response: Respuesta del handler o error 403
+            Response: Handler response or 403 error
         """
-        # Generar token si no existe (para que esté disponible en templates)
+        # Generate token if it doesn't exist (so it's available in templates)
         get_csrf_token(request)
 
-        # Solo verificar en métodos unsafe
+        # Only verify on unsafe methods
         if request.method not in UNSAFE_METHODS:
             response: Response = await call_next(request)
             return response
 
-        # Verificar si la ruta está exenta
+        # Check if the route is exempt
         if _is_exempt(request.url.path):
             response = await call_next(request)
             return response
 
-        # Obtener token esperado de la sesión
+        # Get expected token from session
         expected_token = request.session.get(CSRF_TOKEN_KEY)
         if not expected_token:
             return Response(content="CSRF token missing from session", status_code=403)
 
-        # Buscar token en header (preferido para HTMX/fetch)
+        # Look for token in header (preferred for HTMX/fetch)
         submitted_token: str | None = request.headers.get(CSRF_HEADER_NAME)
 
-        # Si no está en header, buscar en form data
+        # If not in header, look in form data
         if not submitted_token:
-            # Necesitamos leer el body para obtener form data
-            # Esto solo funciona si el content-type es form-urlencoded
+            # We need to read the body to get form data
+            # This only works if content-type is form-urlencoded
             content_type = request.headers.get("content-type", "")
             if "application/x-www-form-urlencoded" in content_type:
                 form = await request.form()
@@ -105,7 +105,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 if isinstance(form_value, str):
                     submitted_token = form_value
 
-        # Validar token
+        # Validate token
         if not submitted_token or not secrets.compare_digest(submitted_token, expected_token):
             return Response(content="CSRF token validation failed", status_code=403)
 

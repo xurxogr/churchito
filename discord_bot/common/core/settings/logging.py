@@ -1,20 +1,20 @@
-"""Configuración de log."""
+"""Logging configuration."""
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoggingSettings(BaseModel):
-    """Configuración para el log."""
+    """Configuration for logging."""
 
-    loggers: dict[str, str] = Field(description="Registradores y sus niveles", default_factory=dict)
-    log_level: str = Field(description="Nivel de log", default="INFO")
+    loggers: dict[str, str] = Field(description="Loggers and their levels", default_factory=dict)
+    log_level: str = Field(description="Log level", default="INFO")
     log_format: str = Field(
-        description="Formato de log",
+        description="Log format",
         default="[%(asctime)s] %(levelname)s [%(name)s] %(message)s",
     )
-    date_format: str = Field(description="Formato de fecha de log", default="%Y-%m-%d %H:%M:%S")
-    rotate_logs: bool = Field(description="Rotar logs diariamente", default=False)
-    log_file: str | None = Field(description="Archivo de log en el que escribir", default=None)
+    date_format: str = Field(description="Log date format", default="%Y-%m-%d %H:%M:%S")
+    rotate_logs: bool = Field(description="Rotate logs daily", default=False)
+    log_file: str | None = Field(description="Log file to write to", default=None)
 
     model_config = ConfigDict(
         extra="forbid",

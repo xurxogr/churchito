@@ -1,4 +1,4 @@
-"""Tests para la aplicación web."""
+"""Tests for the web application."""
 
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +9,7 @@ from discord_bot.web.app import create_app
 
 
 class TestCreateApp:
-    """Tests para create_app."""
+    """Tests for create_app."""
 
     def test_creates_fastapi_app(
         self,
@@ -17,7 +17,7 @@ class TestCreateApp:
         mock_db_service: MagicMock,
         mock_bot: MagicMock,
     ) -> None:
-        """Probar que crea una aplicación FastAPI."""
+        """Test that it creates a FastAPI application."""
         app = create_app(test_app_settings, mock_db_service, mock_bot)
 
         assert app is not None
@@ -31,7 +31,7 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar que crea aplicación sin bot."""
+        """Test that it creates application without bot."""
         app = create_app(test_app_settings, mock_db_service)
 
         assert app is not None
@@ -42,14 +42,14 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar que genera secret_key si no está configurada."""
+        """Test that it generates secret_key if not configured."""
         test_app_settings.web.secret_key = ""
 
         with patch("discord_bot.web.app.logger") as mock_logger:
             app = create_app(test_app_settings, mock_db_service)
 
             assert app is not None
-            # Verificar que se registró la advertencia
+            # Verify warning was logged
             warning_calls = [
                 call
                 for call in mock_logger.warning.call_args_list
@@ -62,10 +62,10 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar que incluye los routers."""
+        """Test that it includes routers."""
         app = create_app(test_app_settings, mock_db_service)
 
-        # Verificar que hay rutas registradas
+        # Verify routes are registered
         routes = [route.path for route in app.routes if hasattr(route, "path")]
         assert "/auth/login" in routes or any("/auth" in r for r in routes)
 
@@ -74,7 +74,7 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar el endpoint de health check."""
+        """Test the health check endpoint."""
         app = create_app(test_app_settings, mock_db_service)
         client = TestClient(app)
 
@@ -88,12 +88,12 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar el manejador de excepciones HTTP con ruta protegida."""
+        """Test the HTTP exception handler with protected route."""
         from fastapi import HTTPException
 
         app = create_app(test_app_settings, mock_db_service)
 
-        # Agregar una ruta que lanza HTTPException
+        # Add a route that raises HTTPException
         @app.get("/test-http-error")
         async def raise_http_error() -> None:
             raise HTTPException(status_code=403, detail="Test error")
@@ -103,7 +103,7 @@ class TestCreateApp:
 
         assert response.status_code == 403
         assert "text/html" in response.headers.get("content-type", "")
-        # El detalle de errores 4xx sí se muestra
+        # 4xx error details are shown
         assert "Test error" in response.text
 
     def test_http_exception_handler_hides_5xx_details(
@@ -111,7 +111,7 @@ class TestCreateApp:
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar que errores 5xx no exponen detalles internos."""
+        """Test that 5xx errors don't expose internal details."""
         from fastapi import HTTPException
 
         app = create_app(test_app_settings, mock_db_service)
@@ -124,18 +124,18 @@ class TestCreateApp:
         response = client.get("/test-server-error")
 
         assert response.status_code == 500
-        # No debe exponer el detalle técnico
+        # Should not expose technical details
         assert "Database" not in response.text
         assert "secret" not in response.text
-        # Debe mostrar mensaje genérico
-        assert "Error interno" in response.text
+        # Should show generic message
+        assert "Internal server error" in response.text
 
     def test_generic_exception_handler(
         self,
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Probar que excepciones no manejadas no exponen detalles."""
+        """Test that unhandled exceptions don't expose details."""
         app = create_app(test_app_settings, mock_db_service)
 
         @app.get("/test-unhandled")
@@ -146,8 +146,8 @@ class TestCreateApp:
         response = client.get("/test-unhandled")
 
         assert response.status_code == 500
-        # No debe exponer el error interno
+        # Should not expose internal error
         assert "Sensitive" not in response.text
         assert "secrets" not in response.text
-        # Debe mostrar mensaje genérico
-        assert "Error interno" in response.text
+        # Should show generic message
+        assert "Internal server error" in response.text

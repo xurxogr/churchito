@@ -1,10 +1,10 @@
-"""Tipos de verificacion."""
+"""Verification types."""
 
 from enum import StrEnum
 
 
 class VerificationType(StrEnum):
-    """Tipos de verificacion."""
+    """Verification types."""
 
     REGULAR = "regular"
     ALLY = "ally"

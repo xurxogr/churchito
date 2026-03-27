@@ -1,4 +1,4 @@
-"""Modelo para solicitudes de verificacion de usuarios."""
+"""Model for user verification requests."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -12,15 +12,15 @@ from discord_bot.verification.enums import VerificationStatus, VerificationType
 
 
 def _generate_public_id() -> str:
-    """Genera un ID público único usando NanoID."""
+    """Generate a unique public ID using NanoID."""
     return str(generate(size=21))
 
 
 class VerificationRequest(Base):
-    """Modelo para solicitudes de verificacion de usuarios.
+    """Model for user verification requests.
 
-    Almacena el estado y datos de cada solicitud de verificacion,
-    incluyendo capturas de pantalla y resultado de la revision.
+    Stores the state and data of each verification request,
+    including screenshots and review result.
     """
 
     __tablename__ = "verification_requests"
@@ -44,19 +44,19 @@ class VerificationRequest(Base):
         String(30), default=VerificationStatus.PENDING_SCREENSHOTS, nullable=False
     )
 
-    # URLs de las capturas de pantalla
+    # Screenshot URLs
     screenshot_1_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     screenshot_2_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Información del jugador extraída por OCR (name, regiment, level, faction, shard, etc.)
+    # Player information extracted by OCR (name, regiment, level, faction, shard, etc.)
     player_info: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
-    # Informacion del moderador que reviso
+    # Reviewer moderator information
     reviewed_by_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     reviewed_by_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # ID del mensaje de moderacion (se edita conforme avanza la verificacion)
+    # Moderation message ID (edited as verification progresses)
     mod_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Timestamps
@@ -69,10 +69,10 @@ class VerificationRequest(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
-        """Representacion en cadena.
+        """String representation.
 
         Returns:
-            str: Representacion en cadena de la solicitud
+            str: String representation of the request
         """
         return (
             f"<VerificationRequest(id={self.id}, guild_id={self.guild_id}, "

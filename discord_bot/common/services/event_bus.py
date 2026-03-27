@@ -1,4 +1,4 @@
-"""Implementación de bus de eventos para el patrón pub/sub."""
+"""Event bus implementation for pub/sub pattern."""
 
 import logging
 from collections import defaultdict
@@ -13,73 +13,67 @@ EventHandler = Callable[[dict[str, Any]], None]
 
 
 class EventBus:
-    """Bus de eventos simple para publicar y suscribirse a eventos."""
+    """Simple event bus for publishing and subscribing to events."""
 
     def __init__(self) -> None:
-        """Inicializar el bus de eventos."""
+        """Initialize the event bus."""
         self._subscribers: dict[str, list[EventHandler]] = defaultdict(list)
 
     def subscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Suscribirse a un manejador para un tipo de evento.
+        """Subscribe a handler to an event type.
 
         Args:
-            event_type (str): El tipo de evento al que suscribirse
-            handler (EventHandler): Callable que será invocado cuando se emita el evento
+            event_type (str): The event type to subscribe to
+            handler (EventHandler): Callable that will be invoked when the event is emitted
         """
         self._subscribers[event_type].append(handler)
-        logger.debug(f"Suscrito el manejador {handler.__name__} al evento '{event_type}'")
+        logger.debug(f"Subscribed handler {handler.__name__} to event '{event_type}'")
 
     def unsubscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Cancelar la suscripción de un manejador de un tipo de evento.
+        """Unsubscribe a handler from an event type.
 
         Args:
-            event_type (str): El tipo de evento del que cancelar la suscripción
-            handler (EventHandler): El manejador a eliminar
+            event_type (str): The event type to unsubscribe from
+            handler (EventHandler): The handler to remove
         """
         if event_type in self._subscribers:
             try:
                 self._subscribers[event_type].remove(handler)
-                logger.debug(
-                    f"Cancelada la suscripción del manejador {handler.__name__} "
-                    "del evento '{event_type}'"
-                )
+                logger.debug(f"Unsubscribed handler {handler.__name__} from event '{{event_type}}'")
             except ValueError:
-                logger.warning(
-                    f"Manejador {handler.__name__} no encontrado para el evento '{event_type}'"
-                )
+                logger.warning(f"Handler {handler.__name__} not found for event '{event_type}'")
 
     def emit(self, event_type: str, data: dict[str, Any]) -> None:
-        """Emitir un evento a todos los manejadores suscritos.
+        """Emit an event to all subscribed handlers.
 
         Args:
-            event_type (str): El tipo de evento que se emite
-            data (dict[str, Any]): Datos del evento a pasar a los manejadores
+            event_type (str): The event type being emitted
+            data (dict[str, Any]): Event data to pass to handlers
         """
         handlers = self._subscribers.get(event_type, [])
-        logger.debug(f"Emitiendo evento '{event_type}' a {len(handlers)} manejador(es)")
+        logger.debug(f"Emitting event '{event_type}' to {len(handlers)} handler(s)")
 
         for handler in handlers:
             try:
                 handler(data)
             except Exception:
-                # No permitir que las fallas del manejador interrumpan la emisión del evento
+                # Don't let handler failures interrupt event emission
                 logger.error(
-                    f"Error en el manejador de eventos {handler.__name__} "
-                    "para el evento '{event_type}': {e}",
+                    f"Error in event handler {handler.__name__} for event '{{event_type}}': {{e}}",
                     exc_info=True,
                 )
 
     def clear(self) -> None:
-        """Limpiar todas las suscripciones."""
+        """Clear all subscriptions."""
         self._subscribers.clear()
-        logger.debug("Se limpiaron todas las suscripciones de eventos")
+        logger.debug("Cleared all event subscriptions")
 
 
 @lru_cache
 def get_event_bus() -> EventBus:
-    """Obtener la instancia global del bus de eventos.
+    """Get the global event bus instance.
 
     Returns:
-        EventBus: El singleton global del bus de eventos
+        EventBus: The global event bus singleton
     """
     return EventBus()

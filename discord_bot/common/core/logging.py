@@ -1,4 +1,4 @@
-"""Configuración de registro para Discord Bot."""
+"""Logging configuration for Discord Bot."""
 
 import logging
 import sys
@@ -10,10 +10,10 @@ from discord_bot.common.core.settings.logging import LoggingSettings
 
 
 def setup_logging(settings: LoggingSettings) -> None:
-    """Configura la logging para la aplicación.
+    """Configure logging for the application.
 
     Args:
-        settings (LoggingSettings): Configuración para el sistema de logs.
+        settings (LoggingSettings): Configuration for the logging system.
     """
     handlers: Sequence[logging.Handler]
     if settings.log_file:
@@ -42,6 +42,6 @@ def setup_logging(settings: LoggingSettings) -> None:
         force=True,
     )
 
-    # Configura los niveles de los loggers individuales
+    # Configure individual logger levels
     for logger_name, level in settings.loggers.items():
         logging.getLogger(logger_name).setLevel(level)

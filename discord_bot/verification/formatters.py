@@ -1,4 +1,4 @@
-"""Funciones de formateo para el cog de verificacion."""
+"""Formatting functions for the verification cog."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ from discord_bot.common.services.embed_builder import (
 )
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 
-# Embed config por defecto para moderación
+# Default embed config for moderation
 DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
     "color": "#FFA500",
     "description": (
-        "**Usuario:** {user_mention} ({username})\n"
-        "**Tipo:** {verification_type}\n"
-        "**Fecha:** {created_at}\n\n"
+        "**User:** {user_mention} ({username})\n"
+        "**Type:** {verification_type}\n"
+        "**Date:** {created_at}\n\n"
         "{status}"
     ),
     "sections": [],
@@ -28,14 +28,14 @@ DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
 
 
 def format_message(template: str | None = None, **kwargs: str | None) -> str:
-    """Reemplazar placeholders en un mensaje.
+    """Replace placeholders in a message.
 
     Args:
-        template (str | None): Plantilla del mensaje.
-        **kwargs: Placeholders a reemplazar (ej: username="Juan", status="Pendiente").
+        template (str | None): Message template.
+        **kwargs: Placeholders to replace (e.g.: username="John", status="Pending").
 
     Returns:
-        str: Mensaje formateado.
+        str: Formatted message.
     """
     result = template or ""
     for key, value in kwargs.items():
@@ -44,18 +44,18 @@ def format_message(template: str | None = None, **kwargs: str | None) -> str:
 
 
 def create_panel_embed(text: str) -> discord.Embed:
-    """Crear un embed para el panel de verificación.
+    """Create an embed for the verification panel.
 
-    Busca URLs de imagen en el texto y las usa para el embed.
-    La URL de imagen se elimina del texto mostrado.
+    Searches for image URLs in the text and uses them for the embed.
+    The image URL is removed from the displayed text.
 
     Args:
-        text (str): Texto del mensaje que puede contener URLs de imagen.
+        text (str): Message text that may contain image URLs.
 
     Returns:
-        discord.Embed: Embed con el mensaje formateado.
+        discord.Embed: Embed with the formatted message.
     """
-    # Buscar URLs de imagen
+    # Search for image URLs
     image_pattern = r"(https?://[^\s]+\.(?:png|jpg|jpeg|gif|webp)(?:\?[^\s]*)?)"
     match = re.search(pattern=image_pattern, string=text, flags=re.IGNORECASE)
 
@@ -64,7 +64,7 @@ def create_panel_embed(text: str) -> discord.Embed:
 
     if match:
         image_url = match.group(1)
-        # Eliminar la URL del texto (y lineas vacías extra)
+        # Remove the URL from the text (and extra empty lines)
         clean_text = re.sub(
             pattern=image_pattern, repl="", string=text, count=1, flags=re.IGNORECASE
         )
@@ -82,13 +82,13 @@ def create_panel_embed(text: str) -> discord.Embed:
 
 
 def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
-    """Parsear un color hexadecimal a discord.Color.
+    """Parse a hexadecimal color to discord.Color.
 
     Args:
-        hex_color: Color en formato hex (#FF5733 o FF5733).
+        hex_color: Color in hex format (#FF5733 or FF5733).
 
     Returns:
-        discord.Color o None si el formato es inválido.
+        discord.Color or None if the format is invalid.
     """
     if not hex_color:
         return None
@@ -117,7 +117,7 @@ def build_history_section(
     if not past_requests:
         return None
 
-    history_label = config.get(ConfigKey.HISTORY_LABEL) or "Historial"
+    history_label = config.get(ConfigKey.HISTORY_LABEL) or "History"
     history_lines = []
 
     for past in past_requests[:5]:
@@ -197,47 +197,47 @@ def create_mod_embeds(
     sections_context: dict[str, Any] | None = None,
     **extra_placeholders: str | None,
 ) -> list[discord.Embed]:
-    """Crear embeds para el mensaje de moderación con auto-split.
+    """Create embeds for the moderation message with auto-split.
 
-    Cuando una sección de descripción sigue a una de campos (o viceversa),
-    se crea un nuevo embed automáticamente para mantener el orden visual.
+    When a description section follows a fields section (or vice versa),
+    a new embed is created automatically to maintain visual order.
 
     Args:
-        verification_type: Tipo de verificación (REGULAR o ALLY).
-        config: Configuración del cog con el embed config.
-        username: Nombre del usuario.
-        user_mention: Mención del usuario.
-        user_id: ID del usuario (para el thumbnail fallback).
-        status: Texto del estado actual.
-        created_at: Fecha de creación formateada (YYYY-MM-DD HH:MM).
-        created_at_relative: Fecha de creación relativa (<t:UNIX:R>).
-        guild: Guild de Discord (para placeholders globales).
-        member: Miembro de Discord (para placeholders de usuario).
-        additional_content: Contenido adicional (errores API, historial de usuario).
-        additional_sections: Secciones adicionales a añadir (player info, etc.).
-        sections_context: Contexto de placeholders para las secciones adicionales.
-        **extra_placeholders: Placeholders adicionales.
+        verification_type: Verification type (REGULAR or ALLY).
+        config: Cog configuration with the embed config.
+        username: User's name.
+        user_mention: User mention.
+        user_id: User ID (for thumbnail fallback).
+        status: Current status text.
+        created_at: Formatted creation date (YYYY-MM-DD HH:MM).
+        created_at_relative: Relative creation date (<t:UNIX:R>).
+        guild: Discord guild (for global placeholders).
+        member: Discord member (for user placeholders).
+        additional_content: Additional content (API errors, user history).
+        additional_sections: Additional sections to add (player info, etc.).
+        sections_context: Placeholder context for additional sections.
+        **extra_placeholders: Additional placeholders.
 
     Returns:
-        list[discord.Embed]: Lista de embeds con el mensaje formateado.
+        list[discord.Embed]: List of embeds with the formatted message.
     """
-    # Obtener el embed config según el tipo de verificación
+    # Get the embed config based on verification type
     if verification_type == VerificationType.REGULAR:
         embed_config_data = config.get(ConfigKey.MOD_EMBED_REGULAR)
     else:
         embed_config_data = config.get(ConfigKey.MOD_EMBED_ALLY)
 
-    # Usar config por defecto si no hay configuración
+    # Use default config if no configuration exists
     if not embed_config_data or not isinstance(embed_config_data, dict):
         embed_config_data = DEFAULT_MOD_EMBED_CONFIG
 
-    # Construir EmbedConfig desde los datos
+    # Build EmbedConfig from the data
     embed_config = EmbedConfig(**embed_config_data)
 
-    # Obtener el nombre del tipo de verificación
+    # Get the verification type display name
     type_display = get_verification_type_display(verification_type, config)
 
-    # Crear contexto con todos los placeholders
+    # Create context with all placeholders
     extra_data: dict[str, Any] = {
         "username": username or "",
         "user_mention": user_mention or "",
@@ -254,16 +254,16 @@ def create_mod_embeds(
         extra_data=extra_data,
     )
 
-    # Añadir secciones adicionales al embed config si existen
+    # Add additional sections to embed config if they exist
     all_sections = list(embed_config.sections)
 
     if additional_sections:
-        # Crear contexto combinado para las secciones adicionales
+        # Create combined context for additional sections
         sections_extra_data = dict(extra_data)
         if sections_context:
             sections_extra_data.update(sections_context)
 
-        # Validar y añadir secciones adicionales
+        # Validate and add additional sections
         for section_data in additional_sections:
             if not isinstance(section_data, dict):
                 continue
@@ -275,14 +275,14 @@ def create_mod_embeds(
             except (TypeError, ValueError):
                 continue
 
-        # Actualizar el contexto con los datos de secciones adicionales
+        # Update the context with additional sections data
         context = PlaceholderContext(
             guild=guild,
             member=member,
             extra_data=sections_extra_data,
         )
 
-    # Construir el EmbedConfig completo con todas las secciones
+    # Build the complete EmbedConfig with all sections
     full_config = EmbedConfig(
         title=embed_config.title,
         description=embed_config.description,
@@ -294,20 +294,20 @@ def create_mod_embeds(
         sections=all_sections,
     )
 
-    # Construir los embeds con auto-split
+    # Build the embeds with auto-split
     embeds = build_embeds(
         full_config,
         context,
         default_color=discord.Color.orange(),
     )
 
-    # Añadir contenido adicional (errores API, historial) al último embed
+    # Add additional content (API errors, history) to the last embed
     if additional_content and embeds:
         last_embed = embeds[-1]
         current_desc = last_embed.description or ""
         last_embed.description = current_desc + additional_content
 
-    # Fallback para thumbnail si no está configurado (primer embed)
+    # Fallback for thumbnail if not configured (first embed)
     if embeds and not embeds[0].thumbnail.url and user_id:
         embeds[0].set_thumbnail(url=f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png")
 
@@ -317,18 +317,18 @@ def create_mod_embeds(
 def get_verification_type_display(
     verification_type: VerificationType, config: dict[str, Any]
 ) -> str:
-    """Obtener el nombre a mostrar para un tipo de verificacion.
+    """Get the display name for a verification type.
 
     Args:
-        verification_type (VerificationType): Tipo de verificacion.
-        config (dict[str, Any]): Configuracion del cog.
+        verification_type (VerificationType): Verification type.
+        config (dict[str, Any]): Cog configuration.
 
     Returns:
-        str: Nombre a mostrar.
+        str: Display name.
     """
     if verification_type == VerificationType.REGULAR:
         return config.get(ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY) or "Normal"
-    return config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Aliado"
+    return config.get(ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY) or "Ally"
 
 
 def create_tracker_embed(
@@ -337,21 +337,21 @@ def create_tracker_embed(
     guild_id: int,
     channel_id: int,
 ) -> discord.Embed:
-    """Crear embed mostrando todas las verificaciones pendientes.
+    """Create embed showing all pending verifications.
 
-    Agrupa las solicitudes por tipo de verificación y muestra cada una
-    en formato compacto: id, username, estado y tiempo relativo.
+    Groups requests by verification type and displays each one
+    in compact format: id, username, status and relative time.
 
     Args:
-        pending_requests: Lista de VerificationRequest pendientes.
-        config: Configuración del cog.
-        guild_id: ID del guild para construir links.
-        channel_id: ID del canal de moderación para construir links.
+        pending_requests: List of pending VerificationRequest.
+        config: Cog configuration.
+        guild_id: Guild ID for building links.
+        channel_id: Moderation channel ID for building links.
 
     Returns:
-        discord.Embed: Embed con la lista de verificaciones pendientes.
+        discord.Embed: Embed with the list of pending verifications.
     """
-    title = config.get(ConfigKey.TRACKER_TITLE) or "📋 Verificaciones Pendientes"
+    title = config.get(ConfigKey.TRACKER_TITLE) or "📋 Pending Verifications"
     embed = discord.Embed(
         title=title,
         color=discord.Color.blue(),
@@ -376,17 +376,17 @@ def create_tracker_embed(
             # Get status text
             if request.status == VerificationStatus.PENDING_SCREENSHOTS:
                 status_text = (
-                    config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "Esperando capturas"
+                    config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "Awaiting screenshots"
                 )
             else:
-                status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "Pendiente de revisión"
+                status_text = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "Pending review"
             status_text = _clean_status_text(status_text)
 
-            # Timestamp relativo de Discord
+            # Discord relative timestamp
             unix_timestamp = int(request.created_at.timestamp())
             relative_time = f"<t:{unix_timestamp}:R>"
 
-            # Link al mensaje de moderación usando public_id de verificación
+            # Link to moderation message using verification public_id
             if request.mod_message_id:
                 message_link = (
                     f"https://discord.com/channels/{guild_id}/{channel_id}/{request.mod_message_id}"
@@ -406,19 +406,19 @@ def create_tracker_embed(
 
 
 def _clean_status_text(status_text: str) -> str:
-    """Limpiar texto de estado quitando emojis y formato de negrita.
+    """Clean status text by removing emojis and bold formatting.
 
     Args:
-        status_text: Texto de estado desde config (puede incluir emoji y markdown).
+        status_text: Status text from config (may include emoji and markdown).
 
     Returns:
-        Texto limpio sin emojis iniciales ni formato.
+        Clean text without leading emojis or formatting.
     """
-    # Quitar patrones comunes como "⏳ **Estado:** " o "🔍 **Estado:** "
+    # Remove common patterns like "⏳ **Status:** " or "🔍 **Status:** "
     import re
 
-    # Quitar emoji al inicio
+    # Remove emoji at the start
     cleaned = re.sub(r"^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF\s]+", "", status_text)
-    # Quitar **Estado:** o similar
+    # Remove **Status:** or similar
     cleaned = re.sub(r"\*\*[^*]+:\*\*\s*", "", cleaned)
     return cleaned.strip()

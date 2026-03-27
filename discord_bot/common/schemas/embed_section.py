@@ -1,4 +1,4 @@
-"""Esquemas para secciones de embeds configurables."""
+"""Schemas for configurable embed sections."""
 
 from typing import Any
 
@@ -8,32 +8,32 @@ from discord_bot.common.enums.embed_section_type import EmbedSectionType
 
 
 class EmbedFieldItem(BaseModel):
-    """Definición de un campo dentro de una sección FIELDS."""
+    """Definition of a field within a FIELDS section."""
 
-    name: str = Field(description="Nombre/título del campo")
-    value: str = Field(description="Valor del campo (puede contener placeholders)")
+    name: str = Field(description="Name/title of the field")
+    value: str = Field(description="Value of the field (can contain placeholders)")
 
 
 class EmbedSection(BaseModel):
-    """Definición de una sección de embed."""
+    """Definition of an embed section."""
 
-    type: EmbedSectionType = Field(description="Tipo de sección")
+    type: EmbedSectionType = Field(description="Section type")
 
-    # Para TEXT
-    title: str = Field(default="", description="Título/nombre del campo")
-    content: str = Field(default="", description="Contenido de texto")
+    # For TEXT
+    title: str = Field(default="", description="Title/name of the field")
+    content: str = Field(default="", description="Text content")
 
-    # Para FIELDS
-    inline: bool = Field(default=True, description="Si los campos son inline")
-    field_1_name: str | None = Field(default=None, description="Nombre del campo 1")
-    field_1_value: str | None = Field(default=None, description="Valor del campo 1")
-    field_2_name: str | None = Field(default=None, description="Nombre del campo 2")
-    field_2_value: str | None = Field(default=None, description="Valor del campo 2")
-    field_3_name: str | None = Field(default=None, description="Nombre del campo 3")
-    field_3_value: str | None = Field(default=None, description="Valor del campo 3")
+    # For FIELDS
+    inline: bool = Field(default=True, description="Whether fields are inline")
+    field_1_name: str | None = Field(default=None, description="Field 1 name")
+    field_1_value: str | None = Field(default=None, description="Field 1 value")
+    field_2_name: str | None = Field(default=None, description="Field 2 name")
+    field_2_value: str | None = Field(default=None, description="Field 2 value")
+    field_3_name: str | None = Field(default=None, description="Field 3 name")
+    field_3_value: str | None = Field(default=None, description="Field 3 value")
 
     def get_fields(self) -> list[EmbedFieldItem]:
-        """Obtener lista de campos definidos."""
+        """Get list of defined fields."""
         fields = []
         for i in range(1, 4):
             name = getattr(self, f"field_{i}_name")
@@ -44,28 +44,28 @@ class EmbedSection(BaseModel):
 
 
 class EmbedConfig(BaseModel):
-    """Configuración completa de un embed."""
+    """Complete embed configuration."""
 
-    # Propiedades principales del embed
-    title: str | None = Field(default=None, description="Título del embed")
+    # Main embed properties
+    title: str | None = Field(default=None, description="Embed title")
     description: str | None = Field(
-        default=None, description="Descripción del embed (aparece antes de los campos)"
+        default=None, description="Embed description (appears before fields)"
     )
-    color: str | None = Field(default=None, description="Color en formato hex (#FF5733)")
+    color: str | None = Field(default=None, description="Color in hex format (#FF5733)")
 
-    # Imágenes
-    thumbnail_url: str | None = Field(default=None, description="URL del thumbnail (esquina)")
-    image_url: str | None = Field(default=None, description="URL de la imagen principal")
+    # Images
+    thumbnail_url: str | None = Field(default=None, description="Thumbnail URL (corner)")
+    image_url: str | None = Field(default=None, description="Main image URL")
 
     # Footer
-    footer_text: str | None = Field(default=None, description="Texto del footer")
-    footer_icon_url: str | None = Field(default=None, description="URL del icono del footer")
+    footer_text: str | None = Field(default=None, description="Footer text")
+    footer_icon_url: str | None = Field(default=None, description="Footer icon URL")
 
-    # Secciones que componen el cuerpo del embed
+    # Sections that make up the embed body
     sections: list[EmbedSection] = Field(default_factory=list)
 
     def count_fields(self) -> int:
-        """Contar el número total de campos en todas las secciones."""
+        """Count the total number of fields across all sections."""
         total = 0
         for section in self.sections:
             if section.type == EmbedSectionType.FIELDS:
@@ -75,16 +75,16 @@ class EmbedConfig(BaseModel):
         return total
 
     def validate_field_limit(self) -> bool:
-        """Validar que no se excedan los 25 campos permitidos por Discord.
+        """Validate that Discord's 25 field limit is not exceeded.
 
         Returns:
-            True si está dentro del límite, False si lo excede.
+            True if within limit, False if exceeded.
         """
         return self.count_fields() <= 25
 
     @classmethod
     def from_table_rows(cls, rows: list[dict[str, Any]]) -> "EmbedConfig":
-        """Crear configuración desde filas de tabla de config."""
+        """Create configuration from config table rows."""
         sections = []
         for row in rows:
             section_type = row.get("type", EmbedSectionType.TEXT)

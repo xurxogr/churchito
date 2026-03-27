@@ -1,4 +1,4 @@
-"""Tests para el router de configuración."""
+"""Tests for the configuration router."""
 
 from datetime import timedelta
 from typing import Any
@@ -22,13 +22,13 @@ from discord_bot.web.routers.config import (
 
 @pytest.fixture
 def config_app(simple_app: FastAPI) -> FastAPI:
-    """Crear aplicación con router de config.
+    """Create application with config router.
 
     Args:
-        simple_app (FastAPI): Aplicación base
+        simple_app (FastAPI): Base application
 
     Returns:
-        FastAPI: Aplicación con config router
+        FastAPI: Application with config router
     """
     simple_app.include_router(router)
     return simple_app
@@ -36,22 +36,22 @@ def config_app(simple_app: FastAPI) -> FastAPI:
 
 @pytest.fixture
 def config_client(config_app: FastAPI) -> TestClient:
-    """Crear cliente para config.
+    """Create client for config.
 
     Args:
-        config_app (FastAPI): Aplicación
+        config_app (FastAPI): Application
 
     Returns:
-        TestClient: Cliente de prueba
+        TestClient: Test client
     """
     return TestClient(config_app)
 
 
 class TestGetTemplates:
-    """Tests para get_templates."""
+    """Tests for get_templates."""
 
     def test_returns_templates(self, simple_app: FastAPI) -> None:
-        """Probar que retorna templates."""
+        """Test that it returns templates."""
         request = MagicMock()
         request.app = simple_app
 
@@ -60,10 +60,10 @@ class TestGetTemplates:
 
 
 class TestGetGuildInfo:
-    """Tests para _get_guild_info."""
+    """Tests for _get_guild_info."""
 
     def test_returns_guild_when_found(self) -> None:
-        """Probar que retorna info del guild cuando existe."""
+        """Test that it returns guild info when found."""
         mock_bot = MagicMock()
         mock_guild = MagicMock()
         mock_guild.id = 111222333
@@ -75,90 +75,90 @@ class TestGetGuildInfo:
         assert result["name"] == "Test Guild"
 
     def test_returns_default_when_not_found(self) -> None:
-        """Probar que retorna info por defecto cuando no existe."""
+        """Test that it returns default info when not found."""
         mock_bot = MagicMock()
         mock_bot.get_guild.return_value = None
 
         result = _get_guild_info(mock_bot, 999999)
         assert result["id"] == "999999"
-        assert "Servidor" in result["name"]
+        assert "Server" in result["name"]
 
 
 class TestConvertFormValue:
-    """Tests para _convert_form_value."""
+    """Tests for _convert_form_value."""
 
     def test_convert_empty_string_preserved(self) -> None:
-        """Probar que STRING vacio se preserva (permite limpiar config)."""
+        """Test that empty STRING is preserved (allows clearing config)."""
         result = _convert_form_value("", ConfigOptionType.STRING)
         assert result == ""
 
     def test_convert_empty_textarea_preserved(self) -> None:
-        """Probar que TEXTAREA vacio se preserva."""
+        """Test that empty TEXTAREA is preserved."""
         result = _convert_form_value("", ConfigOptionType.TEXTAREA)
         assert result == ""
 
     def test_convert_empty_integer_returns_none(self) -> None:
-        """Probar que INTEGER vacio retorna None."""
+        """Test that empty INTEGER returns None."""
         result = _convert_form_value("", ConfigOptionType.INTEGER)
         assert result is None
 
     def test_convert_integer(self) -> None:
-        """Probar conversión a entero."""
+        """Test integer conversion."""
         result = _convert_form_value("42", ConfigOptionType.INTEGER)
         assert result == 42
 
     def test_convert_boolean_true(self) -> None:
-        """Probar conversión a booleano True."""
-        for value in ["true", "1", "on", "yes", "sí"]:
+        """Test boolean True conversion."""
+        for value in ["true", "1", "on", "yes"]:
             result = _convert_form_value(value, ConfigOptionType.BOOLEAN)
             assert result is True
 
     def test_convert_boolean_false(self) -> None:
-        """Probar conversión a booleano False."""
+        """Test boolean False conversion."""
         result = _convert_form_value("false", ConfigOptionType.BOOLEAN)
         assert result is False
 
     def test_convert_channel(self) -> None:
-        """Probar conversión de canal."""
+        """Test channel conversion."""
         result = _convert_form_value("123456789", ConfigOptionType.CHANNEL)
         assert result == 123456789
 
     def test_convert_role(self) -> None:
-        """Probar conversión de rol."""
+        """Test role conversion."""
         result = _convert_form_value("987654321", ConfigOptionType.ROLE)
         assert result == 987654321
 
     def test_convert_channel_list(self) -> None:
-        """Probar conversión de lista de canales."""
+        """Test channel list conversion."""
         result = _convert_form_value("123,456,789", ConfigOptionType.CHANNEL_LIST)
         assert result == [123, 456, 789]
 
     def test_convert_channel_list_empty(self) -> None:
-        """Probar conversión de lista de canales vacía."""
+        """Test empty channel list conversion."""
         result = _convert_form_value("", ConfigOptionType.CHANNEL_LIST)
         assert result is None
 
     def test_convert_role_list(self) -> None:
-        """Probar conversión de lista de roles."""
+        """Test role list conversion."""
         result = _convert_form_value("111,222,333", ConfigOptionType.ROLE_LIST)
         assert result == [111, 222, 333]
 
     def test_convert_string(self) -> None:
-        """Probar conversión de string."""
+        """Test string conversion."""
         result = _convert_form_value("hello world", ConfigOptionType.STRING)
         assert result == "hello world"
 
     def test_convert_text_choice(self) -> None:
-        """Probar conversión de text choice."""
+        """Test text choice conversion."""
         result = _convert_form_value("option_a", ConfigOptionType.TEXT_CHOICE)
         assert result == "option_a"
 
 
 class TestValidateChannelPermissions:
-    """Tests para _validate_channel_permissions."""
+    """Tests for _validate_channel_permissions."""
 
     def test_returns_none_when_no_bot(self, simple_app: FastAPI) -> None:
-        """Probar que retorna None cuando no hay bot."""
+        """Test that it returns None when there is no bot."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.bot = None
@@ -167,7 +167,7 @@ class TestValidateChannelPermissions:
         assert result is None
 
     def test_returns_none_when_guild_not_found(self, simple_app: FastAPI) -> None:
-        """Probar que retorna None cuando no se encuentra el guild."""
+        """Test that it returns None when guild is not found."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.bot = MagicMock()
@@ -177,7 +177,7 @@ class TestValidateChannelPermissions:
         assert result is None
 
     def test_returns_error_when_channel_not_found(self, simple_app: FastAPI) -> None:
-        """Probar que retorna error cuando no se encuentra el canal."""
+        """Test that it returns error when channel is not found."""
         request = MagicMock()
         request.app = simple_app
         mock_guild = MagicMock()
@@ -188,10 +188,10 @@ class TestValidateChannelPermissions:
         result = _validate_channel_permissions(request, 123, 456)
         assert result is not None
         assert "456" in result
-        assert "no encontrado" in result
+        assert "not found" in result
 
     def test_returns_none_when_bot_member_not_found(self, simple_app: FastAPI) -> None:
-        """Probar que retorna None cuando no se encuentra el miembro bot."""
+        """Test that it returns None when bot member is not found."""
         request = MagicMock()
         request.app = simple_app
         mock_channel = MagicMock()
@@ -206,7 +206,7 @@ class TestValidateChannelPermissions:
         assert result is None
 
     def test_returns_error_when_no_send_permission(self, simple_app: FastAPI) -> None:
-        """Probar que retorna error cuando no tiene permisos de enviar."""
+        """Test that it returns error when there is no send permission."""
         request = MagicMock()
         request.app = simple_app
         mock_permissions = MagicMock()
@@ -225,10 +225,10 @@ class TestValidateChannelPermissions:
         result = _validate_channel_permissions(request, 123, 456)
         assert result is not None
         assert "test-channel" in result
-        assert "permiso" in result.lower()
+        assert "permission" in result.lower()
 
     def test_returns_none_when_has_permission(self, simple_app: FastAPI) -> None:
-        """Probar que retorna None cuando tiene permisos."""
+        """Test that it returns None when it has permission."""
         request = MagicMock()
         request.app = simple_app
         mock_permissions = MagicMock()
@@ -248,12 +248,12 @@ class TestValidateChannelPermissions:
 
 
 class TestGuildAccessDep:
-    """Tests para guild_access_dep."""
+    """Tests for guild_access_dep."""
 
     async def test_returns_user_when_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que retorna usuario cuando tiene acceso."""
+        """Test that it returns user when they have access."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = [123456789012345678]
@@ -263,91 +263,91 @@ class TestGuildAccessDep:
 
 
 class TestFormatRelativeTime:
-    """Tests para _format_relative_time."""
+    """Tests for _format_relative_time."""
 
     def test_seconds(self) -> None:
-        """Probar formato para segundos."""
+        """Test format for seconds."""
         result = _format_relative_time(timedelta(seconds=30))
-        assert result == "hace unos segundos"
+        assert result == "a few seconds ago"
 
     def test_one_minute(self) -> None:
-        """Probar formato para 1 minuto."""
+        """Test format for 1 minute."""
         result = _format_relative_time(timedelta(minutes=1))
-        assert result == "hace 1 minuto"
+        assert result == "1 minute ago"
 
     def test_multiple_minutes(self) -> None:
-        """Probar formato para varios minutos."""
+        """Test format for multiple minutes."""
         result = _format_relative_time(timedelta(minutes=45))
-        assert result == "hace 45 minutos"
+        assert result == "45 minutes ago"
 
     def test_one_hour(self) -> None:
-        """Probar formato para 1 hora."""
+        """Test format for 1 hour."""
         result = _format_relative_time(timedelta(hours=1))
-        assert result == "hace 1 hora"
+        assert result == "1 hour ago"
 
     def test_multiple_hours(self) -> None:
-        """Probar formato para varias horas."""
+        """Test format for multiple hours."""
         result = _format_relative_time(timedelta(hours=12))
-        assert result == "hace 12 horas"
+        assert result == "12 hours ago"
 
     def test_one_day(self) -> None:
-        """Probar formato para 1 día."""
+        """Test format for 1 day."""
         result = _format_relative_time(timedelta(days=1))
-        assert result == "hace 1 día"
+        assert result == "1 day ago"
 
     def test_multiple_days(self) -> None:
-        """Probar formato para varios días."""
+        """Test format for multiple days."""
         result = _format_relative_time(timedelta(days=15))
-        assert result == "hace 15 días"
+        assert result == "15 days ago"
 
     def test_one_month(self) -> None:
-        """Probar formato para 1 mes (~30 días)."""
+        """Test format for 1 month (~30 days)."""
         result = _format_relative_time(timedelta(days=30))
-        assert result == "hace 1 mes"
+        assert result == "1 month ago"
 
     def test_multiple_months(self) -> None:
-        """Probar formato para varios meses."""
+        """Test format for multiple months."""
         result = _format_relative_time(timedelta(days=180))
-        assert result == "hace 6 meses"
+        assert result == "6 months ago"
 
     def test_one_year(self) -> None:
-        """Probar formato para 1 año (~365 días)."""
+        """Test format for 1 year (~365 days)."""
         result = _format_relative_time(timedelta(days=365))
-        assert result == "hace 1 año"
+        assert result == "1 year ago"
 
     def test_multiple_years(self) -> None:
-        """Probar formato para varios años."""
+        """Test format for multiple years."""
         result = _format_relative_time(timedelta(days=730))
-        assert result == "hace 2 años"
+        assert result == "2 years ago"
 
 
 class TestConvertFormValueEmbedSections:
-    """Tests para _convert_form_value con EMBED_SECTIONS."""
+    """Tests for _convert_form_value with EMBED_SECTIONS."""
 
     def test_valid_json_list(self) -> None:
-        """Probar conversión de JSON válido como lista."""
+        """Test conversion of valid JSON as list."""
         value = '[{"type": "text", "title": "Test", "content": "Hello"}]'
         result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
         assert result == [{"type": "text", "title": "Test", "content": "Hello"}]
 
     def test_empty_list(self) -> None:
-        """Probar conversión de lista vacía."""
+        """Test conversion of empty list."""
         result = _convert_form_value("[]", ConfigOptionType.EMBED_SECTIONS)
         assert result == []
 
     def test_invalid_json(self) -> None:
-        """Probar que JSON inválido retorna None."""
+        """Test that invalid JSON returns None."""
         result = _convert_form_value("{invalid json}", ConfigOptionType.EMBED_SECTIONS)
         assert result is None
 
     def test_json_not_list(self) -> None:
-        """Probar que JSON que no es lista retorna None."""
+        """Test that JSON that is not a list returns None."""
         result = _convert_form_value('{"key": "value"}', ConfigOptionType.EMBED_SECTIONS)
         assert result is None
 
     def test_json_too_large(self) -> None:
-        """Probar que JSON demasiado grande retorna None."""
-        # Crear un JSON de más de 100KB
+        """Test that JSON too large returns None."""
+        # Create a JSON larger than 100KB
         large_value = "[" + ",".join(['"x"' * 1000] * 200) + "]"
         assert len(large_value) > 100_000
         result = _convert_form_value(large_value, ConfigOptionType.EMBED_SECTIONS)

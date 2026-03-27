@@ -1,4 +1,4 @@
-"""Tests para el servicio de construcción de embeds."""
+"""Tests for the embed builder service."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -25,138 +25,138 @@ from discord_bot.common.services.embed_builder import (
 
 
 class TestCreateProgressBar:
-    """Tests para create_progress_bar."""
+    """Tests for create_progress_bar."""
 
     def test_empty_bar(self) -> None:
-        """Test barra vacía cuando el valor es 0."""
+        """Test empty bar when value is 0."""
         bar = create_progress_bar(0, 100)
         assert bar == "░░░░░░░░░░"
 
     def test_full_bar(self) -> None:
-        """Test barra llena cuando el valor es máximo."""
+        """Test full bar when value is maximum."""
         bar = create_progress_bar(100, 100)
         assert bar == "██████████"
 
     def test_half_bar(self) -> None:
-        """Test barra al 50%."""
+        """Test bar at 50%."""
         bar = create_progress_bar(50, 100)
         assert bar == "█████░░░░░"
 
     def test_custom_length(self) -> None:
-        """Test barra con longitud personalizada."""
+        """Test bar with custom length."""
         bar = create_progress_bar(50, 100, length=20)
         assert len(bar) == 20
         assert bar.count("█") == 10
 
     def test_custom_characters(self) -> None:
-        """Test barra con caracteres personalizados."""
+        """Test bar with custom characters."""
         bar = create_progress_bar(30, 100, filled_char="▓", empty_char="▒")
         assert "▓" in bar
         assert "▒" in bar
 
     def test_max_value_zero(self) -> None:
-        """Test con valor máximo 0 devuelve barra vacía."""
+        """Test with max value 0 returns empty bar."""
         bar = create_progress_bar(50, 0)
         assert bar == "░░░░░░░░░░"
 
     def test_value_exceeds_max(self) -> None:
-        """Test que el valor no exceda el 100%."""
+        """Test that value does not exceed 100%."""
         bar = create_progress_bar(150, 100)
         assert bar == "██████████"
 
 
 class TestPlaceholderContext:
-    """Tests para PlaceholderContext."""
+    """Tests for PlaceholderContext."""
 
     def test_resolve_extra_data(self) -> None:
-        """Test resolver placeholder desde extra_data."""
+        """Test resolving placeholder from extra_data."""
         context = PlaceholderContext(extra_data={"custom_key": "custom_value"})
         assert context.resolve("custom_key") == "custom_value"
 
     def test_resolve_server_name(self) -> None:
-        """Test resolver server_name desde guild."""
+        """Test resolving server_name from guild."""
         guild = MagicMock(spec=discord.Guild)
         guild.name = "Test Server"
         context = PlaceholderContext(guild=guild)
         assert context.resolve("server_name") == "Test Server"
 
     def test_resolve_server_id(self) -> None:
-        """Test resolver server_id desde guild."""
+        """Test resolving server_id from guild."""
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123456789
         context = PlaceholderContext(guild=guild)
         assert context.resolve("server_id") == "123456789"
 
     def test_resolve_user_name(self) -> None:
-        """Test resolver user_name desde member."""
+        """Test resolving user_name from member."""
         member = MagicMock(spec=discord.Member)
         member.display_name = "TestUser"
         context = PlaceholderContext(member=member)
         assert context.resolve("user_name") == "TestUser"
 
     def test_resolve_user_mention(self) -> None:
-        """Test resolver user_mention desde member."""
+        """Test resolving user_mention from member."""
         member = MagicMock(spec=discord.Member)
         member.mention = "<@123456>"
         context = PlaceholderContext(member=member)
         assert context.resolve("user_mention") == "<@123456>"
 
     def test_resolve_user_joined_server(self) -> None:
-        """Test resolver user_joined_server desde member."""
+        """Test resolving user_joined_server from member."""
         member = MagicMock(spec=discord.Member)
         member.joined_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
         context = PlaceholderContext(member=member)
         assert context.resolve("user_joined_server") == "2024-01-15 10:30"
 
     def test_resolve_user_joined_server_none(self) -> None:
-        """Test resolver user_joined_server cuando es None."""
+        """Test resolving user_joined_server when it is None."""
         member = MagicMock(spec=discord.Member)
         member.joined_at = None
         context = PlaceholderContext(member=member)
         assert context.resolve("user_joined_server") == "N/A"
 
     def test_resolve_unknown_placeholder(self) -> None:
-        """Test resolver placeholder desconocido devuelve None."""
+        """Test resolving unknown placeholder returns None."""
         context = PlaceholderContext()
         assert context.resolve("unknown_key") is None
 
     def test_extra_data_overrides_global(self) -> None:
-        """Test que extra_data tiene prioridad sobre globales."""
+        """Test that extra_data has priority over globals."""
         guild = MagicMock(spec=discord.Guild)
         guild.name = "Real Server Name"
         context = PlaceholderContext(guild=guild, extra_data={"server_name": "Custom Name"})
         assert context.resolve("server_name") == "Custom Name"
 
     def test_resolve_server_member_count(self) -> None:
-        """Test resolver server_member_count desde guild."""
+        """Test resolving server_member_count from guild."""
         guild = MagicMock(spec=discord.Guild)
         guild.member_count = 150
         context = PlaceholderContext(guild=guild)
         assert context.resolve("server_member_count") == "150"
 
     def test_resolve_user_id(self) -> None:
-        """Test resolver user_id desde member."""
+        """Test resolving user_id from member."""
         member = MagicMock(spec=discord.Member)
         member.id = 987654321
         context = PlaceholderContext(member=member)
         assert context.resolve("user_id") == "987654321"
 
     def test_resolve_user_discriminator(self) -> None:
-        """Test resolver user_discriminator desde member."""
+        """Test resolving user_discriminator from member."""
         member = MagicMock(spec=discord.Member)
         member.discriminator = "1234"
         context = PlaceholderContext(member=member)
         assert context.resolve("user_discriminator") == "1234"
 
     def test_resolve_user_avatar_url(self) -> None:
-        """Test resolver user_avatar_url desde member."""
+        """Test resolving user_avatar_url from member."""
         member = MagicMock(spec=discord.Member)
         member.display_avatar.url = "https://cdn.discord.com/avatar.png"
         context = PlaceholderContext(member=member)
         assert context.resolve("user_avatar_url") == "https://cdn.discord.com/avatar.png"
 
     def test_resolve_user_joined_server_relative(self) -> None:
-        """Test resolver user_joined_server_relative desde member."""
+        """Test resolving user_joined_server_relative from member."""
         member = MagicMock(spec=discord.Member)
         member.joined_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
         context = PlaceholderContext(member=member)
@@ -166,21 +166,21 @@ class TestPlaceholderContext:
         assert result.endswith(":R>")
 
     def test_resolve_user_joined_server_relative_none(self) -> None:
-        """Test resolver user_joined_server_relative cuando joined_at es None."""
+        """Test resolving user_joined_server_relative when joined_at is None."""
         member = MagicMock(spec=discord.Member)
         member.joined_at = None
         context = PlaceholderContext(member=member)
         assert context.resolve("user_joined_server_relative") == "N/A"
 
     def test_resolve_user_joined_discord(self) -> None:
-        """Test resolver user_joined_discord desde member."""
+        """Test resolving user_joined_discord from member."""
         member = MagicMock(spec=discord.Member)
         member.created_at = datetime(2020, 6, 1, 15, 0, tzinfo=UTC)
         context = PlaceholderContext(member=member)
         assert context.resolve("user_joined_discord") == "2020-06-01 15:00"
 
     def test_resolve_user_joined_discord_relative(self) -> None:
-        """Test resolver user_joined_discord_relative desde member."""
+        """Test resolving user_joined_discord_relative from member."""
         member = MagicMock(spec=discord.Member)
         member.created_at = datetime(2020, 6, 1, 15, 0, tzinfo=UTC)
         context = PlaceholderContext(member=member)
@@ -191,38 +191,38 @@ class TestPlaceholderContext:
 
 
 class TestFormatPlaceholders:
-    """Tests para format_placeholders."""
+    """Tests for format_placeholders."""
 
     def test_single_placeholder(self) -> None:
-        """Test reemplazar un solo placeholder."""
-        context = PlaceholderContext(extra_data={"name": "Juan"})
-        result = format_placeholders("Hola {name}!", context)
-        assert result == "Hola Juan!"
+        """Test replacing a single placeholder."""
+        context = PlaceholderContext(extra_data={"name": "John"})
+        result = format_placeholders("Hello {name}!", context)
+        assert result == "Hello John!"
 
     def test_multiple_placeholders(self) -> None:
-        """Test reemplazar múltiples placeholders."""
-        context = PlaceholderContext(extra_data={"name": "Juan", "level": "10"})
-        result = format_placeholders("{name} nivel {level}", context)
-        assert result == "Juan nivel 10"
+        """Test replacing multiple placeholders."""
+        context = PlaceholderContext(extra_data={"name": "John", "level": "10"})
+        result = format_placeholders("{name} level {level}", context)
+        assert result == "John level 10"
 
     def test_unresolved_placeholder_stays(self) -> None:
-        """Test que placeholders no resueltos se mantienen."""
-        context = PlaceholderContext(extra_data={"name": "Juan"})
-        result = format_placeholders("Hola {name}, tu nivel es {level}", context)
-        assert result == "Hola Juan, tu nivel es {level}"
+        """Test that unresolved placeholders remain."""
+        context = PlaceholderContext(extra_data={"name": "John"})
+        result = format_placeholders("Hello {name}, your level is {level}", context)
+        assert result == "Hello John, your level is {level}"
 
     def test_no_placeholders(self) -> None:
-        """Test texto sin placeholders."""
+        """Test text without placeholders."""
         context = PlaceholderContext()
-        result = format_placeholders("Sin placeholders", context)
-        assert result == "Sin placeholders"
+        result = format_placeholders("No placeholders", context)
+        assert result == "No placeholders"
 
 
 class TestBuildEmbed:
-    """Tests para build_embed."""
+    """Tests for build_embed."""
 
     def test_empty_config(self) -> None:
-        """Test construir embed con configuración vacía."""
+        """Test building embed with empty config."""
         config = EmbedConfig(sections=[])
         context = PlaceholderContext()
         embed = build_embed(config, context)
@@ -231,7 +231,7 @@ class TestBuildEmbed:
         assert embed.description is None or embed.description == ""
 
     def test_text_section(self) -> None:
-        """Test sección de texto simple se renderiza como campo."""
+        """Test simple text section renders as field."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(type=EmbedSectionType.TEXT, title="Title", content="Hello World")
@@ -246,40 +246,40 @@ class TestBuildEmbed:
         assert embed.fields[0].inline is False
 
     def test_text_section_with_placeholder(self) -> None:
-        """Test sección de texto con placeholder."""
+        """Test text section with placeholder."""
         config = EmbedConfig(
             sections=[
-                EmbedSection(type=EmbedSectionType.TEXT, title="Saludo", content="Hola {name}!")
+                EmbedSection(type=EmbedSectionType.TEXT, title="Greeting", content="Hello {name}!")
             ]
         )
-        context = PlaceholderContext(extra_data={"name": "Usuario"})
+        context = PlaceholderContext(extra_data={"name": "User"})
         embed = build_embed(config, context)
 
         assert len(embed.fields) == 1
-        assert embed.fields[0].value == "Hola Usuario!"
+        assert embed.fields[0].value == "Hello User!"
 
     def test_description_field(self) -> None:
-        """Test descripción del embed desde config."""
+        """Test embed description from config."""
         config = EmbedConfig(
-            description="Esta es la descripción con {name}",
+            description="This is the description with {name}",
             sections=[],
         )
         context = PlaceholderContext(extra_data={"name": "placeholder"})
         embed = build_embed(config, context)
 
-        assert embed.description == "Esta es la descripción con placeholder"
+        assert embed.description == "This is the description with placeholder"
 
     def test_fields_section(self) -> None:
-        """Test sección de campos."""
+        """Test fields section."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(
                     type=EmbedSectionType.FIELDS,
                     inline=True,
-                    field_1_name="Campo 1",
-                    field_1_value="Valor 1",
-                    field_2_name="Campo 2",
-                    field_2_value="Valor 2",
+                    field_1_name="Field 1",
+                    field_1_value="Value 1",
+                    field_2_name="Field 2",
+                    field_2_value="Value 2",
                 )
             ]
         )
@@ -287,13 +287,13 @@ class TestBuildEmbed:
         embed = build_embed(config, context)
 
         assert len(embed.fields) == 2
-        assert embed.fields[0].name == "Campo 1"
-        assert embed.fields[0].value == "Valor 1"
+        assert embed.fields[0].name == "Field 1"
+        assert embed.fields[0].value == "Value 1"
         assert embed.fields[0].inline is True
-        assert embed.fields[1].name == "Campo 2"
+        assert embed.fields[1].name == "Field 2"
 
     def test_custom_color(self) -> None:
-        """Test color personalizado."""
+        """Test custom color."""
         config = EmbedConfig(sections=[], color="#FF5733")
         context = PlaceholderContext()
         embed = build_embed(config, context)
@@ -301,7 +301,7 @@ class TestBuildEmbed:
         assert embed.color == discord.Color(0xFF5733)
 
     def test_invalid_color_uses_default(self) -> None:
-        """Test color inválido usa el por defecto."""
+        """Test invalid color uses default."""
         config = EmbedConfig(sections=[], color="invalid")
         context = PlaceholderContext()
         embed = build_embed(config, context, default_color=discord.Color.red())
@@ -309,7 +309,7 @@ class TestBuildEmbed:
         assert embed.color == discord.Color.red()
 
     def test_invalid_hex_color_value_error(self) -> None:
-        """Test color hex con caracteres inválidos que causa ValueError."""
+        """Test hex color with invalid characters causing ValueError."""
         config = EmbedConfig(sections=[], color="#GGGGGG")
         context = PlaceholderContext()
         embed = build_embed(config, context, default_color=discord.Color.green())
@@ -317,18 +317,18 @@ class TestBuildEmbed:
         assert embed.color == discord.Color.green()
 
     def test_footer(self) -> None:
-        """Test footer del embed."""
+        """Test embed footer."""
         config = EmbedConfig(
             sections=[],
-            footer_text="Footer con {name}",
+            footer_text="Footer with {name}",
         )
         context = PlaceholderContext(extra_data={"name": "placeholder"})
         embed = build_embed(config, context)
 
-        assert embed.footer.text == "Footer con placeholder"
+        assert embed.footer.text == "Footer with placeholder"
 
     def test_footer_with_icon(self) -> None:
-        """Test footer del embed con icono."""
+        """Test embed footer with icon."""
         config = EmbedConfig(
             sections=[],
             footer_text="Footer",
@@ -341,7 +341,7 @@ class TestBuildEmbed:
         assert embed.footer.icon_url == "https://example.com/icon.png"
 
     def test_thumbnail(self) -> None:
-        """Test thumbnail del embed."""
+        """Test embed thumbnail."""
         config = EmbedConfig(sections=[], thumbnail_url="https://example.com/image.png")
         context = PlaceholderContext()
         embed = build_embed(config, context)
@@ -349,53 +349,53 @@ class TestBuildEmbed:
         assert embed.thumbnail.url == "https://example.com/image.png"
 
     def test_multiple_sections(self) -> None:
-        """Test múltiples secciones se renderizan como campos."""
+        """Test multiple sections render as fields."""
         config = EmbedConfig(
-            description="Descripción principal",
+            description="Main description",
             sections=[
-                EmbedSection(type=EmbedSectionType.TEXT, title="Intro", content="Bienvenido"),
-                EmbedSection(type=EmbedSectionType.TEXT, title="Info", content="Más datos"),
+                EmbedSection(type=EmbedSectionType.TEXT, title="Intro", content="Welcome"),
+                EmbedSection(type=EmbedSectionType.TEXT, title="Info", content="More data"),
                 EmbedSection(
                     type=EmbedSectionType.FIELDS,
-                    field_1_name="Campo 1",
-                    field_1_value="Valor 1",
+                    field_1_name="Field 1",
+                    field_1_value="Value 1",
                 ),
             ],
         )
         context = PlaceholderContext()
         embed = build_embed(config, context)
 
-        assert embed.description == "Descripción principal"
+        assert embed.description == "Main description"
         assert len(embed.fields) == 3
         assert embed.fields[0].name == "Intro"
-        assert embed.fields[0].value == "Bienvenido"
+        assert embed.fields[0].value == "Welcome"
         assert embed.fields[1].name == "Info"
-        assert embed.fields[2].name == "Campo 1"
+        assert embed.fields[2].name == "Field 1"
 
     def test_title_from_config(self) -> None:
-        """Test título desde la configuración."""
+        """Test title from config."""
         config = EmbedConfig(
-            title="Hola {user_name}",
+            title="Hello {user_name}",
             sections=[],
         )
-        context = PlaceholderContext(extra_data={"user_name": "Juan"})
+        context = PlaceholderContext(extra_data={"user_name": "John"})
         embed = build_embed(config, context)
 
-        assert embed.title == "Hola Juan"
+        assert embed.title == "Hello John"
 
     def test_title_parameter_overrides_config(self) -> None:
-        """Test que el parámetro title tiene prioridad sobre config."""
+        """Test that title parameter has priority over config."""
         config = EmbedConfig(
-            title="Título de config",
+            title="Config title",
             sections=[],
         )
         context = PlaceholderContext()
-        embed = build_embed(config, context, title="Título de parámetro")
+        embed = build_embed(config, context, title="Parameter title")
 
-        assert embed.title == "Título de parámetro"
+        assert embed.title == "Parameter title"
 
     def test_image_url(self) -> None:
-        """Test imagen principal del embed."""
+        """Test embed main image."""
         config = EmbedConfig(
             sections=[],
             image_url="https://example.com/main-image.png",
@@ -406,8 +406,8 @@ class TestBuildEmbed:
         assert embed.image.url == "https://example.com/main-image.png"
 
     def test_field_limit_validation_passes(self) -> None:
-        """Test que la validación pasa con 25 campos o menos."""
-        # 8 secciones FIELDS x 3 campos = 24 campos (dentro del límite)
+        """Test that validation passes with 25 fields or less."""
+        # 8 FIELDS sections x 3 fields = 24 fields (within the limit)
         sections = [
             EmbedSection(
                 type=EmbedSectionType.FIELDS,
@@ -423,13 +423,13 @@ class TestBuildEmbed:
         config = EmbedConfig(sections=sections)
         context = PlaceholderContext()
 
-        # No debe lanzar excepción
+        # Should not raise exception
         embed = build_embed(config, context)
         assert len(embed.fields) == 24
 
     def test_field_limit_validation_fails(self) -> None:
-        """Test que la validación falla con más de 25 campos."""
-        # 9 secciones FIELDS x 3 campos = 27 campos (excede el límite)
+        """Test that validation fails with more than 25 fields."""
+        # 9 FIELDS sections x 3 fields = 27 fields (exceeds the limit)
         sections = [
             EmbedSection(
                 type=EmbedSectionType.FIELDS,
@@ -451,7 +451,7 @@ class TestBuildEmbed:
         assert exc_info.value.field_count == 27
 
     def test_field_limit_validation_disabled(self) -> None:
-        """Test que se puede desactivar la validación de campos."""
+        """Test that field validation can be disabled."""
         sections = [
             EmbedSection(
                 type=EmbedSectionType.FIELDS,
@@ -467,73 +467,73 @@ class TestBuildEmbed:
         config = EmbedConfig(sections=sections)
         context = PlaceholderContext()
 
-        # No debe lanzar excepción con validate_fields=False
+        # Should not raise exception with validate_fields=False
         embed = build_embed(config, context, validate_fields=False)
         assert len(embed.fields) == 27
 
 
 class TestBuildEmbedFromRows:
-    """Tests para build_embed_from_rows."""
+    """Tests for build_embed_from_rows."""
 
     def test_from_table_rows(self) -> None:
-        """Test construir embed desde filas de tabla."""
+        """Test building embed from table rows."""
         rows: list[dict[str, Any]] = [
-            {"type": "text", "title": "Bienvenida", "content": "Bienvenido {user_name}!"},
+            {"type": "text", "title": "Welcome", "content": "Welcome {user_name}!"},
             {
                 "type": "fields",
                 "inline": True,
-                "field_1_name": "Servidor",
+                "field_1_name": "Server",
                 "field_1_value": "{server_name}",
             },
         ]
 
         guild = MagicMock(spec=discord.Guild)
-        guild.name = "Mi Servidor"
+        guild.name = "My Server"
 
         member = MagicMock(spec=discord.Member)
         member.display_name = "TestUser"
 
         context = PlaceholderContext(guild=guild, member=member)
-        embed = build_embed_from_rows(rows, context, color="#00FF00", footer_text="Pie de página")
+        embed = build_embed_from_rows(rows, context, color="#00FF00", footer_text="Footer")
 
         # TEXT section becomes a field
         assert len(embed.fields) == 2
-        assert embed.fields[0].name == "Bienvenida"
-        assert embed.fields[0].value == "Bienvenido TestUser!"
+        assert embed.fields[0].name == "Welcome"
+        assert embed.fields[0].value == "Welcome TestUser!"
         # FIELDS section
-        assert embed.fields[1].value == "Mi Servidor"
+        assert embed.fields[1].value == "My Server"
         assert embed.color == discord.Color(0x00FF00)
-        assert embed.footer.text == "Pie de página"
+        assert embed.footer.text == "Footer"
 
 
 class TestGlobalPlaceholders:
-    """Tests para la lista de placeholders globales."""
+    """Tests for the global placeholders list."""
 
     def test_global_placeholders_not_empty(self) -> None:
-        """Test que la lista de placeholders globales no está vacía."""
+        """Test that the global placeholders list is not empty."""
         assert len(GLOBAL_PLACEHOLDERS) > 0
 
     def test_global_placeholders_have_required_keys(self) -> None:
-        """Test que todos los placeholders tienen key y description."""
+        """Test that all placeholders have key and description."""
         for placeholder in GLOBAL_PLACEHOLDERS:
             assert "key" in placeholder
             assert "description" in placeholder
 
     def test_server_placeholders_exist(self) -> None:
-        """Test que existen placeholders de servidor."""
+        """Test that server placeholders exist."""
         keys = [p["key"] for p in GLOBAL_PLACEHOLDERS]
         assert "server_name" in keys
         assert "server_id" in keys
 
     def test_user_placeholders_exist(self) -> None:
-        """Test que existen placeholders de usuario."""
+        """Test that user placeholders exist."""
         keys = [p["key"] for p in GLOBAL_PLACEHOLDERS]
         assert "user_name" in keys
         assert "user_mention" in keys
         assert "user_joined_server" in keys
 
     def test_dot_emoji_placeholders_exist(self) -> None:
-        """Test que existen placeholders de emojis de puntos."""
+        """Test that dot emoji placeholders exist."""
         keys = [p["key"] for p in GLOBAL_PLACEHOLDERS]
         assert "dot_red" in keys
         assert "dot_green" in keys
@@ -542,10 +542,10 @@ class TestGlobalPlaceholders:
 
 
 class TestDotEmojiPlaceholders:
-    """Tests para placeholders de emojis de puntos de colores."""
+    """Tests for colored dot emoji placeholders."""
 
     def test_dot_emojis_mapping(self) -> None:
-        """Test que el mapeo de emojis está completo."""
+        """Test that emoji mapping is complete."""
         assert DOT_EMOJIS["dot_red"] == "🔴"
         assert DOT_EMOJIS["dot_green"] == "🟢"
         assert DOT_EMOJIS["dot_yellow"] == "🟡"
@@ -557,23 +557,23 @@ class TestDotEmojiPlaceholders:
         assert DOT_EMOJIS["dot_brown"] == "🟤"
 
     def test_resolve_dot_red(self) -> None:
-        """Test resolver dot_red placeholder."""
+        """Test resolving dot_red placeholder."""
         context = PlaceholderContext()
         assert context.resolve("dot_red") == "🔴"
 
     def test_resolve_dot_green(self) -> None:
-        """Test resolver dot_green placeholder."""
+        """Test resolving dot_green placeholder."""
         context = PlaceholderContext()
         assert context.resolve("dot_green") == "🟢"
 
     def test_format_with_dot_emojis(self) -> None:
-        """Test usar dot emojis en plantillas."""
+        """Test using dot emojis in templates."""
         context = PlaceholderContext()
         result = format_placeholders("{dot_green} Online {dot_red} Offline", context)
         assert result == "🟢 Online 🔴 Offline"
 
     def test_dot_emojis_in_embed_field(self) -> None:
-        """Test usar dot emojis en campos de embed."""
+        """Test using dot emojis in embed fields."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(
@@ -590,10 +590,10 @@ class TestDotEmojiPlaceholders:
 
 
 class TestAnsiColors:
-    """Tests para soporte de colores ANSI en texto."""
+    """Tests for ANSI color support in text."""
 
     def test_ansi_colors_mapping(self) -> None:
-        """Test que el mapeo de colores ANSI está completo."""
+        """Test that ANSI color mapping is complete."""
         assert "red" in ANSI_COLORS
         assert "green" in ANSI_COLORS
         assert "yellow" in ANSI_COLORS
@@ -604,21 +604,21 @@ class TestAnsiColors:
         assert "gray" in ANSI_COLORS
 
     def test_color_tags_documentation(self) -> None:
-        """Test que la documentación de color tags existe."""
+        """Test that color tags documentation exists."""
         assert len(COLOR_TAGS) > 0
         for tag_info in COLOR_TAGS:
             assert "tag" in tag_info
             assert "description" in tag_info
 
     def test_format_with_colors_no_colors(self) -> None:
-        """Test que texto sin colores no se modifica."""
+        """Test that text without colors is not modified."""
         context = PlaceholderContext(extra_data={"name": "Test"})
         result = format_with_colors("Hello {name}!", context)
         assert result == "Hello Test!"
         assert "```ansi" not in result
 
     def test_format_with_colors_single_color(self) -> None:
-        """Test que texto con un color se envuelve en bloque ANSI."""
+        """Test that text with one color is wrapped in ANSI block."""
         context = PlaceholderContext()
         result = format_with_colors("{red}Error{/red}", context)
         assert "```ansi" in result
@@ -626,7 +626,7 @@ class TestAnsiColors:
         assert "\u001b[0m" in result  # Reset code
 
     def test_format_with_colors_multiple_colors(self) -> None:
-        """Test que texto con múltiples colores funciona."""
+        """Test that text with multiple colors works."""
         context = PlaceholderContext()
         result = format_with_colors("{green}OK{/green} - {red}Error{/red}", context)
         assert "```ansi" in result
@@ -634,14 +634,14 @@ class TestAnsiColors:
         assert "\u001b[2;31m" in result  # Red
 
     def test_format_with_colors_and_placeholders(self) -> None:
-        """Test combinar colores con placeholders."""
+        """Test combining colors with placeholders."""
         context = PlaceholderContext(extra_data={"status": "Active"})
         result = format_with_colors("{green}{status}{/green}", context)
         assert "```ansi" in result
         assert "Active" in result
 
     def test_ansi_colors_in_embed_field(self) -> None:
-        """Test usar colores ANSI en campos de embed."""
+        """Test using ANSI colors in embed fields."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(
@@ -659,7 +659,7 @@ class TestAnsiColors:
         assert "\u001b[2;32m" in embed.fields[0].value
 
     def test_field_name_does_not_use_ansi(self) -> None:
-        """Test que los nombres de campo no usan ANSI (quedaría feo)."""
+        """Test that field names do not use ANSI (would look ugly)."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(
@@ -679,7 +679,7 @@ class TestAnsiColors:
         assert "{red}" in embed.fields[0].name
 
     def test_inline_fields_support_ansi(self) -> None:
-        """Test que campos inline soportan colores ANSI."""
+        """Test that inline fields support ANSI colors."""
         config = EmbedConfig(
             sections=[
                 EmbedSection(

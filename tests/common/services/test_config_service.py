@@ -1,4 +1,4 @@
-"""Tests para ConfigService."""
+"""Tests for ConfigService."""
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,10 +12,10 @@ from discord_bot.common.services.config_service import ConfigService
 
 @pytest.fixture
 def schema_service() -> ConfigSchemaService:
-    """Crear un servicio de esquemas con datos de prueba.
+    """Create a schema service with test data.
 
     Returns:
-        ConfigSchemaService: Servicio de esquemas
+        ConfigSchemaService: Schema service
     """
     service = ConfigSchemaService()
     service.register_schema(
@@ -50,12 +50,12 @@ def schema_service() -> ConfigSchemaService:
 
 
 class TestConfigService:
-    """Tests para ConfigService."""
+    """Tests for ConfigService."""
 
     async def test_get_value_returns_default_when_not_set(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que get_value retorna el valor por defecto."""
+        """Test that get_value returns the default value."""
         config_service = ConfigService(test_session, schema_service)
         value = await config_service.get_value(123, "test_cog", "string_option")
         assert value == "default_string"
@@ -63,7 +63,7 @@ class TestConfigService:
     async def test_get_value_returns_stored_value(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que get_value retorna el valor almacenado."""
+        """Test that get_value returns the stored value."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_value(123, "test_cog", "string_option", "custom_value")
@@ -73,7 +73,7 @@ class TestConfigService:
     async def test_get_value_returns_none_for_unknown_option(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que get_value retorna None para opción desconocida."""
+        """Test that get_value returns None for unknown option."""
         config_service = ConfigService(test_session, schema_service)
         value = await config_service.get_value(123, "unknown_cog", "unknown_option")
         assert value is None
@@ -81,7 +81,7 @@ class TestConfigService:
     async def test_set_value_success(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que set_value guarda correctamente."""
+        """Test that set_value saves correctly."""
         config_service = ConfigService(test_session, schema_service)
 
         success, error = await config_service.set_value(
@@ -96,7 +96,7 @@ class TestConfigService:
     async def test_set_value_validation_error(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que set_value valida el valor."""
+        """Test that set_value validates the value."""
         config_service = ConfigService(test_session, schema_service)
 
         success, error = await config_service.set_value(
@@ -107,12 +107,12 @@ class TestConfigService:
         )
         assert success is False
         assert error is not None
-        assert "no puede exceder" in error
+        assert "cannot exceed" in error
 
     async def test_set_value_updates_existing(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que set_value actualiza valor existente."""
+        """Test that set_value updates existing value."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_value(123, "test_cog", "string_option", "first")
@@ -124,7 +124,7 @@ class TestConfigService:
     async def test_set_value_unknown_option(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar set_value para opción sin esquema."""
+        """Test set_value for option without schema."""
         config_service = ConfigService(test_session, schema_service)
 
         success, error = await config_service.set_value(
@@ -136,7 +136,7 @@ class TestConfigService:
     async def test_get_all_config(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar get_all_config combina defaults y valores guardados."""
+        """Test get_all_config combines defaults and stored values."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_value(123, "test_cog", "string_option", "custom")
@@ -148,7 +148,7 @@ class TestConfigService:
     async def test_get_all_config_unknown_cog(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar get_all_config para cog desconocido."""
+        """Test get_all_config for unknown cog."""
         config_service = ConfigService(test_session, schema_service)
         config = await config_service.get_all_config(123, "unknown_cog")
         assert config == {}
@@ -156,7 +156,7 @@ class TestConfigService:
     async def test_reset_config(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar reset_config elimina todos los valores."""
+        """Test reset_config deletes all values."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_value(123, "test_cog", "string_option", "value1")
@@ -171,7 +171,7 @@ class TestConfigService:
     async def test_reset_config_no_values(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar reset_config cuando no hay valores."""
+        """Test reset_config when there are no values."""
         config_service = ConfigService(test_session, schema_service)
         deleted = await config_service.reset_config(123, "test_cog")
         assert deleted == 0
@@ -179,7 +179,7 @@ class TestConfigService:
     async def test_is_cog_enabled_default(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar is_cog_enabled retorna default cuando no hay registro."""
+        """Test is_cog_enabled returns default when there is no record."""
         config_service = ConfigService(test_session, schema_service)
 
         enabled = await config_service.is_cog_enabled(123, "test_cog", default=True)
@@ -191,7 +191,7 @@ class TestConfigService:
     async def test_set_cog_enabled(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar set_cog_enabled."""
+        """Test set_cog_enabled."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_cog_enabled(123, "test_cog", False)
@@ -205,7 +205,7 @@ class TestConfigService:
     async def test_set_cog_enabled_updates_existing(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que set_cog_enabled actualiza registro existente."""
+        """Test that set_cog_enabled updates existing record."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_cog_enabled(123, "test_cog", True)
@@ -217,7 +217,7 @@ class TestConfigService:
     async def test_get_enabled_cogs(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar get_enabled_cogs."""
+        """Test get_enabled_cogs."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_cog_enabled(123, "cog1", True)
@@ -230,7 +230,7 @@ class TestConfigService:
     async def test_get_enabled_cogs_empty(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar get_enabled_cogs cuando está vacío."""
+        """Test get_enabled_cogs when empty."""
         config_service = ConfigService(test_session, schema_service)
         enabled_cogs = await config_service.get_enabled_cogs(123)
         assert enabled_cogs == {}
@@ -238,7 +238,7 @@ class TestConfigService:
     async def test_different_guilds_isolated(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:
-        """Probar que diferentes guilds tienen configuración aislada."""
+        """Test that different guilds have isolated configuration."""
         config_service = ConfigService(test_session, schema_service)
 
         await config_service.set_value(111, "test_cog", "string_option", "guild_111")

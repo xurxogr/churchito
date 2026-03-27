@@ -1,10 +1,10 @@
-"""Enumeraciones de tipos de secciones para embeds configurables."""
+"""Section type enumerations for configurable embeds."""
 
 from enum import StrEnum
 
 
 class EmbedSectionType(StrEnum):
-    """Tipos de secciones disponibles para construir embeds."""
+    """Available section types for building embeds."""
 
     TEXT = "text"  # Full-width field with title + content
     FIELDS = "fields"  # Inline fields (up to 3 per row)

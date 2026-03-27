@@ -1,1 +1,1 @@
-"""Autenticación OAuth para el dashboard."""
+"""OAuth authentication for the dashboard."""

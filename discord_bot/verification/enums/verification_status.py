@@ -1,10 +1,10 @@
-"""Estados de verificacion."""
+"""Verification statuses."""
 
 from enum import StrEnum
 
 
 class VerificationStatus(StrEnum):
-    """Estados posibles de una solicitud de verificacion."""
+    """Possible statuses for a verification request."""
 
     PENDING_SCREENSHOTS = "pending_screenshots"
     PENDING_REVIEW = "pending_review"

@@ -1,4 +1,4 @@
-"""Utilidades para operaciones de Discord."""
+"""Utilities for Discord operations."""
 
 import logging
 
@@ -6,7 +6,7 @@ import discord
 
 logger = logging.getLogger(__name__)
 
-# Dominios válidos para URLs de Discord CDN
+# Valid domains for Discord CDN URLs
 DISCORD_CDN_DOMAINS: frozenset[str] = frozenset(
     {
         "cdn.discordapp.com",
@@ -16,13 +16,13 @@ DISCORD_CDN_DOMAINS: frozenset[str] = frozenset(
 
 
 def is_valid_discord_cdn_url(url: str) -> bool:
-    """Verificar que una URL es de Discord CDN.
+    """Verify that a URL is from Discord CDN.
 
     Args:
-        url: URL a verificar
+        url: URL to verify
 
     Returns:
-        True si es una URL válida de Discord CDN
+        True if it is a valid Discord CDN URL
     """
     if not url:
         return False
@@ -30,7 +30,7 @@ def is_valid_discord_cdn_url(url: str) -> bool:
     if not url.startswith("https://"):
         return False
 
-    # Extraer dominio (URL format: https://domain/path)
+    # Extract domain (URL format: https://domain/path)
     domain_part = url[8:]  # Remove "https://"
     domain = domain_part.split("/")[0]
     return domain in DISCORD_CDN_DOMAINS
@@ -41,15 +41,15 @@ async def delete_message(
     channel_id: int,
     message_id: int,
 ) -> bool:
-    """Eliminar un mensaje de un canal.
+    """Delete a message from a channel.
 
     Args:
-        guild (discord.Guild): Guild donde esta el mensaje
-        channel_id (int): ID del canal
-        message_id (int): ID del mensaje
+        guild (discord.Guild): Guild where the message is located
+        channel_id (int): Channel ID
+        message_id (int): Message ID
 
     Returns:
-        bool: True si se elimino, False si no se pudo
+        bool: True if deleted, False if it could not be deleted
     """
     channel = guild.get_channel(channel_id)
     if not channel or not isinstance(channel, discord.TextChannel):
@@ -58,26 +58,26 @@ async def delete_message(
     try:
         message = await channel.fetch_message(message_id)
         await message.delete()
-        logger.info(f"[{guild.name}] Mensaje eliminado de #{channel.name}")
+        logger.info(f"[{guild.name}] Message deleted from #{channel.name}")
         return True
     except discord.NotFound:
         return False
     except discord.Forbidden:
-        logger.warning(f"[{guild.name}] Sin permisos para eliminar mensaje en #{channel.name}")
+        logger.warning(f"[{guild.name}] No permissions to delete message in #{channel.name}")
         return False
 
 
 def has_any_role(member: discord.Member, role_ids: list[int]) -> bool:
-    """Verificar si un miembro tiene alguno de los roles especificados.
+    """Check if a member has any of the specified roles.
 
-    Si la lista de roles esta vacia, verifica el permiso manage_guild.
+    If the role list is empty, checks for manage_guild permission.
 
     Args:
-        member (discord.Member): Miembro a verificar
-        role_ids (list[int]): IDs de roles a verificar
+        member (discord.Member): Member to check
+        role_ids (list[int]): Role IDs to check
 
     Returns:
-        bool: True si tiene alguno de los roles o manage_guild si lista vacia
+        bool: True if they have any of the roles or manage_guild if list is empty
     """
     if not role_ids:
         return member.guild_permissions.manage_guild

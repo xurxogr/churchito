@@ -1,4 +1,4 @@
-"""Tests para el middleware de rate limiting."""
+"""Tests for the rate limiting middleware."""
 
 import time
 from unittest.mock import MagicMock
@@ -11,23 +11,23 @@ from discord_bot.web.middleware.rate_limit import RateLimitMiddleware, RateLimit
 
 
 class TestRateLimitState:
-    """Tests para RateLimitState."""
+    """Tests for RateLimitState."""
 
     def test_clean_old_requests(self) -> None:
-        """Probar limpieza de requests antiguas."""
+        """Test cleaning old requests."""
         state = RateLimitState()
         now = time.time()
 
-        # Añadir requests: algunas viejas, algunas nuevas
+        # Add requests: some old, some new
         state.requests = [now - 120, now - 90, now - 30, now - 10]
 
         state.clean_old_requests(window_seconds=60)
 
-        # Solo deben quedar las de los últimos 60 segundos
+        # Only requests from the last 60 seconds should remain
         assert len(state.requests) == 2
 
     def test_is_limited_under_limit(self) -> None:
-        """Probar que no está limitado cuando está bajo el límite."""
+        """Test that it is not limited when under the limit."""
         state = RateLimitState()
         now = time.time()
         state.requests = [now - 10, now - 5]
@@ -35,7 +35,7 @@ class TestRateLimitState:
         assert state.is_limited(max_requests=5, window_seconds=60) is False
 
     def test_is_limited_at_limit(self) -> None:
-        """Probar que está limitado cuando alcanza el límite."""
+        """Test that it is limited when reaching the limit."""
         state = RateLimitState()
         now = time.time()
         state.requests = [now - 10, now - 8, now - 6, now - 4, now - 2]
@@ -43,7 +43,7 @@ class TestRateLimitState:
         assert state.is_limited(max_requests=5, window_seconds=60) is True
 
     def test_add_request(self) -> None:
-        """Probar que añade una request."""
+        """Test that it adds a request."""
         state = RateLimitState()
         assert len(state.requests) == 0
 
@@ -54,10 +54,10 @@ class TestRateLimitState:
 
 
 class TestRateLimitMiddleware:
-    """Tests para RateLimitMiddleware."""
+    """Tests for RateLimitMiddleware."""
 
     def test_get_client_ip_from_forwarded_for(self) -> None:
-        """Probar obtención de IP desde X-Forwarded-For."""
+        """Test getting IP from X-Forwarded-For."""
         middleware = RateLimitMiddleware(MagicMock())
         request = MagicMock(spec=Request)
         request.headers = {"x-forwarded-for": "192.168.1.1, 10.0.0.1"}
@@ -68,7 +68,7 @@ class TestRateLimitMiddleware:
         assert ip == "192.168.1.1"
 
     def test_get_client_ip_from_real_ip(self) -> None:
-        """Probar obtención de IP desde X-Real-IP."""
+        """Test getting IP from X-Real-IP."""
         middleware = RateLimitMiddleware(MagicMock())
         request = MagicMock(spec=Request)
         request.headers = {"x-real-ip": "192.168.1.2"}
@@ -79,7 +79,7 @@ class TestRateLimitMiddleware:
         assert ip == "192.168.1.2"
 
     def test_get_client_ip_from_client(self) -> None:
-        """Probar obtención de IP desde client."""
+        """Test getting IP from client."""
         middleware = RateLimitMiddleware(MagicMock())
         request = MagicMock(spec=Request)
         request.headers = {}
@@ -91,7 +91,7 @@ class TestRateLimitMiddleware:
         assert ip == "192.168.1.3"
 
     def test_get_client_ip_fallback(self) -> None:
-        """Probar fallback a 'unknown' cuando no hay IP."""
+        """Test fallback to 'unknown' when there is no IP."""
         middleware = RateLimitMiddleware(MagicMock())
         request = MagicMock(spec=Request)
         request.headers = {}
@@ -102,7 +102,7 @@ class TestRateLimitMiddleware:
         assert ip == "unknown"
 
     def test_get_path_pattern_normalizes_guild_routes(self) -> None:
-        """Probar normalización de rutas de guild."""
+        """Test normalization of guild routes."""
         middleware = RateLimitMiddleware(MagicMock())
 
         pattern = middleware._get_path_pattern("/guild/123/cog/test/toggle")
@@ -110,7 +110,7 @@ class TestRateLimitMiddleware:
         assert pattern == "/guild/*/cog/*/toggle"
 
     def test_get_path_pattern_preserves_other_routes(self) -> None:
-        """Probar que otras rutas no se modifican."""
+        """Test that other routes are not modified."""
         middleware = RateLimitMiddleware(MagicMock())
 
         pattern = middleware._get_path_pattern("/auth/login")
@@ -118,7 +118,7 @@ class TestRateLimitMiddleware:
         assert pattern == "/auth/login"
 
     def test_get_limit_for_auth_login(self) -> None:
-        """Probar límite para /auth/login."""
+        """Test limit for /auth/login."""
         middleware = RateLimitMiddleware(MagicMock())
 
         limit = middleware._get_limit("/auth/login", "GET")
@@ -126,7 +126,7 @@ class TestRateLimitMiddleware:
         assert limit == (10, 60)
 
     def test_get_limit_for_post_guild(self) -> None:
-        """Probar límite por defecto para POST en guild."""
+        """Test default limit for POST on guild."""
         middleware = RateLimitMiddleware(MagicMock())
 
         limit = middleware._get_limit("/guild/123/cog/test/toggle", "POST")
@@ -134,7 +134,7 @@ class TestRateLimitMiddleware:
         assert limit == (30, 60)
 
     def test_get_limit_returns_none_for_unprotected(self) -> None:
-        """Probar que retorna None para rutas sin límite."""
+        """Test that it returns None for routes without limit."""
         middleware = RateLimitMiddleware(MagicMock())
 
         limit = middleware._get_limit("/dashboard", "GET")
@@ -142,46 +142,46 @@ class TestRateLimitMiddleware:
         assert limit is None
 
     def test_periodic_cleanup_removes_old_states(self) -> None:
-        """Probar que periodic cleanup elimina estados antiguos."""
+        """Test that periodic cleanup removes old states."""
         middleware = RateLimitMiddleware(MagicMock())
 
-        # Añadir estado con requests antiguas
+        # Add state with old requests
         state = RateLimitState()
-        state.requests = [time.time() - 700]  # Más de 10 minutos
+        state.requests = [time.time() - 700]  # More than 10 minutes
         middleware._state[("192.168.1.1", "/auth/login")] = state
 
-        # Forzar cleanup estableciendo _last_cleanup hace más de 5 minutos
+        # Force cleanup by setting _last_cleanup more than 5 minutes ago
         middleware._last_cleanup = time.time() - 400
 
         middleware._periodic_cleanup()
 
-        # El estado debe haber sido eliminado
+        # The state should have been removed
         assert ("192.168.1.1", "/auth/login") not in middleware._state
 
     def test_periodic_cleanup_keeps_recent_states(self) -> None:
-        """Probar que periodic cleanup mantiene estados recientes."""
+        """Test that periodic cleanup keeps recent states."""
         middleware = RateLimitMiddleware(MagicMock())
 
-        # Añadir estado con requests recientes
+        # Add state with recent requests
         state = RateLimitState()
-        state.requests = [time.time() - 30]  # 30 segundos
+        state.requests = [time.time() - 30]  # 30 seconds
         middleware._state[("192.168.1.1", "/auth/login")] = state
 
-        # Forzar cleanup
+        # Force cleanup
         middleware._last_cleanup = time.time() - 400
 
         middleware._periodic_cleanup()
 
-        # El estado debe mantenerse
+        # The state should be kept
         assert ("192.168.1.1", "/auth/login") in middleware._state
 
 
 class TestRateLimitMiddlewareIntegration:
-    """Tests de integración para RateLimitMiddleware."""
+    """Integration tests for RateLimitMiddleware."""
 
     @pytest.fixture
     def app_with_rate_limit(self) -> TestClient:
-        """Crear app con rate limit middleware para testing."""
+        """Create app with rate limit middleware for testing."""
         from fastapi import FastAPI
 
         from discord_bot.web.middleware.rate_limit import RateLimitMiddleware
@@ -204,24 +204,24 @@ class TestRateLimitMiddlewareIntegration:
         return TestClient(app)
 
     def test_allows_requests_under_limit(self, app_with_rate_limit: TestClient) -> None:
-        """Probar que permite requests bajo el límite."""
+        """Test that it allows requests under the limit."""
         for _ in range(5):
             response = app_with_rate_limit.get("/auth/login")
             assert response.status_code == 200
 
     def test_blocks_requests_over_limit(self, app_with_rate_limit: TestClient) -> None:
-        """Probar que bloquea requests sobre el límite."""
-        # Hacer 10 requests (el límite)
+        """Test that it blocks requests over the limit."""
+        # Make 10 requests (the limit)
         for _ in range(10):
             app_with_rate_limit.get("/auth/login")
 
-        # La siguiente debe ser bloqueada
+        # The next one should be blocked
         response = app_with_rate_limit.get("/auth/login")
         assert response.status_code == 429
         assert "Retry-After" in response.headers
 
     def test_unprotected_routes_not_limited(self, app_with_rate_limit: TestClient) -> None:
-        """Probar que rutas sin límite no son afectadas."""
+        """Test that routes without limit are not affected."""
         for _ in range(50):
             response = app_with_rate_limit.get("/unprotected")
             assert response.status_code == 200

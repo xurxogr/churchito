@@ -1,4 +1,4 @@
-"""Configuracion y schema del cog de autoname."""
+"""Configuration and schema for the autoname cog."""
 
 from enum import StrEnum
 
@@ -10,7 +10,7 @@ COG_NAME = "autoname"
 
 
 class ConfigKey(StrEnum):
-    """Claves de configuracion para el cog de autoname."""
+    """Configuration keys for the autoname cog."""
 
     REQUIRED_ROLES = "required_roles"
     ROLE_TAGS = "role_tags"
@@ -25,35 +25,35 @@ class ConfigKey(StrEnum):
 AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
     cog_name=COG_NAME,
     display_name="Autoname",
-    description="Formateo automatico de nicknames segun roles del servidor",
+    description="Automatic nickname formatting based on server roles",
     icon="🏷️",
     options=[
         ConfigOption(
             key=ConfigKey.REQUIRED_ROLES,
-            name="Roles requeridos",
+            name="Required roles",
             description=(
-                "Solo se modificaran los nicknames de miembros que tengan alguno de estos roles. "
-                "Dejar vacio para procesar todos los miembros."
+                "Only nicknames of members with one of these roles will be modified. "
+                "Leave empty to process all members."
             ),
             option_type=ConfigOptionType.ROLE_LIST,
             default=[],
         ),
         ConfigOption(
             key=ConfigKey.ROLE_TAGS,
-            name="Etiquetas por rol",
-            description="Lista ordenada de roles y sus etiquetas. El primer rol coincidente gana.",
+            name="Role tags",
+            description="Ordered list of roles and their tags. First matching role wins.",
             option_type=ConfigOptionType.TABLE,
             default=[],
             columns=[
                 {
                     "key": "role_id",
-                    "name": "Rol",
+                    "name": "Role",
                     "type": "role",
                     "required": True,
                 },
                 {
                     "key": "tag",
-                    "name": "Etiqueta",
+                    "name": "Tag",
                     "type": "string",
                     "max_length": 10,
                     "required": True,
@@ -63,23 +63,23 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.ROLE_PREFIXES,
-            name="Prefijos por rol",
+            name="Role prefixes",
             description=(
-                "Lista ordenada de roles y sus prefijos. El primer rol coincidente gana.\n"
-                "Sugerencias: ★ ☆ ◆ ◇ ● ○ ■ □ ▲ △ ♦ ♢ ✦ ✧ ⬥ ⬦ ◈ ❖ ✪ ⚜"
+                "Ordered list of roles and their prefixes. First matching role wins.\n"
+                "Suggestions: ★ ☆ ◆ ◇ ● ○ ■ □ ▲ △ ♦ ♢ ✦ ✧ ⬥ ⬦ ◈ ❖ ✪ ⚜"
             ),
             option_type=ConfigOptionType.TABLE,
             default=[],
             columns=[
                 {
                     "key": "role_id",
-                    "name": "Rol",
+                    "name": "Role",
                     "type": "role",
                     "required": True,
                 },
                 {
                     "key": "prefix",
-                    "name": "Prefijo",
+                    "name": "Prefix",
                     "type": "string",
                     "max_length": 5,
                     "required": True,
@@ -89,16 +89,16 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.TAG_FORMAT,
-            name="Formato de etiqueta",
-            description="Formato del tag. Usa {tag} como placeholder. Ejemplo: [ABC | {tag}]",
+            name="Tag format",
+            description="Tag format. Use {tag} as placeholder. Example: [ABC | {tag}]",
             option_type=ConfigOptionType.STRING,
             default="[ABC | {tag}]",
             max_length=50,
         ),
         ConfigOption(
             key=ConfigKey.SYNC_INTERVAL,
-            name="Intervalo de sincronizacion (minutos)",
-            description="Frecuencia de sincronizacion periodica de nicknames (0 para desactivar)",
+            name="Sync interval (minutes)",
+            description="Periodic nickname sync frequency (0 to disable)",
             option_type=ConfigOptionType.INTEGER,
             default=30,
             min_value=0,
@@ -106,31 +106,31 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.LOG_CHANNEL,
-            name="Canal de logs",
-            description="Canal donde se enviaran los logs de cambios de nickname",
+            name="Log channel",
+            description="Channel where nickname change logs will be sent",
             option_type=ConfigOptionType.CHANNEL,
             default=None,
         ),
         ConfigOption(
             key=ConfigKey.LOG_MESSAGE_SUCCESS,
-            name="Mensaje de cambio exitoso",
+            name="Success change message",
             description=(
-                "Mensaje cuando se cambia un nickname. "
-                "Placeholders: {old_name}, {new_name}. Dejar vacio para no enviar."
+                "Message when a nickname is changed. "
+                "Placeholders: {old_name}, {new_name}. Leave empty to not send."
             ),
             option_type=ConfigOptionType.STRING,
-            default="Nickname cambiado de **{old_name}** a **{new_name}**",
+            default="Nickname changed from **{old_name}** to **{new_name}**",
             max_length=200,
         ),
         ConfigOption(
             key=ConfigKey.LOG_MESSAGE_NO_PERMS,
-            name="Mensaje sin permisos",
+            name="No permission message",
             description=(
-                "Mensaje cuando no se puede cambiar un nickname por permisos. "
-                "Placeholder: {name}. Dejar vacio para no enviar."
+                "Message when a nickname cannot be changed due to permissions. "
+                "Placeholder: {name}. Leave empty to not send."
             ),
             option_type=ConfigOptionType.STRING,
-            default="No se pudo cambiar el nickname de **{name}** (sin permisos)",
+            default="Could not change nickname of **{name}** (no permission)",
             max_length=200,
         ),
     ],

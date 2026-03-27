@@ -1,4 +1,4 @@
-"""Tests para la configuración de devops."""
+"""Tests for devops settings."""
 
 import pytest
 
@@ -10,17 +10,17 @@ from discord_bot.common.core.settings.web import MIN_DISCORD_SNOWFLAKE, WebSetti
 
 
 def test_bot_settings_default() -> None:
-    """Probar opciones por defecto de BotSettings."""
+    """Test default BotSettings options."""
     settings = BotSettings(token="test_token")
 
     assert settings.token == "test_token"
     assert settings.command_prefix == "!"
     assert settings.owner_id is None
-    assert settings.description == "Un bot de Discord con arquitectura basada en cogs"
+    assert settings.description == "A Discord bot with cog-based architecture"
 
 
 def test_logging_settings_default() -> None:
-    """Probar opciones por defecto de LoggingSettings."""
+    """Test default LoggingSettings options."""
     settings = LoggingSettings()
 
     assert settings.log_level == "INFO"
@@ -30,7 +30,7 @@ def test_logging_settings_default() -> None:
 
 
 def test_database_settings_default() -> None:
-    """Probar opciones por defecto de DatabaseSettings."""
+    """Test default DatabaseSettings options."""
     settings = DatabaseSettings()
 
     assert settings.url == "sqlite+aiosqlite:///data/bot.db"
@@ -39,10 +39,10 @@ def test_database_settings_default() -> None:
 
 
 def test_app_settings_creation(test_settings: AppSettings) -> None:
-    """Probar creación de AppSettings.
+    """Test AppSettings creation.
 
     Args:
-        test_settings (AppSettings): Instancia de configuración de la aplicación para pruebas
+        test_settings (AppSettings): Test application settings instance
     """
     assert test_settings.bot.token == "test_token_123"
     assert test_settings.bot.command_prefix == "!"
@@ -51,7 +51,7 @@ def test_app_settings_creation(test_settings: AppSettings) -> None:
 
 
 def test_get_settings_singleton() -> None:
-    """Probar que se devuelve un singleton."""
+    """Test that a singleton is returned."""
     settings1 = get_settings()
     settings2 = get_settings()
 
@@ -59,10 +59,10 @@ def test_get_settings_singleton() -> None:
 
 
 class TestWebSettings:
-    """Tests para WebSettings."""
+    """Tests for WebSettings."""
 
     def test_web_settings_default(self) -> None:
-        """Probar opciones por defecto de WebSettings."""
+        """Test default WebSettings options."""
         settings = WebSettings()
 
         assert settings.enabled is False
@@ -71,31 +71,31 @@ class TestWebSettings:
         assert settings.owner_ids == []
 
     def test_valid_owner_ids(self) -> None:
-        """Probar que owner_ids válidos son aceptados."""
-        valid_id = 123456789012345678  # 18 dígitos, válido
+        """Test that valid owner_ids are accepted."""
+        valid_id = 123456789012345678  # 18 digits, valid
         settings = WebSettings(owner_ids=[valid_id])
 
         assert settings.owner_ids == [valid_id]
 
     def test_multiple_valid_owner_ids(self) -> None:
-        """Probar múltiples owner_ids válidos."""
+        """Test multiple valid owner_ids."""
         ids = [123456789012345678, 987654321098765432]
         settings = WebSettings(owner_ids=ids)
 
         assert settings.owner_ids == ids
 
     def test_invalid_owner_id_too_small(self) -> None:
-        """Probar que owner_id muy pequeño es rechazado."""
-        invalid_id = 12345  # Muy pequeño para ser un snowflake
+        """Test that too small owner_id is rejected."""
+        invalid_id = 12345  # Too small to be a snowflake
 
         with pytest.raises(ValueError) as exc_info:
             WebSettings(owner_ids=[invalid_id])
 
-        assert "snowflake válido" in str(exc_info.value)
+        assert "valid Discord snowflake" in str(exc_info.value)
         assert str(invalid_id) in str(exc_info.value)
 
     def test_invalid_owner_id_mixed(self) -> None:
-        """Probar que mezcla de IDs válidos e inválidos es rechazada."""
+        """Test that mix of valid and invalid IDs is rejected."""
         valid_id = 123456789012345678
         invalid_id = 999
 
@@ -105,8 +105,8 @@ class TestWebSettings:
         assert str(invalid_id) in str(exc_info.value)
 
     def test_min_discord_snowflake_constant(self) -> None:
-        """Probar que la constante MIN_DISCORD_SNOWFLAKE es razonable."""
-        # Debe ser al menos 17 dígitos (Discord empezó en 2015)
+        """Test that the MIN_DISCORD_SNOWFLAKE constant is reasonable."""
+        # Must be at least 17 digits (Discord started in 2015)
         assert MIN_DISCORD_SNOWFLAKE >= 10**16
-        # Pero no demasiado grande
+        # But not too large
         assert MIN_DISCORD_SNOWFLAKE < 10**18

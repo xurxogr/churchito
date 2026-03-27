@@ -1,4 +1,4 @@
-"""Modelos comunes."""
+"""Common models."""
 
 from discord_bot.common.models.base import Base
 from discord_bot.common.models.guild import Guild

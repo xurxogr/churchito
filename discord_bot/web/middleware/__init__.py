@@ -1,4 +1,4 @@
-"""Middleware para la aplicación web."""
+"""Middleware for the web application."""
 
 from discord_bot.web.middleware.content_size import ContentSizeLimitMiddleware
 from discord_bot.web.middleware.csrf import CSRFMiddleware, get_csrf_token

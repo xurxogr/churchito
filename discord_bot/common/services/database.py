@@ -1,4 +1,4 @@
-"""Servicio de base de datos para gestionar conexiones de SQLAlchemy."""
+"""Database service for managing SQLAlchemy connections."""
 
 import logging
 import re
@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseService:
-    """Servicio para gestionar conexiones a la base de datos."""
+    """Service for managing database connections."""
 
     def __init__(self, settings: DatabaseSettings) -> None:
-        """Inicializar el servicio de base de datos.
+        """Initialize the database service.
 
         Args:
-            settings (DatabaseSettings): Configuración de la base de datos
+            settings (DatabaseSettings): Database configuration
         """
         self.settings = settings
         self._engine: AsyncEngine | None = None
@@ -35,39 +35,34 @@ class DatabaseService:
 
     @property
     def engine(self) -> AsyncEngine:
-        """Obtener el motor de la base de datos.
+        """Get the database engine.
 
         Returns:
-            AsyncEngine: motor asíncrono de SQLAlchemy
+            AsyncEngine: SQLAlchemy async engine
 
         Raises:
-            RuntimeError: Si el motor no está inicializado
+            RuntimeError: If the engine is not initialized
         """
         if self._engine is None:
-            raise RuntimeError(
-                "Motor de base de datos no inicializado. Llama a initialize() primero."
-            )
+            raise RuntimeError("Database engine not initialized. Call initialize() first.")
         return self._engine
 
     @property
     def session_maker(self) -> async_sessionmaker[AsyncSession]:
-        """Obtener el creador de sesiones.
+        """Get the session maker.
 
         Returns:
-            async_sessionmaker[AsyncSession]: creador de sesiones asíncronas de SQLAlchemy
+            async_sessionmaker[AsyncSession]: SQLAlchemy async session maker
 
         Raises:
-            RuntimeError: Si el creador de sesiones no está inicializado
+            RuntimeError: If the session maker is not initialized
         """
         if self._session_maker is None:
-            raise RuntimeError(
-                "Creador de sesiones de base de datos no inicializado. "
-                "Llama a initialize() primero."
-            )
+            raise RuntimeError("Database session maker not initialized. Call initialize() first.")
         return self._session_maker
 
     def _ensure_database_directory(self) -> None:
-        """Asegurar que el directorio de la base de datos existe (solo para SQLite)."""
+        """Ensure the database directory exists (SQLite only)."""
         # Parse URL to check if it's SQLite
         if not self.settings.url.startswith("sqlite"):
             return
@@ -95,53 +90,53 @@ class DatabaseService:
         db_dir = db_path.parent
         if db_dir and str(db_dir) != "." and not db_dir.exists():
             db_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Creado directorio de base de datos: {db_dir}")
+            logger.info(f"Created database directory: {db_dir}")
 
     def _redact_url(self, url: str) -> str:
-        """Redactar credenciales de una URL de base de datos.
+        """Redact credentials from a database URL.
 
         Args:
-            url (str): URL de conexión
+            url (str): Connection URL
 
         Returns:
-            str: URL con credenciales redactadas
+            str: URL with redacted credentials
         """
         # Redact password in URLs like: postgresql+asyncpg://user:password@host:port/db
         return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
 
     def _is_sqlite(self) -> bool:
-        """Verificar si la base de datos es SQLite.
+        """Check if the database is SQLite.
 
         Returns:
-            bool: True si es SQLite
+            bool: True if SQLite
         """
         return self.settings.url.startswith("sqlite")
 
     def _configure_sqlite_pragmas(self, engine: AsyncEngine) -> None:
-        """Configurar PRAGMAs de SQLite para mejor rendimiento y consistencia.
+        """Configure SQLite PRAGMAs for better performance and consistency.
 
         Args:
-            engine: Motor de SQLAlchemy
+            engine: SQLAlchemy engine
         """
 
         def set_sqlite_pragma(dbapi_connection, _connection_record):  # type: ignore[no-untyped-def]
             cursor = dbapi_connection.cursor()
-            # WAL mode: mejor rendimiento en lecturas/escrituras concurrentes
+            # WAL mode: better performance for concurrent reads/writes
             cursor.execute("PRAGMA journal_mode=WAL")
-            # Habilitar foreign keys (deshabilitadas por defecto en SQLite)
+            # Enable foreign keys (disabled by default in SQLite)
             cursor.execute("PRAGMA foreign_keys=ON")
-            # Timeout para esperar cuando la BD está bloqueada (5 segundos)
+            # Timeout for waiting when DB is locked (5 seconds)
             cursor.execute("PRAGMA busy_timeout=5000")
-            # Modo synchronous NORMAL es seguro con WAL y más rápido
+            # NORMAL synchronous mode is safe with WAL and faster
             cursor.execute("PRAGMA synchronous=NORMAL")
             cursor.close()
 
-        # El evento se registra en el sync_engine subyacente
+        # The event is registered on the underlying sync_engine
         event.listen(engine.sync_engine, "connect", set_sqlite_pragma)
 
     async def initialize(self) -> None:
-        """Inicializar el motor de la base de datos y el creador de sesiones."""
-        logger.info(f"Inicializando base de datos: {self._redact_url(self.settings.url)}")
+        """Initialize the database engine and session maker."""
+        logger.info(f"Initializing database: {self._redact_url(self.settings.url)}")
 
         # Ensure database directory exists (for SQLite)
         self._ensure_database_directory()
@@ -152,7 +147,7 @@ class DatabaseService:
             pool_recycle=self.settings.pool_recycle,
         )
 
-        # Configurar PRAGMAs para SQLite
+        # Configure PRAGMAs for SQLite
         if self._is_sqlite():
             self._configure_sqlite_pragmas(self._engine)
 
@@ -166,36 +161,36 @@ class DatabaseService:
         try:
             async with self._engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
-            logger.info("Base de datos inicializada con éxito")
+            logger.info("Database initialized successfully")
         except Exception as e:
             await self._engine.dispose()
             self._engine = None
             self._session_maker = None
-            raise RuntimeError(f"No se pudo conectar a la base de datos: {e}") from e
+            raise RuntimeError(f"Could not connect to database: {e}") from e
 
     async def close(self) -> None:
-        """Cerrar conexiones de base de datos."""
+        """Close database connections."""
         if self._engine:
             await self._engine.dispose()
-            logger.info("Conexiones de base de datos cerradas")
+            logger.info("Database connections closed")
 
     def get_session(self) -> AsyncSession:
-        """Obtener una nueva sesión de base de datos.
+        """Get a new database session.
 
         Returns:
-            AsyncSession: sesión asíncrona de SQLAlchemy
+            AsyncSession: SQLAlchemy async session
 
-        Nota:
-            El llamador es responsable de confirmar/revertir y cerrar la sesión.
+        Note:
+            The caller is responsible for committing/rolling back and closing the session.
         """
         return self.session_maker()
 
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Obtener un gestor de contexto de sesión de base de datos.
+        """Get a database session context manager.
 
         Yields:
-            AsyncSession: sesión asíncrona de SQLAlchemy
+            AsyncSession: SQLAlchemy async session
         """
         async with self.session_maker() as session:
             try:
@@ -208,12 +203,12 @@ class DatabaseService:
 
 @lru_cache
 def get_database_service(settings: DatabaseSettings) -> DatabaseService:
-    """Obtener el singleton del servicio de base de datos.
+    """Get the database service singleton.
 
     Args:
-        settings (DatabaseSettings): Configuración de la base de datos
+        settings (DatabaseSettings): Database configuration
 
     Returns:
-        DatabaseService: instancia del servicio de base de datos
+        DatabaseService: Database service instance
     """
     return DatabaseService(settings)

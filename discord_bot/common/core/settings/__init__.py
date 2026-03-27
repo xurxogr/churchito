@@ -1,1 +1,1 @@
-"""Configuración para Devops."""
+"""Configuration for DevOps."""

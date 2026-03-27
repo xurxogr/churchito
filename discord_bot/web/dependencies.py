@@ -1,4 +1,4 @@
-"""Dependencias para inyección en FastAPI."""
+"""Dependencies for FastAPI dependency injection."""
 
 import logging
 from collections.abc import AsyncGenerator
@@ -16,23 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 class NotAuthenticatedException(Exception):
-    """Excepción para indicar que el usuario no está autenticado.
+    """Exception to indicate the user is not authenticated.
 
-    Se usa en lugar de HTTPException para permitir redirección al login
-    en lugar de mostrar una página de error 401.
+    Used instead of HTTPException to allow redirection to login
+    instead of showing a 401 error page.
     """
 
     pass
 
 
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
-    """Obtener una sesión de base de datos.
+    """Get a database session.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Yields:
-        AsyncSession: Sesión de base de datos
+        AsyncSession: Database session
     """
     db_service = request.app.state.db_service
     async with db_service.session() as session:
@@ -40,33 +40,33 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
 
 
 async def get_current_user(request: Request) -> dict[str, Any] | None:
-    """Obtener el usuario actual de la sesión.
+    """Get the current user from the session.
 
     Args:
-        request (Request): Request de FastAPI
+        request (Request): FastAPI request
 
     Returns:
-        dict[str, Any] | None: Datos del usuario o None si no está autenticado
+        dict[str, Any] | None: User data or None if not authenticated
     """
     user = request.session.get("user")
-    logger.debug(f"Claves de sesión: {list(request.session.keys())}")
-    logger.debug(f"Usuario en sesión: {user.get('username') if user else None}")
+    logger.debug(f"Session keys: {list(request.session.keys())}")
+    logger.debug(f"User in session: {user.get('username') if user else None}")
     return user
 
 
 async def require_auth(
     user: Annotated[dict[str, Any] | None, Depends(get_current_user)],
 ) -> dict[str, Any]:
-    """Requerir autenticación.
+    """Require authentication.
 
     Args:
-        user (dict[str, Any] | None): Usuario actual de la sesión
+        user (dict[str, Any] | None): Current user from session
 
     Returns:
-        dict[str, Any]: Datos del usuario
+        dict[str, Any]: User data
 
     Raises:
-        NotAuthenticatedException: Si no está autenticado (resulta en redirección a login)
+        NotAuthenticatedException: If not authenticated (results in redirect to login)
     """
     if user is None:
         raise NotAuthenticatedException()
@@ -78,24 +78,24 @@ async def require_guild_access(
     guild_id: int,
     user: Annotated[dict[str, Any], Depends(require_auth)],
 ) -> dict[str, Any]:
-    """Verificar que el usuario tiene acceso al guild.
+    """Verify that the user has access to the guild.
 
-    El acceso se concede si el usuario:
-    - Es owner del bot (definido en config)
-    - Es quien invitó al bot a este servidor
-    - Es owner del servidor
-    - Tiene uno de los roles de admin configurados para el bot
+    Access is granted if the user:
+    - Is the bot owner (defined in config)
+    - Is the one who invited the bot to this server
+    - Is the server owner
+    - Has one of the admin roles configured for the bot
 
     Args:
-        request (Request): Request de FastAPI
-        guild_id (int): ID del guild
-        user (dict[str, Any]): Usuario autenticado
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        user (dict[str, Any]): Authenticated user
 
     Returns:
-        dict[str, Any]: Datos del usuario
+        dict[str, Any]: User data
 
     Raises:
-        HTTPException: Si no tiene acceso
+        HTTPException: If access is denied
     """
     user_id = int(user.get("id", 0))
 
@@ -110,7 +110,7 @@ async def require_guild_access(
     if not discord_guild:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para gestionar este servidor",
+            detail="You don't have permission to manage this server",
         )
 
     # 3. Check if user is guild owner
@@ -152,7 +152,7 @@ async def require_guild_access(
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="No tienes permisos para gestionar este servidor",
+        detail="You don't have permission to manage this server",
     )
 
 

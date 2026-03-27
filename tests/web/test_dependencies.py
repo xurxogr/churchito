@@ -1,4 +1,4 @@
-"""Tests para las dependencias web."""
+"""Tests for web dependencies."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -16,10 +16,10 @@ from discord_bot.web.dependencies import (
 
 
 class TestGetDbSession:
-    """Tests para get_db_session."""
+    """Tests for get_db_session."""
 
     async def test_yields_session(self, simple_app: FastAPI) -> None:
-        """Probar que yield una sesión."""
+        """Test that it yields a session."""
         request = MagicMock()
         request.app = simple_app
 
@@ -34,10 +34,10 @@ class TestGetDbSession:
 
 
 class TestGetCurrentUser:
-    """Tests para get_current_user."""
+    """Tests for get_current_user."""
 
     async def test_returns_user_from_session(self, test_user: dict[str, Any]) -> None:
-        """Probar que retorna el usuario de la sesión."""
+        """Test that it returns the user from session."""
         request = MagicMock()
         request.session = {"user": test_user}
 
@@ -45,7 +45,7 @@ class TestGetCurrentUser:
         assert user == test_user
 
     async def test_returns_none_when_no_user(self) -> None:
-        """Probar que retorna None cuando no hay usuario."""
+        """Test that it returns None when there is no user."""
         request = MagicMock()
         request.session = {}
 
@@ -54,31 +54,31 @@ class TestGetCurrentUser:
 
 
 class TestRequireAuth:
-    """Tests para require_auth."""
+    """Tests for require_auth."""
 
     async def test_returns_user_when_authenticated(self, test_user: dict[str, Any]) -> None:
-        """Probar que retorna el usuario cuando está autenticado."""
+        """Test that it returns the user when authenticated."""
         user = await require_auth(test_user)
         assert user == test_user
 
     async def test_raises_when_not_authenticated(self) -> None:
-        """Probar que lanza excepción cuando no está autenticado."""
+        """Test that it raises exception when not authenticated."""
         with pytest.raises(NotAuthenticatedException):
             await require_auth(None)
 
 
 class TestRequireGuildAccess:
-    """Tests para require_guild_access."""
+    """Tests for require_guild_access."""
 
     def _setup_db_mock(self, simple_app: FastAPI, guild: Any = None, config: Any = None) -> None:
-        """Configurar mock de base de datos para tests."""
+        """Configure database mock for tests."""
         mock_session = AsyncMock()
 
-        # Mock para Guild query
+        # Mock for Guild query
         guild_result = MagicMock()
         guild_result.scalar_one_or_none.return_value = guild
 
-        # Mock para GuildConfig query
+        # Mock for GuildConfig query
         config_result = MagicMock()
         config_result.scalar_one_or_none.return_value = config
 
@@ -92,7 +92,7 @@ class TestRequireGuildAccess:
         simple_app.state.db_service.session.return_value.__aexit__ = AsyncMock()
 
     async def test_owner_has_access(self, simple_app: FastAPI, test_user: dict[str, Any]) -> None:
-        """Probar que el owner tiene acceso a cualquier guild."""
+        """Test that owner has access to any guild."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = [123456789012345678]
@@ -103,7 +103,7 @@ class TestRequireGuildAccess:
     async def test_user_who_invited_bot_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que el usuario que invitó al bot tiene acceso."""
+        """Test that user who invited the bot has access."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
@@ -124,7 +124,7 @@ class TestRequireGuildAccess:
     async def test_guild_owner_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que el owner del guild tiene acceso."""
+        """Test that guild owner has access."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
@@ -140,7 +140,7 @@ class TestRequireGuildAccess:
     async def test_user_with_admin_role_has_access(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que usuario con rol de admin tiene acceso."""
+        """Test that user with admin role has access."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
@@ -166,7 +166,7 @@ class TestRequireGuildAccess:
     async def test_user_without_permission_denied(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que usuario sin permisos es denegado."""
+        """Test that user without permissions is denied."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []
@@ -175,7 +175,7 @@ class TestRequireGuildAccess:
         self._setup_db_mock(simple_app, guild=None, config=None)
         simple_app.state.bot.get_guild.return_value = None
 
-        # El usuario no tiene permisos para guild 444555666
+        # User does not have permissions for guild 444555666
         with pytest.raises(HTTPException) as exc_info:
             await require_guild_access(request, 444555666, test_user)
         assert exc_info.value.status_code == 403
@@ -183,7 +183,7 @@ class TestRequireGuildAccess:
     async def test_user_not_in_guild_denied(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:
-        """Probar que usuario no en el guild es denegado."""
+        """Test that user not in guild is denied."""
         request = MagicMock()
         request.app = simple_app
         simple_app.state.settings.web.owner_ids = []

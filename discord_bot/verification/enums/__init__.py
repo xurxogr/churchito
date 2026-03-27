@@ -1,4 +1,4 @@
-"""Enumeraciones del cog de verificación."""
+"""Verification cog enums."""
 
 from discord_bot.verification.enums.auto_process_mode import AutoProcessMode
 from discord_bot.verification.enums.config_key import ConfigKey

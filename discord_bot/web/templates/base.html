@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ lang|default('en') }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>{% block title %}Dashboard{% endblock %} - Bot Discord</title>
+    <title>{% block title %}{{ _('ui.nav.dashboard', lang) }}{% endblock %} - Discord Bot</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet" href="{{ root_path }}/static/css/style.css">
     {% block head %}{% endblock %}
@@ -12,12 +12,12 @@
 <body>
     <nav class="navbar">
         <div class="nav-brand">
-            <a href="{{ root_path }}/dashboard">🤖 {{ bot_name or "Dashboard" }}</a>
+            <a href="{{ root_path }}/dashboard">🤖 {{ bot_name or _('ui.nav.dashboard', lang) }}</a>
         </div>
         {% if user %}
         <div class="nav-user">
             <span class="username">{{ user.username }}</span>
-            <a href="{{ root_path }}/auth/logout" class="btn btn-secondary">Cerrar sesión</a>
+            <a href="{{ root_path }}/auth/logout" class="btn btn-secondary">{{ _('ui.nav.logout', lang) }}</a>
         </div>
         {% endif %}
     </nav>
@@ -27,11 +27,11 @@
     </main>
 
     <footer class="footer">
-        <p>Bot Dashboard &copy; 2024</p>
+        <p>{{ _('ui.footer.copyright', lang) }} &copy; 2024</p>
     </footer>
 
     <script>
-        // Configurar HTMX para enviar token CSRF con cada request
+        // Configure HTMX to send CSRF token with each request
         document.addEventListener('htmx:configRequest', function(event) {
             const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             event.detail.headers['X-CSRF-Token'] = csrfToken;

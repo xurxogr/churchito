@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}{{ _('ui.nav.dashboard', lang) }}{% endblock %}
 
 {% block content %}
 <div class="dashboard">
-    <h2>Tus Servidores</h2>
-    <p class="subtitle">Selecciona un servidor para configurar el bot.</p>
+    <h2>{{ _('ui.dashboard.your_servers', lang) }}</h2>
+    <p class="subtitle">{{ _('ui.dashboard.select_server', lang) }}</p>
 
     {% if guilds %}
     <div class="guild-grid">
@@ -21,15 +21,15 @@
             <div class="guild-info">
                 <h3>{{ guild.name }}</h3>
                 {% if guild.bot_present %}
-                <span class="badge badge-success">Bot presente</span>
+                <span class="badge badge-success">{{ _('ui.messages.bot_present', lang) }}</span>
                     {% if guild.has_access %}
-                <a href="{{ root_path }}/guild/{{ guild.id }}" class="btn btn-primary btn-sm">Configurar</a>
+                <a href="{{ root_path }}/guild/{{ guild.id }}" class="btn btn-primary btn-sm">{{ _('ui.buttons.configure', lang) }}</a>
                     {% else %}
-                <span class="badge badge-danger">Sin permisos</span>
+                <span class="badge badge-danger">{{ _('ui.messages.no_permission', lang) }}</span>
                     {% endif %}
                 {% else %}
-                <span class="badge badge-warning">Bot no presente</span>
-                <button class="btn btn-secondary btn-sm" disabled>Invitar primero</button>
+                <span class="badge badge-warning">{{ _('ui.messages.bot_not_present', lang) }}</span>
+                <button class="btn btn-secondary btn-sm" disabled>{{ _('ui.buttons.invite_first', lang) }}</button>
                 {% endif %}
             </div>
         </div>
@@ -37,8 +37,8 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <p>No tienes servidores donde puedas gestionar el bot.</p>
-        <p>Necesitas el permiso "Gestionar servidor" o ser propietario del servidor.</p>
+        <p>{{ _('ui.messages.no_servers', lang) }}</p>
+        <p>{{ _('ui.messages.need_permission', lang) }}</p>
     </div>
     {% endif %}
 </div>

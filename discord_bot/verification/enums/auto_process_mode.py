@@ -1,12 +1,12 @@
-"""Modos de procesamiento automático de verificación."""
+"""Automatic verification processing modes."""
 
 from enum import StrEnum
 
 
 class AutoProcessMode(StrEnum):
-    """Modos de procesamiento automático de verificaciones."""
+    """Automatic verification processing modes."""
 
-    NONE = "none"  # Sin procesamiento automático
-    REJECT_ONLY = "reject_only"  # Solo rechazos automáticos
-    APPROVE_ONLY = "approve_only"  # Solo aprobaciones automáticas
-    BOTH = "both"  # Ambos
+    NONE = "none"  # No automatic processing
+    REJECT_ONLY = "reject_only"  # Automatic rejections only
+    APPROVE_ONLY = "approve_only"  # Automatic approvals only
+    BOTH = "both"  # Both

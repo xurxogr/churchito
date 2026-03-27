@@ -1,4 +1,4 @@
-"""Servicios comunes."""
+"""Common services."""
 
 from discord_bot.common.services.config_schema_service import (
     ConfigSchemaService,

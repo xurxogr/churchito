@@ -1,4 +1,4 @@
-"""Componentes de UI de Discord para verificacion."""
+"""Discord UI components for verification."""
 
 from discord_bot.verification.views.auto_reject_review import AutoRejectReviewView
 from discord_bot.verification.views.mod_review import ModReviewView

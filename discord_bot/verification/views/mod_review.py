@@ -1,22 +1,22 @@
-"""Vista de revision para moderadores.
+"""Review view for moderators.
 
-Los botones de esta vista no tienen callbacks propios.
-Las interacciones son manejadas por el listener on_interaction del cog,
-lo que permite que funcionen incluso despues de reiniciar el bot.
+The buttons in this view do not have their own callbacks.
+Interactions are handled by the cog's on_interaction listener,
+which allows them to work even after the bot restarts.
 """
 
 import discord
 
 
 class AcceptButton(discord.ui.Button["ModReviewView"]):
-    """Boton para aceptar una solicitud de verificacion."""
+    """Button to accept a verification request."""
 
-    def __init__(self, public_id: str, label: str = "Aceptar") -> None:
-        """Inicializar el boton de aceptar.
+    def __init__(self, public_id: str, label: str = "Accept") -> None:
+        """Initialize the accept button.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            label (str): Texto del boton
+            public_id (str): Public request ID (NanoID)
+            label (str): Button text
         """
         super().__init__(
             label=label,
@@ -26,14 +26,14 @@ class AcceptButton(discord.ui.Button["ModReviewView"]):
 
 
 class RejectButton(discord.ui.Button["ModReviewView"]):
-    """Boton para rechazar una solicitud de verificacion."""
+    """Button to reject a verification request."""
 
-    def __init__(self, public_id: str, label: str = "Rechazar") -> None:
-        """Inicializar el boton de rechazar.
+    def __init__(self, public_id: str, label: str = "Reject") -> None:
+        """Initialize the reject button.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            label (str): Texto del boton
+            public_id (str): Public request ID (NanoID)
+            label (str): Button text
         """
         super().__init__(
             label=label,
@@ -43,24 +43,24 @@ class RejectButton(discord.ui.Button["ModReviewView"]):
 
 
 class ModReviewView(discord.ui.View):
-    """Vista con botones de aceptar/rechazar para moderadores.
+    """View with accept/reject buttons for moderators.
 
-    Esta vista se adjunta a los mensajes de revision en el canal
-    de moderacion.
+    This view is attached to review messages in the
+    moderation channel.
     """
 
     def __init__(
         self,
         public_id: str,
-        accept_label: str = "Aceptar",
-        reject_label: str = "Rechazar",
+        accept_label: str = "Accept",
+        reject_label: str = "Reject",
     ) -> None:
-        """Inicializar la vista de revision.
+        """Initialize the review view.
 
         Args:
-            public_id (str): ID público de la solicitud de verificacion (NanoID)
-            accept_label (str): Texto del boton de aceptar
-            reject_label (str): Texto del boton de rechazar
+            public_id (str): Public request ID (NanoID)
+            accept_label (str): Accept button text
+            reject_label (str): Reject button text
         """
         super().__init__(timeout=None)
         self.public_id = public_id

@@ -1,4 +1,11 @@
 <div class="cog-settings-panel">
+    <script>
+        window.i18n = window.i18n || {};
+        window.i18n.embedsAutoSplit = "{{ _('ui.config.embeds_auto_split', lang) }}";
+        window.i18n.preview = "{{ _('ui.config.preview', lang) }}";
+        window.i18n.on = "{{ _('ui.labels.on', lang) }}";
+        window.i18n.off = "{{ _('ui.labels.off', lang) }}";
+    </script>
     {% if error %}
     <div class="alert alert-error" id="config-error">
         <strong>Error:</strong> {{ error }}
@@ -25,7 +32,7 @@
                         onchange="handleCogToggle(this)"
                     >
                     <span class="toggle-slider"></span>
-                    <span class="toggle-label">{{ 'Habilitado' if enabled else 'Deshabilitado' }}</span>
+                    <span class="toggle-label">{{ _('ui.labels.enabled', lang) if enabled else _('ui.labels.disabled', lang) }}</span>
                 </label>
             </form>
 
@@ -35,7 +42,7 @@
                 hx-target="#cog-settings"
                 hx-swap="innerHTML"
             >
-                Recargar
+                {{ _('ui.buttons.reload', lang) }}
             </button>
         </div>
         {% endif %}
@@ -44,47 +51,46 @@
     {% set has_textarea = options | selectattr('type', 'equalto', 'textarea') | list | length > 0 %}
     {% if has_textarea %}
     <div class="markdown-info">
-        Los campos de mensaje soportan formato de Discord (negrita, cursiva, etc.).
-        <a href="https://support.discord.com/hc/es/articles/210298617" target="_blank" rel="noopener">Ver guía de formato</a>
+        {{ _('ui.config.markdown_info', lang) }}
+        <a href="https://support.discord.com/hc/articles/210298617" target="_blank" rel="noopener">{{ _('ui.config.formatting_guide', lang) }}</a>
     </div>
 
     <details class="placeholders-help">
         <summary>
             <span class="placeholders-help-icon">📝</span>
-            <span>Placeholders globales disponibles</span>
+            <span>{{ _('ui.config.placeholders_title', lang) }}</span>
             <span class="placeholders-help-arrow">▶</span>
         </summary>
         <div class="placeholders-help-content">
             <p class="placeholders-help-intro">
-                Los placeholders se reemplazan automáticamente con datos reales.
-                Escríbelos entre llaves: <code>{placeholder}</code>
+                {{ _('ui.config.placeholders_intro', lang) }}
             </p>
 
             <div class="placeholders-grid">
                 <div class="placeholders-section">
-                    <h4>🏠 Servidor</h4>
+                    <h4>🏠 {{ _('ui.config.server', lang) }}</h4>
                     <table class="placeholders-table">
                         <thead>
                             <tr>
-                                <th>Placeholder</th>
-                                <th>Descripción</th>
-                                <th>Ejemplo</th>
+                                <th>{{ _('ui.config.placeholder', lang) }}</th>
+                                <th>{{ _('ui.config.description', lang) }}</th>
+                                <th>{{ _('ui.config.example', lang) }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><code>{server_name}</code></td>
-                                <td>Nombre del servidor</td>
+                                <td>{{ _('ui.config.server_name', lang) }}</td>
                                 <td class="example">{{ guild_name }}</td>
                             </tr>
                             <tr>
                                 <td><code>{server_id}</code></td>
-                                <td>ID del servidor</td>
+                                <td>{{ _('ui.config.server_id', lang) }}</td>
                                 <td class="example">{{ guild_id }}</td>
                             </tr>
                             <tr>
                                 <td><code>{server_member_count}</code></td>
-                                <td>Cantidad de miembros</td>
+                                <td>{{ _('ui.config.member_count', lang) }}</td>
                                 <td class="example">150</td>
                             </tr>
                         </tbody>
@@ -92,114 +98,114 @@
                 </div>
 
                 <div class="placeholders-section">
-                    <h4>👤 Usuario</h4>
+                    <h4>👤 {{ _('ui.config.user', lang) }}</h4>
                     <table class="placeholders-table">
                         <thead>
                             <tr>
-                                <th>Placeholder</th>
-                                <th>Descripción</th>
-                                <th>Ejemplo</th>
+                                <th>{{ _('ui.config.placeholder', lang) }}</th>
+                                <th>{{ _('ui.config.description', lang) }}</th>
+                                <th>{{ _('ui.config.example', lang) }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><code>{user_name}</code></td>
-                                <td>Nombre del usuario</td>
+                                <td>{{ _('ui.config.username', lang) }}</td>
                                 <td class="example">JohnDoe</td>
                             </tr>
                             <tr>
                                 <td><code>{user_mention}</code></td>
-                                <td>Mención del usuario</td>
+                                <td>{{ _('ui.config.user_mention', lang) }}</td>
                                 <td class="example">@JohnDoe</td>
                             </tr>
                             <tr>
                                 <td><code>{user_id}</code></td>
-                                <td>ID del usuario</td>
+                                <td>{{ _('ui.config.user_id', lang) }}</td>
                                 <td class="example">123456789</td>
                             </tr>
                             <tr>
                                 <td><code>{user_avatar_url}</code></td>
-                                <td>URL del avatar</td>
+                                <td>{{ _('ui.config.avatar_url', lang) }}</td>
                                 <td class="example">https://cdn...</td>
                             </tr>
                             <tr>
                                 <td><code>{user_joined_server}</code></td>
-                                <td>Fecha de entrada</td>
-                                <td class="example">15/01/2024 10:30</td>
+                                <td>{{ _('ui.config.server_join_date', lang) }}</td>
+                                <td class="example">01/15/2024 10:30</td>
                             </tr>
                             <tr>
                                 <td><code>{user_joined_server_relative}</code></td>
-                                <td>Tiempo desde entrada</td>
-                                <td class="example">hace 2 meses</td>
+                                <td>{{ _('ui.config.time_since_join', lang) }}</td>
+                                <td class="example">2 months ago</td>
                             </tr>
                             <tr>
                                 <td><code>{user_joined_discord}</code></td>
-                                <td>Fecha creación cuenta</td>
-                                <td class="example">01/06/2020 15:00</td>
+                                <td>{{ _('ui.config.account_creation', lang) }}</td>
+                                <td class="example">06/01/2020 15:00</td>
                             </tr>
                             <tr>
                                 <td><code>{user_joined_discord_relative}</code></td>
-                                <td>Antigüedad cuenta</td>
-                                <td class="example">hace 4 años</td>
+                                <td>{{ _('ui.config.account_age', lang) }}</td>
+                                <td class="example">4 years ago</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div class="placeholders-section">
-                    <h4>🎨 Emojis de Color</h4>
+                    <h4>🎨 {{ _('ui.config.color_emojis', lang) }}</h4>
                     <table class="placeholders-table">
                         <thead>
                             <tr>
-                                <th>Placeholder</th>
-                                <th>Descripción</th>
-                                <th>Ejemplo</th>
+                                <th>{{ _('ui.config.placeholder', lang) }}</th>
+                                <th>{{ _('ui.config.description', lang) }}</th>
+                                <th>{{ _('ui.config.example', lang) }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><code>{dot_red}</code></td>
-                                <td>Círculo rojo</td>
+                                <td>{{ _('ui.config.red_circle', lang) }}</td>
                                 <td class="example">🔴</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_green}</code></td>
-                                <td>Círculo verde</td>
+                                <td>{{ _('ui.config.green_circle', lang) }}</td>
                                 <td class="example">🟢</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_yellow}</code></td>
-                                <td>Círculo amarillo</td>
+                                <td>{{ _('ui.config.yellow_circle', lang) }}</td>
                                 <td class="example">🟡</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_blue}</code></td>
-                                <td>Círculo azul</td>
+                                <td>{{ _('ui.config.blue_circle', lang) }}</td>
                                 <td class="example">🔵</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_orange}</code></td>
-                                <td>Círculo naranja</td>
+                                <td>{{ _('ui.config.orange_circle', lang) }}</td>
                                 <td class="example">🟠</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_purple}</code></td>
-                                <td>Círculo morado</td>
+                                <td>{{ _('ui.config.purple_circle', lang) }}</td>
                                 <td class="example">🟣</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_white}</code></td>
-                                <td>Círculo blanco</td>
+                                <td>{{ _('ui.config.white_circle', lang) }}</td>
                                 <td class="example">⚪</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_black}</code></td>
-                                <td>Círculo negro</td>
+                                <td>{{ _('ui.config.black_circle', lang) }}</td>
                                 <td class="example">⚫</td>
                             </tr>
                             <tr>
                                 <td><code>{dot_brown}</code></td>
-                                <td>Círculo marrón</td>
+                                <td>{{ _('ui.config.brown_circle', lang) }}</td>
                                 <td class="example">🟤</td>
                             </tr>
                         </tbody>
@@ -207,58 +213,58 @@
                 </div>
 
                 <div class="placeholders-section">
-                    <h4>🌈 Colores ANSI (solo valores)</h4>
+                    <h4>🌈 {{ _('ui.config.ansi_colors', lang) }}</h4>
                     <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
-                        Usar en valores de campos. El texto se mostrará en bloque de código con color.
+                        {{ _('ui.config.ansi_colors_hint', lang) }}
                     </p>
                     <table class="placeholders-table">
                         <thead>
                             <tr>
-                                <th>Etiqueta</th>
-                                <th>Descripción</th>
-                                <th>Vista previa</th>
+                                <th>{{ _('ui.config.tag', lang) }}</th>
+                                <th>{{ _('ui.config.description', lang) }}</th>
+                                <th>{{ _('ui.config.preview', lang) }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><code>{red}...{/red}</code></td>
-                                <td>Texto en rojo</td>
+                                <td>{{ _('ui.config.red_text', lang) }}</td>
                                 <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #f04747;">Error</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{green}...{/green}</code></td>
-                                <td>Texto en verde</td>
+                                <td>{{ _('ui.config.green_text', lang) }}</td>
                                 <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #43b581;">OK</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{yellow}...{/yellow}</code></td>
-                                <td>Texto en amarillo</td>
-                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #faa61a;">Aviso</span></span></td>
+                                <td>{{ _('ui.config.yellow_text', lang) }}</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #faa61a;">Warning</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{blue}...{/blue}</code></td>
-                                <td>Texto en azul</td>
+                                <td>{{ _('ui.config.blue_text', lang) }}</td>
                                 <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #7289da;">Info</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{pink}...{/pink}</code></td>
-                                <td>Texto en rosa</td>
-                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ff73fa;">Texto</span></span></td>
+                                <td>{{ _('ui.config.pink_text', lang) }}</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ff73fa;">Text</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{cyan}...{/cyan}</code></td>
-                                <td>Texto en cian</td>
-                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #00b8d4;">Texto</span></span></td>
+                                <td>{{ _('ui.config.cyan_text', lang) }}</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #00b8d4;">Text</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{white}...{/white}</code></td>
-                                <td>Texto en blanco</td>
-                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ffffff;">Texto</span></span></td>
+                                <td>{{ _('ui.config.white_text', lang) }}</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #ffffff;">Text</span></span></td>
                             </tr>
                             <tr>
                                 <td><code>{gray}...{/gray}</code></td>
-                                <td>Texto en gris</td>
-                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #99aab5;">Texto</span></span></td>
+                                <td>{{ _('ui.config.gray_text', lang) }}</td>
+                                <td class="example"><span class="ansi-preview" style="background: #2f3136; padding: 2px 6px; border-radius: 3px; font-family: monospace;"><span style="color: #99aab5;">Text</span></span></td>
                             </tr>
                         </tbody>
                     </table>
@@ -266,13 +272,13 @@
             </div>
 
             <p class="placeholders-help-note">
-                <strong>Nota:</strong> Cada campo puede tener placeholders adicionales específicos que se muestran debajo de su descripción.
+                <strong>Note:</strong> Each field may have additional specific placeholders shown below its description.
             </p>
         </div>
     </details>
     {% endif %}
 
-    {# Macro para renderizar el contenido de una sección de embed según su tipo #}
+    {# Macro to render embed section content based on its type #}
     {% macro renderSectionContent(row, optionKey, rowIndex, isSections=false) %}
     {% set sectionType = row.type or 'text' %}
     {% set trackFn = 'trackEmbedSectionsChange' if isSections else 'trackEmbedChange' %}
@@ -281,10 +287,10 @@
     {% if sectionType == 'text' %}
         <div style="display: flex; flex-direction: column; gap: 6px;">
             <input type="text" class="input input-sm" data-col="title"
-                   value="{{ row.title or '' }}" placeholder="Título (se muestra en negrita)"
+                   value="{{ row.title or '' }}" placeholder="Title (shown in bold)"
                    oninput="{{ handler }}">
             <textarea class="textarea" data-col="content" rows="2"
-                      placeholder="Contenido (soporta placeholders y Markdown)"
+                      placeholder="Content (supports placeholders and Markdown)"
                       oninput="{{ handler }}"
                       style="width: 100%; resize: vertical;">{{ row.content or '' }}</textarea>
         </div>
@@ -294,18 +300,18 @@
                 <label style="font-size: 11px; color: var(--text-muted);">
                     <input type="checkbox" data-col="inline" {% if row.inline != false %}checked{% endif %}
                            onchange="{{ handler }}">
-                    En línea (horizontal)
+                    Inline (horizontal)
                 </label>
             </div>
             {% for i in [1, 2, 3] %}
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 10px; color: var(--text-muted); min-width: 15px;">{{ i }}.</span>
                 <input type="text" class="input input-sm" data-col="field_{{ i }}_name"
-                       value="{{ row['field_' ~ i ~ '_name'] or '' }}" placeholder="Nombre"
+                       value="{{ row['field_' ~ i ~ '_name'] or '' }}" placeholder="Name"
                        style="width: 120px;"
                        oninput="{{ handler }}">
                 <input type="text" class="input input-sm" data-col="field_{{ i }}_value"
-                       value="{{ row['field_' ~ i ~ '_value'] or '' }}" placeholder="Valor (soporta placeholders)"
+                       value="{{ row['field_' ~ i ~ '_value'] or '' }}" placeholder="Value (supports placeholders)"
                        style="flex: 1;"
                        oninput="{{ handler }}">
             </div>
@@ -314,13 +320,13 @@
     {% endif %}
     {% endmacro %}
 
-    {# Macro para renderizar una opción #}
+    {# Macro to render an option #}
     {% macro render_option(option) %}
     <div class="option-item" data-option-key="{{ option.key }}">
         <div class="option-header">
             <label for="opt-{{ option.key }}">{{ option.name }}</label>
             {% if option.required %}
-            <span class="badge badge-required">Requerido</span>
+            <span class="badge badge-required">Required</span>
             {% endif %}
         </div>
         {% if option.description %}
@@ -341,7 +347,7 @@
                 data-option-key="{{ option.key }}"
                 data-original="{{ option.value if option.value is not none else '' }}"
                 value="{{ option.value if option.value is not none else '' }}"
-                placeholder="{{ option.default or 'Sin valor' }}"
+                placeholder="{{ option.default or 'No value' }}"
                 {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
                 class="input config-input"
                 oninput="trackChange(this)"
@@ -354,7 +360,7 @@
                     id="opt-{{ option.key }}"
                     data-option-key="{{ option.key }}"
                     data-original="{{ option.value if option.value is not none else '' }}"
-                    placeholder="{{ option.default or 'Sin valor' }}"
+                    placeholder="{{ option.default or 'No value' }}"
                     {% if option.max_length %}maxlength="{{ option.max_length }}"{% endif %}
                     class="textarea config-input"
                     rows="8"
@@ -367,7 +373,7 @@
                     </small>
                     {% endif %}
                 </div>
-                <div class="textarea-preview-label">Vista previa</div>
+                <div class="textarea-preview-label">{{ _('ui.config.preview', lang) }}</div>
                 <div class="textarea-preview"><div class="textarea-preview-content" id="preview-content-{{ option.key }}"></div></div>
                 <script>
                     (function() {
@@ -398,13 +404,13 @@
                             text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                             text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
                             text = text.replace(/~~(.+?)~~/g, '<del>$1</del>').replace(/__(.+?)__/g, '<u>$1</u>');
-                            text = text.replace(/&lt;#(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-channel">#${channelMap[id] || 'canal'}</span>`);
-                            text = text.replace(/&lt;@&amp;(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-role">@${roleMap[id] || 'rol'}</span>`);
-                            text = text.replace(/&lt;@!?(\d+)&gt;/g, () => `<span class="discord-mention discord-user">@usuario</span>`);
+                            text = text.replace(/&lt;#(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-channel">#${channelMap[id] || 'channel'}</span>`);
+                            text = text.replace(/&lt;@&amp;(\d+)&gt;/g, (m, id) => `<span class="discord-mention discord-role">@${roleMap[id] || 'role'}</span>`);
+                            text = text.replace(/&lt;@!?(\d+)&gt;/g, () => `<span class="discord-mention discord-user">@user</span>`);
                             text = text.replace(/&lt;(a?):(\w+):(\d+)&gt;/g, (m, a, n, id) => `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${id}.${a?'gif':'png'}" alt=":${n}:">`);
                             text = text.replace(/:([a-z0-9_]+):/gi, (m, n) => emojiMap[n.toLowerCase()] || m);
                             text = text.replace(/\{server_name\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
-                            text = text.replace(/\{servidor\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
+                            text = text.replace(/\{server\}/gi, `<span class="discord-placeholder">${guildName}</span>`);
                             text = text.replace(/(https?:\/\/[^\s<]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<]*)?)/gi, '<br><img class="discord-embed-image" src="$1" alt="Image"><br>');
                             text = text.replace(/\n/g, '<br>');
                             content.innerHTML = text;
@@ -446,7 +452,7 @@
                     onchange="trackBooleanChange(this)"
                 >
                 <span class="toggle-slider"></span>
-                <span class="toggle-label" id="label-{{ option.key }}">{{ 'Activado' if option.value else 'Desactivado' }}</span>
+                <span class="toggle-label" id="label-{{ option.key }}">{{ _('ui.labels.on', lang) if option.value else _('ui.labels.off', lang) }}</span>
             </label>
 
             {% elif option.type == 'text_choice' and option.choices %}
@@ -458,7 +464,7 @@
                 class="select config-input"
                 onchange="trackChange(this)"
             >
-                <option value="">-- Seleccionar --</option>
+                <option value="">-- Select --</option>
                 {% for label, val in option.choices %}
                 <option value="{{ val }}" {% if option.value == val %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
@@ -473,7 +479,7 @@
                 class="select config-input"
                 onchange="trackChange(this)"
             >
-                <option value="">-- Seleccionar canal --</option>
+                <option value="">{{ _('ui.labels.select_channel', lang) }}</option>
                 {% for ch in channels %}
                 <option value="{{ ch.id }}" {% if option.value == ch.id %}selected{% endif %}>
                     #{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}
@@ -490,7 +496,7 @@
                 class="select config-input"
                 onchange="trackChange(this)"
             >
-                <option value="">-- Seleccionar rol --</option>
+                <option value="">{{ _('ui.labels.select_role', lang) }}</option>
                 {% for role in roles %}
                 <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
                     @{{ role.name }}
@@ -501,7 +507,7 @@
             {% elif option.type == 'channel_list' %}
             <div class="dual-listbox" data-option-key="{{ option.key }}" data-original="{{ option.value | join(',') if option.value else '' }}">
                 <div class="listbox-container">
-                    <label class="listbox-label">Disponibles</label>
+                    <label class="listbox-label">{{ _('ui.config.available', lang) }}</label>
                     <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for ch in channels %}
                         {% if not option.value or ch.id not in option.value %}
@@ -511,11 +517,11 @@
                     </select>
                 </div>
                 <div class="listbox-buttons">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Agregar">&gt;</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Quitar">&lt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Add">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Remove">&lt;</button>
                 </div>
                 <div class="listbox-container">
-                    <label class="listbox-label">Seleccionados</label>
+                    <label class="listbox-label">{{ _('ui.config.selected', lang) }}</label>
                     <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for ch in channels %}
                         {% if option.value and ch.id in option.value %}
@@ -529,7 +535,7 @@
             {% elif option.type == 'role_list' %}
             <div class="dual-listbox" data-option-key="{{ option.key }}" data-original="{{ option.value | join(',') if option.value else '' }}">
                 <div class="listbox-container">
-                    <label class="listbox-label">Disponibles</label>
+                    <label class="listbox-label">{{ _('ui.config.available', lang) }}</label>
                     <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for role in roles %}
                         {% if not option.value or role.id not in option.value %}
@@ -539,11 +545,11 @@
                     </select>
                 </div>
                 <div class="listbox-buttons">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Agregar">&gt;</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Quitar">&lt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('avail-{{ option.key }}', 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Add">&gt;</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="moveItems('sel-{{ option.key }}', 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')" title="Remove">&lt;</button>
                 </div>
                 <div class="listbox-container">
-                    <label class="listbox-label">Seleccionados</label>
+                    <label class="listbox-label">{{ _('ui.config.selected', lang) }}</label>
                     <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')">
                         {% for role in roles %}
                         {% if option.value and role.id in option.value %}
@@ -562,7 +568,7 @@
                             {% for col in option.columns %}
                             <th>{{ col.name }}{% if col.required %}<span class="required-mark">*</span>{% endif %}</th>
                             {% endfor %}
-                            <th class="actions-col">Acciones</th>
+                            <th class="actions-col">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-{{ option.key }}">
@@ -572,14 +578,14 @@
                             <td>
                                 {% if col.type == 'role' %}
                                 <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
-                                    <option value="">-- Seleccionar --</option>
+                                    <option value="">-- Select --</option>
                                     {% for role in roles %}
                                     <option value="{{ role.id }}" {% if row[col.key]|string == role.id|string %}selected{% endif %}>@{{ role.name }}</option>
                                     {% endfor %}
                                 </select>
                                 {% elif col.type == 'channel' %}
                                 <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
-                                    <option value="">-- Seleccionar --</option>
+                                    <option value="">-- Select --</option>
                                     {% for ch in channels %}
                                     <option value="{{ ch.id }}" {% if row[col.key]|string == ch.id|string %}selected{% endif %}>#{{ ch.name }}</option>
                                     {% endfor %}
@@ -600,16 +606,16 @@
                             </td>
                             {% endfor %}
                             <td class="actions-col">
-                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('{{ option.key }}')" title="Subir">&#9650;</button>
-                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('{{ option.key }}')" title="Bajar">&#9660;</button>
-                                <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('{{ option.key }}')" title="Move up">&#9650;</button>
+                                <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('{{ option.key }}')" title="Move down">&#9660;</button>
+                                <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('{{ option.key }}')" title="Delete">&#10005;</button>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
                 <div class="config-table-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTableRow('{{ option.key }}')">+ Añadir fila</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addTableRow('{{ option.key }}')">+ Add row</button>
                 </div>
                 <script>
                     window.tableColumns = window.tableColumns || {};
@@ -623,16 +629,16 @@
             {% set embed_value = option.value or {} %}
             {% set embed_sections = embed_value.sections or [] %}
             <div class="embed-editor" id="embed-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "{}" }}'>
-                <div class="embed-editor-label">Configuración del Embed</div>
+                <div class="embed-editor-label">{{ _('ui.config.embed_configuration', lang) }}</div>
                 <div class="embed-editor-container">
                     <div class="embed-editor-main">
                         <div class="embed-editor-fields">
                             <div class="embed-field-row">
                                 <div class="embed-field">
-                                    <label for="embed-title-{{ option.key }}">Título</label>
+                                    <label for="embed-title-{{ option.key }}">Title</label>
                                     <input type="text" id="embed-title-{{ option.key }}" class="input"
                                            value="{{ embed_value.title or '' }}"
-                                           placeholder="Título del embed (soporta placeholders)"
+                                           placeholder="Embed title (supports placeholders)"
                                            maxlength="256"
                                            oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
                                 </div>
@@ -654,62 +660,62 @@
                             </div>
                             <div class="embed-field-row">
                                 <div class="embed-field">
-                                    <label for="embed-description-{{ option.key }}">Descripción <small>(aparece antes de las secciones)</small></label>
+                                    <label for="embed-description-{{ option.key }}">Description <small>(appears before sections)</small></label>
                                     <textarea id="embed-description-{{ option.key }}" class="textarea"
                                               rows="3"
-                                              placeholder="Descripción del embed (soporta placeholders y Markdown)"
+                                              placeholder="Embed description (supports placeholders and Markdown)"
                                               oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">{{ embed_value.description or '' }}</textarea>
                                 </div>
                             </div>
                             <div class="embed-field-row">
                                 <div class="embed-field">
-                                    <label for="embed-thumbnail-{{ option.key }}">Thumbnail URL <small>(esquina superior derecha)</small></label>
+                                    <label for="embed-thumbnail-{{ option.key }}">Thumbnail URL <small>(top right corner)</small></label>
                                     <input type="text" id="embed-thumbnail-{{ option.key }}" class="input"
                                            value="{{ embed_value.thumbnail_url or '' }}"
-                                           placeholder="https://ejemplo.com/imagen.png"
+                                           placeholder="https://example.com/image.png"
                                            oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
                                 </div>
                             </div>
                             <div class="embed-field-row">
                                 <div class="embed-field">
-                                    <label for="embed-image-{{ option.key }}">Imagen URL <small>(imagen principal grande)</small></label>
+                                    <label for="embed-image-{{ option.key }}">Image URL <small>(main large image)</small></label>
                                     <input type="text" id="embed-image-{{ option.key }}" class="input"
                                            value="{{ embed_value.image_url or '' }}"
-                                           placeholder="https://ejemplo.com/imagen.png"
+                                           placeholder="https://example.com/image.png"
                                            oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
                                 </div>
                             </div>
                             <div class="embed-field-row">
                                 <div class="embed-field">
-                                    <label for="embed-footer-text-{{ option.key }}">Texto del footer</label>
+                                    <label for="embed-footer-text-{{ option.key }}">Footer text</label>
                                     <input type="text" id="embed-footer-text-{{ option.key }}" class="input"
                                            value="{{ embed_value.footer_text or '' }}"
-                                           placeholder="Pie de página (soporta placeholders)"
+                                           placeholder="Footer text (supports placeholders)"
                                            maxlength="2048"
                                            oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
                                 </div>
                                 <div class="embed-field">
-                                    <label for="embed-footer-icon-{{ option.key }}">Icono del footer URL</label>
+                                    <label for="embed-footer-icon-{{ option.key }}">Footer icon URL</label>
                                     <input type="text" id="embed-footer-icon-{{ option.key }}" class="input"
                                            value="{{ embed_value.footer_icon_url or '' }}"
-                                           placeholder="URL del icono (20x20)"
+                                           placeholder="Icon URL (20x20)"
                                            oninput="trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')">
                                 </div>
                             </div>
                         </div>
 
                         <div class="embed-sections-header">
-                            <h4>Secciones del contenido</h4>
-                            <span class="embed-sections-help">Las secciones se muestran en orden</span>
+                            <h4>Content sections</h4>
+                            <span class="embed-sections-help">Sections are displayed in order</span>
                         </div>
 
                         <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
                             <table class="config-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 140px;">Tipo</th>
-                                        <th>Contenido / Configuración</th>
-                                        <th class="actions-col" style="width: 100px;">Acciones</th>
+                                        <th style="width: 140px;">Type</th>
+                                        <th>Content / Configuration</th>
+                                        <th class="actions-col" style="width: 100px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="embed-tbody-{{ option.key }}">
@@ -717,17 +723,17 @@
                                     <tr data-row-index="{{ loop.index0 }}" class="embed-section-row" data-section-type="{{ row.type or 'text' }}">
                                         <td>
                                             <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '{{ option.key }}')">
-                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
-                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
+                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Text</option>
+                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Fields (3 col)</option>
                                             </select>
                                         </td>
                                         <td class="embed-section-content-cell">
                                             {{ renderSectionContent(row, option.key, loop.index0) }}
                                         </td>
                                         <td class="actions-col">
-                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Subir">&#9650;</button>
-                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Bajar">&#9660;</button>
-                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Move up">&#9650;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Move down">&#9660;</button>
+                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('{{ option.key }}'); updateEmbedPreview('{{ option.key }}')" title="Delete">&#10005;</button>
                                         </td>
                                         <div class="embed-section-data" style="display:none;" data-options='{{ row | tojson }}'></div>
                                     </tr>
@@ -735,14 +741,14 @@
                                 </tbody>
                             </table>
                             <div class="config-table-actions">
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSection('{{ option.key }}')">+ Añadir sección</button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSection('{{ option.key }}')">+ Add section</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="embed-editor-preview">
                         <div class="embed-preview-container">
-                            <div class="embed-preview-title">Vista previa</div>
+                            <div class="embed-preview-title">{{ _('ui.config.preview', lang) }}</div>
                             <div class="discord-embed-preview" id="embed-preview-{{ option.key }}" style="border-left-color: {{ embed_value.color or '#5865F2' }}">
                                 <!-- Preview content will be generated by JS -->
                             </div>
@@ -754,21 +760,21 @@
             {% elif option.type == 'embed_sections' %}
             {% set sections_value = option.value or [] %}
             <div class="embed-editor embed-sections-editor" id="embed-{{ option.key }}" data-option-key="{{ option.key }}" data-original='{{ option.value | tojson if option.value else "[]" }}' data-is-sections="true">
-                <div class="embed-editor-label">Configuración de contenido</div>
+                <div class="embed-editor-label">Content configuration</div>
                 <div class="embed-editor-container">
                     <div class="embed-editor-main">
                         <div class="embed-sections-header" style="margin-top: 0;">
-                            <h4>Secciones</h4>
-                            <span class="embed-sections-help">Las secciones se añaden al embed principal</span>
+                            <h4>Sections</h4>
+                            <span class="embed-sections-help">Sections are added to the main embed</span>
                         </div>
 
                         <div class="config-table-wrapper" id="embed-table-{{ option.key }}">
                             <table class="config-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 140px;">Tipo</th>
-                                        <th>Contenido / Configuración</th>
-                                        <th class="actions-col" style="width: 100px;">Acciones</th>
+                                        <th style="width: 140px;">Type</th>
+                                        <th>Content / Configuration</th>
+                                        <th class="actions-col" style="width: 100px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="embed-tbody-{{ option.key }}">
@@ -776,17 +782,17 @@
                                     <tr data-row-index="{{ loop.index0 }}" class="embed-section-row" data-section-type="{{ row.type or 'text' }}">
                                         <td>
                                             <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '{{ option.key }}')">
-                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Texto</option>
-                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Campos (3 col)</option>
+                                                <option value="text" {% if row.type == 'text' %}selected{% endif %}>Text</option>
+                                                <option value="fields" {% if row.type == 'fields' %}selected{% endif %}>Fields (3 col)</option>
                                             </select>
                                         </td>
                                         <td class="embed-section-content-cell">
                                             {{ renderSectionContent(row, option.key, loop.index0, isSections=true) }}
                                         </td>
                                         <td class="actions-col">
-                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Subir">&#9650;</button>
-                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Bajar">&#9660;</button>
-                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Eliminar">&#10005;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Move up">&#9650;</button>
+                                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Move down">&#9660;</button>
+                                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('{{ option.key }}'); updateEmbedSectionsPreview('{{ option.key }}')" title="Delete">&#10005;</button>
                                         </td>
                                         <div class="embed-section-data" style="display:none;" data-options='{{ row | tojson }}'></div>
                                     </tr>
@@ -794,14 +800,14 @@
                                 </tbody>
                             </table>
                             <div class="config-table-actions">
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSectionFor('{{ option.key }}')">+ Añadir sección</button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="addEmbedSectionFor('{{ option.key }}')">+ Add section</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="embed-editor-preview">
                         <div class="embed-preview-container">
-                            <div class="embed-preview-title">Vista previa</div>
+                            <div class="embed-preview-title">{{ _('ui.config.preview', lang) }}</div>
                             <div class="discord-embed-preview" id="embed-preview-{{ option.key }}" style="border-left-color: #5865F2">
                                 <!-- Preview content will be generated by JS -->
                             </div>
@@ -965,7 +971,7 @@
             {% set ungrouped = options | selectattr('group', 'none') | list %}
             {% if ungrouped %}
             <div class="option-group">
-                <h3 class="option-group-title">Otros</h3>
+                <h3 class="option-group-title">Other</h3>
                 <div class="option-group-content">
                     {% for option in ungrouped %}
                         {{ render_option(option) }}
@@ -979,7 +985,7 @@
                 {{ render_option(option) }}
             {% else %}
             <div class="empty-state">
-                <p>Este módulo no tiene opciones configurables.</p>
+                <p>This module has no configurable options.</p>
             </div>
             {% endfor %}
         {% endif %}
@@ -989,11 +995,11 @@
 <!-- Floating Save Bar -->
 <div class="save-bar" id="save-bar">
     <div class="save-bar-message">
-        Cuidado - Tienes cambios sin guardar
+        Warning - You have unsaved changes
     </div>
     <div class="save-bar-actions">
-        <button type="button" class="btn-reset" onclick="resetAllChanges()">Reiniciar</button>
-        <button type="button" class="btn-save" id="save-btn" onclick="saveAllChanges()">Guardar cambios</button>
+        <button type="button" class="btn-reset" onclick="resetAllChanges()">Reset</button>
+        <button type="button" class="btn-save" id="save-btn" onclick="saveAllChanges()">Save changes</button>
     </div>
 </div>
 
@@ -1045,7 +1051,7 @@ function trackBooleanChange(el) {
     // Update label text
     const label = document.getElementById('label-' + key);
     if (label) {
-        label.textContent = current ? 'Activado' : 'Desactivado';
+        label.textContent = current ? window.i18n.on : window.i18n.off;
     }
 
     if (current !== original) {
@@ -1157,7 +1163,7 @@ function resetAllChanges() {
         el.checked = original;
         const label = document.getElementById('label-' + el.dataset.optionKey);
         if (label) {
-            label.textContent = original ? 'Activado' : 'Desactivado';
+            label.textContent = original ? window.i18n.on : window.i18n.off;
         }
     });
 
@@ -1173,7 +1179,7 @@ function resetAllChanges() {
 async function saveAllChanges() {
     const saveBtn = document.getElementById('save-btn');
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Guardando...';
+    saveBtn.textContent = 'Saving...';
 
     // Get CSRF token from meta tag
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -1203,24 +1209,24 @@ async function saveAllChanges() {
             throw new Error('Error saving options');
         }
 
-        // El endpoint ya devuelve el HTML actualizado, usarlo directamente
-        // en vez de hacer otra petición GET (evita race condition)
+        // The endpoint already returns updated HTML, use it directly
+        // instead of making another GET request (avoids race condition)
         const html = await response.text();
         const target = document.getElementById('cog-settings');
         target.innerHTML = html;
-        // Ejecutar scripts del nuevo contenido (innerHTML no los ejecuta automáticamente)
+        // Execute scripts from new content (innerHTML doesn't execute them automatically)
         target.querySelectorAll('script').forEach(oldScript => {
             const newScript = document.createElement('script');
             newScript.textContent = oldScript.textContent;
             oldScript.parentNode.replaceChild(newScript, oldScript);
         });
-        // Procesar atributos htmx en el nuevo contenido
+        // Process htmx attributes in the new content
         htmx.process(target);
     } catch (error) {
         console.error('Error saving:', error);
-        alert('Error al guardar los cambios. Por favor, inténtalo de nuevo.');
+        alert('Error saving changes. Please try again.');
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Guardar cambios';
+        saveBtn.textContent = 'Save changes';
     }
 }
 
@@ -1288,7 +1294,7 @@ function addTableRow(optionKey) {
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
             select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
-            select.innerHTML = '<option value="">-- Seleccionar --</option>' +
+            select.innerHTML = '<option value="">-- Select --</option>' +
                 availableRoles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('');
             td.appendChild(select);
         } else if (col.type === 'channel') {
@@ -1296,7 +1302,7 @@ function addTableRow(optionKey) {
             select.className = 'select select-sm';
             select.setAttribute('data-col', col.key);
             select.setAttribute('onchange', `trackTableChange('${optionKey}')`);
-            select.innerHTML = '<option value="">-- Seleccionar --</option>' +
+            select.innerHTML = '<option value="">-- Select --</option>' +
                 channels.map(c => `<option value="${c.id}">#${c.name}</option>`).join('');
             td.appendChild(select);
         } else if (col.type === 'choice' && col.choices) {
@@ -1337,9 +1343,9 @@ function addTableRow(optionKey) {
     const actionsTd = document.createElement('td');
     actionsTd.className = 'actions-col';
     actionsTd.innerHTML = `
-        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('${optionKey}')" title="Subir">&#9650;</button>
-        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('${optionKey}')" title="Bajar">&#9660;</button>
-        <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('${optionKey}')" title="Eliminar">&#10005;</button>
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackTableChange('${optionKey}')" title="Move up">&#9650;</button>
+        <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackTableChange('${optionKey}')" title="Move down">&#9660;</button>
+        <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackTableChange('${optionKey}')" title="Delete">&#10005;</button>
     `;
     tr.appendChild(actionsTd);
 
@@ -1405,7 +1411,7 @@ function validateEmbedUrlField(inputId) {
     const isValid = isValidEmbedUrl(value);
     if (!isValid) {
         input.classList.add('input-error');
-        input.title = 'Debe ser un placeholder {xxx} o una URL http(s)';
+        input.title = 'Must be a placeholder {xxx} or an http(s) URL';
     } else {
         input.classList.remove('input-error');
         input.title = '';
@@ -1497,10 +1503,10 @@ function getSectionContentHTML(type, optionKey) {
     if (type === 'text') {
         return `<div style="display: flex; flex-direction: column; gap: 6px;">
             <input type="text" class="input input-sm" data-col="title"
-                   placeholder="Título (se muestra en negrita)"
+                   placeholder="Title (shown in bold)"
                    oninput="${handler}">
             <textarea class="textarea" data-col="content" rows="2"
-                      placeholder="Contenido (soporta placeholders y Markdown)"
+                      placeholder="Content (supports placeholders and Markdown)"
                       oninput="${handler}"
                       style="width: 100%; resize: vertical;"></textarea>
         </div>`;
@@ -1510,17 +1516,17 @@ function getSectionContentHTML(type, optionKey) {
                 <label style="font-size: 11px; color: var(--text-muted);">
                     <input type="checkbox" data-col="inline" checked
                            onchange="${handler}">
-                    En línea (horizontal)
+                    Inline (horizontal)
                 </label>
             </div>`;
         for (let i = 1; i <= 3; i++) {
             fieldsHTML += `<div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 10px; color: var(--text-muted); min-width: 15px;">${i}.</span>
                 <input type="text" class="input input-sm" data-col="field_${i}_name"
-                       placeholder="Nombre" style="width: 120px;"
+                       placeholder="Name" style="width: 120px;"
                        oninput="${handler}">
                 <input type="text" class="input input-sm" data-col="field_${i}_value"
-                       placeholder="Valor (soporta placeholders)" style="flex: 1;"
+                       placeholder="Value (supports placeholders)" style="flex: 1;"
                        oninput="${handler}">
             </div>`;
         }
@@ -1562,17 +1568,17 @@ function addEmbedSection(optionKey) {
     tr.innerHTML = `
         <td>
             <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '${optionKey}')">
-                <option value="text" selected>Texto</option>
-                <option value="fields">Campos (3 col)</option>
+                <option value="text" selected>Text</option>
+                <option value="fields">Fields (3 col)</option>
             </select>
         </td>
         <td class="embed-section-content-cell">
             ${getSectionContentHTML('text', optionKey)}
         </td>
         <td class="actions-col">
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Subir">&#9650;</button>
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Bajar">&#9660;</button>
-            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Eliminar">&#10005;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Move up">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Move down">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedChange('${optionKey}'); updateEmbedPreview('${optionKey}')" title="Delete">&#10005;</button>
         </td>
         <div class="embed-section-data" style="display:none;" data-options='{"type":"text"}'></div>
     `;
@@ -1618,17 +1624,17 @@ function addEmbedSectionFor(optionKey) {
     tr.innerHTML = `
         <td>
             <select class="select select-sm" data-col="type" onchange="handleSectionTypeChange(this, '${optionKey}')">
-                <option value="text" selected>Texto</option>
-                <option value="fields">Campos (3 col)</option>
+                <option value="text" selected>Text</option>
+                <option value="fields">Fields (3 col)</option>
             </select>
         </td>
         <td class="embed-section-content-cell">
             ${getSectionContentHTML('text', optionKey)}
         </td>
         <td class="actions-col">
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Subir">&#9650;</button>
-            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Bajar">&#9660;</button>
-            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Eliminar">&#10005;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Move up">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Move down">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this); trackEmbedSectionsChange('${optionKey}'); updateEmbedSectionsPreview('${optionKey}')" title="Delete">&#10005;</button>
         </td>
         <div class="embed-section-data" style="display:none;" data-options='{"type":"text"}'></div>
     `;
@@ -1660,7 +1666,7 @@ function updateEmbedSectionsPreview(optionKey) {
             html += '</div>';
         }
         if (!html) {
-            html = '<div style="color: #72767d; font-style: italic;">Añade secciones para ver la vista previa</div>';
+            html = '<div style="color: #72767d; font-style: italic;">Add sections to see the preview</div>';
         }
         previewEl.style.borderLeftColor = color;
         previewEl.innerHTML = html;
@@ -1685,7 +1691,7 @@ function updateEmbedSectionsPreview(optionKey) {
 
     // Add indicator for multi-embed
     html += '<div style="font-size: 11px; color: #72767d; margin-top: 4px; text-align: center;">';
-    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${embedGroups.length} embeds (auto-split)</span>`;
+    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${window.i18n.embedsAutoSplit.replace('{count}', embedGroups.length)}</span>`;
     html += '</div>';
 
     previewEl.innerHTML = html;
@@ -1768,7 +1774,7 @@ function updateEmbedPreview(optionKey) {
 
     // Add indicator for multi-embed
     html += '<div style="font-size: 11px; color: #72767d; margin-top: 4px; text-align: center;">';
-    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${embedGroups.length} embeds (auto-split)</span>`;
+    html += `<span style="background: rgba(88, 101, 242, 0.2); padding: 2px 8px; border-radius: 4px;">${window.i18n.embedsAutoSplit.replace('{count}', embedGroups.length)}</span>`;
     html += '</div>';
 
     previewEl.innerHTML = html;
@@ -1862,7 +1868,7 @@ function renderEmbedContent(data) {
 
     // Empty state
     if (!html) {
-        html = '<div style="color: #72767d; font-style: italic;">Configura el embed para ver la vista previa</div>';
+        html = '<div style="color: #72767d; font-style: italic;">Configure the embed to see the preview</div>';
     }
 
     return html;
@@ -1886,7 +1892,7 @@ function renderSectionPreview(section) {
             html += `<div class="discord-embed-field-value">${formatDiscordText(content, true)}</div>`;
         }
         if (!title && !content) {
-            html += '<div style="color: #72767d; font-style: italic;">Campo vacío</div>';
+            html += '<div style="color: #72767d; font-style: italic;">Empty field</div>';
         }
         html += '</div></div>';
         return html;
@@ -1911,7 +1917,7 @@ function renderSectionPreview(section) {
     return '';
 }
 
-// Dot emoji mappings (usar window para permitir re-ejecución del script)
+// Dot emoji mappings (use window to allow script re-execution)
 window.DOT_EMOJIS = {
     'dot_red': '🔴',
     'dot_green': '🟢',
@@ -1924,7 +1930,7 @@ window.DOT_EMOJIS = {
     'dot_brown': '🟤'
 };
 
-// ANSI color CSS classes (usar window para permitir re-ejecución del script)
+// ANSI color CSS classes (use window to allow script re-execution)
 window.ANSI_COLORS = {
     'red': '#f04747',
     'green': '#43b581',

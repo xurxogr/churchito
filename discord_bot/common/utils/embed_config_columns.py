@@ -1,53 +1,53 @@
-"""Definiciones de columnas para tablas de configuración de embeds."""
+"""Column definitions for embed configuration tables."""
 
 from typing import Any
 
 from discord_bot.common.enums.embed_section_type import EmbedSectionType
 
-# Columnas para la tabla de secciones de embed
+# Columns for embed sections table
 EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     {
         "key": "type",
-        "name": "Tipo",
+        "name": "Type",
         "type": "choice",
         "required": True,
         "choices": [
-            ("Texto", EmbedSectionType.TEXT),
-            ("Campos (3 columnas)", EmbedSectionType.FIELDS),
+            ("Text", EmbedSectionType.TEXT),
+            ("Fields (3 columns)", EmbedSectionType.FIELDS),
         ],
     },
-    # Campos para TEXT
+    # Fields for TEXT
     {
         "key": "title",
-        "name": "Título",
+        "name": "Title",
         "type": "string",
         "required": False,
         "max_length": 256,
-        "description": "Título del campo (se muestra en negrita)",
+        "description": "Field title (displayed in bold)",
         "show_when": {"type": EmbedSectionType.TEXT},
     },
     {
         "key": "content",
-        "name": "Contenido",
+        "name": "Content",
         "type": "textarea",
         "required": False,
         "max_length": 1024,
-        "description": "Contenido del campo. Soporta placeholders.",
+        "description": "Field content. Supports placeholders.",
         "show_when": {"type": EmbedSectionType.TEXT},
     },
-    # Campos para FIELDS
+    # Fields for FIELDS
     {
         "key": "inline",
-        "name": "En línea",
+        "name": "Inline",
         "type": "boolean",
         "required": False,
         "default": True,
-        "description": "Mostrar campos en la misma línea (máximo 3 por fila)",
+        "description": "Display fields on the same line (max 3 per row)",
         "show_when": {"type": EmbedSectionType.FIELDS},
     },
     {
         "key": "field_1_name",
-        "name": "Campo 1: Nombre",
+        "name": "Field 1: Name",
         "type": "string",
         "required": False,
         "max_length": 256,
@@ -55,7 +55,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     },
     {
         "key": "field_1_value",
-        "name": "Campo 1: Valor",
+        "name": "Field 1: Value",
         "type": "string",
         "required": False,
         "max_length": 1024,
@@ -63,7 +63,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     },
     {
         "key": "field_2_name",
-        "name": "Campo 2: Nombre",
+        "name": "Field 2: Name",
         "type": "string",
         "required": False,
         "max_length": 256,
@@ -71,7 +71,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     },
     {
         "key": "field_2_value",
-        "name": "Campo 2: Valor",
+        "name": "Field 2: Value",
         "type": "string",
         "required": False,
         "max_length": 1024,
@@ -79,7 +79,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     },
     {
         "key": "field_3_name",
-        "name": "Campo 3: Nombre",
+        "name": "Field 3: Name",
         "type": "string",
         "required": False,
         "max_length": 256,
@@ -87,7 +87,7 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
     },
     {
         "key": "field_3_value",
-        "name": "Campo 3: Valor",
+        "name": "Field 3: Value",
         "type": "string",
         "required": False,
         "max_length": 1024,
@@ -97,9 +97,9 @@ EMBED_SECTIONS_COLUMNS: list[dict[str, Any]] = [
 
 
 def get_embed_sections_columns() -> list[dict[str, Any]]:
-    """Obtener las columnas para una tabla de secciones de embed.
+    """Get the columns for an embed sections table.
 
     Returns:
-        Lista de definiciones de columnas para ConfigOption.columns.
+        List of column definitions for ConfigOption.columns.
     """
     return EMBED_SECTIONS_COLUMNS.copy()
