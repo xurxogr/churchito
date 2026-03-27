@@ -2437,6 +2437,57 @@ class TestHealthCheck:
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
 
+        # Mock mod channel with proper permissions
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_permissions = MagicMock()
+        mock_permissions.send_messages = True
+        mock_mod_channel.permissions_for = MagicMock(return_value=mock_permissions)
+
+        def get_channel(channel_id: int) -> MagicMock:
+            if channel_id == 222:
+                return mock_mod_channel
+            return mock_channel
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(side_effect=get_channel)
+        mock_guild.get_member = MagicMock(return_value=MagicMock())
+
+        async with test_database.session() as session:
+            from discord_bot.common.services.config_service import ConfigService
+
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await config_service.set_value(123, "verification", "verification_channel", 111)
+            await config_service.set_value(123, "verification", "mod_notification_channel", 222)
+            await config_service.set_value(123, "verification", "_panel_message_id", 999)
+            await config_service.set_value(123, "verification", "_panel_channel_id", 111)
+            await session.commit()
+
+        with (
+            patch(
+                "discord_bot.verification.panel.delete_message", new_callable=AsyncMock
+            ) as mock_delete,
+            patch.object(
+                verification_cog, "_create_verification_message", new_callable=AsyncMock
+            ) as mock_create,
+        ):
+            await verification_cog._check_verification_message(mock_guild)
+            # Should delete old panel before recreating
+            mock_delete.assert_called_once()
+            mock_create.assert_called_once()
+
+    async def test_check_verification_message_disabled_no_components_does_not_recreate(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that does NOT recreate panel when verification disabled and no buttons."""
+        mock_message = MagicMock()
+        mock_message.components = []  # No components (expected for disabled state)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
@@ -2448,6 +2499,8 @@ class TestHealthCheck:
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(123, "verification", True)
             await config_service.set_value(123, "verification", "verification_channel", 111)
+            # verification_enabled = False (disabled)
+            await config_service.set_value(123, "verification", "verification_enabled", False)
             await config_service.set_value(123, "verification", "_panel_message_id", 999)
             await config_service.set_value(123, "verification", "_panel_channel_id", 111)
             await session.commit()
@@ -2456,7 +2509,8 @@ class TestHealthCheck:
             verification_cog, "_create_verification_message", new_callable=AsyncMock
         ) as mock_create:
             await verification_cog._check_verification_message(mock_guild)
-            mock_create.assert_called_once()
+            # Should NOT recreate - disabled panel without buttons is correct state
+            mock_create.assert_not_called()
 
     async def test_check_verification_message_auto_creates_when_no_panel(
         self, verification_cog: VerificationCog, test_database: DatabaseService

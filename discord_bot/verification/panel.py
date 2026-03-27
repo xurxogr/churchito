@@ -141,12 +141,40 @@ async def check_verification_message(
             )
             return
 
-        # Case 3: Verify that the panel exists and has buttons
+        # Case 3: Verify that the panel exists and has buttons (if applicable)
         try:
             message = await channel.fetch_message(panel_message_id)
-            # Verify it has buttons (active view)
-            if not message.components:
+
+            # Check if verification is enabled and mod channel accessible
+            verification_enabled = config.get(ConfigKey.VERIFICATION_ENABLED)
+            mod_channel = get_mod_channel(guild=guild, config=config, bot_user=cog.bot.user)
+            is_configured = verification_enabled is not False and mod_channel is not None
+
+            # Only check for buttons if verification is enabled (buttons expected)
+            if is_configured and not message.components:
                 logger.info(f"[{guild.name}] Panel without buttons, restoring...")
+                await delete_message(
+                    guild=guild,
+                    channel_id=channel.id,
+                    message_id=panel_message_id,
+                )
+                await cog._create_verification_message(
+                    guild=guild,
+                    channel=channel,
+                    config=config,
+                    config_service=config_service,
+                    session=session,
+                )
+            # If verification is disabled but panel has buttons, update it
+            elif not is_configured and message.components:
+                logger.info(
+                    f"[{guild.name}] Verification disabled but panel has buttons, updating..."
+                )
+                await delete_message(
+                    guild=guild,
+                    channel_id=channel.id,
+                    message_id=panel_message_id,
+                )
                 await cog._create_verification_message(
                     guild=guild,
                     channel=channel,
