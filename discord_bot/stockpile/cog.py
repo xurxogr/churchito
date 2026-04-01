@@ -11,6 +11,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import (
+    delete_message,
     get_hex_display_name,
     is_valid_city,
     is_valid_hex,
@@ -20,6 +21,7 @@ from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
 from discord_bot.stockpile.formatters import (
     format_message,
+    format_pinned_message,
     format_stockpile_item,
     group_stockpiles_by_location,
     validate_code,
@@ -273,6 +275,13 @@ class StockpileCog(commands.Cog):
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
 
+        # Restore pinned messages for all guilds
+        for guild in self.bot.guilds:
+            try:
+                await self._update_pinned_message(guild)
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error restoring pinned message: {e}")
+
         logger.info("StockpileCog: Command registration completed")
 
     @commands.Cog.listener()
@@ -296,6 +305,8 @@ class StockpileCog(commands.Cog):
             guild (discord.Guild): Guild where configuration changed
             keys (list[str]): List of configuration keys that changed
         """
+        keys_set = set(keys)
+
         # Keys that affect command registration
         command_registration_keys = {
             ConfigKey.ADD_COMMAND_NAME,
@@ -304,11 +315,23 @@ class StockpileCog(commands.Cog):
             ConfigKey.COMMAND_CHANNEL,
         }
 
-        if set(keys) & command_registration_keys:
-            changed = set(keys) & command_registration_keys
+        if keys_set & command_registration_keys:
+            changed = keys_set & command_registration_keys
             logger.info(f"[{guild.name}] Config {changed} changed, re-registering commands...")
             await self._register_guild_commands(guild)
             await self._sync_guild_commands(guild)
+
+        # Keys that affect pinned message
+        pinned_message_keys = {
+            ConfigKey.PINNED_HEADER_TEXT,
+            ConfigKey.PINNED_ITEM_TEXT,
+            ConfigKey.COMMAND_CHANNEL,
+        }
+
+        if keys_set & pinned_message_keys:
+            changed = keys_set & pinned_message_keys
+            logger.info(f"[{guild.name}] Config {changed} changed, updating pinned message...")
+            await self._update_pinned_message(guild)
 
     async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
         """Handle when the cog is enabled or disabled.
@@ -322,10 +345,14 @@ class StockpileCog(commands.Cog):
             await self._register_guild_commands(guild)
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
+            # Create pinned message if configured
+            await self._update_pinned_message(guild)
         else:
             logger.info(f"[{guild.name}] Stockpile cog disabled, removing commands...")
             await self._unregister_guild_commands(guild)
             await self._sync_guild_commands(guild)
+            # Delete pinned message
+            await self._delete_pinned_message(guild)
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
         """Check if the cog is enabled for a guild.
@@ -352,6 +379,114 @@ class StockpileCog(commands.Cog):
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+
+    def _is_pinned_message_enabled(self, config: dict[str, Any]) -> bool:
+        """Check if pinned message feature is enabled.
+
+        Args:
+            config (dict[str, Any]): Cog configuration
+
+        Returns:
+            bool: True if both header and item templates are configured
+        """
+        header_template = config.get(ConfigKey.PINNED_HEADER_TEXT)
+        item_template = config.get(ConfigKey.PINNED_ITEM_TEXT)
+        return bool(header_template and item_template)
+
+    async def _update_pinned_message(self, guild: discord.Guild) -> None:
+        """Update the pinned message showing all stockpiles.
+
+        Deletes the existing message (if any) and creates a new one at the
+        bottom of the channel.
+
+        Args:
+            guild (discord.Guild): Guild to update pinned message for
+        """
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+            config = await config_service.get_all_config(guild_id=guild.id, cog_name=COG_NAME)
+
+            # Check if enabled (both templates configured)
+            header_template = config.get(ConfigKey.PINNED_HEADER_TEXT)
+            item_template = config.get(ConfigKey.PINNED_ITEM_TEXT)
+            if not header_template or not item_template:
+                return
+
+            channel_id = config.get(ConfigKey.COMMAND_CHANNEL)
+            if not channel_id:
+                return
+
+            channel = guild.get_channel(channel_id)
+            if not channel or not isinstance(channel, discord.TextChannel):
+                return
+
+            # Delete existing message (if any)
+            old_message_id = config.get(ConfigKey.PINNED_MESSAGE_ID)
+            old_channel_id = config.get(ConfigKey.PINNED_CHANNEL_ID)
+            if old_message_id and old_channel_id:
+                await delete_message(guild, old_channel_id, old_message_id)
+
+            # Get all stockpiles (no role filtering)
+            service = StockpileService(session=session)
+            stockpiles = await service.get_all_for_guild(guild.id)
+
+            # Format message as embed
+            embed = format_pinned_message(
+                list(stockpiles),
+                header_template,
+                item_template,
+                guild,
+                get_hex_display_name,
+            )
+
+            # Handle empty case
+            if embed is None:
+                empty_text = config.get(ConfigKey.SHOW_EMPTY_TEXT) or "No stockpiles"
+                embed = discord.Embed(description=empty_text)
+
+            # Send new message with embed
+            try:
+                new_message = await channel.send(embed=embed)
+            except discord.Forbidden:
+                logger.warning(f"[{guild.name}] Cannot send pinned message: no permission")
+                return
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error sending pinned message: {e}")
+                return
+
+            # Save message ID
+            await config_service.set_value(
+                guild.id, COG_NAME, ConfigKey.PINNED_MESSAGE_ID, new_message.id
+            )
+            await config_service.set_value(
+                guild.id, COG_NAME, ConfigKey.PINNED_CHANNEL_ID, channel.id
+            )
+            await session.commit()
+            logger.info(f"[{guild.name}] Pinned message updated in #{channel.name}")
+
+    async def _delete_pinned_message(self, guild: discord.Guild) -> None:
+        """Delete the pinned message for a guild.
+
+        Args:
+            guild (discord.Guild): Guild to delete pinned message for
+        """
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+            config = await config_service.get_all_config(guild_id=guild.id, cog_name=COG_NAME)
+
+            old_message_id = config.get(ConfigKey.PINNED_MESSAGE_ID)
+            old_channel_id = config.get(ConfigKey.PINNED_CHANNEL_ID)
+
+            if not old_message_id or not old_channel_id:
+                return
+
+            await delete_message(guild, old_channel_id, old_message_id)
+
+            # Clear saved message ID
+            await config_service.set_value(guild.id, COG_NAME, ConfigKey.PINNED_MESSAGE_ID, None)
+            await config_service.set_value(guild.id, COG_NAME, ConfigKey.PINNED_CHANNEL_ID, None)
+            await session.commit()
+            logger.info(f"[{guild.name}] Pinned message deleted")
 
     def _has_permission(
         self,
@@ -912,6 +1047,9 @@ class StockpileCog(commands.Cog):
             creator=member,
         )
 
+        # Update pinned message if enabled
+        await self._update_pinned_message(interaction.guild)
+
     async def _handle_stockpile_show(
         self,
         interaction: discord.Interaction,
@@ -1095,6 +1233,9 @@ class StockpileCog(commands.Cog):
             city=city,
             deleted_by=member,
         )
+
+        # Update pinned message if enabled
+        await self._update_pinned_message(interaction.guild)
 
 
 async def setup(bot: DiscordBot) -> None:

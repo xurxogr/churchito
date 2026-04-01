@@ -111,7 +111,7 @@ class TestStockpileConfigSchema:
 
     def test_groups_are_valid(self) -> None:
         """Test all groups are from expected set."""
-        expected_groups = {"Commands", "Permissions", "Messages", "Notifications"}
+        expected_groups = {"Commands", "Permissions", "Messages", "Notifications", "Pinned Message"}
         actual_groups = {opt.group for opt in STOCKPILE_CONFIG_SCHEMA.options}
 
         assert actual_groups == expected_groups

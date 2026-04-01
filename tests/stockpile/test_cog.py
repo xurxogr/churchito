@@ -2677,3 +2677,501 @@ class TestShowCommandChannelCheck:
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
         assert call_args[1]["ephemeral"] is True
+
+
+class TestIsPinnedMessageEnabled:
+    """Tests for _is_pinned_message_enabled method."""
+
+    def test_returns_true_when_both_templates_configured(
+        self,
+        stockpile_cog: StockpileCog,
+    ) -> None:
+        """Test returns True when both header and item templates are set."""
+        config = {
+            ConfigKey.PINNED_HEADER_TEXT: "**{hex} - {city}**",
+            ConfigKey.PINNED_ITEM_TEXT: "{name}",
+        }
+        assert stockpile_cog._is_pinned_message_enabled(config) is True
+
+    def test_returns_false_when_header_missing(
+        self,
+        stockpile_cog: StockpileCog,
+    ) -> None:
+        """Test returns False when header template is missing."""
+        config = {
+            ConfigKey.PINNED_HEADER_TEXT: None,
+            ConfigKey.PINNED_ITEM_TEXT: "{name}",
+        }
+        assert stockpile_cog._is_pinned_message_enabled(config) is False
+
+    def test_returns_false_when_item_missing(
+        self,
+        stockpile_cog: StockpileCog,
+    ) -> None:
+        """Test returns False when item template is missing."""
+        config = {
+            ConfigKey.PINNED_HEADER_TEXT: "**{hex}**",
+            ConfigKey.PINNED_ITEM_TEXT: None,
+        }
+        assert stockpile_cog._is_pinned_message_enabled(config) is False
+
+    def test_returns_false_when_both_missing(
+        self,
+        stockpile_cog: StockpileCog,
+    ) -> None:
+        """Test returns False when both templates are missing."""
+        config: dict[str, Any] = {}
+        assert stockpile_cog._is_pinned_message_enabled(config) is False
+
+    def test_returns_false_when_empty_strings(
+        self,
+        stockpile_cog: StockpileCog,
+    ) -> None:
+        """Test returns False when templates are empty strings."""
+        config = {
+            ConfigKey.PINNED_HEADER_TEXT: "",
+            ConfigKey.PINNED_ITEM_TEXT: "",
+        }
+        assert stockpile_cog._is_pinned_message_enabled(config) is False
+
+
+class TestUpdatePinnedMessage:
+    """Tests for _update_pinned_message method."""
+
+    async def test_does_nothing_when_templates_not_configured(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that nothing happens when pinned templates are not set."""
+        guild_id = mock_guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            # Don't set pinned templates
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        # Should not try to send message
+        mock_guild.get_channel.assert_not_called()
+
+    async def test_does_nothing_when_no_channel_configured(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that nothing happens when channel is not configured."""
+        guild_id = mock_guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            # Don't set channel
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        # Should not try to get channel (or if it does, it gets None)
+        mock_guild.get_channel.assert_not_called()
+
+    async def test_does_nothing_when_channel_not_found(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that nothing happens when channel doesn't exist."""
+        guild_id = mock_guild.id
+        mock_guild.get_channel.return_value = None
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        mock_guild.get_channel.assert_called_once_with(12345)
+
+    async def test_sends_embed_message(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that embed message is sent."""
+        guild_id = mock_guild.id
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_new_message = MagicMock()
+        mock_new_message.id = 999888777
+        mock_channel.send = AsyncMock(return_value=mock_new_message)
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex} - {city}** ({count})",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        # Should send embed
+        mock_channel.send.assert_called_once()
+        call_kwargs = mock_channel.send.call_args[1]
+        assert "embed" in call_kwargs
+
+    async def test_handles_forbidden_error(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that Forbidden error is handled gracefully."""
+        guild_id = mock_guild.id
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No permission"))
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            await session.commit()
+
+        # Should not raise exception
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+    async def test_handles_generic_error(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that generic errors are handled gracefully."""
+        guild_id = mock_guild.id
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock(side_effect=Exception("Some error"))
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            await session.commit()
+
+        # Should not raise exception
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+    async def test_saves_message_id_after_send(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that message ID is saved after sending."""
+        guild_id = mock_guild.id
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_new_message = MagicMock()
+        mock_new_message.id = 999888777
+        mock_channel.send = AsyncMock(return_value=mock_new_message)
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        # Check that message ID was saved
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            config = await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+            assert config.get(ConfigKey.PINNED_MESSAGE_ID) == 999888777
+            assert config.get(ConfigKey.PINNED_CHANNEL_ID) == 12345
+
+    @patch("discord_bot.stockpile.cog.delete_message")
+    async def test_deletes_old_message_before_creating_new(
+        self,
+        mock_delete_message: AsyncMock,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that old message is deleted before creating new one."""
+        guild_id = mock_guild.id
+        mock_delete_message.return_value = True
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_new_message = MagicMock()
+        mock_new_message.id = 999888777
+        mock_channel.send = AsyncMock(return_value=mock_new_message)
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_HEADER_TEXT,
+                value="**{hex}**",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_ITEM_TEXT,
+                value="{name}",
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.COMMAND_CHANNEL,
+                value=12345,
+            )
+            # Set existing old message
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_MESSAGE_ID,
+                value=111222333,
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_CHANNEL_ID,
+                value=444555,
+            )
+            await session.commit()
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        # Should delete old message
+        mock_delete_message.assert_called_once_with(mock_guild, 444555, 111222333)
+
+        # Should send new message
+        mock_channel.send.assert_called_once()
+
+
+class TestDeletePinnedMessage:
+    """Tests for _delete_pinned_message method."""
+
+    async def test_does_nothing_when_no_message_saved(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that nothing happens when no message ID is saved."""
+        guild_id = mock_guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            # Don't set message ID
+            await session.commit()
+
+        await stockpile_cog._delete_pinned_message(mock_guild)
+
+        # Should not try to get channel
+        mock_guild.get_channel.assert_not_called()
+
+    @patch("discord_bot.stockpile.cog.delete_message")
+    async def test_deletes_message_and_clears_config(
+        self,
+        mock_delete_message: AsyncMock,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that message is deleted and config is cleared."""
+        guild_id = mock_guild.id
+        mock_delete_message.return_value = True
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_MESSAGE_ID,
+                value=123456,
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.PINNED_CHANNEL_ID,
+                value=789,
+            )
+            await session.commit()
+
+        await stockpile_cog._delete_pinned_message(mock_guild)
+
+        # Should call delete_message
+        mock_delete_message.assert_called_once_with(mock_guild, 789, 123456)
+
+        # Check that config was cleared
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            config = await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+            assert config.get(ConfigKey.PINNED_MESSAGE_ID) is None
+            assert config.get(ConfigKey.PINNED_CHANNEL_ID) is None
+
+
+class TestOnConfigChangedPinnedMessage:
+    """Tests for on_config_changed with pinned message keys."""
+
+    @patch.object(StockpileCog, "_update_pinned_message")
+    async def test_updates_pinned_message_on_header_change(
+        self,
+        mock_update: AsyncMock,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Test that pinned message is updated when header template changes."""
+        await stockpile_cog.on_config_changed(mock_guild, [ConfigKey.PINNED_HEADER_TEXT])
+
+        mock_update.assert_called_once_with(mock_guild)
+
+    @patch.object(StockpileCog, "_update_pinned_message")
+    async def test_updates_pinned_message_on_item_change(
+        self,
+        mock_update: AsyncMock,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Test that pinned message is updated when item template changes."""
+        await stockpile_cog.on_config_changed(mock_guild, [ConfigKey.PINNED_ITEM_TEXT])
+
+        mock_update.assert_called_once_with(mock_guild)
+
+    @patch.object(StockpileCog, "_update_pinned_message")
+    @patch.object(StockpileCog, "_register_guild_commands")
+    @patch.object(StockpileCog, "_sync_guild_commands")
+    async def test_updates_pinned_message_on_channel_change(
+        self,
+        mock_sync: AsyncMock,
+        mock_register: AsyncMock,
+        mock_update: AsyncMock,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Test that pinned message is updated when channel changes."""
+        await stockpile_cog.on_config_changed(mock_guild, [ConfigKey.COMMAND_CHANNEL])
+
+        # Channel change affects both commands and pinned message
+        mock_register.assert_called_once()
+        mock_update.assert_called_once_with(mock_guild)

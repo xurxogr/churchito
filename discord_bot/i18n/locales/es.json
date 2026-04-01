@@ -551,7 +551,8 @@
         "Commands": "Comandos",
         "Permissions": "Permisos",
         "Messages": "Mensajes",
-        "Notifications": "Notificaciones"
+        "Notifications": "Notificaciones",
+        "Pinned Message": "Mensaje Fijado"
       },
       "options": {
         "add_command_name": {
@@ -643,6 +644,14 @@
         "delete_notification_text": {
           "name": "Mensaje notificación eliminar",
           "description": "Mensaje público enviado al canal de notificaciones cuando se elimina un almacén. Deja vacío para deshabilitar."
+        },
+        "pinned_header_text": {
+          "name": "Cabecera mensaje fijado",
+          "description": "Plantilla de cabecera para cada ubicación en el mensaje fijado. Deja vacío para deshabilitar la función de mensaje fijado."
+        },
+        "pinned_item_text": {
+          "name": "Elemento mensaje fijado",
+          "description": "Plantilla para cada almacén en el mensaje fijado. Deja vacío para deshabilitar la función de mensaje fijado."
         }
       }
     },

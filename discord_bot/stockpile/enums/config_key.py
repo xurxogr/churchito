@@ -36,3 +36,11 @@ class ConfigKey:
     # Notifications
     ADD_NOTIFICATION_TEXT = "add_notification_text"
     DELETE_NOTIFICATION_TEXT = "delete_notification_text"
+
+    # Pinned Message
+    PINNED_HEADER_TEXT = "pinned_header_text"
+    PINNED_ITEM_TEXT = "pinned_item_text"
+
+    # Internal keys (prefix _ indicates they are not user-configurable)
+    PINNED_MESSAGE_ID = "_pinned_message_id"
+    PINNED_CHANNEL_ID = "_pinned_channel_id"

@@ -203,5 +203,43 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=["name", "hex", "city", "deleted_by"],
             group="Notifications",
         ),
+        # ===== 5. PINNED MESSAGE =====
+        ConfigOption(
+            key=ConfigKey.PINNED_HEADER_TEXT,
+            name="Pinned message header",
+            description=(
+                "Header template for each location in the pinned message. "
+                "Leave empty to disable pinned message feature."
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=None,
+            max_length=500,
+            placeholders=["hex", "city", "count"],
+            group="Pinned Message",
+        ),
+        ConfigOption(
+            key=ConfigKey.PINNED_ITEM_TEXT,
+            name="Pinned message item",
+            description=(
+                "Template for each stockpile in the pinned message. "
+                "Leave empty to disable pinned message feature."
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=None,
+            max_length=500,
+            placeholders=[
+                "name",
+                "code",
+                "hex",
+                "city",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+            ],
+            group="Pinned Message",
+        ),
     ],
 )

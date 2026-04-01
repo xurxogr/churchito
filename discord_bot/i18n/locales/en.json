@@ -551,7 +551,8 @@
         "Commands": "Commands",
         "Permissions": "Permissions",
         "Messages": "Messages",
-        "Notifications": "Notifications"
+        "Notifications": "Notifications",
+        "Pinned Message": "Pinned Message"
       },
       "options": {
         "add_command_name": {
@@ -643,6 +644,14 @@
         "delete_notification_text": {
           "name": "Delete notification message",
           "description": "Public message sent to notification channel when a stockpile is deleted. Leave empty to disable."
+        },
+        "pinned_header_text": {
+          "name": "Pinned message header",
+          "description": "Header template for each location in the pinned message. Leave empty to disable pinned message feature."
+        },
+        "pinned_item_text": {
+          "name": "Pinned message item",
+          "description": "Template for each stockpile in the pinned message. Leave empty to disable pinned message feature."
         }
       }
     },

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from discord_bot.stockpile.formatters import (
     format_message,
+    format_pinned_message,
     format_roles_list,
     format_stockpile_item,
     group_stockpiles_by_location,
@@ -72,6 +73,32 @@ class TestFormatRolesList:
     def test_empty_roles(self) -> None:
         """Test with empty roles list."""
         result = format_roles_list([])
+        assert result == "Everyone"
+
+    def test_with_guild_resolves_names(self) -> None:
+        """Test that roles are resolved to names when guild is provided."""
+        guild = MagicMock()
+        role1 = MagicMock()
+        role1.name = "Admin"
+        role2 = MagicMock()
+        role2.name = "Member"
+        guild.get_role.side_effect = lambda rid: {123: role1, 456: role2}.get(rid)
+
+        result = format_roles_list([123, 456], guild=guild)
+        assert result == "Admin, Member"
+
+    def test_with_guild_handles_unknown_roles(self) -> None:
+        """Test that unknown roles show as Unknown(id)."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+
+        result = format_roles_list([999], guild=guild)
+        assert result == "Unknown(999)"
+
+    def test_with_guild_empty_roles(self) -> None:
+        """Test empty roles with guild returns Everyone."""
+        guild = MagicMock()
+        result = format_roles_list([], guild=guild)
         assert result == "Everyone"
 
 
@@ -176,3 +203,235 @@ class TestValidateCode:
         assert validate_code("12345-") is False
         assert validate_code("123 456") is False
         assert validate_code("123.56") is False
+
+
+class TestFormatPinnedMessage:
+    """Tests for format_pinned_message function."""
+
+    def _create_stockpile(
+        self,
+        name: str,
+        hex_key: str,
+        city: str,
+        code: str = "123456",
+        view_roles: list[int] | None = None,
+        created_by: int = 12345,
+    ) -> MagicMock:
+        """Helper to create mock stockpile."""
+        stockpile = MagicMock()
+        stockpile.name = name
+        stockpile.hex_key = hex_key
+        stockpile.city = city
+        stockpile.code = code
+        stockpile.view_roles = view_roles or []
+        stockpile.created_by = created_by
+        stockpile.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+        return stockpile
+
+    def test_empty_stockpiles(self) -> None:
+        """Test with no stockpiles returns None."""
+        guild = MagicMock()
+        result = format_pinned_message(
+            stockpiles=[],
+            header_template="**{hex} - {city}** ({count})",
+            item_template="**{name}** - `{code}`",
+            guild=guild,
+            hex_display_name_func=lambda x: x,
+        )
+        assert result is None
+
+    def test_single_stockpile(self) -> None:
+        """Test formatting single stockpile returns embed."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        stockpile = self._create_stockpile(
+            name="Main",
+            hex_key="AcrithiaHex",
+            city="Patridia",
+        )
+
+        result = format_pinned_message(
+            stockpiles=[stockpile],
+            header_template="**{hex} - {city}** ({count})",
+            item_template="**{name}**",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        assert "**Acrithia - Patridia** (1)" in result.description
+        assert "**Main**" in result.description
+        # Items should NOT have leading spaces (no nested bullets)
+        assert "  **Main**" not in result.description
+
+    def test_multiple_stockpiles_same_location(self) -> None:
+        """Test formatting multiple stockpiles at same location."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        s1 = self._create_stockpile(name="Stock1", hex_key="AcrithiaHex", city="Patridia")
+        s2 = self._create_stockpile(name="Stock2", hex_key="AcrithiaHex", city="Patridia")
+
+        result = format_pinned_message(
+            stockpiles=[s1, s2],
+            header_template="**{hex} - {city}** ({count})",
+            item_template="**{name}**",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        # Should have count of 2
+        assert "**Acrithia - Patridia** (2)" in result.description
+        assert "**Stock1**" in result.description
+        assert "**Stock2**" in result.description
+
+    def test_multiple_locations(self) -> None:
+        """Test formatting stockpiles at different locations."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        s1 = self._create_stockpile(name="Stock1", hex_key="AcrithiaHex", city="Patridia")
+        s2 = self._create_stockpile(name="Stock2", hex_key="AcrithiaHex", city="Swordfort")
+
+        result = format_pinned_message(
+            stockpiles=[s1, s2],
+            header_template="**{hex} - {city}** ({count})",
+            item_template="**{name}**",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        # Should have two location headers
+        assert "**Acrithia - Patridia** (1)" in result.description
+        assert "**Acrithia - Swordfort** (1)" in result.description
+
+    def test_includes_all_placeholders(self) -> None:
+        """Test that all placeholders are replaced with names (no mentions)."""
+        guild = MagicMock()
+        role = MagicMock()
+        role.name = "Admin"
+        guild.get_role.return_value = role
+
+        member = MagicMock()
+        member.display_name = "TestUser"
+        guild.get_member.return_value = member
+
+        stockpile = self._create_stockpile(
+            name="Main",
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            code="654321",
+            view_roles=[111],
+            created_by=99999,
+        )
+
+        result = format_pinned_message(
+            stockpiles=[stockpile],
+            header_template="{hex} | {city} | {count}",
+            item_template="{name} | {code} | {hex} | {city} | {roles} | {creator} | {created_at}",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        assert "Acrithia | Patridia | 1" in result.description
+        # Creator should be display name, not ID or mention
+        assert (
+            "Main | 654321 | Acrithia | Patridia | Admin | TestUser | 2024-01-15 10:30"
+            in result.description
+        )
+
+    def test_creator_fallback_when_member_not_found(self) -> None:
+        """Test that creator shows Unknown(id) when member not in guild."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None  # Member left the guild
+
+        stockpile = self._create_stockpile(
+            name="Main",
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            created_by=99999,
+        )
+
+        result = format_pinned_message(
+            stockpiles=[stockpile],
+            header_template="{hex}",
+            item_template="{name} by {creator}",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        assert "Main by Unknown(99999)" in result.description
+
+    def test_created_at_relative_placeholder(self) -> None:
+        """Test that created_at_relative uses Discord timestamp format."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        stockpile = self._create_stockpile(
+            name="Main",
+            hex_key="AcrithiaHex",
+            city="Patridia",
+        )
+        # datetime(2024, 1, 15, 10, 30, tzinfo=UTC) -> 1705314600
+
+        result = format_pinned_message(
+            stockpiles=[stockpile],
+            header_template="{hex}",
+            item_template="{name} ({created_at_relative})",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        # Should contain Discord relative timestamp format
+        assert "<t:1705314600:R>" in result.description
+
+    def test_truncates_long_description(self) -> None:
+        """Test that descriptions over 4096 chars are truncated."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        # Create many stockpiles to exceed 4096 character limit
+        stockpiles = []
+        for i in range(100):
+            stockpiles.append(
+                self._create_stockpile(
+                    name=f"VeryLongStockpileName_{i:03d}_WithExtraTextToMakeItEvenLonger",
+                    hex_key="AcrithiaHex",
+                    city="PatridiaWithAVeryLongCityNameThatAddsMoreCharacters",
+                    code=f"{i:06d}",
+                )
+            )
+
+        item_tpl = "**{name}**: `{code}` - {hex}/{city} - {roles} - {creator} - {created_at}"
+        result = format_pinned_message(
+            stockpiles=stockpiles,  # type: ignore[arg-type]
+            header_template="**{hex} - {city}** ({count})",
+            item_template=item_tpl,
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description is not None
+        # Description should be truncated to 4096 characters
+        assert len(result.description) <= 4096
+        # Should end with "..." when truncated
+        assert result.description.endswith("...")
