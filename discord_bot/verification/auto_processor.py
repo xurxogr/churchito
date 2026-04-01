@@ -80,6 +80,24 @@ def extract_regiment_id(regiment: str) -> str | None:
     return regiment[1:bracket_end]
 
 
+def extract_regiment_number(regiment_id: str) -> str | None:
+    """Extract the numeric part after # from a regiment ID.
+
+    This is used for comparison since OCR may miss characters like hyphens.
+    For example: 7-HP#8707 -> 8707, 7HP#8707 -> 8707
+
+    Args:
+        regiment_id: Regiment ID (e.g., "7-HP#8707")
+
+    Returns:
+        The numeric part after # or None if not found
+    """
+    if not regiment_id or "#" not in regiment_id:
+        return None
+
+    return regiment_id.split("#")[-1]
+
+
 def process_verification(
     request: VerificationRequest,
     api_response: VerificationAPIResponse,
@@ -113,10 +131,22 @@ def process_verification(
     # 2. Check regiment (only for REGULAR verification)
     if request.verification_type == VerificationType.REGULAR and api_response.regiment:
         valid_regiment = config.get(ConfigKey.VERIFICATION_VALID_REGIMENT, "")
+        logger.debug(
+            f"Regiment check: api_regiment={api_response.regiment!r}, "
+            f"valid_regiment={valid_regiment!r}, type={type(valid_regiment)}"
+        )
         if valid_regiment:
             # If a valid regiment is configured, only reject if it doesn't match
+            # Compare only the #<number> part to handle OCR errors in prefix
             detected_regiment_id = extract_regiment_id(api_response.regiment)
-            if detected_regiment_id != valid_regiment:
+            detected_number = extract_regiment_number(detected_regiment_id or "")
+            valid_number = extract_regiment_number(valid_regiment)
+            logger.debug(
+                f"Regiment comparison: detected_id={detected_regiment_id!r}, "
+                f"detected_number={detected_number!r}, valid_number={valid_number!r}, "
+                f"match={detected_number == valid_number}"
+            )
+            if detected_number != valid_number:
                 reason = (
                     config.get(ConfigKey.REJECT_HAS_REGIMENT)
                     or "User already belongs to a regiment"
@@ -124,6 +154,7 @@ def process_verification(
                 return False, reason
         else:
             # If no valid regiment is configured, reject any regiment
+            logger.debug("No valid_regiment configured, rejecting any regiment")
             reason = (
                 config.get(ConfigKey.REJECT_HAS_REGIMENT) or "User already belongs to a regiment"
             )

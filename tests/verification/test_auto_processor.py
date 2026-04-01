@@ -7,6 +7,7 @@ from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.auto_processor import (
     calculate_time_diff_days,
     extract_regiment_id,
+    extract_regiment_number,
     names_match,
     process_verification,
 )
@@ -125,6 +126,45 @@ class TestExtractRegimentId:
         """Test with complex ID."""
         result = extract_regiment_id("[82DK-TF#5555] 82nd Task Force")
         assert result == "82DK-TF#5555"
+
+
+class TestExtractRegimentNumber:
+    """Tests for extract_regiment_number."""
+
+    def test_standard_format(self) -> None:
+        """Test extracting number from standard format."""
+        result = extract_regiment_number("7-HP#8707")
+        assert result == "8707"
+
+    def test_without_hyphen(self) -> None:
+        """Test extracting number when OCR misses hyphen."""
+        result = extract_regiment_number("7HP#8707")
+        assert result == "8707"
+
+    def test_complex_id(self) -> None:
+        """Test with complex ID format."""
+        result = extract_regiment_number("82DK-TF#5555")
+        assert result == "5555"
+
+    def test_no_hash(self) -> None:
+        """Test when there is no # in the ID."""
+        result = extract_regiment_number("SOLO")
+        assert result is None
+
+    def test_empty_string(self) -> None:
+        """Test with empty string."""
+        result = extract_regiment_number("")
+        assert result is None
+
+    def test_none_input(self) -> None:
+        """Test with None-like input."""
+        result = extract_regiment_number("")
+        assert result is None
+
+    def test_multiple_hashes(self) -> None:
+        """Test with multiple # characters (uses last one)."""
+        result = extract_regiment_number("A#B#1234")
+        assert result == "1234"
 
 
 class TestProcessVerification:
@@ -272,6 +312,25 @@ class TestProcessVerification:
         """Test approval when regiment matches the valid one."""
         request = self._create_request(verification_type=VerificationType.REGULAR)
         api_response = self._create_api_response(regiment="[7-HP#8707] 7th Hispanic Platoon")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
+        }
+
+        should_approve, reason = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert should_approve is True
+        assert reason is None
+
+    def test_valid_regiment_matches_with_ocr_error(self) -> None:
+        """Test approval when OCR misses characters but number matches."""
+        request = self._create_request(verification_type=VerificationType.REGULAR)
+        # OCR returns 7HP instead of 7-HP (missing hyphen)
+        api_response = self._create_api_response(regiment="[7HP#8707] 7th Hispanic Platoon")
         config: dict[str, Any] = {
             ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
         }
