@@ -1101,30 +1101,35 @@ class StockpileCog(commands.Cog):
             )
             await session.commit()
 
-        # Send success message
+        # Send success message (if configured)
         now = datetime.now(UTC)
-        roles_str = ", ".join(r.name for r in selected_roles) if selected_roles else "Everyone"
-        roles_mention_str = (
-            ", ".join(r.mention for r in selected_roles) if selected_roles else "Everyone"
-        )
-        created_at_str = now.strftime("%Y-%m-%d %H:%M")
-        created_at_unix = int(now.timestamp())
-        created_at_relative = f"<t:{created_at_unix}:R>"
+        success_template = config.get(ConfigKey.ADD_SUCCESS_TEXT)
+        if success_template:
+            roles_str = ", ".join(r.name for r in selected_roles) if selected_roles else "Everyone"
+            roles_mention_str = (
+                ", ".join(r.mention for r in selected_roles) if selected_roles else "Everyone"
+            )
+            created_at_str = now.strftime("%Y-%m-%d %H:%M")
+            created_at_unix = int(now.timestamp())
+            created_at_relative = f"<t:{created_at_unix}:R>"
 
-        success_msg = format_message(
-            config.get(ConfigKey.ADD_SUCCESS_TEXT),
-            name=name,
-            hex=hex_display,
-            city=city,
-            code=code,
-            roles=roles_str,
-            roles_mention=roles_mention_str,
-            creator=member.display_name,
-            creator_mention=member.mention,
-            created_at=created_at_str,
-            created_at_relative=created_at_relative,
-        )
-        await interaction.response.send_message(success_msg, ephemeral=True)
+            success_msg = format_message(
+                success_template,
+                name=name,
+                hex=hex_display,
+                city=city,
+                code=code,
+                roles=roles_str,
+                roles_mention=roles_mention_str,
+                creator=member.display_name,
+                creator_mention=member.mention,
+                created_at=created_at_str,
+                created_at_relative=created_at_relative,
+            )
+            await interaction.response.send_message(success_msg, ephemeral=True)
+        else:
+            # Acknowledge interaction without visible message
+            await interaction.response.defer(ephemeral=True)
 
         # Send notification if configured
         await self._send_add_notification(
@@ -1317,42 +1322,50 @@ class StockpileCog(commands.Cog):
 
         hex_display = get_hex_display_name(hex)
 
-        # Format roles and creator for delete success message
-        role_names = []
-        for role_id in stockpile_view_roles:
-            role = interaction.guild.get_role(role_id)
-            role_names.append(role.name if role else f"Unknown({role_id})")
-        roles_str = ", ".join(role_names) if role_names else "Everyone"
-        roles_mention_str = (
-            ", ".join(f"<@&{role_id}>" for role_id in stockpile_view_roles)
-            if stockpile_view_roles
-            else "Everyone"
-        )
+        # Send success message (if configured)
+        success_template = config.get(ConfigKey.DELETE_SUCCESS_TEXT)
+        if success_template:
+            # Format roles and creator for delete success message
+            role_names = []
+            for role_id in stockpile_view_roles:
+                role = interaction.guild.get_role(role_id)
+                role_names.append(role.name if role else f"Unknown({role_id})")
+            roles_str = ", ".join(role_names) if role_names else "Everyone"
+            roles_mention_str = (
+                ", ".join(f"<@&{role_id}>" for role_id in stockpile_view_roles)
+                if stockpile_view_roles
+                else "Everyone"
+            )
 
-        creator_member = interaction.guild.get_member(stockpile_created_by)
-        creator_str = (
-            creator_member.display_name if creator_member else f"Unknown({stockpile_created_by})"
-        )
-        creator_mention_str = f"<@{stockpile_created_by}>"
+            creator_member = interaction.guild.get_member(stockpile_created_by)
+            creator_str = (
+                creator_member.display_name
+                if creator_member
+                else f"Unknown({stockpile_created_by})"
+            )
+            creator_mention_str = f"<@{stockpile_created_by}>"
 
-        created_at_str = stockpile_created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_unix = int(stockpile_created_at.timestamp())
-        created_at_relative = f"<t:{created_at_unix}:R>"
+            created_at_str = stockpile_created_at.strftime("%Y-%m-%d %H:%M")
+            created_at_unix = int(stockpile_created_at.timestamp())
+            created_at_relative = f"<t:{created_at_unix}:R>"
 
-        success_msg = format_message(
-            config.get(ConfigKey.DELETE_SUCCESS_TEXT),
-            name=name,
-            hex=hex_display,
-            city=city,
-            code=stockpile_code,
-            roles=roles_str,
-            roles_mention=roles_mention_str,
-            creator=creator_str,
-            creator_mention=creator_mention_str,
-            created_at=created_at_str,
-            created_at_relative=created_at_relative,
-        )
-        await interaction.response.send_message(success_msg, ephemeral=True)
+            success_msg = format_message(
+                success_template,
+                name=name,
+                hex=hex_display,
+                city=city,
+                code=stockpile_code,
+                roles=roles_str,
+                roles_mention=roles_mention_str,
+                creator=creator_str,
+                creator_mention=creator_mention_str,
+                created_at=created_at_str,
+                created_at_relative=created_at_relative,
+            )
+            await interaction.response.send_message(success_msg, ephemeral=True)
+        else:
+            # Acknowledge interaction without visible message
+            await interaction.response.defer(ephemeral=True)
 
         # Send notification if configured
         await self._send_delete_notification(

@@ -13,34 +13,7 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
     description="Manage stockpile information with location and access codes",
     icon="📦",
     options=[
-        # ===== 1. COMMAND NAMES =====
-        ConfigOption(
-            key=ConfigKey.ADD_COMMAND_NAME,
-            name="Add command name",
-            description="Name for the command to add stockpiles (without slash)",
-            option_type=ConfigOptionType.STRING,
-            default="stockpile_add",
-            max_length=32,
-            group="Commands",
-        ),
-        ConfigOption(
-            key=ConfigKey.SHOW_COMMAND_NAME,
-            name="Show command name",
-            description="Name for the command to show stockpiles (without slash)",
-            option_type=ConfigOptionType.STRING,
-            default="stockpile_show",
-            max_length=32,
-            group="Commands",
-        ),
-        ConfigOption(
-            key=ConfigKey.DELETE_COMMAND_NAME,
-            name="Delete command name",
-            description="Name for the command to delete stockpiles (without slash)",
-            option_type=ConfigOptionType.STRING,
-            default="stockpile_delete",
-            max_length=32,
-            group="Commands",
-        ),
+        # ===== 1. GENERAL =====
         ConfigOption(
             key=ConfigKey.COMMAND_CHANNEL,
             name="Stockpile channel",
@@ -49,7 +22,34 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             ),
             option_type=ConfigOptionType.CHANNEL,
             default=None,
-            group="Commands",
+            group="General",
+        ),
+        ConfigOption(
+            key=ConfigKey.ADD_COMMAND_NAME,
+            name="Add command name",
+            description="Name for the command to add stockpiles (without slash)",
+            option_type=ConfigOptionType.STRING,
+            default="stockpile_add",
+            max_length=32,
+            group="General",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_COMMAND_NAME,
+            name="Show command name",
+            description="Name for the command to show stockpiles (without slash)",
+            option_type=ConfigOptionType.STRING,
+            default="stockpile_show",
+            max_length=32,
+            group="General",
+        ),
+        ConfigOption(
+            key=ConfigKey.DELETE_COMMAND_NAME,
+            name="Delete command name",
+            description="Name for the command to delete stockpiles (without slash)",
+            option_type=ConfigOptionType.STRING,
+            default="stockpile_delete",
+            max_length=32,
+            group="General",
         ),
         # ===== 2. PERMISSIONS =====
         ConfigOption(
@@ -79,11 +79,14 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             default=[],
             group="Permissions",
         ),
-        # ===== 3. MESSAGES =====
+        # ===== 3. ADD COMMAND =====
         ConfigOption(
             key=ConfigKey.ADD_SUCCESS_TEXT,
-            name="Add success message",
-            description="Message shown when a stockpile is added successfully",
+            name="Response to user",
+            description=(
+                "Ephemeral message shown to the user after adding a stockpile. "
+                "Leave empty to not send any message."
+            ),
             option_type=ConfigOptionType.TEXTAREA,
             default=("Stockpile **{name}** added at **{hex}** - **{city}**\nCode: `{code}`"),
             max_length=1000,
@@ -99,123 +102,13 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
                 "created_at",
                 "created_at_relative",
             ],
-            group="Messages",
+            group="Add Command",
         ),
-        ConfigOption(
-            key=ConfigKey.SHOW_HEADER_TEXT,
-            name="Show header message",
-            description="Header text when displaying stockpiles",
-            option_type=ConfigOptionType.STRING,
-            default="**Stockpiles at {hex} - {city}** ({count})",
-            max_length=200,
-            placeholders=["hex", "city", "count"],
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.SHOW_ITEM_TEXT,
-            name="Show item message",
-            description="Text for each stockpile in the list",
-            option_type=ConfigOptionType.TEXTAREA,
-            default="**{name}**: `{code}` (by {creator_mention})",
-            max_length=500,
-            placeholders=[
-                "name",
-                "code",
-                "hex",
-                "city",
-                "roles",
-                "roles_mention",
-                "creator",
-                "creator_mention",
-                "created_at",
-                "created_at_relative",
-            ],
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.SHOW_EMPTY_TEXT,
-            name="Show empty message",
-            description="Message when no stockpiles are found",
-            option_type=ConfigOptionType.STRING,
-            default="No stockpiles found at **{hex}** - **{city}**",
-            max_length=200,
-            placeholders=["hex", "city"],
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.DELETE_SUCCESS_TEXT,
-            name="Delete success message",
-            description="Message shown when a stockpile is deleted",
-            option_type=ConfigOptionType.STRING,
-            default="Stockpile **{name}** at **{hex}** - **{city}** has been deleted.",
-            max_length=200,
-            placeholders=[
-                "name",
-                "hex",
-                "city",
-                "code",
-                "roles",
-                "roles_mention",
-                "creator",
-                "creator_mention",
-                "created_at",
-                "created_at_relative",
-            ],
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.NO_PERMISSION_TEXT,
-            name="No permission message",
-            description="Message when user lacks permission",
-            option_type=ConfigOptionType.STRING,
-            default="You don't have permission to perform this action.",
-            max_length=200,
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.NOT_FOUND_TEXT,
-            name="Not found message",
-            description="Message when stockpile is not found",
-            option_type=ConfigOptionType.STRING,
-            default="Stockpile not found.",
-            max_length=200,
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.INVALID_CODE_TEXT,
-            name="Invalid code message",
-            description="Message when code format is invalid",
-            option_type=ConfigOptionType.STRING,
-            default="Code must be exactly 6 digits.",
-            max_length=200,
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.INVALID_ROLES_TEXT,
-            name="Invalid roles message",
-            description="Message when selected roles are not allowed",
-            option_type=ConfigOptionType.STRING,
-            default="One or more selected roles are not in the allowed view roles list.",
-            max_length=200,
-            group="Messages",
-        ),
-        ConfigOption(
-            key=ConfigKey.WRONG_CHANNEL_TEXT,
-            name="Wrong channel message",
-            description="Message when command is used in wrong channel",
-            option_type=ConfigOptionType.STRING,
-            default="This command can only be used in {channel}.",
-            max_length=200,
-            placeholders=["channel"],
-            group="Messages",
-        ),
-        # ===== 4. NOTIFICATIONS =====
         ConfigOption(
             key=ConfigKey.ADD_NOTIFICATION_TEXT,
-            name="Add notification embed",
+            name="Channel notification",
             description=(
-                "Embed sent to notification channel when a stockpile is added. "
-                "Leave empty to disable."
+                "Embed sent to the channel when a stockpile is added. Leave empty to disable."
             ),
             option_type=ConfigOptionType.EMBED,
             default={
@@ -238,14 +131,80 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
                 "created_at",
                 "created_at_relative",
             ],
-            group="Notifications",
+            group="Add Command",
+        ),
+        # ===== 4. SHOW COMMAND =====
+        ConfigOption(
+            key=ConfigKey.SHOW_HEADER_TEXT,
+            name="Location header",
+            description="Header text for each location when displaying stockpiles",
+            option_type=ConfigOptionType.STRING,
+            default="**Stockpiles at {hex} - {city}** ({count})",
+            max_length=200,
+            placeholders=["hex", "city", "count"],
+            group="Show Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_ITEM_TEXT,
+            name="Stockpile item",
+            description="Text for each stockpile in the list",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="**{name}**: `{code}` (by {creator_mention})",
+            max_length=500,
+            placeholders=[
+                "name",
+                "code",
+                "hex",
+                "city",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+            ],
+            group="Show Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_EMPTY_TEXT,
+            name="Empty message",
+            description="Message when no stockpiles are found at the location",
+            option_type=ConfigOptionType.STRING,
+            default="No stockpiles found at **{hex}** - **{city}**",
+            max_length=200,
+            placeholders=["hex", "city"],
+            group="Show Command",
+        ),
+        # ===== 5. DELETE COMMAND =====
+        ConfigOption(
+            key=ConfigKey.DELETE_SUCCESS_TEXT,
+            name="Response to user",
+            description=(
+                "Ephemeral message shown to the user after deleting a stockpile. "
+                "Leave empty to not send any message."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="Stockpile **{name}** at **{hex}** - **{city}** has been deleted.",
+            max_length=200,
+            placeholders=[
+                "name",
+                "hex",
+                "city",
+                "code",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+            ],
+            group="Delete Command",
         ),
         ConfigOption(
             key=ConfigKey.DELETE_NOTIFICATION_TEXT,
-            name="Delete notification embed",
+            name="Channel notification",
             description=(
-                "Embed sent to notification channel when a stockpile is deleted. "
-                "Leave empty to disable."
+                "Embed sent to the channel when a stockpile is deleted. Leave empty to disable."
             ),
             option_type=ConfigOptionType.EMBED,
             default={
@@ -272,12 +231,12 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
                 "deleted_by",
                 "deleted_by_mention",
             ],
-            group="Notifications",
+            group="Delete Command",
         ),
-        # ===== 5. PINNED MESSAGE =====
+        # ===== 6. PINNED MESSAGE =====
         ConfigOption(
             key=ConfigKey.PINNED_HEADER_TEXT,
-            name="Pinned message header",
+            name="Location header",
             description=(
                 "Header template for each location in the pinned message. "
                 "Leave empty to disable pinned message feature."
@@ -290,7 +249,7 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.PINNED_ITEM_TEXT,
-            name="Pinned message item",
+            name="Stockpile item",
             description=(
                 "Template for each stockpile in the pinned message. "
                 "Leave empty to disable pinned message feature."
@@ -311,6 +270,53 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
                 "created_at_relative",
             ],
             group="Pinned Message",
+        ),
+        # ===== 7. ERROR MESSAGES =====
+        ConfigOption(
+            key=ConfigKey.NO_PERMISSION_TEXT,
+            name="No permission",
+            description="Message when user lacks permission to perform an action",
+            option_type=ConfigOptionType.STRING,
+            default="You don't have permission to perform this action.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.NOT_FOUND_TEXT,
+            name="Not found",
+            description="Message when the stockpile is not found",
+            option_type=ConfigOptionType.STRING,
+            default="Stockpile not found.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.INVALID_CODE_TEXT,
+            name="Invalid code",
+            description="Message when code format is invalid (must be 6 digits)",
+            option_type=ConfigOptionType.STRING,
+            default="Code must be exactly 6 digits.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.INVALID_ROLES_TEXT,
+            name="Invalid roles",
+            description="Message when selected roles are not in the allowed view roles list",
+            option_type=ConfigOptionType.STRING,
+            default="One or more selected roles are not in the allowed view roles list.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.WRONG_CHANNEL_TEXT,
+            name="Wrong channel",
+            description="Message when command is used in the wrong channel",
+            option_type=ConfigOptionType.STRING,
+            default="This command can only be used in {channel}.",
+            max_length=200,
+            placeholders=["channel"],
+            group="Error Messages",
         ),
     ],
 )
