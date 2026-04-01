@@ -61,6 +61,7 @@ def mock_role() -> MagicMock:
     role = MagicMock(spec=discord.Role)
     role.id = 100
     role.name = "TestRole"
+    role.mention = "<@&100>"
     return role
 
 
@@ -70,6 +71,7 @@ def mock_role2() -> MagicMock:
     role = MagicMock(spec=discord.Role)
     role.id = 200
     role.name = "TestRole2"
+    role.mention = "<@&200>"
     return role
 
 
@@ -80,6 +82,7 @@ def mock_member(mock_guild: MagicMock, mock_role: MagicMock) -> MagicMock:
     member.id = 111222333
     member.bot = False
     member.display_name = "TestUser"
+    member.mention = "<@111222333>"
     member.nick = None
     member.guild = mock_guild
     member.guild_permissions = MagicMock()
@@ -724,6 +727,7 @@ class TestStockpileAddCommand:
         mock_role3 = MagicMock(spec=discord.Role)
         mock_role3.id = 300
         mock_role3.name = "TestRole3"
+        mock_role3.mention = "<@&300>"
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -2352,6 +2356,7 @@ class TestRoleAutocomplete:
         mock_role3 = MagicMock(spec=discord.Role)
         mock_role3.id = 300
         mock_role3.name = "TestRole3"
+        mock_role3.mention = "<@&300>"
 
         def get_role_by_id(role_id: int) -> MagicMock | None:
             roles = {100: mock_role, 200: mock_role2, 300: mock_role3}

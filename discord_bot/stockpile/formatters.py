@@ -65,6 +65,7 @@ def format_stockpile_item(
     stockpile: Stockpile,
     template: str,
     hex_display_name: str,
+    guild: discord.Guild | None = None,
 ) -> str:
     """Format a single stockpile for display.
 
@@ -72,12 +73,28 @@ def format_stockpile_item(
         stockpile (Stockpile): Stockpile to format
         template (str): Message template
         hex_display_name (str): Human-readable hex name
+        guild (discord.Guild | None): Optional guild to resolve role names and creator
 
     Returns:
         str: Formatted stockpile string
     """
     created_at_str = stockpile.created_at.strftime("%Y-%m-%d %H:%M")
-    roles_str = format_roles_list(stockpile.view_roles)
+    created_at_unix = int(stockpile.created_at.timestamp())
+    created_at_relative = f"<t:{created_at_unix}:R>"
+
+    # Role names (if guild provided) or mentions
+    roles_str = format_roles_list(stockpile.view_roles, guild)
+    # Role mentions (always)
+    roles_mention_str = format_roles_list(stockpile.view_roles)
+
+    # Creator display name (if guild provided) or ID
+    if guild:
+        member = guild.get_member(stockpile.created_by)
+        creator_str = member.display_name if member else f"Unknown({stockpile.created_by})"
+    else:
+        creator_str = str(stockpile.created_by)
+    # Creator mention (always)
+    creator_mention_str = f"<@{stockpile.created_by}>"
 
     return format_message(
         template,
@@ -86,8 +103,11 @@ def format_stockpile_item(
         hex=hex_display_name,
         city=stockpile.city,
         roles=roles_str,
-        creator=stockpile.created_by,
+        roles_mention=roles_mention_str,
+        creator=creator_str,
+        creator_mention=creator_mention_str,
         created_at=created_at_str,
+        created_at_relative=created_at_relative,
     )
 
 
