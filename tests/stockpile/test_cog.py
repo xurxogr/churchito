@@ -1,5 +1,6 @@
 """Tests for StockpileCog."""
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1851,6 +1852,7 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
         mock_guild.get_channel.assert_not_called()
@@ -1874,6 +1876,7 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
         mock_guild.get_channel.assert_not_called()
@@ -1896,7 +1899,9 @@ class TestSendAddNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.ADD_NOTIFICATION_TEXT: "Stockpile {name} added at {hex}!",
+            ConfigKey.ADD_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile {name} added at {hex}!"}],
+            },
         }
 
         await stockpile_cog._send_add_notification(
@@ -1908,12 +1913,17 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
         mock_channel.send.assert_called_once()
         call_args = mock_channel.send.call_args
-        assert "TestStock" in call_args[0][0]
-        assert "Acrithia" in call_args[0][0]
+        embed = call_args.kwargs.get("embed")
+        assert embed is not None
+        # Check that placeholders were resolved in the field value
+        assert embed.fields[0].value is not None
+        assert "TestStock" in embed.fields[0].value
+        assert "Acrithia" in embed.fields[0].value
 
     async def test_handles_channel_not_found(
         self,
@@ -1927,7 +1937,9 @@ class TestSendAddNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.ADD_NOTIFICATION_TEXT: "Stockpile added!",
+            ConfigKey.ADD_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile added!"}],
+            },
         }
 
         # Should not raise
@@ -1940,6 +1952,7 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
     async def test_handles_forbidden_error(
@@ -1960,7 +1973,9 @@ class TestSendAddNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.ADD_NOTIFICATION_TEXT: "Stockpile added!",
+            ConfigKey.ADD_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile added!"}],
+            },
         }
 
         # Should not raise
@@ -1973,6 +1988,7 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
     async def test_handles_generic_error(
@@ -1993,7 +2009,9 @@ class TestSendAddNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.ADD_NOTIFICATION_TEXT: "Stockpile added!",
+            ConfigKey.ADD_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile added!"}],
+            },
         }
 
         # Should not raise
@@ -2006,6 +2024,7 @@ class TestSendAddNotification:
             code="123456",
             roles=[mock_role],
             creator=mock_member,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         )
 
 
@@ -2019,7 +2038,11 @@ class TestSendDeleteNotification:
         mock_member: MagicMock,
     ) -> None:
         """Test notification is not sent when no channel configured."""
-        config: dict[str, Any] = {ConfigKey.DELETE_NOTIFICATION_TEXT: "Stockpile deleted!"}
+        config: dict[str, Any] = {
+            ConfigKey.DELETE_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile deleted!"}],
+            }
+        }
 
         await stockpile_cog._send_delete_notification(
             mock_guild,
@@ -2027,6 +2050,10 @@ class TestSendDeleteNotification:
             name="Test",
             hex_display="Acrithia",
             city="Patridia",
+            code="123456",
+            view_role_ids=[100],
+            created_by=999,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
             deleted_by=mock_member,
         )
 
@@ -2045,7 +2072,11 @@ class TestSendDeleteNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.DELETE_NOTIFICATION_TEXT: "Stockpile {name} deleted by {deleted_by}!",
+            ConfigKey.DELETE_NOTIFICATION_TEXT: {
+                "sections": [
+                    {"type": "text", "content": "Stockpile {name} deleted by {deleted_by}!"}
+                ],
+            },
         }
 
         await stockpile_cog._send_delete_notification(
@@ -2054,12 +2085,20 @@ class TestSendDeleteNotification:
             name="TestStock",
             hex_display="Acrithia",
             city="Patridia",
+            code="123456",
+            view_role_ids=[100],
+            created_by=999,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
             deleted_by=mock_member,
         )
 
         mock_channel.send.assert_called_once()
         call_args = mock_channel.send.call_args
-        assert "TestStock" in call_args[0][0]
+        embed = call_args.kwargs.get("embed")
+        assert embed is not None
+        # Check that placeholders were resolved in the field value
+        assert embed.fields[0].value is not None
+        assert "TestStock" in embed.fields[0].value
 
     async def test_handles_forbidden_error(
         self,
@@ -2074,7 +2113,9 @@ class TestSendDeleteNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.DELETE_NOTIFICATION_TEXT: "Stockpile deleted!",
+            ConfigKey.DELETE_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile deleted!"}],
+            },
         }
 
         # Should not raise
@@ -2084,6 +2125,10 @@ class TestSendDeleteNotification:
             name="Test",
             hex_display="Acrithia",
             city="Patridia",
+            code="123456",
+            view_role_ids=[100],
+            created_by=999,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
             deleted_by=mock_member,
         )
 
@@ -2100,7 +2145,9 @@ class TestSendDeleteNotification:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.DELETE_NOTIFICATION_TEXT: "Stockpile deleted!",
+            ConfigKey.DELETE_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile deleted!"}],
+            },
         }
 
         # Should not raise
@@ -2110,6 +2157,10 @@ class TestSendDeleteNotification:
             name="Test",
             hex_display="Acrithia",
             city="Patridia",
+            code="123456",
+            view_role_ids=[100],
+            created_by=999,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
             deleted_by=mock_member,
         )
 
@@ -2553,7 +2604,9 @@ class TestSendDeleteNotificationChannelNotFound:
 
         config = {
             ConfigKey.COMMAND_CHANNEL: 12345,
-            ConfigKey.DELETE_NOTIFICATION_TEXT: "Stockpile deleted!",
+            ConfigKey.DELETE_NOTIFICATION_TEXT: {
+                "sections": [{"type": "text", "content": "Stockpile deleted!"}],
+            },
         }
 
         # Should not raise
@@ -2563,6 +2616,10 @@ class TestSendDeleteNotificationChannelNotFound:
             name="Test",
             hex_display="Acrithia",
             city="Patridia",
+            code="123456",
+            view_role_ids=[100],
+            created_by=999,
+            created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
             deleted_by=mock_member,
         )
 

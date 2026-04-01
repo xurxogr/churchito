@@ -1,6 +1,7 @@
 """Stockpile management cog."""
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import discord
@@ -8,8 +9,10 @@ from discord import app_commands
 from discord.ext import commands
 
 from discord_bot.bot import DiscordBot
+from discord_bot.common.schemas.embed_section import EmbedConfig
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.common.services.embed_builder import PlaceholderContext, build_embed
 from discord_bot.common.utils import (
     delete_message,
     get_hex_display_name,
@@ -552,8 +555,9 @@ class StockpileCog(commands.Cog):
         code: str,
         roles: list[discord.Role],
         creator: discord.Member,
+        created_at: datetime,
     ) -> None:
-        """Send notification when a stockpile is added.
+        """Send notification embed when a stockpile is added.
 
         Args:
             guild (discord.Guild): Discord guild
@@ -564,30 +568,52 @@ class StockpileCog(commands.Cog):
             code (str): Access code
             roles (list[discord.Role]): View roles
             creator (discord.Member): User who created the stockpile
+            created_at (datetime): Creation timestamp
         """
         channel_id = config.get(ConfigKey.COMMAND_CHANNEL)
-        message_template = config.get(ConfigKey.ADD_NOTIFICATION_TEXT)
+        embed_config_data = config.get(ConfigKey.ADD_NOTIFICATION_TEXT)
 
-        if not channel_id or not message_template:
+        if not channel_id or not embed_config_data:
             return
 
         channel = guild.get_channel(channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
             return
 
-        roles_str = ", ".join(role.mention for role in roles)
-        message = format_message(
-            message_template,
-            name=name,
-            hex=hex_display,
-            city=city,
-            code=code,
-            roles=roles_str,
-            creator=creator.mention,
+        # Role names (no mentions)
+        roles_str = ", ".join(role.name for role in roles) if roles else "Everyone"
+        # Role mentions
+        roles_mention_str = ", ".join(role.mention for role in roles) if roles else "Everyone"
+
+        # Format created_at
+        created_at_str = created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_unix = int(created_at.timestamp())
+        created_at_relative = f"<t:{created_at_unix}:R>"
+
+        # Build context for placeholder replacement
+        context = PlaceholderContext(
+            guild=guild,
+            member=creator,
+            extra_data={
+                "name": name,
+                "hex": hex_display,
+                "city": city,
+                "code": code,
+                "roles": roles_str,
+                "roles_mention": roles_mention_str,
+                "creator": creator.display_name,
+                "creator_mention": creator.mention,
+                "created_at": created_at_str,
+                "created_at_relative": created_at_relative,
+            },
         )
 
+        # Build embed from config
+        embed_config = EmbedConfig(**embed_config_data)
+        embed = build_embed(embed_config, context)
+
         try:
-            await channel.send(message)
+            await channel.send(embed=embed)
         except discord.Forbidden:
             logger.warning(f"[{guild.name}] Cannot send add notification: no permission")
         except Exception as e:
@@ -600,9 +626,13 @@ class StockpileCog(commands.Cog):
         name: str,
         hex_display: str,
         city: str,
+        code: str,
+        view_role_ids: list[int],
+        created_by: int,
+        created_at: datetime,
         deleted_by: discord.Member,
     ) -> None:
-        """Send notification when a stockpile is deleted.
+        """Send notification embed when a stockpile is deleted.
 
         Args:
             guild (discord.Guild): Discord guild
@@ -610,28 +640,74 @@ class StockpileCog(commands.Cog):
             name (str): Stockpile name
             hex_display (str): Hex display name
             city (str): City name
+            code (str): Access code (captured before deletion)
+            view_role_ids (list[int]): Role IDs that could view (captured before deletion)
+            created_by (int): User ID who created (captured before deletion)
+            created_at (datetime): Creation timestamp (captured before deletion)
             deleted_by (discord.Member): User who deleted the stockpile
         """
         channel_id = config.get(ConfigKey.COMMAND_CHANNEL)
-        message_template = config.get(ConfigKey.DELETE_NOTIFICATION_TEXT)
+        embed_config_data = config.get(ConfigKey.DELETE_NOTIFICATION_TEXT)
 
-        if not channel_id or not message_template:
+        if not channel_id or not embed_config_data:
             return
 
         channel = guild.get_channel(channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
             return
 
-        message = format_message(
-            message_template,
-            name=name,
-            hex=hex_display,
-            city=city,
-            deleted_by=deleted_by.mention,
+        # Role names (no mentions) - resolve from guild
+        role_names = []
+        for role_id in view_role_ids:
+            role = guild.get_role(role_id)
+            role_names.append(role.name if role else f"Unknown({role_id})")
+        roles_str = ", ".join(role_names) if role_names else "Everyone"
+
+        # Role mentions
+        roles_mention_str = (
+            ", ".join(f"<@&{role_id}>" for role_id in view_role_ids)
+            if view_role_ids
+            else "Everyone"
         )
 
+        # Creator display name (no mention) - resolve from guild
+        creator_member = guild.get_member(created_by)
+        creator_str = creator_member.display_name if creator_member else f"Unknown({created_by})"
+
+        # Creator mention
+        creator_mention_str = f"<@{created_by}>"
+
+        # Format created_at
+        created_at_str = created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_unix = int(created_at.timestamp())
+        created_at_relative = f"<t:{created_at_unix}:R>"
+
+        # Build context for placeholder replacement
+        context = PlaceholderContext(
+            guild=guild,
+            member=deleted_by,
+            extra_data={
+                "name": name,
+                "hex": hex_display,
+                "city": city,
+                "code": code,
+                "roles": roles_str,
+                "roles_mention": roles_mention_str,
+                "creator": creator_str,
+                "creator_mention": creator_mention_str,
+                "created_at": created_at_str,
+                "created_at_relative": created_at_relative,
+                "deleted_by": deleted_by.display_name,
+                "deleted_by_mention": deleted_by.mention,
+            },
+        )
+
+        # Build embed from config
+        embed_config = EmbedConfig(**embed_config_data)
+        embed = build_embed(embed_config, context)
+
         try:
-            await channel.send(message)
+            await channel.send(embed=embed)
         except discord.Forbidden:
             logger.warning(f"[{guild.name}] Cannot send delete notification: no permission")
         except Exception as e:
@@ -1036,6 +1112,7 @@ class StockpileCog(commands.Cog):
         await interaction.response.send_message(success_msg, ephemeral=True)
 
         # Send notification if configured
+        now = datetime.now(UTC)
         await self._send_add_notification(
             interaction.guild,
             config,
@@ -1045,6 +1122,7 @@ class StockpileCog(commands.Cog):
             code=code,
             roles=selected_roles,
             creator=member,
+            created_at=now,
         )
 
         # Update pinned message if enabled
@@ -1204,6 +1282,12 @@ class StockpileCog(commands.Cog):
                 )
                 return
 
+            # Capture stockpile data BEFORE deletion for notification
+            stockpile_code = stockpile.code
+            stockpile_view_roles = stockpile.view_roles.copy()
+            stockpile_created_by = stockpile.created_by
+            stockpile_created_at = stockpile.created_at
+
             # Now delete
             deleted = await service.delete(stockpile.id, interaction.guild.name)
             await session.commit()
@@ -1231,6 +1315,10 @@ class StockpileCog(commands.Cog):
             name=name,
             hex_display=hex_display,
             city=city,
+            code=stockpile_code,
+            view_role_ids=stockpile_view_roles,
+            created_by=stockpile_created_by,
+            created_at=stockpile_created_at,
             deleted_by=member,
         )
 

@@ -179,28 +179,66 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
         # ===== 4. NOTIFICATIONS =====
         ConfigOption(
             key=ConfigKey.ADD_NOTIFICATION_TEXT,
-            name="Add notification message",
+            name="Add notification embed",
             description=(
-                "Public message sent to notification channel when a stockpile is added. "
+                "Embed sent to notification channel when a stockpile is added. "
                 "Leave empty to disable."
             ),
-            option_type=ConfigOptionType.TEXTAREA,
-            default="📦 **{name}** added at {hex} - {city} by {creator}",
-            max_length=1000,
-            placeholders=["name", "hex", "city", "code", "roles", "creator"],
+            option_type=ConfigOptionType.EMBED,
+            default={
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": ("📦 **{name}** added at {hex} - {city} by {creator_mention}"),
+                    }
+                ],
+            },
+            placeholders=[
+                "name",
+                "hex",
+                "city",
+                "code",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+            ],
             group="Notifications",
         ),
         ConfigOption(
             key=ConfigKey.DELETE_NOTIFICATION_TEXT,
-            name="Delete notification message",
+            name="Delete notification embed",
             description=(
-                "Public message sent to notification channel when a stockpile is deleted. "
+                "Embed sent to notification channel when a stockpile is deleted. "
                 "Leave empty to disable."
             ),
-            option_type=ConfigOptionType.TEXTAREA,
-            default="🗑️ **{name}** at {hex} - {city} deleted by {deleted_by}",
-            max_length=1000,
-            placeholders=["name", "hex", "city", "deleted_by"],
+            option_type=ConfigOptionType.EMBED,
+            default={
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": (
+                            "🗑️ **{name}** at {hex} - {city} deleted by {deleted_by_mention}"
+                        ),
+                    }
+                ],
+            },
+            placeholders=[
+                "name",
+                "hex",
+                "city",
+                "code",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+                "deleted_by",
+                "deleted_by_mention",
+            ],
             group="Notifications",
         ),
         # ===== 5. PINNED MESSAGE =====
