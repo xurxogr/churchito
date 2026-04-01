@@ -24,14 +24,18 @@ class ConfigKey:
     # Messages
     ADD_SUCCESS_TEXT = "add_success_text"
     SHOW_HEADER_TEXT = "show_header_text"
-    SHOW_ITEM_TEXT = "show_item_text"
-    SHOW_EMPTY_TEXT = "show_empty_text"
+    SHOW_LOCATION_EMBED = "show_location_embed"
+    SHOW_EMPTY_EMBED = "show_empty_embed"
     DELETE_SUCCESS_TEXT = "delete_success_text"
     NO_PERMISSION_TEXT = "no_permission_text"
     NOT_FOUND_TEXT = "not_found_text"
     INVALID_CODE_TEXT = "invalid_code_text"
     INVALID_ROLES_TEXT = "invalid_roles_text"
     WRONG_CHANNEL_TEXT = "wrong_channel_text"
+
+    # Legacy keys (kept for migration)
+    SHOW_ITEM_TEXT = "show_item_text"
+    SHOW_EMPTY_TEXT = "show_empty_text"
 
     # Notifications
     ADD_NOTIFICATION_TEXT = "add_notification_text"

@@ -596,18 +596,16 @@
         },
         "show_header_text": {
           "name": "Location header",
-          "description": "Header text for each location when displaying stockpiles",
-          "default": "**Stockpiles at {hex} - {city}** ({count})"
+          "description": "Header shown before stockpiles at each location. Leave empty to show stockpiles without location grouping.",
+          "default": "**{hex} - {city}** ({count})"
         },
-        "show_item_text": {
-          "name": "Stockpile item",
-          "description": "Text for each stockpile in the list",
-          "default": "**{name}**: `{code}` (by {creator_mention})"
+        "show_location_embed": {
+          "name": "Stockpile embed",
+          "description": "Embed shown for each stockpile. One embed is sent per stockpile."
         },
-        "show_empty_text": {
+        "show_empty_embed": {
           "name": "Empty message",
-          "description": "Message when no stockpiles are found at the location",
-          "default": "No stockpiles found at **{hex}** - **{city}**"
+          "description": "Embed shown when no stockpiles are found at the location"
         },
         "delete_success_text": {
           "name": "Response to user",

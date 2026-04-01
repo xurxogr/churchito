@@ -68,9 +68,8 @@ class TestStockpileConfigSchema:
 
         message_keys = [
             ConfigKey.ADD_SUCCESS_TEXT,
-            ConfigKey.SHOW_HEADER_TEXT,
-            ConfigKey.SHOW_ITEM_TEXT,
-            ConfigKey.SHOW_EMPTY_TEXT,
+            ConfigKey.SHOW_LOCATION_EMBED,
+            ConfigKey.SHOW_EMPTY_EMBED,
             ConfigKey.DELETE_SUCCESS_TEXT,
             ConfigKey.NO_PERMISSION_TEXT,
             ConfigKey.NOT_FOUND_TEXT,
@@ -93,15 +92,17 @@ class TestStockpileConfigSchema:
         assert "city" in opt.placeholders
         assert "code" in opt.placeholders
 
-    def test_show_item_text_placeholders(self) -> None:
-        """Test show item text has correct placeholders."""
+    def test_show_location_embed_placeholders(self) -> None:
+        """Test show location embed has correct placeholders."""
         options = {opt.key: opt for opt in STOCKPILE_CONFIG_SCHEMA.options}
 
-        opt = options[ConfigKey.SHOW_ITEM_TEXT]
+        opt = options[ConfigKey.SHOW_LOCATION_EMBED]
         assert opt.placeholders is not None
         assert "name" in opt.placeholders
         assert "code" in opt.placeholders
         assert "creator" in opt.placeholders
+        assert "hex" in opt.placeholders
+        assert "city" in opt.placeholders
 
     def test_all_options_have_group(self) -> None:
         """Test all options have a group assigned."""

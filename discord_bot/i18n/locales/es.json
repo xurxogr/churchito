@@ -596,18 +596,16 @@
         },
         "show_header_text": {
           "name": "Cabecera de ubicación",
-          "description": "Texto de cabecera para cada ubicación al mostrar almacenes",
-          "default": "**Almacenes en {hex} - {city}** ({count})"
+          "description": "Cabecera mostrada antes de los almacenes en cada ubicación. Deja vacío para mostrar almacenes sin agrupación por ubicación.",
+          "default": "**{hex} - {city}** ({count})"
         },
-        "show_item_text": {
-          "name": "Elemento de almacén",
-          "description": "Texto para cada almacén en la lista",
-          "default": "**{name}**: `{code}` (por {creator_mention})"
+        "show_location_embed": {
+          "name": "Embed de almacén",
+          "description": "Embed mostrado para cada almacén. Se envía un embed por almacén."
         },
-        "show_empty_text": {
+        "show_empty_embed": {
           "name": "Mensaje vacío",
-          "description": "Mensaje cuando no se encuentran almacenes en la ubicación",
-          "default": "No se encontraron almacenes en **{hex}** - **{city}**"
+          "description": "Embed mostrado cuando no se encuentran almacenes en la ubicación"
         },
         "delete_success_text": {
           "name": "Respuesta al usuario",

@@ -23,9 +23,10 @@ from discord_bot.common.utils import (
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
 from discord_bot.stockpile.formatters import (
+    build_stockpile_embed_context,
+    build_stockpile_placeholder_data,
     format_message,
     format_pinned_message,
-    format_stockpile_item,
     group_stockpiles_by_location,
     validate_code,
 )
@@ -580,32 +581,22 @@ class StockpileCog(commands.Cog):
         if not channel or not isinstance(channel, discord.TextChannel):
             return
 
-        # Role names (no mentions)
-        roles_str = ", ".join(role.name for role in roles) if roles else "Everyone"
-        # Role mentions
-        roles_mention_str = ", ".join(role.mention for role in roles) if roles else "Everyone"
+        # Build context using shared function
+        extra_data = build_stockpile_embed_context(
+            name=name,
+            code=code,
+            hex_display=hex_display,
+            city=city,
+            created_at=created_at,
+            roles=roles,
+            creator=creator,
+            guild=guild,
+        )
 
-        # Format created_at
-        created_at_str = created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_unix = int(created_at.timestamp())
-        created_at_relative = f"<t:{created_at_unix}:R>"
-
-        # Build context for placeholder replacement
         context = PlaceholderContext(
             guild=guild,
             member=creator,
-            extra_data={
-                "name": name,
-                "hex": hex_display,
-                "city": city,
-                "code": code,
-                "roles": roles_str,
-                "roles_mention": roles_mention_str,
-                "creator": creator.display_name,
-                "creator_mention": creator.mention,
-                "created_at": created_at_str,
-                "created_at_relative": created_at_relative,
-            },
+            extra_data=extra_data,
         )
 
         # Build embed from config
@@ -656,50 +647,23 @@ class StockpileCog(commands.Cog):
         if not channel or not isinstance(channel, discord.TextChannel):
             return
 
-        # Role names (no mentions) - resolve from guild
-        role_names = []
-        for role_id in view_role_ids:
-            role = guild.get_role(role_id)
-            role_names.append(role.name if role else f"Unknown({role_id})")
-        roles_str = ", ".join(role_names) if role_names else "Everyone"
-
-        # Role mentions
-        roles_mention_str = (
-            ", ".join(f"<@&{role_id}>" for role_id in view_role_ids)
-            if view_role_ids
-            else "Everyone"
+        # Build context using shared function
+        extra_data = build_stockpile_embed_context(
+            name=name,
+            code=code,
+            hex_display=hex_display,
+            city=city,
+            created_at=created_at,
+            role_ids=view_role_ids,
+            creator_id=created_by,
+            guild=guild,
+            deleted_by=deleted_by,
         )
 
-        # Creator display name (no mention) - resolve from guild
-        creator_member = guild.get_member(created_by)
-        creator_str = creator_member.display_name if creator_member else f"Unknown({created_by})"
-
-        # Creator mention
-        creator_mention_str = f"<@{created_by}>"
-
-        # Format created_at
-        created_at_str = created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_unix = int(created_at.timestamp())
-        created_at_relative = f"<t:{created_at_unix}:R>"
-
-        # Build context for placeholder replacement
         context = PlaceholderContext(
             guild=guild,
             member=deleted_by,
-            extra_data={
-                "name": name,
-                "hex": hex_display,
-                "city": city,
-                "code": code,
-                "roles": roles_str,
-                "roles_mention": roles_mention_str,
-                "creator": creator_str,
-                "creator_mention": creator_mention_str,
-                "created_at": created_at_str,
-                "created_at_relative": created_at_relative,
-                "deleted_by": deleted_by.display_name,
-                "deleted_by_mention": deleted_by.mention,
-            },
+            extra_data=extra_data,
         )
 
         # Build embed from config
@@ -1191,48 +1155,87 @@ class StockpileCog(commands.Cog):
         if not stockpiles:
             hex_display = get_hex_display_name(hex) if hex else "all hexes"
             city_display = city or "all cities"
-            empty_msg = format_message(
-                config.get(ConfigKey.SHOW_EMPTY_TEXT),
-                hex=hex_display,
-                city=city_display,
-            )
-            await interaction.response.send_message(empty_msg, ephemeral=True)
+
+            empty_embed_config = config.get(ConfigKey.SHOW_EMPTY_EMBED)
+            if empty_embed_config:
+                # Build empty embed
+                context = PlaceholderContext(
+                    guild=interaction.guild,
+                    member=member,
+                    extra_data={"hex": hex_display, "city": city_display},
+                )
+                embed_config = EmbedConfig(**empty_embed_config)
+                embed = build_embed(embed_config, context)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    f"No stockpiles found at **{hex_display}** - **{city_display}**",
+                    ephemeral=True,
+                )
             return
 
-        # Group by location
-        grouped = group_stockpiles_by_location(list(stockpiles))
-        header_template = config.get(ConfigKey.SHOW_HEADER_TEXT) or ""
-        item_template = config.get(ConfigKey.SHOW_ITEM_TEXT) or ""
+        # Get embed configuration
+        location_embed_config = config.get(ConfigKey.SHOW_LOCATION_EMBED)
+        if not location_embed_config:
+            await interaction.response.send_message("Show command not configured.", ephemeral=True)
+            return
 
-        lines: list[str] = []
+        # Get optional header template
+        header_template = config.get(ConfigKey.SHOW_HEADER_TEXT)
+
+        # Group stockpiles by location
+        grouped = group_stockpiles_by_location(list(stockpiles))
+
+        # Build messages: each location gets optional header + stockpile embeds
+        # We'll collect (content, embeds) tuples to send
+        messages: list[tuple[str | None, list[discord.Embed]]] = []
+
         for (hex_key, city_name), location_stockpiles in grouped.items():
             hex_display = get_hex_display_name(hex_key)
 
-            # Add header
-            header = format_message(
-                header_template,
-                hex=hex_display,
-                city=city_name,
-                count=len(location_stockpiles),
-            )
-            lines.append(header)
-
-            # Add items
-            for stockpile in location_stockpiles:
-                item = format_stockpile_item(
-                    stockpile, item_template, hex_display, interaction.guild
+            # Build header if configured
+            header = None
+            if header_template:
+                header = format_message(
+                    header_template,
+                    hex=hex_display,
+                    city=city_name,
+                    count=len(location_stockpiles),
                 )
-                lines.append(f"  {item}")
 
-            lines.append("")  # Empty line between groups
+            # Build embeds for stockpiles at this location
+            location_embeds: list[discord.Embed] = []
+            for stockpile in location_stockpiles:
+                stockpile_data = build_stockpile_placeholder_data(
+                    stockpile, hex_display, interaction.guild
+                )
+                context = PlaceholderContext(
+                    guild=interaction.guild,
+                    member=member,
+                    extra_data=stockpile_data,
+                )
+                embed_config = EmbedConfig(**location_embed_config)
+                embed = build_embed(embed_config, context)
+                location_embeds.append(embed)
 
-        message = "\n".join(lines).strip()
+            # Add to messages (header only on first batch for this location)
+            # Split into batches of 10 embeds max
+            for i in range(0, len(location_embeds), 10):
+                batch = location_embeds[i : i + 10]
+                # Only include header on the first batch for this location
+                batch_header = header if i == 0 else None
+                messages.append((batch_header, batch))
 
-        # Discord has a 2000 character limit
-        if len(message) > 2000:
-            message = message[:1997] + "..."
-
-        await interaction.response.send_message(message, ephemeral=True)
+        # Send all messages
+        first_message = True
+        for header, embeds in messages:
+            if first_message:
+                await interaction.response.send_message(
+                    content=header or "", embeds=embeds, ephemeral=True
+                )
+                first_message = False
+            else:
+                await interaction.followup.send(content=header or "", embeds=embeds, ephemeral=True)
 
     async def _handle_stockpile_delete(
         self,

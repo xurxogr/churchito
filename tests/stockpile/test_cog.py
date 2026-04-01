@@ -876,7 +876,7 @@ class TestStockpileShowCommand:
         mock_interaction: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Test that shows accessible stockpiles."""
+        """Test that shows accessible stockpiles as embeds."""
         guild_id = mock_interaction.guild.id
 
         async with test_database.session() as session:
@@ -900,8 +900,13 @@ class TestStockpileShowCommand:
 
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
-        assert "MyStock" in call_args[0][0]
-        assert "123456" in call_args[0][0]
+        # Now sends embeds instead of text
+        embeds = call_args.kwargs.get("embeds")
+        assert embeds is not None
+        assert len(embeds) == 1
+        assert embeds[0].description is not None
+        assert "MyStock" in embeds[0].description
+        assert "123456" in embeds[0].description
 
     async def test_filters_by_hex(
         self,
@@ -942,8 +947,13 @@ class TestStockpileShowCommand:
 
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
-        assert "Stock1" in call_args[0][0]
-        assert "Stock2" not in call_args[0][0]
+        # Now sends embeds instead of text
+        embeds = call_args.kwargs.get("embeds")
+        assert embeds is not None
+        assert len(embeds) == 1
+        assert embeds[0].description is not None
+        assert "Stock1" in embeds[0].description
+        assert "Stock2" not in embeds[0].description
 
     async def test_returns_when_user_not_member(
         self,
@@ -968,21 +978,21 @@ class TestStockpileShowCommand:
 
         mock_interaction.response.send_message.assert_not_called()
 
-    async def test_truncates_long_message(
+    async def test_sends_one_embed_per_stockpile(
         self,
         stockpile_cog: StockpileCog,
         mock_interaction: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Test that truncates message over 2000 characters."""
+        """Test that sends one embed per stockpile."""
         guild_id = mock_interaction.guild.id
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
-            # Create many stockpiles to exceed 2000 chars (need ~60+ items)
+            # Create a few stockpiles
             service = StockpileService(session)
-            for i in range(80):
+            for i in range(5):
                 await service.create(
                     guild_id=guild_id,
                     hex_key="AcrithiaHex",
@@ -997,11 +1007,55 @@ class TestStockpileShowCommand:
 
         await stockpile_cog._handle_stockpile_show(mock_interaction)
 
+        # Should send embeds
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
-        message = call_args[0][0]
-        assert len(message) <= 2000
-        assert message.endswith("...")
+
+        # Check that embeds were sent - one per stockpile
+        embeds = call_args.kwargs.get("embeds")
+        assert embeds is not None
+        assert len(embeds) == 5  # One embed per stockpile
+
+    async def test_sends_multiple_messages_when_many_stockpiles(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that sends multiple messages when more than 10 embeds needed."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            # Create 15 stockpiles (exceeds 10 per message limit)
+            service = StockpileService(session)
+            for i in range(15):
+                await service.create(
+                    guild_id=guild_id,
+                    hex_key="AcrithiaHex",
+                    city="Patridia",
+                    name=f"Stock{i:03d}",
+                    code=f"{i:06d}",
+                    view_roles=[100],
+                    created_by=111,
+                    guild_name="Test Guild",
+                )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_show(mock_interaction)
+
+        # First batch sent via response (max 10 embeds)
+        mock_interaction.response.send_message.assert_called_once()
+        first_batch = mock_interaction.response.send_message.call_args.kwargs.get("embeds")
+        assert first_batch is not None
+        assert len(first_batch) == 10
+
+        # Second batch sent via followup (remaining 5 embeds)
+        mock_interaction.followup.send.assert_called_once()
+        second_batch = mock_interaction.followup.send.call_args.kwargs.get("embeds")
+        assert second_batch is not None
+        assert len(second_batch) == 5
 
 
 class TestStockpileDeleteCommand:
