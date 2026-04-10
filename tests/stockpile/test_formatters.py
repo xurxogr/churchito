@@ -7,7 +7,6 @@ from discord_bot.stockpile.formatters import (
     format_message,
     format_pinned_message,
     format_roles_list,
-    format_stockpile_item,
     group_stockpiles_by_location,
     validate_code,
 )
@@ -100,46 +99,6 @@ class TestFormatRolesList:
         guild = MagicMock()
         result = format_roles_list([], guild=guild)
         assert result == "Everyone"
-
-
-class TestFormatStockpileItem:
-    """Tests for format_stockpile_item function."""
-
-    def test_format_item(self) -> None:
-        """Test formatting a stockpile item."""
-        stockpile = MagicMock()
-        stockpile.name = "TestStock"
-        stockpile.code = "123456"
-        stockpile.city = "Patridia"
-        stockpile.view_roles = [111, 222]
-        stockpile.created_by = 456
-        stockpile.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
-
-        result = format_stockpile_item(
-            stockpile=stockpile,
-            template="**{name}**: `{code}` at {hex}/{city}",
-            hex_display_name="Acrithia",
-        )
-
-        assert result == "**TestStock**: `123456` at Acrithia/Patridia"
-
-    def test_format_item_with_roles(self) -> None:
-        """Test formatting with roles placeholder."""
-        stockpile = MagicMock()
-        stockpile.name = "TestStock"
-        stockpile.code = "123456"
-        stockpile.city = "Patridia"
-        stockpile.view_roles = [111]
-        stockpile.created_by = 456
-        stockpile.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
-
-        result = format_stockpile_item(
-            stockpile=stockpile,
-            template="{name} - Roles: {roles}",
-            hex_display_name="Acrithia",
-        )
-
-        assert result == "TestStock - Roles: <@&111>"
 
 
 class TestGroupStockpilesByLocation:

@@ -1,9 +1,10 @@
 # Backend (Web API) Codemap
 
-**Last Updated:** 2026-03-12
+<!-- Generated: 2026-04-10 | Files scanned: 8 | Token estimate: ~1000 -->
+
+**Last Updated:** 2026-04-10
 **Entry Point:** `discord_bot/web/app.py:create_app()`
 **Port:** 8000 (default)
-**Token Estimate:** ~1000 tokens
 
 ## Application Factory
 
@@ -29,7 +30,7 @@ Creates:
 
 ## Middleware Stack
 
-**Order of execution:** Request → (5) → (4) → (3) → (2) → (1) → Response
+**Order of execution:** Request → (6) → (5) → (4) → (3) → (2) → (1) → Response
 
 | Order | File | Purpose | Status Codes |
 |-------|------|---------|--------------|
@@ -54,17 +55,19 @@ Content-Security-Policy: default-src 'self'
 - In-memory token bucket (NOT distributed)
 - WARNING: Doesn't scale across multiple workers
 - Default: 100 requests/minute per IP
+- Whitelist: `127.0.0.1`, `::1` (localhost, never rate-limited)
 
 #### CSRFMiddleware (`middleware/csrf.py`)
 - POST/PUT/DELETE require valid `csrf_token`
-- Token stored in session and form
-- State validation: None → 403
+- Token stored in session and form hidden field
+- State validation: None → 403 Forbidden
+- Safe methods (GET, HEAD, OPTIONS) exempt
 
 #### SessionMiddleware
 - Cookie: `bot_session`
 - Max age: 2592000s (30 days, configurable)
 - Same-site: Lax
-- HTTPS only: configurable
+- HTTPS only: configurable (default: true in production)
 
 #### ProxyHeadersMiddleware
 - Reads `X-Forwarded-Proto` for https detection
@@ -108,11 +111,11 @@ GET /dashboard (with session cookie)
 
 **File:** `discord_bot/web/auth/oauth.py`
 
-| Method | Path | Params | Returns |
-|--------|------|--------|---------|
-| GET | `/auth/login` | - | 302 → Discord |
-| GET | `/auth/callback` | code, state, error | 302 → /dashboard or /login |
-| GET | `/auth/logout` | - | 302 → /login |
+| Method | Path | Params | Returns | Purpose |
+|--------|------|--------|---------|---------|
+| GET | `/auth/login` | - | 302 → Discord | Start OAuth flow |
+| GET | `/auth/callback` | code, state, error | 302 → /dashboard or /login | Handle OAuth response |
+| GET | `/auth/logout` | - | 302 → /login | Clear session |
 
 ### Session Schema
 
@@ -144,156 +147,118 @@ request.session = {
 | Method | Path | Auth | Response | Purpose |
 |--------|------|------|----------|---------|
 | GET | `/` | None | Redirect or HTML | Index (redirects to /login or /dashboard) |
-| GET | `/login` | None | HTML | Login page |
+| GET | `/login` | None | HTML | Login page (shows OAuth link) |
 | GET | `/dashboard` | Required | HTML | Guild list + cog status |
-| GET | `/api/guilds` | Required | JSON | User's guilds |
+| GET | `/api/guilds` | Required | JSON | User's guilds (from Discord API) |
 
-#### GET / (Root)
-```python
-@router.get("/", response_class=HTMLResponse)
-async def index(request: Request, user: CurrentUser):
-    if user:
-        return RedirectResponse(url="{root_path}/dashboard")
-    return templates.TemplateResponse("login.html", {...})
-```
-
-#### GET /login
-Login page with "Sign in with Discord" button
-
-#### GET /dashboard
-```python
-@router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(
-    request: Request,
-    user: CurrentUser,
-    db_session: DbSession
-):
-    """Guild list with cog status, role counts, etc."""
-```
-
-Renders: `discord_bot/web/templates/dashboard.html`
-
-#### GET /api/guilds
-```python
-@router.get("/api/guilds")
-async def get_guilds(
-    request: Request,
-    user: CurrentUser,
-    db_session: DbSession
-) -> list[dict]:
-    """Return user's guilds (joined as owner or admin role)."""
-```
-
-Returns:
-```json
-[
-  {
-    "id": 12345,
-    "name": "Guild Name",
-    "icon": "icon_url",
-    "permission": 8,
-    "owner": true
-  }
-]
-```
-
----
-
-### Configuration Router
+### Config Router
 
 **File:** `discord_bot/web/routers/config.py`
 
 | Method | Path | Auth | Response | Purpose |
 |--------|------|------|----------|---------|
-| GET | `/dashboard/{guild_id}/config` | Required | HTML | Config UI |
-| GET | `/api/config/{guild_id}` | Required | JSON | Current config values |
-| POST | `/api/config/{guild_id}` | Required | JSON | Save config |
-| GET | `/api/config/{guild_id}/schema` | Required | JSON | Config schema (form definition) |
+| GET | `/dashboard/{guild_id}/config` | Required | HTML | Configuration form |
+| GET | `/api/config/{guild_id}` | Required | JSON | Current guild config |
+| POST | `/api/config/{guild_id}` | Required | JSON | Update guild config |
 
-#### GET /dashboard/{guild_id}/config
-Renders: `discord_bot/web/templates/config.html`
+### Config Response Schema
 
-**Dependencies:**
-- `RequireAuth` - User must be authenticated
-- `DbSession` - SQLAlchemy session
-- Guild admin check: admin role or owner
-
-#### GET /api/config/{guild_id}
+**GET `/api/config/{guild_id}`**
 ```python
-async def get_guild_config(
-    guild_id: int,
-    user: CurrentUser,
-    db_session: DbSession
-) -> dict:
-    """Return current config for guild (all cogs)."""
-```
-
-Response:
-```json
 {
-  "verification": {
-    "enabled": true,
-    "mod_channel_id": 98765,
-    "verification_role_id": 54321,
-    ...
-  },
-  "purge": {
-    "enabled": true,
-    ...
-  }
+    "guild_id": int,
+    "cogs": {
+        "verification": {
+            "enabled": bool,
+            "options": {
+                "mod_channel_id": int | null,
+                "screenshot_timeout_minutes": int,
+                "auto_process_mode": str,
+                # ... more options
+            },
+            "schema": {
+                "display_name": str,
+                "description": str,
+                "icon": str,
+                "options": [
+                    {
+                        "key": str,
+                        "name": str,
+                        "description": str,
+                        "type": str,  # "channel", "role", "string", etc.
+                        "default": any,
+                        "group": str | null,  # For section organization
+                        # ... more fields
+                    }
+                ]
+            }
+        },
+        "purge": { ... },
+        "stockpile": { ... },
+        "autoname": { ... }
+    }
 }
 ```
 
-#### POST /api/config/{guild_id}
-Save config changes:
-```python
-@router.post("/api/config/{guild_id}")
-async def save_guild_config(
-    guild_id: int,
-    payload: dict,  # {cog_name: {key: value, ...}, ...}
-    user: CurrentUser,
-    db_session: DbSession
-) -> dict:
-    """Validate and save config changes."""
-```
+### Config Update Request
 
-**Validation:**
-1. Check user is admin
-2. Check guild_id matches bot
-3. For each cog/key: validate via schema
-4. Update GuildConfig in database
-5. Return updated config
+**POST `/api/config/{guild_id}`**
 
-#### GET /api/config/{guild_id}/schema
+Request body:
 ```python
-async def get_config_schema(guild_id: int) -> dict:
-    """Return schema (form definition) for config UI."""
+{
+    "cog_name": str,  # "verification", "purge", etc.
+    "updates": {
+        "key1": value1,
+        "key2": value2,
+        # ... config key-value pairs
+    }
+}
 ```
 
 Response:
-```json
+```python
 {
-  "verification": {
-    "cog_name": "verification",
-    "display_name": "Verification",
-    "toggleable": true,
-    "options": [
-      {
-        "key": "enabled",
-        "name": "Enabled",
-        "option_type": "BOOLEAN",
-        "default": false,
-        "value": false
-      },
-      {
-        "key": "mod_channel_id",
-        "name": "Moderation Channel",
-        "option_type": "CHANNEL_ID",
-        ...
-      }
-    ]
-  }
+    "success": bool,
+    "message": str,
+    "errors": dict | null  # Per-field validation errors
 }
+```
+
+---
+
+## Authorization & Permissions
+
+### Admin Check (Web Panel)
+
+1. User must be authenticated (have `discord_user` in session)
+2. User must be:
+   - Server owner, OR
+   - Member of admin role(s) configured in `guild_configs` (key: `admin_roles`)
+   - User who invited the bot (if tracked)
+
+Implementation:
+```python
+# In route handler
+async def check_admin_access(guild_id: int, user_id: int, db_service: DatabaseService) -> bool:
+    async with db_service.session() as session:
+        config_service = ConfigService(session)
+        admin_roles = await config_service.get_value(
+            guild_id=guild_id,
+            cog_name="bot",
+            key="admin_roles"
+        ) or []
+        # Check user's roles against admin_roles list
+```
+
+### Cog-Level Permissions
+
+Some config options are "locked" (read-only) if set via deployment config:
+```python
+class VerificationCog:
+    def get_locked_options(self) -> dict[str, dict[str, Any]]:
+        """Return options that are locked by deployment configuration."""
+        # Returns {"mod_channel_id": {"locked": True, "reason": "..."},}
 ```
 
 ---
@@ -302,125 +267,123 @@ Response:
 
 **File:** `discord_bot/web/dependencies.py`
 
-### CurrentUser
-
 ```python
-async def CurrentUser(request: Request) -> dict | None:
-    """Get current user from session, or None if not authenticated."""
+async def get_db_service(request: Request) -> DatabaseService:
+    """Inject database service from app state."""
+    return request.app.state.db_service
+
+async def get_settings(request: Request) -> AppSettings:
+    """Inject app settings from app state."""
+    return request.app.state.settings
+
+async def get_user(request: Request) -> dict | None:
+    """Get authenticated user from session, or None."""
     return request.session.get("discord_user")
 ```
 
-Used in routes that optionally need auth. Raises `NotAuthenticatedException` if required but missing.
-
-### RequireAuth
-
+Usage in routes:
 ```python
-async def RequireAuth(user: CurrentUser) -> dict:
-    """Require authentication, raise 403 if missing."""
-    if not user:
-        raise NotAuthenticatedException()
-    return user
-```
-
-### DbSession
-
-```python
-async def DbSession(request: Request) -> AsyncSession:
-    """Get database session from app state."""
-    async with request.app.state.db_service.session() as session:
-        yield session
+@router.get("/api/config/{guild_id}")
+async def get_config(
+    guild_id: int,
+    user: dict = Depends(get_user),
+    db_service: DatabaseService = Depends(get_db_service),
+):
+    """Route handler with dependency injection."""
 ```
 
 ---
 
-## Exception Handlers
+## Error Handling
 
-### NotAuthenticatedException
-```python
-@app.exception_handler(NotAuthenticatedException)
-async def not_authenticated_handler(...) -> RedirectResponse:
-    return RedirectResponse(url="{root_path}/login", status_code=303)
-```
+### Exception Handlers
 
-### HTTPException
-```python
-@app.exception_handler(HTTPException)
-async def http_exception_handler(...) -> HTMLResponse:
-    """Render error.html with status_code and detail."""
-```
+Registered in `create_app()`:
+- `HTTPException` → returns JSON with `{"detail": "..."}` + status code
+- `ValidationError` → returns JSON with field-level errors
+- `Exception` (catch-all) → returns 500 + logs error
 
-Sanitizes 5xx errors (doesn't expose internal details).
+### Common Status Codes
 
-### Generic Exception
-```python
-@app.exception_handler(Exception)
-async def generic_exception_handler(...) -> HTMLResponse:
-    """Log error, return generic 500 page."""
-```
+| Code | Cause | Handler |
+|------|-------|---------|
+| 200 | Success | Route returns response |
+| 302 | Redirect | OAuth flow, unauthorized web routes |
+| 400 | Bad request | Invalid form data, missing required fields |
+| 401 | Unauthorized | Missing session, OAuth expired |
+| 403 | Forbidden | Invalid CSRF token, not admin, permission denied |
+| 404 | Not found | Route doesn't exist |
+| 413 | Payload too large | Upload exceeds 10 MB |
+| 429 | Rate limit | Too many requests from IP |
+| 500 | Server error | Unhandled exception (logged) |
 
 ---
 
-## Health Check
+## Static Files & Templates
 
-```python
-@app.get("/health")
-async def health_check() -> dict[str, str]:
-    return {"status": "ok"}
-```
+### Static Files
 
-Used by Docker healthcheck:
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD python -c "import requests; requests.get('http://localhost:8000/health')"
-```
+**Location:** `discord_bot/web/static/`
+- CSS, JavaScript, images
+- Mounted at `/static/` route
+
+### Jinja2 Templates
+
+**Location:** `discord_bot/web/templates/`
+
+Key templates:
+- `base.html` - Extends with CSRF token, session info
+- `login.html` - OAuth login button
+- `dashboard.html` - Guild list, cog status
+- `config.html` - Config form (dynamically generated from schema)
 
 ---
 
-## Templates
+## Health Check Endpoint
 
-**Directory:** `discord_bot/web/templates/`
-
-| Template | Used by | Purpose |
-|----------|---------|---------|
-| `base.html` | (extends in others) | Base layout (nav, footer) |
-| `login.html` | GET / | OAuth login page |
-| `dashboard.html` | GET /dashboard | Guild list |
-| `config.html` | GET /config/{guild_id} | Config editor |
-| `error.html` | Exception handler | Error page |
-
-### Context Variables
-
-All templates receive:
-```python
+**Path:** `GET /health`
+**Auth:** None
+**Response:**
+```json
 {
-    "root_path": "/prefix",  # If behind reverse proxy
-    "csrf_token": "...",
-    "bot_name": "BotName"
+    "status": "ok",
+    "timestamp": "2026-04-10T12:00:00Z",
+    "version": "1.1.0"
 }
 ```
 
 ---
 
-## Static Files
+## CORS
 
-**Directory:** `discord_bot/web/static/`
+Not explicitly configured (same-origin only by default).
+To enable CORS:
+```python
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[...],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ```
-static/
-└── css/
-    └── style.css
-```
-
-Mounted at: `/static/`
 
 ---
 
-## Security Checklist
+## Recent Changes
 
-- [x] CSRF protection (SessionMiddleware + CSRFMiddleware)
-- [x] SQL injection prevention (SQLAlchemy parameterized queries)
-- [x] XSS prevention (Jinja2 auto-escape, no template injection)
-- [x] Rate limiting (RateLimitMiddleware, but local-only)
-- [x] HTTPS support (configurable, X-Forwarded-Proto aware)
-- [x] Session security (secure cookies, max age, same-site)
-- [x] Error handling (no stack traces to user, logged server-side)
+### Config Schema Organization (2026-03-27+)
+- Config options now support `group` field
+- Web UI renders grouped options as collapsible sections
+- Applies to all cogs: verification, purge, stockpile, autoname
+
+### Verification Embed Formatting
+- Mod channel messages now use embeds with sections
+- Sections preserve existing data on update (no rebuild)
+
+### Stockpile Config Options
+- Organized into sections: General, Display, Notifications
+- Command names configurable (/stockpile_add, /stockpile_show, /stockpile_delete)
+- Notification settings for stockpile changes

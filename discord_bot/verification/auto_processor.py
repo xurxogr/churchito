@@ -3,10 +3,9 @@
 import logging
 from typing import Any
 
-from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.enums import ConfigKey, NameMatchMode, VerificationType
 from discord_bot.verification.formatters import format_message
-from discord_bot.verification.models import VerificationRequest
+from discord_bot.verification.models import VerificationAPIResponse, VerificationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +14,11 @@ def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
     """Calculate difference in days between in-game times.
 
     Args:
-        ingame_time: Player time (format "268, 07:41")
-        current_ingame_time: Current game time (format "278, 08:34")
+        ingame_time (str): Player time (format "268, 07:41").
+        current_ingame_time (str): Current game time (format "278, 08:34").
 
     Returns:
-        Absolute difference in days
+        int: Absolute difference in days.
     """
     try:
         # Extract days (number before the comma)
@@ -37,12 +36,12 @@ def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
     """Check if Discord name matches the game name.
 
     Args:
-        discord_name: Discord display name
-        game_name: In-game name from the API
-        mode: Comparison mode (EXACT or CONTAINS)
+        discord_name (str): Discord display name.
+        game_name (str): In-game name from the API.
+        mode (NameMatchMode): Comparison mode (EXACT or CONTAINS).
 
     Returns:
-        True if names match according to the mode
+        bool: True if names match according to the mode.
     """
     discord_lower = discord_name.lower().strip()
     game_lower = game_name.lower().strip()
@@ -61,10 +60,10 @@ def extract_regiment_id(regiment: str) -> str | None:
     For example: [7-HP#8707] 7th Hispanic Platoon -> 7-HP#8707
 
     Args:
-        regiment: Full regiment string
+        regiment (str): Full regiment string.
 
     Returns:
-        The complete regiment ID (content between brackets) or None if cannot be extracted
+        str | None: The regiment ID (content between brackets) or None.
     """
     if not regiment:
         return None
@@ -87,10 +86,10 @@ def extract_regiment_number(regiment_id: str) -> str | None:
     For example: 7-HP#8707 -> 8707, 7HP#8707 -> 8707
 
     Args:
-        regiment_id: Regiment ID (e.g., "7-HP#8707")
+        regiment_id (str): Regiment ID (e.g., "7-HP#8707").
 
     Returns:
-        The numeric part after # or None if not found
+        str | None: The numeric part after # or None if not found.
     """
     if not regiment_id or "#" not in regiment_id:
         return None
@@ -107,13 +106,13 @@ def process_verification(
     """Process verification rules and determine approval/rejection.
 
     Args:
-        request: Verification request
-        api_response: API response with player data
-        config: Cog configuration
-        member_display_name: Discord member display name
+        request (VerificationRequest): Verification request.
+        api_response (VerificationAPIResponse): API response with player data.
+        config (dict[str, Any]): Cog configuration.
+        member_display_name (str): Discord member display name.
 
     Returns:
-        Tuple of (should_approve, rejection_reason)
+        tuple[bool, str | None]: Tuple of (should_approve, rejection_reason).
     """
     # 1. Check name match (if enabled)
     match_name_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
@@ -124,7 +123,11 @@ def process_verification(
         match_name_mode = NameMatchMode.NONE
 
     if match_name_mode != NameMatchMode.NONE:
-        if not names_match(member_display_name, api_response.name, match_name_mode):
+        if not names_match(
+            discord_name=member_display_name,
+            game_name=api_response.name,
+            mode=match_name_mode,
+        ):
             reason = config.get(ConfigKey.REJECT_NAME_MISMATCH) or "Username does not match"
             return False, reason
 
@@ -163,7 +166,10 @@ def process_verification(
     # 3. Check time difference (if configured > 0)
     time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)
     if time_diff_limit and time_diff_limit > 0:
-        diff = calculate_time_diff_days(api_response.ingame_time, api_response.current_ingame_time)
+        diff = calculate_time_diff_days(
+            ingame_time=api_response.ingame_time,
+            current_ingame_time=api_response.current_ingame_time,
+        )
         if diff > time_diff_limit:
             reason = config.get(ConfigKey.REJECT_TIME_DIFF) or "Screenshot too old"
             return False, reason

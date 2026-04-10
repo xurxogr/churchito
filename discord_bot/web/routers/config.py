@@ -1003,8 +1003,6 @@ def _convert_form_value(
         case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
             return [int(v.strip()) for v in value.split(",") if v.strip()]
         case ConfigOptionType.TABLE:
-            import json
-
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
@@ -1056,8 +1054,6 @@ def _convert_form_value(
 
             return data
         case ConfigOptionType.EMBED:
-            import json
-
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
@@ -1110,8 +1106,6 @@ def _convert_form_value(
 
             return embed_data
         case ConfigOptionType.EMBED_SECTIONS:
-            import json
-
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:

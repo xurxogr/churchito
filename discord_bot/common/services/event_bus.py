@@ -19,30 +19,6 @@ class EventBus:
         """Initialize the event bus."""
         self._subscribers: dict[str, list[EventHandler]] = defaultdict(list)
 
-    def subscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Subscribe a handler to an event type.
-
-        Args:
-            event_type (str): The event type to subscribe to
-            handler (EventHandler): Callable that will be invoked when the event is emitted
-        """
-        self._subscribers[event_type].append(handler)
-        logger.debug(f"Subscribed handler {handler.__name__} to event '{event_type}'")
-
-    def unsubscribe(self, event_type: str, handler: EventHandler) -> None:
-        """Unsubscribe a handler from an event type.
-
-        Args:
-            event_type (str): The event type to unsubscribe from
-            handler (EventHandler): The handler to remove
-        """
-        if event_type in self._subscribers:
-            try:
-                self._subscribers[event_type].remove(handler)
-                logger.debug(f"Unsubscribed handler {handler.__name__} from event '{{event_type}}'")
-            except ValueError:
-                logger.warning(f"Handler {handler.__name__} not found for event '{event_type}'")
-
     def emit(self, event_type: str, data: dict[str, Any]) -> None:
         """Emit an event to all subscribed handlers.
 
@@ -62,11 +38,6 @@ class EventBus:
                     f"Error in event handler {handler.__name__} for event '{{event_type}}': {{e}}",
                     exc_info=True,
                 )
-
-    def clear(self) -> None:
-        """Clear all subscriptions."""
-        self._subscribers.clear()
-        logger.debug("Cleared all event subscriptions")
 
 
 @lru_cache

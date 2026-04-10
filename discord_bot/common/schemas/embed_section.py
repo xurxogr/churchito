@@ -1,5 +1,7 @@
 """Schemas for configurable embed sections."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -83,7 +85,7 @@ class EmbedConfig(BaseModel):
         return self.count_fields() <= 25
 
     @classmethod
-    def from_table_rows(cls, rows: list[dict[str, Any]]) -> "EmbedConfig":
+    def from_table_rows(cls, rows: list[dict[str, Any]]) -> EmbedConfig:
         """Create configuration from config table rows."""
         sections = []
         for row in rows:

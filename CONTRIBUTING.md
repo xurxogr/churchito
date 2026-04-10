@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing! This guide explains how to set up your development environment, run tests, and follow our code standards.
 
+**Last Updated:** 2026-04-10
+
 ## Prerequisites
 
 - **Python:** 3.12 or higher
@@ -56,9 +58,20 @@ alembic upgrade head
 
 ## Development Workflow
 
+### Available Scripts
+
+Utility scripts in `/scripts` directory:
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [-v]` |
+| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name>` |
+| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py` |
+| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py <cog_path>` |
+
 ### Running Tests
 
-Tests are run using pytest with coverage reporting enabled by default (80%+ coverage required).
+Tests are run using pytest with coverage reporting enabled by default (98%+ coverage required).
 
 ```bash
 # Run all tests with coverage
@@ -194,7 +207,7 @@ Before marking work complete:
 
 ## Testing Requirements
 
-### Minimum Coverage: 80%
+### Minimum Coverage: 98%
 
 Test your changes thoroughly:
 

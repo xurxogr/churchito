@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import discord
 
-if TYPE_CHECKING:
-    from discord_bot.stockpile.models import Stockpile
+from discord_bot.stockpile.models import Stockpile
 
 
 def format_message(template: str | None, **kwargs: Any) -> str:
@@ -175,27 +174,6 @@ def build_stockpile_placeholder_data(
         creator_id=stockpile.created_by,
         guild=guild,
     )
-
-
-def format_stockpile_item(
-    stockpile: Stockpile,
-    template: str,
-    hex_display_name: str,
-    guild: discord.Guild | None = None,
-) -> str:
-    """Format a single stockpile for display.
-
-    Args:
-        stockpile (Stockpile): Stockpile to format
-        template (str): Message template
-        hex_display_name (str): Human-readable hex name
-        guild (discord.Guild | None): Optional guild to resolve role names and creator
-
-    Returns:
-        str: Formatted stockpile string
-    """
-    data = build_stockpile_placeholder_data(stockpile, hex_display_name, guild)
-    return format_message(template, **data)
 
 
 def group_stockpiles_by_location(

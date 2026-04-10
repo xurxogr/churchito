@@ -7,8 +7,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from discord_bot.common.utils import (
-    get_all_hex_keys,
-    get_cities_for_hex,
     get_hex_display_name,
     is_valid_city,
     is_valid_hex,
@@ -144,35 +142,3 @@ class TestIsValidCity:
         """Test that city validation is case sensitive."""
         assert is_valid_city(hex_key="AcrithiaHex", city="patridia") is False
         assert is_valid_city(hex_key="AcrithiaHex", city="PATRIDIA") is False
-
-
-class TestGetAllHexKeys:
-    """Tests for get_all_hex_keys function."""
-
-    def test_returns_list(self) -> None:
-        """Test that returns a list of hex keys."""
-        keys = get_all_hex_keys()
-        assert isinstance(keys, list)
-        assert len(keys) > 0
-
-    def test_contains_known_hexes(self) -> None:
-        """Test that contains known hex keys."""
-        keys = get_all_hex_keys()
-        assert "AcrithiaHex" in keys
-        assert "AllodsBightHex" in keys
-
-
-class TestGetCitiesForHex:
-    """Tests for get_cities_for_hex function."""
-
-    def test_returns_cities(self) -> None:
-        """Test that returns cities for valid hex."""
-        cities = get_cities_for_hex("AcrithiaHex")
-        assert isinstance(cities, list)
-        assert "Patridia" in cities
-        assert "Swordfort" in cities
-
-    def test_returns_empty_for_invalid_hex(self) -> None:
-        """Test that returns empty list for invalid hex."""
-        cities = get_cities_for_hex("InvalidHex")
-        assert cities == []

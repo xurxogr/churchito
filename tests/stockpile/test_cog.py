@@ -2795,62 +2795,6 @@ class TestShowCommandChannelCheck:
         assert call_args[1]["ephemeral"] is True
 
 
-class TestIsPinnedMessageEnabled:
-    """Tests for _is_pinned_message_enabled method."""
-
-    def test_returns_true_when_both_templates_configured(
-        self,
-        stockpile_cog: StockpileCog,
-    ) -> None:
-        """Test returns True when both header and item templates are set."""
-        config = {
-            ConfigKey.PINNED_HEADER_TEXT: "**{hex} - {city}**",
-            ConfigKey.PINNED_ITEM_TEXT: "{name}",
-        }
-        assert stockpile_cog._is_pinned_message_enabled(config) is True
-
-    def test_returns_false_when_header_missing(
-        self,
-        stockpile_cog: StockpileCog,
-    ) -> None:
-        """Test returns False when header template is missing."""
-        config = {
-            ConfigKey.PINNED_HEADER_TEXT: None,
-            ConfigKey.PINNED_ITEM_TEXT: "{name}",
-        }
-        assert stockpile_cog._is_pinned_message_enabled(config) is False
-
-    def test_returns_false_when_item_missing(
-        self,
-        stockpile_cog: StockpileCog,
-    ) -> None:
-        """Test returns False when item template is missing."""
-        config = {
-            ConfigKey.PINNED_HEADER_TEXT: "**{hex}**",
-            ConfigKey.PINNED_ITEM_TEXT: None,
-        }
-        assert stockpile_cog._is_pinned_message_enabled(config) is False
-
-    def test_returns_false_when_both_missing(
-        self,
-        stockpile_cog: StockpileCog,
-    ) -> None:
-        """Test returns False when both templates are missing."""
-        config: dict[str, Any] = {}
-        assert stockpile_cog._is_pinned_message_enabled(config) is False
-
-    def test_returns_false_when_empty_strings(
-        self,
-        stockpile_cog: StockpileCog,
-    ) -> None:
-        """Test returns False when templates are empty strings."""
-        config = {
-            ConfigKey.PINNED_HEADER_TEXT: "",
-            ConfigKey.PINNED_ITEM_TEXT: "",
-        }
-        assert stockpile_cog._is_pinned_message_enabled(config) is False
-
-
 class TestUpdatePinnedMessage:
     """Tests for _update_pinned_message method."""
 

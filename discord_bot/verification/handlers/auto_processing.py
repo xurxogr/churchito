@@ -1,5 +1,7 @@
 """Automatic verification processing (auto-approval/rejection)."""
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -11,12 +13,12 @@ from discord_bot.verification.formatters import (
     format_message,
     get_verification_type_display,
 )
+from discord_bot.verification.models import VerificationRequest
+from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import AutoRejectReviewView
 
 if TYPE_CHECKING:
     from discord_bot.verification.cog import VerificationCog
-    from discord_bot.verification.models import VerificationRequest
-    from discord_bot.verification.service import VerificationService
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +30,8 @@ async def send_mod_ping_message(
     """Send ping message to moderators when there is a pending verification.
 
     Args:
-        channel: Moderation channel
-        config: Cog configuration
+        channel (discord.TextChannel): Moderation channel.
+        config (dict[str, Any]): Cog configuration.
     """
     ping_template = config.get(ConfigKey.MOD_PING_MESSAGE)
     if not ping_template:
@@ -47,16 +49,16 @@ async def send_mod_ping_message(
         return
 
     roles_text = ", ".join(role_mentions)
-    ping_message = format_message(ping_template, roles=roles_text)
+    ping_message = format_message(template=ping_template, roles=roles_text)
 
     await channel.send(content=ping_message)
 
 
 async def handle_auto_approval(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     guild: discord.Guild,
-    request: "VerificationRequest",
-    verification_service: "VerificationService",
+    request: VerificationRequest,
+    verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
     additional_content: str,
@@ -67,16 +69,16 @@ async def handle_auto_approval(
     """Handle automatic approval of verification.
 
     Args:
-        cog: Verification cog instance
-        guild: Discord guild
-        request: Verification request
-        verification_service: Verification service
-        config: Cog configuration
-        mod_message: Moderation message to update
-        additional_content: Additional content (player info, history)
-        embeds: Screenshot embeds
-        additional_sections: Additional sections for the embed.
-        sections_context: Context for section placeholders.
+        cog (VerificationCog): Verification cog instance.
+        guild (discord.Guild): Discord guild.
+        request (VerificationRequest): Verification request.
+        verification_service (VerificationService): Verification service.
+        config (dict[str, Any]): Cog configuration.
+        mod_message (discord.Message): Moderation message to update.
+        additional_content (str): Additional content (player info, history).
+        embeds (list[discord.Embed]): Screenshot embeds.
+        additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
+        sections_context (dict[str, Any] | None): Context for section placeholders.
     """
     await verification_service.approve(
         request_id=request.id,
@@ -160,10 +162,10 @@ async def handle_auto_approval(
 
 
 async def handle_auto_rejection(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     guild: discord.Guild,
-    request: "VerificationRequest",
-    verification_service: "VerificationService",
+    request: VerificationRequest,
+    verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
     additional_content: str,
@@ -175,17 +177,17 @@ async def handle_auto_rejection(
     """Handle automatic rejection of verification.
 
     Args:
-        cog: Verification cog instance
-        guild: Discord guild
-        request: Verification request
-        verification_service: Verification service
-        config: Cog configuration
-        mod_message: Moderation message to update
-        additional_content: Additional content (player info, history)
-        embeds: Screenshot embeds
-        reason: Rejection reason
-        additional_sections: Additional sections for the embed.
-        sections_context: Context for section placeholders.
+        cog (VerificationCog): Verification cog instance.
+        guild (discord.Guild): Discord guild.
+        request (VerificationRequest): Verification request.
+        verification_service (VerificationService): Verification service.
+        config (dict[str, Any]): Cog configuration.
+        mod_message (discord.Message): Moderation message to update.
+        additional_content (str): Additional content (player info, history).
+        embeds (list[discord.Embed]): Screenshot embeds.
+        reason (str): Rejection reason.
+        additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
+        sections_context (dict[str, Any] | None): Context for section placeholders.
     """
     await verification_service.reject(
         request_id=request.id,
@@ -256,10 +258,10 @@ async def handle_auto_rejection(
 
 
 async def process_auto_verification(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     guild: discord.Guild,
-    request: "VerificationRequest",
-    verification_service: "VerificationService",
+    request: VerificationRequest,
+    verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
     additional_content: str,
@@ -274,23 +276,23 @@ async def process_auto_verification(
     """Process auto-approval or auto-rejection based on rules.
 
     Args:
-        cog: Verification cog instance
-        guild: Discord guild
-        request: Verification request
-        verification_service: Verification service
-        config: Cog configuration
-        mod_message: Moderation message to update
-        additional_content: Additional content
-        embeds: Screenshot embeds
-        should_approve: Whether it should be approved
-        rejection_reason: Rejection reason if not approved
-        auto_approve: Whether auto-approval is enabled
-        auto_reject: Whether auto-rejection is enabled
-        additional_sections: Additional sections for the embed
-        sections_context: Context for section placeholders
+        cog (VerificationCog): Verification cog instance.
+        guild (discord.Guild): Discord guild.
+        request (VerificationRequest): Verification request.
+        verification_service (VerificationService): Verification service.
+        config (dict[str, Any]): Cog configuration.
+        mod_message (discord.Message): Moderation message to update.
+        additional_content (str): Additional content.
+        embeds (list[discord.Embed]): Screenshot embeds.
+        should_approve (bool): Whether it should be approved.
+        rejection_reason (str | None): Rejection reason if not approved.
+        auto_approve (bool): Whether auto-approval is enabled.
+        auto_reject (bool): Whether auto-rejection is enabled.
+        additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
+        sections_context (dict[str, Any] | None): Context for section placeholders.
 
     Returns:
-        True if processed automatically, False if manual review required
+        bool: True if processed automatically, False if manual review required.
     """
     if should_approve and auto_approve:
         await handle_auto_approval(

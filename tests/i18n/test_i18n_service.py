@@ -422,46 +422,6 @@ class TestI18nServiceGetOptionTranslation:
         assert result == {}
 
 
-class TestI18nServiceReload:
-    """Tests for I18nService reload method."""
-
-    @patch("discord_bot.i18n.get_i18n_service")
-    def test_reload_clears_translations(self, mock_get_service: MagicMock) -> None:
-        """Test that reload clears existing translations."""
-        service = I18nService()
-
-        service.reload()
-
-        # Translations should be reloaded (not necessarily empty)
-        assert "en" in service._translations
-        assert "es" in service._translations
-
-    @patch("discord_bot.i18n.get_i18n_service")
-    def test_reload_clears_cache(self, mock_get_service: MagicMock) -> None:
-        """Test that reload clears the lru_cache."""
-        service = I18nService()
-
-        service.reload()
-
-        # Should call cache_clear on the get_i18n_service function
-        mock_get_service.cache_clear.assert_called_once()
-
-    @patch("discord_bot.i18n.get_i18n_service")
-    def test_reload_reloads_translations(self, mock_get_service: MagicMock) -> None:
-        """Test that reload actually reloads translation files."""
-        service = I18nService()
-
-        # Modify translations
-        service._translations["en"]["test_modified_key"] = "modified"
-
-        service.reload()
-
-        # After reload, should not have the modified value
-        assert "test_modified_key" not in service._translations.get("en", {})
-        # But should have original keys reloaded
-        assert len(service._translations.get("en", {})) > 0
-
-
 class TestI18nServiceEdgeCases:
     """Edge case tests for I18nService."""
 

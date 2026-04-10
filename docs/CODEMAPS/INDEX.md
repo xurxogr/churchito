@@ -1,7 +1,9 @@
 # Discord Bot Codemaps Index
 
-**Last Updated:** 2026-03-12
-**Version:** 1.0.0
+<!-- Generated: 2026-04-10 | Files scanned: 114 | Token estimate: ~900 -->
+
+**Last Updated:** 2026-04-10
+**Version:** 1.1.0
 **Language:** Python 3.12+
 **Framework:** discord.py 2.x + FastAPI + SQLAlchemy 2.0
 
@@ -20,7 +22,7 @@ This is a comprehensive Discord bot with integrated web dashboard. The system fe
 |----------|-------|-----------|
 | [architecture.md](./architecture.md) | System design, service boundaries | Bot/Web separation, cog system, database layer |
 | [backend.md](./backend.md) | Web endpoints, middleware chain | FastAPI routes, OAuth2 auth, CSRF/rate-limit |
-| [cogs.md](./cogs.md) | Discord bot modules, event handlers | Verification, Purge, AutoName cogs |
+| [cogs.md](./cogs.md) | Discord bot modules, event handlers | Verification, Purge, Stockpile, AutoName cogs |
 | [data.md](./data.md) | Database schema, models, migrations | Tables, indexes, relationships, Alembic |
 | [dependencies.md](./dependencies.md) | External services, integrations | Discord API, OCR service, OAuth2 provider |
 
@@ -49,6 +51,12 @@ discord_bot/
 │   ├── models/                 # PurgeRecord, PurgeUserResult
 │   ├── execution.py            # Purge execution engine
 │   └── views.py                # Button views for confirmations
+├── stockpile/                  # Stockpile management module
+│   ├── cog.py                  # Commands for stockpile CRUD
+│   ├── service.py              # Business logic
+│   ├── models/                 # Stockpile ORM model
+│   ├── formatters.py           # Embed formatting
+│   └── config.py               # Config schema with sections
 ├── autoname/                   # Automatic username management
 │   ├── cog.py                  # Auto-rename on join
 │   └── service.py              # Name formatting logic
@@ -78,6 +86,7 @@ Services encapsulate DB operations behind stable interfaces:
 # DatabaseService -> AsyncSession -> SQLAlchemy models
 # ConfigService -> GuildConfig model (get/set/delete)
 # VerificationService -> VerificationRequest model (CRUD)
+# StockpileService -> Stockpile model (CRUD)
 ```
 
 ### Configuration
@@ -145,7 +154,20 @@ Template render / JSON response
 - Environment variable overrides
 - JSON config file (~/.config/discord-bot/config.json)
 
+## Recent Changes (Since 2026-03-27)
+
+**New Cog: Stockpile Management**
+- Fully featured stockpile CRUD with embed formatting
+- Config options organized into sections (General, Display, Notifications)
+- Comprehensive command set (/stockpile_add, /stockpile_show, /stockpile_delete)
+
+**Verification Improvements**
+- Refactored mod message updates to preserve existing data
+- Regiment comparison using IDs (prevents OCR character issues)
+- Panel recreation prevention when disabled
+
 ## Related Documentation
 
 - [README.md](/home/xurxogr/code/discord/README.md) - Feature overview, quick start
+- [CONTRIBUTING.md](/home/xurxogr/code/discord/CONTRIBUTING.md) - Development guidelines
 - [alembic/](../../../alembic/) - Database migrations

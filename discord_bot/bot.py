@@ -5,6 +5,8 @@ import logging
 import time
 
 import discord
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from discord.ext import commands
 from sqlalchemy import select
 
@@ -99,15 +101,10 @@ class DiscordBot(commands.Bot):
 
     async def _create_tables(self) -> None:
         """Apply Alembic migrations to the database."""
-        from alembic import command
-        from alembic.config import Config
-
         # Configure Alembic
-        alembic_cfg = Config("alembic.ini")
+        alembic_cfg = AlembicConfig("alembic.ini")
 
         # Run migrations in a thread to avoid blocking the event loop
-        import asyncio
-
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, command.upgrade, alembic_cfg, "head")
 

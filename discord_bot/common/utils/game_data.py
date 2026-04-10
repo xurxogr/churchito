@@ -83,26 +83,3 @@ def get_hex_display_name(hex_key: str) -> str:
     hex_data = load_hex_cities()
     result = hex_data.get(hex_key, {}).get("display_name", hex_key)
     return str(result)
-
-
-def get_all_hex_keys() -> list[str]:
-    """Get all valid hex keys.
-
-    Returns:
-        list[str]: List of all hex keys
-    """
-    return list(load_hex_cities().keys())
-
-
-def get_cities_for_hex(hex_key: str) -> list[str]:
-    """Get all cities for a given hex.
-
-    Args:
-        hex_key: Hex key
-
-    Returns:
-        list[str]: List of city names, empty if hex not found
-    """
-    hex_data = load_hex_cities()
-    result = hex_data.get(hex_key, {}).get("major_locations", [])
-    return list(result)

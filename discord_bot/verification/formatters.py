@@ -85,10 +85,10 @@ def _parse_hex_color(hex_color: str | None) -> discord.Color | None:
     """Parse a hexadecimal color to discord.Color.
 
     Args:
-        hex_color: Color in hex format (#FF5733 or FF5733).
+        hex_color (str | None): Color in hex format (#FF5733 or FF5733).
 
     Returns:
-        discord.Color or None if the format is invalid.
+        discord.Color | None: Parsed color or None if the format is invalid.
     """
     if not hex_color:
         return None
@@ -108,11 +108,11 @@ def build_history_section(
     """Build history section for mod embeds.
 
     Args:
-        past_requests: List of past verification requests (excluding current).
-        config: Cog configuration.
+        past_requests (list[Any]): List of past verification requests (excluding current).
+        config (dict[str, Any]): Cog configuration.
 
     Returns:
-        Section dict for embed, or None if no history.
+        dict[str, Any] | None: Section dict for embed, or None if no history.
     """
     if not past_requests:
         return None
@@ -152,12 +152,12 @@ def build_mod_embed_sections(
     """Build additional sections and context for mod embeds.
 
     Args:
-        config: Cog configuration.
-        player_info: OCR player info dict (from DB or API result).
-        past_requests: List of past verification requests (excluding current).
+        config (dict[str, Any]): Cog configuration.
+        player_info (dict[str, Any] | None): OCR player info dict (from DB or API result).
+        past_requests (list[Any]): List of past verification requests (excluding current).
 
     Returns:
-        Tuple of (additional_sections, sections_context).
+        tuple[list[dict[str, Any]], dict[str, Any] | None]: Additional sections and context.
     """
     additional_sections: list[dict[str, Any]] = []
     sections_context: dict[str, Any] | None = None
@@ -203,20 +203,20 @@ def create_mod_embeds(
     a new embed is created automatically to maintain visual order.
 
     Args:
-        verification_type: Verification type (REGULAR or ALLY).
-        config: Cog configuration with the embed config.
-        username: User's name.
-        user_mention: User mention.
-        user_id: User ID (for thumbnail fallback).
-        status: Current status text.
-        created_at: Formatted creation date (YYYY-MM-DD HH:MM).
-        created_at_relative: Relative creation date (<t:UNIX:R>).
-        guild: Discord guild (for global placeholders).
-        member: Discord member (for user placeholders).
-        additional_content: Additional content (API errors, user history).
-        additional_sections: Additional sections to add (player info, etc.).
-        sections_context: Placeholder context for additional sections.
-        **extra_placeholders: Additional placeholders.
+        verification_type (VerificationType): Verification type (REGULAR or ALLY).
+        config (dict[str, Any]): Cog configuration with the embed config.
+        username (str | None): User's name.
+        user_mention (str | None): User mention.
+        user_id (int | None): User ID (for thumbnail fallback).
+        status (str | None): Current status text.
+        created_at (str | None): Formatted creation date (YYYY-MM-DD HH:MM).
+        created_at_relative (str | None): Relative creation date (<t:UNIX:R>).
+        guild (discord.Guild | None): Discord guild (for global placeholders).
+        member (discord.Member | None): Discord member (for user placeholders).
+        additional_content (str | None): Additional content (API errors, user history).
+        additional_sections (list[dict[str, Any]] | None): Additional sections to add.
+        sections_context (dict[str, Any] | None): Placeholder context for sections.
+        **extra_placeholders (str | None): Additional placeholders.
 
     Returns:
         list[discord.Embed]: List of embeds with the formatted message.
@@ -235,7 +235,7 @@ def create_mod_embeds(
     embed_config = EmbedConfig(**embed_config_data)
 
     # Get the verification type display name
-    type_display = get_verification_type_display(verification_type, config)
+    type_display = get_verification_type_display(verification_type=verification_type, config=config)
 
     # Create context with all placeholders
     extra_data: dict[str, Any] = {
@@ -296,8 +296,8 @@ def create_mod_embeds(
 
     # Build the embeds with auto-split
     embeds = build_embeds(
-        full_config,
-        context,
+        config=full_config,
+        context=context,
         default_color=discord.Color.orange(),
     )
 
@@ -343,10 +343,10 @@ def create_tracker_embed(
     in compact format: id, username, status and relative time.
 
     Args:
-        pending_requests: List of pending VerificationRequest.
-        config: Cog configuration.
-        guild_id: Guild ID for building links.
-        channel_id: Moderation channel ID for building links.
+        pending_requests (list[Any]): List of pending VerificationRequest.
+        config (dict[str, Any]): Cog configuration.
+        guild_id (int): Guild ID for building links.
+        channel_id (int): Moderation channel ID for building links.
 
     Returns:
         discord.Embed: Embed with the list of pending verifications.
@@ -369,7 +369,9 @@ def create_tracker_embed(
     for v_type, requests in grouped.items():
         # Get type display name for header
         verification_type = VerificationType(v_type)
-        type_display = get_verification_type_display(verification_type, config)
+        type_display = get_verification_type_display(
+            verification_type=verification_type, config=config
+        )
 
         lines = [f"**{type_display}**"]
         for request in requests:
@@ -409,14 +411,11 @@ def _clean_status_text(status_text: str) -> str:
     """Clean status text by removing emojis and bold formatting.
 
     Args:
-        status_text: Status text from config (may include emoji and markdown).
+        status_text (str): Status text from config (may include emoji and markdown).
 
     Returns:
-        Clean text without leading emojis or formatting.
+        str: Clean text without leading emojis or formatting.
     """
-    # Remove common patterns like "⏳ **Status:** " or "🔍 **Status:** "
-    import re
-
     # Remove emoji at the start
     cleaned = re.sub(r"^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF\s]+", "", status_text)
     # Remove **Status:** or similar

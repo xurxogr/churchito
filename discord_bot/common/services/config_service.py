@@ -1,9 +1,9 @@
 """Service for guild configuration CRUD operations."""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.models.guild_cog_enabled import GuildCogEnabled
@@ -136,31 +136,6 @@ class ConfigService:
                 config[row.key] = row.value
 
         return config
-
-    async def reset_config(self, guild_id: int, cog_name: str) -> int:
-        """Delete all configuration for a cog in a guild.
-
-        Args:
-            guild_id (int): Guild ID
-            cog_name (str): Cog name
-
-        Returns:
-            int: Number of options deleted
-        """
-        result = cast(
-            CursorResult[Any],
-            await self._session.execute(
-                delete(GuildConfig).where(
-                    GuildConfig.guild_id == guild_id, GuildConfig.cog_name == cog_name
-                )
-            ),
-        )
-        await self._session.flush()
-        logger.info(
-            f"Configuration reset for guild {guild_id}, "
-            f"cog '{cog_name}': {result.rowcount} options deleted"
-        )
-        return int(result.rowcount)
 
     async def is_cog_enabled(self, guild_id: int, cog_name: str, default: bool = False) -> bool:
         """Check if a cog is enabled in a guild.

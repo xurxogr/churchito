@@ -14,8 +14,8 @@ class ReviewButton(discord.ui.Button["AutoRejectReviewView"]):
         """Initialize the review button.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            label (str): Button text
+            public_id (str): Public request ID (NanoID).
+            label (str): Button text.
         """
         super().__init__(
             label=label,
@@ -40,9 +40,9 @@ class AutoRejectReviewView(discord.ui.View):
         """Initialize the review view.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            review_label (str): Review button text
-            timeout_minutes (int): Minutes until the button expires
+            public_id (str): Public request ID (NanoID).
+            review_label (str): Review button text.
+            timeout_minutes (int): Minutes until the button expires.
         """
         # Convert minutes to seconds for timeout
         timeout_seconds = timeout_minutes * 60 if timeout_minutes > 0 else None

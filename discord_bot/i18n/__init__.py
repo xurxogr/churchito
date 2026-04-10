@@ -161,14 +161,6 @@ class I18nService:
         value = self._get_nested_value(translation_key, lang)
         return value if isinstance(value, dict) else {}
 
-    def reload(self) -> None:
-        """Reload all translation files."""
-        self._translations.clear()
-        self._load_translations()
-        # Clear cached service
-        get_i18n_service.cache_clear()
-        logger.info("Translations reloaded")
-
 
 @lru_cache(maxsize=1)
 def get_i18n_service() -> I18nService:

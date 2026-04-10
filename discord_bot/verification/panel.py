@@ -1,5 +1,7 @@
 """Panel logic and health check for the verification cog."""
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -57,7 +59,7 @@ def get_mod_channel(
 
 
 async def check_verification_message(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     guild: discord.Guild,
     recreate: bool = False,
 ) -> None:
@@ -196,7 +198,7 @@ async def check_verification_message(
 
 
 async def create_verification_message(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     guild: discord.Guild,
     channel: discord.TextChannel,
     config: dict[str, Any],

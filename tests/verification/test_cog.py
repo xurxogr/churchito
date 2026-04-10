@@ -1496,8 +1496,8 @@ class TestOnMessage:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test auto-reject when API returns 422 (invalid images)."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -1614,11 +1614,11 @@ class TestOnMessage:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test auto-approval when all verifications pass."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -1754,11 +1754,11 @@ class TestOnMessage:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test auto-reject when verifications fail (e.g. has regiment)."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -5733,8 +5733,8 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that non-422 API errors show error message."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -5841,11 +5841,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that player_info_template is formatted correctly."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -5962,7 +5962,7 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test compatibility with boolean True value for verification_automatic."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
@@ -6092,11 +6092,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that ally auto-approval uses ally roles."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6226,11 +6226,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that Forbidden on add_roles does not break the flow."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6361,11 +6361,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that Forbidden on send DM does not break the flow."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6492,11 +6492,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that auto-approval without delete_processed_messages edits the message."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6621,8 +6621,8 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that auto-reject without delete adds review button."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6732,8 +6732,8 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that Forbidden on rejection DM does not break the flow."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6841,11 +6841,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test ready for manual approval when mode is REJECT_ONLY."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -6970,11 +6970,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that Forbidden on remove_roles does not break the flow."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -7116,11 +7116,11 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that without status_pending_review it appends at the end."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -7244,8 +7244,8 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test auto-reject without review window (view=None)."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -7353,8 +7353,8 @@ class TestAutoProcessingEdgeCases:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that without status_pending_review it appends at end for reject."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -7616,7 +7616,7 @@ class TestLegacyBooleanAutoMode:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that legacy False disables auto-processing."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
@@ -7740,11 +7740,11 @@ class TestStatusReplacementInFormatted:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that auto-approval replaces the pending status."""
-        from discord_bot.verification.api_client import (
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
             VerificationAPIResponse,
             VerificationAPIResult,
         )
-        from discord_bot.verification.enums import AutoProcessMode
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -7873,8 +7873,8 @@ class TestStatusReplacementInFormatted:
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
         """Test that auto-rejection replaces pending status."""
-        from discord_bot.verification.api_client import VerificationAPIResult
         from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import VerificationAPIResult
 
         async with test_database.session() as session:
             service = VerificationService(session)

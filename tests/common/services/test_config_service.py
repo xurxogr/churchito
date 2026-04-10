@@ -153,29 +153,6 @@ class TestConfigService:
         config = await config_service.get_all_config(123, "unknown_cog")
         assert config == {}
 
-    async def test_reset_config(
-        self, test_session: AsyncSession, schema_service: ConfigSchemaService
-    ) -> None:
-        """Test reset_config deletes all values."""
-        config_service = ConfigService(test_session, schema_service)
-
-        await config_service.set_value(123, "test_cog", "string_option", "value1")
-        await config_service.set_value(123, "test_cog", "int_option", 50)
-
-        deleted = await config_service.reset_config(123, "test_cog")
-        assert deleted == 2
-
-        value = await config_service.get_value(123, "test_cog", "string_option")
-        assert value == "default_string"
-
-    async def test_reset_config_no_values(
-        self, test_session: AsyncSession, schema_service: ConfigSchemaService
-    ) -> None:
-        """Test reset_config when there are no values."""
-        config_service = ConfigService(test_session, schema_service)
-        deleted = await config_service.reset_config(123, "test_cog")
-        assert deleted == 0
-
     async def test_is_cog_enabled_default(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService
     ) -> None:

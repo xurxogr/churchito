@@ -1,9 +1,10 @@
 # Database Schema Codemap
 
-**Last Updated:** 2026-03-12
+<!-- Generated: 2026-04-10 | Files scanned: 12 | Token estimate: ~1100 -->
+
+**Last Updated:** 2026-04-10
 **Entry Point:** `discord_bot/common/models/`, Alembic migrations
 **Database:** SQLite (default) | PostgreSQL (optional)
-**Token Estimate:** ~900 tokens
 
 ## Database Schema Diagram
 
@@ -28,39 +29,43 @@
     │ updated_at      │        └─────────────────┘
     └─────────────────┘
 
-┌──────────────────────────────────────────────┐
-│       verification_requests                   │
-├──────────────┬──────────────┬────────────────┤
-│ id (PK)      │ public_id(U) │ guild_id (FK)  │
-│ user_id      │ username     │ verification   │
-│ type         │ screenshot_1 │ screenshot_2   │
-│ player_info  │ reviewed_by  │ rejection      │
-│ reason       │ mod_message  │ status         │
-│ created_at   │ submitted_at │ reviewed_at    │
-└──────────────┴──────────────┴────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│       verification_requests                                   │
+├──────────────┬──────────────┬────────────────┬───────────────┤
+│ id (PK)      │ public_id(U) │ guild_id (FK)  │ user_id       │
+│ username     │ verification │ screenshot_1   │ screenshot_2  │
+│ type         │ player_info  │ reviewed_by_id │ reviewed_by_  │
+│ username     │ rejection_   │ mod_message_id │ status        │
+│ reason       │ created_at   │ submitted_at   │ reviewed_at   │
+└──────────────┴──────────────┴────────────────┴───────────────┘
 
-┌──────────────────────────────────────────────┐
-│          purge_records                        │
-├──────────────┬──────────────┬────────────────┤
-│ id (PK)      │ public_id(U) │ guild_id (FK)  │
-│ purge_type   │ status       │ initiated_by   │
-│ authorized_by│ cancelled_by │ confirmed_by   │
-│ config_snap  │ execution    │ mod_channel    │
-│ mod_message  │ scheduled_for│ authorized_at  │
-│ created_at   │ executed_at  │ expires_at     │
-└──────────────┴──────────────┴────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│          purge_records                                        │
+├──────────────┬──────────────┬────────────────┬───────────────┤
+│ id (PK)      │ public_id(U) │ guild_id (FK)  │ purge_type    │
+│ status       │ initiated_by │ authorized_by  │ cancelled_by  │
+│ confirmed_by │ config_snap  │ execution_res  │ mod_channel   │
+│ mod_message  │ user_channel │ user_message   │ created_at    │
+│ scheduled_   │ authorized_  │ executed_at    │ expires_at    │
+│ for          │ at           │                │                │
+└──────────────┴──────────────┴────────────────┴───────────────┘
            │ (1:N)
            ▼
-    ┌──────────────────┐
-    │ purge_user_      │
-    │   results        │
-    ├──────────────────┤
-    │ id (PK)          │
-    │ purge_id (FK)    │
-    │ user_id          │
-    │ action           │
-    │ reason           │
-    └──────────────────┘
+┌──────────────────────────────────────┐
+│ purge_user_results                   │
+├──────────────┬──────────────────────┤
+│ id (PK)      │ purge_id (FK)        │
+│ user_id      │ action               │
+│ reason       │                      │
+└──────────────┴──────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│          stockpiles (NEW)                                     │
+├──────────────┬──────────────┬────────────────┬───────────────┤
+│ id (PK)      │ public_id(U) │ guild_id (FK)  │ hex_key       │
+│ city         │ name         │ code           │ view_roles    │
+│ created_by   │ created_at   │                │                │
+└──────────────┴──────────────┴────────────────┴───────────────┘
 ```
 
 ---
@@ -119,7 +124,7 @@ class GuildConfig(Base):
 ```
 (guild_id=123, cog_name='verification', key='enabled', value=true, ...)
 (guild_id=123, cog_name='verification', key='mod_channel_id', value=456, ...)
-(guild_id=123, cog_name='purge', key='min_votes', value=3, ...)
+(guild_id=123, cog_name='stockpile', key='command_channel', value=789, ...)
 ```
 
 ---
@@ -161,36 +166,38 @@ class VerificationRequest(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    public_id: Mapped[str] = mapped_column(String(21), unique=True)  # NanoID, previene IDOR
-    guild_id: Mapped[int] = mapped_column(BigInteger)
-    user_id: Mapped[int] = mapped_column(BigInteger)
-    username: Mapped[str] = mapped_column(String(100))
-    verification_type: Mapped[str] = mapped_column(String(20), default="REGULAR")
-    status: Mapped[str] = mapped_column(String(30), default="PENDING_SCREENSHOTS")
+    public_id: Mapped[str] = mapped_column(String(21), unique=True, nullable=False, default=_generate_public_id)
+    guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    username: Mapped[str] = mapped_column(String(100), nullable=False)
+    verification_type: Mapped[str] = mapped_column(String(20), default="REGULAR", nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="PENDING_SCREENSHOTS", nullable=False)
 
-    # Screenshots
-    screenshot_1_url: Mapped[str | None] = mapped_column(Text)
-    screenshot_2_url: Mapped[str | None] = mapped_column(Text)
+    # Screenshots (URLs as Text)
+    screenshot_1_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_2_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # OCR Results
-    player_info: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # OCR Results (Pydantic model extracted data)
+    player_info: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
-    # Review
-    reviewed_by_id: Mapped[int | None] = mapped_column(BigInteger)
-    reviewed_by_username: Mapped[str | None] = mapped_column(String(100))
-    rejection_reason: Mapped[str | None] = mapped_column(Text)
-    mod_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    # Review info
+    reviewed_by_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reviewed_by_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mod_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    screenshots_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    screenshots_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 ```
 
-**Purpose:** Track user verification requests (screenshots, OCR, review status)
 **Status Values:** `PENDING_SCREENSHOTS`, `SUBMITTED`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`
+**Verification Types:** `REGULAR`, `ALLY`
+**Purpose:** Track user verification requests (screenshots, OCR analysis, review status)
 **Access:** `VerificationService` (CRUD)
 **Indexes:** `guild_id`, `user_id`, `status` (for fast queries)
+**IDOR Protection:** `public_id` is NanoID (cryptographically random 21-char string)
 
 ---
 
@@ -208,7 +215,7 @@ class PurgeRecord(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    public_id: Mapped[str] = mapped_column(String(21), unique=True)  # NanoID, previene IDOR
+    public_id: Mapped[str] = mapped_column(String(21), unique=True)  # NanoID
     guild_id: Mapped[int] = mapped_column(BigInteger)
     purge_type: Mapped[str] = mapped_column(String(50))  # "war", "global", etc.
     status: Mapped[str] = mapped_column(String(50), default="PENDING")
@@ -247,9 +254,10 @@ class PurgeRecord(Base):
 ```
 
 **Status Values:** `PENDING`, `AUTHORIZED`, `EXECUTED`, `CANCELLED`
-**Purpose:** Track purge operations and votes
+**Purpose:** Track purge operations with vote tracking and execution results
 **Access:** `PurgeService` (CRUD)
 **Cascade Delete:** Deleting purge_record deletes all purge_user_results
+**IDOR Protection:** `public_id` is NanoID
 
 ---
 
@@ -280,6 +288,41 @@ class PurgeUserResult(Base):
 
 **Purpose:** Detailed results per user in a purge operation
 **Access:** `PurgeService` (reads for summary)
+**Cascade:** Automatically deleted when parent PurgeRecord is deleted
+
+---
+
+### 7. stockpiles (NEW)
+
+**File:** `discord_bot/stockpile/models/stockpile.py`
+
+```python
+class Stockpile(Base):
+    __tablename__ = "stockpiles"
+    __table_args__ = (
+        Index("ix_stockpile_guild_id", "guild_id"),
+        Index("ix_stockpile_hex_city", "guild_id", "hex_key", "city"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    public_id: Mapped[str] = mapped_column(String(21), unique=True, nullable=False, default=_generate_public_id)
+    guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    hex_key: Mapped[str] = mapped_column(String(50), nullable=False)  # Map location ID
+    city: Mapped[str] = mapped_column(String(100), nullable=False)    # City name
+    name: Mapped[str] = mapped_column(String(10), nullable=False)     # Stockpile name (A, B, etc.)
+    code: Mapped[str] = mapped_column(String(6), nullable=False)      # Access code
+    view_roles: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)  # Role IDs
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+```
+
+**Purpose:** Store stockpile locations with access codes and role-based visibility
+**Key Features:**
+- Role-based visibility (view_roles list; empty = visible to all)
+- Compound index on `(guild_id, hex_key, city)` for location searches
+- NanoID for IDOR protection
+**Access:** `StockpileService` (CRUD)
+**Unique:** `public_id` (NanoID)
 
 ---
 
@@ -292,143 +335,78 @@ class PurgeUserResult(Base):
 - **Tool:** Alembic
 - **Config:** `/home/xurxogr/code/discord/alembic.ini`
 - **Execution:** Via `bot.py:_create_tables()` during startup (runs `alembic upgrade head`)
+- **Auto-generation:** `alembic revision --autogenerate -m "description"`
 
 ### Creating Migrations
 
 ```bash
+# Generate migration based on model changes
 alembic revision --autogenerate -m "Add new table"
+
+# Apply migrations
 alembic upgrade head
+
+# View migration history
+alembic history
+
+# Downgrade
+alembic downgrade -1
 ```
+
+### Recent Migrations
+
+- `verification_requests` table (core module)
+- `purge_records` and `purge_user_results` tables
+- `stockpiles` table (added 2026-03-27 or later)
+- `guild_configs` and `guild_cog_enabled` tables (config system)
 
 ---
 
-## Service Layer Access
+## Data Type Mappings
 
-### DatabaseService
-
-**File:** `discord_bot/common/services/database.py`
-
-```python
-async def session(self) -> AsyncGenerator[AsyncSession, None]:
-    """Context manager for database sessions."""
-    async with self.session_maker() as session:
-        yield session
-```
-
-Usage:
-```python
-async with db_service.session() as session:
-    service = VerificationService(session)
-    request = await service.create_request(...)
-    await session.commit()
-```
-
-### ConfigService
-
-**File:** `discord_bot/common/services/config_service.py`
-
-```python
-async def get_value(guild_id: int, cog_name: str, key: str) -> Any
-async def set_value(guild_id: int, cog_name: str, key: str, value: Any) -> tuple[bool, str | None]
-async def get_all_config(guild_id: int, cog_name: str) -> dict[str, Any]
-async def delete_value(guild_id: int, cog_name: str, key: str) -> bool
-```
-
-### VerificationService
-
-```python
-async def create_request(...) -> VerificationRequest
-async def get_request(request_id) -> VerificationRequest | None
-async def get_pending_by_user(guild_id, user_id) -> VerificationRequest | None
-async def get_all_pending_screenshots() -> list[VerificationRequest]
-async def update_status(request_id, status) -> bool
-async def approve(request_id, reviewed_by_id, ...) -> bool
-async def reject(request_id, rejection_reason, ...) -> bool
-```
-
-### PurgeService
-
-```python
-async def create_record(guild_id, purge_type, initiated_by) -> PurgeRecord
-async def get_record(record_id) -> PurgeRecord | None
-async def update_status(record_id, status) -> bool
-async def add_authorization(record_id, user_id) -> bool
-async def add_confirmation(record_id, user_id) -> bool
-async def save_execution_result(record_id, result_dict) -> bool
-```
+| SQLAlchemy Type | Python Type | Database Type | Notes |
+|-----------------|-------------|---------------|-------|
+| `BigInteger` | `int` | BIGINT | 64-bit (Discord IDs) |
+| `String(N)` | `str` | VARCHAR(N) | Unicode strings |
+| `Text` | `str` | TEXT | Unlimited strings (URLs, reasons) |
+| `JSON` | `dict`, `list`, `Any` | JSON | Pydantic-serialized data |
+| `DateTime(timezone=True)` | `datetime` | TIMESTAMP | UTC timezone-aware |
+| `Boolean` | `bool` | BOOLEAN | Config flags |
 
 ---
 
-## Performance Tuning
+## Indexing Strategy
 
-### Indexes
+### Performance-Critical Queries
 
-All high-query tables have indexes:
-- `verification_requests`: guild_id, user_id, status
-- `purge_records`: guild_id, status, created_at
-- `guild_configs`: guild_id, cog_name
-- `guild_cog_enabled`: guild_id
-
-### Query Patterns
-
-Most queries use indexed columns:
-```python
-# Fast: indexed on guild_id, user_id, status
-result = await session.execute(
-    select(VerificationRequest).where(
-        VerificationRequest.guild_id == guild_id,
-        VerificationRequest.user_id == user_id,
-        VerificationRequest.status == "PENDING_SCREENSHOTS"
-    )
-)
-```
-
-### JSON Columns
-
-- `guild_config.value` - Stored as JSON, validated by Pydantic
-- `purge_record.config_snapshot` - Snapshot of config at purge creation
-- `purge_record.execution_result` - Summary of purge results
-- `purge_record.authorized_by` - Array of user IDs
-- `verification_request.player_info` - OCR extracted data
+| Index | Purpose | Used By |
+|-------|---------|---------|
+| `ix_verification_guild_id` | Find pending verifications | on_member_join, health checks |
+| `ix_verification_user_id` | Check if user has pending request | verification flow |
+| `ix_verification_status` | List by status | Mod panel queries |
+| `ix_purge_guild_id` | Find purge records per guild | Purge commands |
+| `ix_purge_status` | Find pending/authorized purges | Vote checking |
+| `ix_stockpile_guild_id` | List all stockpiles for guild | /stockpile_show command |
+| `ix_stockpile_hex_city` | Find by location | Location-based queries |
 
 ---
 
-## Connection Configuration
+## Database Design Principles
 
-### SQLite (Default)
+### Immutability Pattern
+- **Never mutate rows:** Use UPDATE with new values
+- **Preserve history:** Keep timestamps and reviewer info
+- **Snapshot configs:** `config_snapshot` stores exact values at execution time
 
-```
-sqlite+aiosqlite:///data/bot.db
-```
+### IDOR Prevention
+- Use `public_id` (NanoID) instead of sequential IDs for public URLs
+- Sequential `id` is internal database PK only
+- Example: `/verification/abc123xyz` (public_id) not `/verification/42` (id)
 
-Driver: `aiosqlite` (async SQLite)
-Retry logic: WAL mode + retry on locked databases
+### Cascade Rules
+- `PurgeRecord` → auto-delete `PurgeUserResult` children
+- All other FKs are soft delete compatible (nullable)
 
-### PostgreSQL (Optional)
-
-```
-postgresql+asyncpg://user:password@localhost/dbname
-```
-
-Driver: `asyncpg` (async PostgreSQL)
-Connection pool: auto-managed by SQLAlchemy
-
-### Async Engine Settings
-
-```python
-engine = create_async_engine(
-    url,
-    echo=False,  # Set to True to see SQL logs
-    pool_pre_ping=True,  # Verify connections before use
-    pool_size=5,
-    max_overflow=10,
-)
-```
-
----
-
-## Backup & Recovery
-
-**Backup location:** `/home/xurxogr/code/discord/data/bot.db` (SQLite)
-
-For production PostgreSQL, use standard pg_dump tools.
+### Composite Keys
+- `guild_configs`: (guild_id, cog_name, key) - enforces uniqueness
+- `guild_cog_enabled`: (guild_id, cog_name) - one toggle per cog per guild

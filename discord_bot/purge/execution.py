@@ -1,5 +1,7 @@
 """Purge execution logic."""
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -89,7 +91,7 @@ async def _apply_cleaning_to_member(
 
 
 async def execute_purge(
-    cog: "PurgeCog",
+    cog: PurgeCog,
     guild_id: int,
     purge_id: int,
 ) -> None:
@@ -347,7 +349,7 @@ async def execute_purge(
 
 
 async def _execute_cleaning_phase(
-    cog: "PurgeCog",
+    cog: PurgeCog,
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
@@ -437,7 +439,7 @@ async def _execute_cleaning_phase(
 
 
 async def _execute_global_cleaning_phase(
-    cog: "PurgeCog",
+    cog: PurgeCog,
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
@@ -540,7 +542,7 @@ async def _execute_global_cleaning_phase(
 
 
 async def _execute_promotion_phase(
-    cog: "PurgeCog",
+    cog: PurgeCog,
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
@@ -735,7 +737,7 @@ async def _execute_promotion_phase(
 
 
 async def _execute_global_removal_phase(
-    cog: "PurgeCog",
+    cog: PurgeCog,
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],

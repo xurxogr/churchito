@@ -18,10 +18,10 @@ class RejectionReasonModal(discord.ui.Modal):
         """Initialize the modal.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            title (str): Modal title
-            label (str): Text field label
-            placeholder (str): Field help text
+            public_id (str): Public request ID (NanoID).
+            title (str): Modal title.
+            label (str): Text field label.
+            placeholder (str): Field help text.
         """
         super().__init__(title=title)
         self.public_id = public_id
@@ -39,7 +39,7 @@ class RejectionReasonModal(discord.ui.Modal):
         """Process modal submission.
 
         Args:
-            interaction (discord.Interaction): Moderator interaction
+            interaction (discord.Interaction): Moderator interaction.
         """
         cog = get_verification_cog(interaction)
         if not cog:

@@ -85,27 +85,6 @@ class PurgeService:
         )
         return result.scalar_one_or_none()
 
-    async def get_active_purge(self, guild_id: int) -> PurgeRecord | None:
-        """Get the active purge of a guild.
-
-        A purge is active if its status is PENDING, AUTHORIZED or CANCEL_PENDING.
-
-        Args:
-            guild_id (int): Guild ID.
-
-        Returns:
-            PurgeRecord | None: Active purge if exists.
-        """
-        result = await self._session.execute(
-            select(PurgeRecord).where(
-                PurgeRecord.guild_id == guild_id,
-                PurgeRecord.status.in_(
-                    [PurgeStatus.PENDING, PurgeStatus.AUTHORIZED, PurgeStatus.CANCEL_PENDING]
-                ),
-            )
-        )
-        return result.scalar_one_or_none()
-
     async def get_active_purge_for_update(self, guild_id: int) -> PurgeRecord | None:
         """Get the active purge of a guild with write lock.
 

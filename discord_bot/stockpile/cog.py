@@ -384,19 +384,6 @@ class StockpileCog(commands.Cog):
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
 
-    def _is_pinned_message_enabled(self, config: dict[str, Any]) -> bool:
-        """Check if pinned message feature is enabled.
-
-        Args:
-            config (dict[str, Any]): Cog configuration
-
-        Returns:
-            bool: True if both header and item templates are configured
-        """
-        header_template = config.get(ConfigKey.PINNED_HEADER_TEXT)
-        item_template = config.get(ConfigKey.PINNED_ITEM_TEXT)
-        return bool(header_template and item_template)
-
     async def _update_pinned_message(self, guild: discord.Guild) -> None:
         """Update the pinned message showing all stockpiles.
 

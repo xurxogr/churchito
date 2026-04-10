@@ -1,5 +1,7 @@
 """Main verification flow and moderator actions."""
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -8,10 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import has_any_role, is_valid_discord_cdn_url
-from discord_bot.verification.api_client import (
-    VerificationAPIResult,
-    call_verification_api,
-)
+from discord_bot.verification.api_client import call_verification_api
 from discord_bot.verification.enums import (
     ConfigKey,
     VerificationStatus,
@@ -29,6 +28,7 @@ from discord_bot.verification.handlers.mod_messages import (
     update_tracker_message,
 )
 from discord_bot.verification.handlers.utils import calculate_expires_timestamp
+from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import RejectionReasonView
 
@@ -42,16 +42,12 @@ class ModActionContext(NamedTuple):
     """Validated context for moderation actions."""
 
     config: dict[str, Any]
-    request: "VerificationRequest"
-    service: "VerificationService"
-
-
-# Import VerificationRequest for type hints after defining ModActionContext
-from discord_bot.verification.models import VerificationRequest  # noqa: E402
+    request: VerificationRequest
+    service: VerificationService
 
 
 async def validate_mod_action(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
     session: AsyncSession,
@@ -67,15 +63,15 @@ async def validate_mod_action(
     - Verify it exists and is pending review
 
     Args:
-        cog: Cog instance.
-        interaction: Moderator interaction.
-        public_id: Public request ID (NanoID).
-        session: Database session.
-        permission_error_key: Permission error message key.
-        permission_error_default: Default message if not configured.
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        public_id (str): Public request ID (NanoID).
+        session (AsyncSession): Database session.
+        permission_error_key (ConfigKey): Permission error message key.
+        permission_error_default (str): Default message if not configured.
 
     Returns:
-        Validated context or None if any validation failed.
+        ModActionContext | None: Validated context or None if any validation failed.
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return None
@@ -114,16 +110,16 @@ async def validate_mod_action(
 
 
 async def handle_verification_start(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     verification_type: VerificationType,
 ) -> None:
     """Handle verification start when user clicks a button.
 
     Args:
-        cog: Cog instance.
-        interaction: User interaction.
-        verification_type: Verification type.
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): User interaction.
+        verification_type (VerificationType): Verification type.
     """
     if not interaction.guild or not interaction.user:
         return
@@ -191,7 +187,9 @@ async def handle_verification_start(
         )
 
         timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
-        expires_relative = calculate_expires_timestamp(request.created_at, timeout_minutes)
+        expires_relative = calculate_expires_timestamp(
+            created_at=request.created_at, timeout_minutes=timeout_minutes
+        )
 
         dm_template = (
             config.get(ConfigKey.DM_INSTRUCTIONS_MESSAGE)
@@ -265,7 +263,7 @@ async def handle_verification_start(
 
 
 async def handle_dm_screenshots(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     message: discord.Message,
     guild_id: int,
     request_id: int,
@@ -273,10 +271,10 @@ async def handle_dm_screenshots(
     """Process DM message with screenshots.
 
     Args:
-        cog: Cog instance.
-        message: Received message.
-        guild_id: Guild ID.
-        request_id: Request ID.
+        cog (VerificationCog): Cog instance.
+        message (discord.Message): Received message.
+        guild_id (int): Guild ID.
+        request_id (int): Request ID.
     """
     image_attachments = [
         a for a in message.attachments if a.content_type and a.content_type.startswith("image/")
@@ -397,16 +395,16 @@ async def handle_dm_screenshots(
 
 
 async def handle_accept(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
     """Handle verification approval.
 
     Args:
-        cog: Cog instance.
-        interaction: Moderator interaction.
-        public_id: Public request ID (NanoID).
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        public_id (str): Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -534,16 +532,16 @@ async def handle_accept(
 
 
 async def show_rejection_select(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
     """Show rejection reason selector.
 
     Args:
-        cog: Cog instance.
-        interaction: Moderator interaction.
-        public_id: Public request ID (NanoID).
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        public_id (str): Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -624,7 +622,7 @@ async def show_rejection_select(
 
 
 async def handle_reject(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
     reason: str,
@@ -632,10 +630,10 @@ async def handle_reject(
     """Handle verification rejection.
 
     Args:
-        cog: Cog instance.
-        interaction: Moderator interaction.
-        public_id: Public request ID (NanoID).
-        reason: Rejection reason.
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        public_id (str): Public request ID (NanoID).
+        reason (str): Rejection reason.
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -719,7 +717,7 @@ async def handle_reject(
 
 
 async def handle_review(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
 ) -> None:
@@ -729,9 +727,9 @@ async def handle_review(
     auto-rejected, putting it back in pending state.
 
     Args:
-        cog: Cog instance.
-        interaction: Moderator interaction.
-        public_id: Public request ID (NanoID).
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        public_id (str): Public request ID (NanoID).
     """
     if not interaction.guild or not isinstance(interaction.user, discord.Member):
         return
@@ -794,7 +792,10 @@ async def handle_review(
             return
 
         await update_mod_message_for_manual_review(
-            interaction.guild, request, config, request.public_id
+            guild=interaction.guild,
+            request=request,
+            config=config,
+            public_id=request.public_id,
         )
 
         await session.commit()

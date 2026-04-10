@@ -1,16 +1,14 @@
 """Utilities for verification handlers."""
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import discord
 
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.formatters import build_mod_embed_sections, format_message
-
-if TYPE_CHECKING:
-    from discord_bot.verification.models import VerificationRequest
-    from discord_bot.verification.service import VerificationService
+from discord_bot.verification.models import VerificationRequest
+from discord_bot.verification.service import VerificationService
 
 # API error messages based on status code (422 is handled separately as invalid images)
 API_ERROR_MESSAGES: dict[int, str] = {
@@ -25,12 +23,11 @@ def calculate_expires_timestamp(created_at: datetime, timeout_minutes: int) -> s
     """Calculate expiration timestamp for the {expires} placeholder.
 
     Args:
-        created_at: Request creation date.
-        timeout_minutes: Configured timeout minutes.
+        created_at (datetime): Request creation date.
+        timeout_minutes (int): Configured timeout minutes.
 
     Returns:
-        Discord relative timestamp (e.g.: "<t:1234567890:R>") or empty string
-        if timeout is disabled (0).
+        str: Discord relative timestamp (e.g.: "<t:1234567890:R>") or empty string.
     """
     if timeout_minutes <= 0:
         return ""
@@ -42,10 +39,10 @@ def get_api_error_message(status_code: int) -> str:
     """Get human-readable error message for API status code.
 
     Args:
-        status_code: HTTP status code from API
+        status_code (int): HTTP status code from API.
 
     Returns:
-        Error message string
+        str: Error message string.
     """
     if status_code in API_ERROR_MESSAGES:
         return API_ERROR_MESSAGES[status_code]
@@ -59,11 +56,11 @@ def create_screenshot_embeds(url1: str | None, url2: str | None) -> list[discord
     as thumbnails in a row instead of stacked large images.
 
     Args:
-        url1: URL of the first screenshot
-        url2: URL of the second screenshot
+        url1 (str | None): URL of the first screenshot.
+        url2 (str | None): URL of the second screenshot.
 
     Returns:
-        List of embeds with the images
+        list[discord.Embed]: List of embeds with the images.
     """
     embeds = []
     # Use a common URL so Discord displays images in a row
@@ -90,11 +87,11 @@ def get_ready_for_approval_status(
     """Get the 'ready for approval' status text including roles.
 
     Args:
-        config: Cog configuration
-        guild: Guild to get roles from
+        config (dict[str, Any]): Cog configuration.
+        guild (discord.Guild): Guild to get roles from.
 
     Returns:
-        Formatted status text
+        str: Formatted status text.
     """
     mod_role_ids = config.get(ConfigKey.MOD_ROLES) or []
     role_mentions = []
@@ -107,25 +104,25 @@ def get_ready_for_approval_status(
     roles_text = ", ".join(role_mentions) if role_mentions else "moderators"
 
     status_template = config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or ""
-    return format_message(status_template, roles=roles_text)
+    return format_message(template=status_template, roles=roles_text)
 
 
 async def get_embed_additional_sections(
-    request: "VerificationRequest",
+    request: VerificationRequest,
     config: dict[str, Any],
-    verification_service: "VerificationService",
+    verification_service: VerificationService,
     player_info: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """Get additional sections (player info + history) for the embed.
 
     Args:
-        request: Verification request
-        config: Cog configuration
-        verification_service: Verification service
-        player_info: Player info (if None, reads from request.player_info)
+        request (VerificationRequest): Verification request.
+        config (dict[str, Any]): Cog configuration.
+        verification_service (VerificationService): Verification service.
+        player_info (dict[str, Any] | None): Player info (if None, uses request.player_info).
 
     Returns:
-        Tuple of (additional_sections, sections_context)
+        tuple[list[dict[str, Any]], dict[str, Any] | None]: Additional sections and context.
     """
     if player_info is None:
         player_info = request.player_info

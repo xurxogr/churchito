@@ -1,8 +1,9 @@
 # External Dependencies & Integrations Codemap
 
-**Last Updated:** 2026-03-12
+<!-- Generated: 2026-04-10 | Files scanned: 40 | Token estimate: ~900 -->
+
+**Last Updated:** 2026-04-10
 **Location:** `discord_bot/` (all modules)
-**Token Estimate:** ~800 tokens
 
 ## Runtime Dependencies
 
@@ -61,17 +62,20 @@
 
 - **WebSocket:** `wss://gateway.discord.gg/`
 - **Purpose:** Real-time events (member join, message, etc.)
-- **Framework:** discord.py handles connection
+- **Framework:** discord.py handles connection, reconnection, heartbeat
 
 #### OAuth2 (Web Auth)
 
 **Endpoints:**
 - **Authorize:** `https://discord.com/api/oauth2/authorize`
   - Params: `client_id`, `redirect_uri`, `scope=identify`, `state`
+  - Returns: Authorization code (if user approves)
 - **Token Exchange:** `https://discord.com/api/oauth2/token`
   - Method: POST with `client_id`, `client_secret`, `code`
+  - Returns: `access_token`, `refresh_token`, `expires_in`
 - **User Profile:** `https://discord.com/api/v10/users/@me`
   - Headers: `Authorization: Bearer {access_token}`
+  - Returns: User ID, username, avatar hash, etc.
 
 **Configuration:**
 ```env
@@ -82,16 +86,37 @@ WEB__REDIRECT_URI=http://localhost:8000/auth/callback
 
 **Flow File:** `discord_bot/web/auth/oauth.py`
 
+**How it's used:**
+1. User clicks "Login with Discord" on `/login`
+2. Redirects to Discord OAuth authorize endpoint
+3. User approves in Discord client
+4. Discord redirects to `/auth/callback?code=...&state=...`
+5. Bot exchanges code for access token
+6. Bot fetches user profile with access token
+7. User session created, redirects to `/dashboard`
+
 #### Rate Limits
 
 - OAuth: No per-request limit (burst + per-minute)
 - REST: 50 requests/second (bucket-based)
-- Gateway: Connection limit + identify rate limit
+- Gateway: Connection limit + identify rate limit (1 per 5 seconds)
+
+#### Intents Required
+
+```python
+intents = discord.Intents.default()
+intents.message_content = True  # Read DM/channel messages
+intents.members = True          # Member add/update/remove events
+```
+
+Must be enabled in Discord Developer Portal.
 
 ### OCR Service (Optional)
 
-**Purpose:** Auto-verify player screenshots
-**Configuration:** (env variables in `verification/config.py`)
+**Purpose:** Auto-detect player info from screenshots (verification cog)
+**Status:** Optional - manual verification works without OCR
+
+**Configuration:**
 ```env
 VERIFICATION__API_URL=https://ocr-service.example.com
 VERIFICATION__API_KEY=your-api-key
@@ -103,26 +128,36 @@ VERIFICATION__API_TIMEOUT=30
 **Request:**
 ```
 POST {API_URL}/verify
-Headers: Authorization: Bearer {API_KEY}
+Headers: Authorization: Bearer {API_KEY}, Content-Type: application/json
 Body: {
   "screenshot_urls": ["url1", "url2"],
   "game_name": "game-name"
 }
 ```
 
-**Response:**
+**Response (parsed into VerificationAPIResponse):**
 ```json
 {
-  "success": true,
-  "player_info": {
-    "name": "PlayerName",
-    "level": 50,
-    "faction": "Faction",
-    "shard": "Shard",
-    ...
-  }
+  "name": "PlayerName",
+  "level": 50,
+  "regiment": "Regiment Name",
+  "faction": "colonial",
+  "shard": "ABLE",
+  "ingame_time": "268, 07:41",
+  "war": 130,
+  "current_ingame_time": "278, 08:34"
 }
 ```
+
+**Pydantic Models:** `discord_bot/verification/models/api_response.py`
+- `VerificationAPIResponse` - Parsed player data
+- `VerificationAPIResult` - Wrapper with success/error info
+
+**Integration Points:**
+- Called when verification screenshots submitted
+- Results stored in `VerificationRequest.player_info` (JSON)
+- Auto-accept/reject based on config if enabled
+- Falls back to manual review if API unavailable
 
 **If not configured:** Manual verification mode only
 
@@ -149,239 +184,278 @@ async def set_sqlite_pragma(conn):
     await conn.execute(text("PRAGMA journal_mode=WAL"))
 ```
 
-**Retry on locked:**
-```python
-@event.listens_for(AsyncEngine, "connect")
-async def set_sqlite_timeout(conn):
-    await conn.execute(text("PRAGMA busy_timeout=5000"))
-```
+**Advantages:**
+- Zero-config, single file
+- Good for development & small deployments
+- SQLAlchemy handles async I/O
+
+**Limitations:**
+- Single-writer (locks on writes)
+- Not suitable for high-concurrency production
+- WAL mode helps but still limited
 
 ### PostgreSQL (Optional)
 
-**URL:** `postgresql+asyncpg://user:password@host:5432/dbname`
-**Async Driver:** `asyncpg`
-**Connection Pool:** 5 base + 10 overflow (configurable)
+**URL:** `postgresql+asyncpg://user:pass@localhost/dbname`
+**Driver:** `asyncpg` (installed as optional dependency)
+**Recommended for:** Production deployments
 
-**Production Configuration:**
+**Configuration:**
 ```env
-DATABASE__URL=postgresql+asyncpg://user:pass@prod-db.example.com/discord_bot
+DATABASE__URL=postgresql+asyncpg://user:password@localhost:5432/discord_bot
 ```
+
+**Advantages:**
+- Multi-writer support (true concurrency)
+- Better for scaling
+- JSONB support for configs
+
+**Requirements:**
+- PostgreSQL server running
+- `asyncpg` pip package installed
+- Database created manually
 
 ---
 
-## Deployment Services
+## Configuration Files
+
+### .env File
+
+**Location:** `/home/xurxogr/code/discord/.env` (git-ignored)
+**Example:** `/home/xurxogr/code/discord/.env.example`
+
+**Key Variables:**
+```env
+# Bot
+BOT__TOKEN=your-discord-bot-token
+BOT__COMMAND_PREFIX=!
+BOT__OWNER_ID=123456789
+
+# Database
+DATABASE__URL=sqlite+aiosqlite:///./data/bot.db
+
+# Web
+WEB__ENABLED=true
+WEB__HOST=0.0.0.0
+WEB__PORT=8000
+WEB__CLIENT_ID=your-discord-app-id
+WEB__CLIENT_SECRET=your-discord-app-secret
+WEB__REDIRECT_URI=http://localhost:8000/auth/callback
+WEB__SECRET_KEY=your-session-secret
+WEB__HTTPS_ONLY=false
+
+# Logging
+LOGGING__LOG_LEVEL=INFO
+LOGGING__LOG_FILE=logs/bot.log
+
+# Verification (optional)
+VERIFICATION__API_URL=https://ocr-service.example.com
+VERIFICATION__API_KEY=your-ocr-key
+```
+
+### JSON Config File
+
+**Location:** `~/.config/discord-bot/config.json`
+**Format:** Pydantic v2 compatible
+
+Example:
+```json
+{
+  "bot": {
+    "token": "your-token",
+    "command_prefix": "!",
+    "owner_id": 123456789
+  },
+  "database": {
+    "url": "sqlite+aiosqlite:///./data/bot.db"
+  },
+  "web": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 8000,
+    "client_id": "your-id",
+    "client_secret": "your-secret"
+  }
+}
+```
+
+**Priority:** Env vars override JSON file, JSON file overrides defaults
+
+---
+
+## File Upload & Storage
+
+### Screenshot URLs
+
+**Current Implementation:**
+- Screenshots stored in Discord CDN (user uploads)
+- URLs stored in `VerificationRequest.screenshot_1_url`, `screenshot_2_url`
+- URLs validated on submission to prevent injection
+
+**URL Validation:**
+- Must start with `https://cdn.discordapp.com/` or `https://media.discordapp.net/`
+- Prevents URL injection attacks
+
+### Stockpile Data
+
+- Stored entirely in database (Stockpile model)
+- No file uploads
+- Role lists stored as JSON array
+
+### Config Data
+
+- Guild-specific config stored in database (GuildConfig table)
+- Serialized as JSON for complex types
+- Validated with Pydantic schemas on read/write
+
+---
+
+## Deployment Integrations
 
 ### Docker
 
-**Base Image:** `python:3.12-slim`
+**Image:** Python 3.12 slim base
 **Dockerfile:** `/home/xurxogr/code/discord/Dockerfile`
 
-**Components:**
-- Multi-stage build (dev stages excluded from final image)
-- Health check: `GET /health` endpoint
-- Volume: `/data` (for SQLite DB)
-- Port: 8000 (FastAPI)
-- Environment: Loads from `.env` or docker-compose
-
-**Compose File:** `/home/xurxogr/code/discord/docker-compose.yml`
-
-Services:
-1. **discord-bot** - Main bot + web server
-2. **postgres** (optional) - PostgreSQL database
-
-### Environment Configuration
-
-**Load order:**
-1. Environment variables (highest priority)
-2. `.env` file in working directory
-3. JSON config file (`~/.config/discord-bot/config.json`)
-4. Pydantic defaults (lowest priority)
-
-**Example .env:**
+**Entrypoint:**
 ```bash
-BOT__TOKEN=your_token_here
-WEB__ENABLED=true
-WEB__CLIENT_ID=your_app_id
-WEB__CLIENT_SECRET=your_secret
-DATABASE__URL=sqlite+aiosqlite:///data/bot.db
-LOGGING__LOG_LEVEL=INFO
+python -m discord_bot
+```
+
+**Environment Variables:** Passed via:
+- `.env` file (for compose)
+- Docker environment (container run)
+- Kubernetes ConfigMaps/Secrets (if applicable)
+
+**Compose File:** `docker-compose.yml`
+
+**Health Check:**
+```bash
+curl http://localhost:8000/health
+```
+
+### Migrations
+
+**Tool:** Alembic
+**Location:** `/home/xurxogr/code/discord/alembic/versions/`
+
+**Automatic Execution:**
+```python
+# discord_bot/bot.py:_create_tables()
+# Runs during bot startup: alembic upgrade head
+```
+
+**Manual Execution:**
+```bash
+alembic revision --autogenerate -m "Add new table"
+alembic upgrade head
 ```
 
 ---
 
-## Utility Libraries
+## Security Integrations
+
+### Rate Limiting
+
+**Implementation:** In-memory token bucket (web layer)
+**Location:** `discord_bot/web/middleware/rate_limit.py`
+
+**Per-IP Limits:**
+- 100 requests/minute (default)
+- Whitelist: localhost (127.0.0.1, ::1) never rate-limited
+
+**Not Suitable For:** Multi-worker deployments (no shared state)
+
+### CSRF Protection
+
+**Implementation:** Token in session + form field
+**Location:** `discord_bot/web/middleware/csrf.py`
+
+**Protected Methods:** POST, PUT, DELETE
+**Safe Methods:** GET, HEAD, OPTIONS (no CSRF required)
+
+**Token Generation:**
+```python
+# Form includes hidden field: <input name="csrf_token" value="...">
+# Session stores matching token
+# Middleware validates on each request
+```
+
+### Session Security
+
+**Cookie:** `bot_session`
+**Attributes:**
+- Secure: true (HTTPS only, unless dev mode)
+- HttpOnly: true (no JavaScript access)
+- SameSite: Lax (CSRF protection)
+- Max-Age: 30 days (default)
+
+---
+
+## Monitoring & Observability
+
+### Health Check Endpoint
+
+**Path:** `GET /health`
+**Status Code:** 200 (always, minimal check)
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-04-10T12:00:00Z",
+  "version": "1.1.0"
+}
+```
+
+**Used By:** Docker health checks, load balancers
 
 ### Logging
 
-**Framework:** Python `logging` module
-**Config:** `discord_bot/common/core/logging.py`
-**Levels:** DEBUG, INFO, WARNING, ERROR, CRITICAL
+**Framework:** Python logging
+**Configuration:** `discord_bot/common/core/logging.py`
 
-**Features:**
-- File logging (optional)
-- Console logging (always)
-- Timestamp, level, logger name
-- Bot/Cog context in messages
+**Log Levels:**
+- DEBUG: Detailed info (cog operations, DB queries if echo=true)
+- INFO: Important events (bot ready, config loaded)
+- WARNING: Recoverable issues (failed verification, timeout)
+- ERROR: Errors caught and handled (API failures)
+- CRITICAL: Unrecoverable issues (bot crash)
 
-### Message Utilities
+**Output:**
+- Console (stdout/stderr)
+- File (if configured): `logs/bot.log`
 
-**File:** `discord_bot/common/utils/`
+### Metrics
 
-```python
-async def delete_message(message: discord.Message, delay: float = 0)
-def has_any_role(member: discord.Member, role_ids: list[int]) -> bool
-```
-
-### Event Bus (Internal)
-
-**File:** `discord_bot/common/services/event_bus.py`
-**Type:** Pub/sub pattern (in-memory)
-
-**Events:**
-- `VerificationCompleted` (from verification cog)
-- `VerificationRejected` (from verification cog)
-- Custom events per cog
-
-**Usage:**
-```python
-event_bus = get_event_bus()
-event_bus.publish(VerificationCompleted(user_id=123, ...))
-```
+**Planned:** Prometheus metrics (not yet implemented)
+**Current:** Log-based only
 
 ---
 
-## Third-Party Integrations
+## Third-Party Integrations (Future)
 
-### None Required
+### Potential Additions
 
-This bot is self-contained:
-- Discord API for events & user mgmt
-- Optional OCR service (user-provided)
-- No required third-party SaaS
-
-### Optional Integrations
-
-| Service | Purpose | When Enabled |
-|---------|---------|--------------|
-| OCR API | Auto-verify screenshots | `VERIFICATION__API_URL` set |
-| Sentry/Similar | Error tracking | User implementation |
-| Prometheus/Similar | Metrics | User implementation |
+- **Prometheus:** Metrics export
+- **Sentry:** Error tracking
+- **DataDog:** Distributed tracing
+- **AWS S3:** Screenshot storage (instead of Discord CDN)
+- **Slack Notifications:** Alerting
 
 ---
 
-## API Client Abstractions
+## Recent Changes
 
-### Discord API
+### Dependencies Added (2026-03-27+)
+- Stockpile cog: No new external dependencies
+- Uses existing: SQLAlchemy, Pydantic, discord.py, FastAPI
 
-**Wrapper:** discord.py built-in
-**No custom HTTP client** (discord.py handles)
+### Configuration Schema Updates
+- Support for `group` field in config options
+- Web UI renders sections from groups
+- Affects: verification, purge, stockpile, autoname configs
 
-### OAuth2 Client
-
-**File:** `discord_bot/web/auth/oauth.py`
-**Library:** `httpx` (async HTTP client)
-
-```python
-async with httpx.AsyncClient() as client:
-    response = await client.post(
-        "https://discord.com/api/oauth2/token",
-        data={...},
-        headers={...}
-    )
-    token_data = response.json()
-```
-
-**Error Handling:**
-- Timeout (VERIFICATION__API_TIMEOUT) → Raise HTTPException
-- 5xx errors → Retry logic (3 attempts)
-- Invalid response → Log and fail gracefully
-
----
-
-## Version Constraints
-
-### Python
-
-**Minimum:** 3.12
-**Requirement:** `python-requires = ">=3.12"`
-**Tested on:** Python 3.12.x
-
-### Discord.py
-
-**Version:** 2.0+
-**Latest tested:** 2.x stable
-
-### SQLAlchemy
-
-**Version:** 2.0+
-**Features used:** async ORM, mapped_column, relationships
-
-### Pydantic
-
-**Version:** 2.x
-**Features used:** Field validation, ConfigDict, computed_fields
-
----
-
-## Security Implications
-
-### Token Management
-
-- **Bot Token:** Never log, only env/config file
-- **OAuth Secrets:** Never log, only env/config file
-- **Session Secret:** Auto-generated if not provided (warning logged)
-
-### Dependency Scanning
-
-- **Tool:** (User responsibility via pip-audit)
-- **CI/CD:** Should include dependency vulnerability checks
-
-### Known Vulnerabilities
-
-- None known as of 2026-03-11
-- Regular updates recommended for all packages
-
----
-
-## Performance Characteristics
-
-### Database Connections
-
-- **Pool size:** 5 + 10 overflow
-- **Max latency:** ~100ms (localhost SQLite)
-- **Concurrent sessions:** Limited by pool size
-
-### API Rate Limits
-
-- **Discord REST:** 50 req/sec bucket-based
-- **Discord Gateway:** 1 identify/5s
-- **OCR Service:** User-defined (configurable)
-
-### Memory Usage
-
-- **Base process:** ~100MB (Python + libraries)
-- **Per guild:** ~1-5KB (config cache)
-- **Connection pool:** ~10MB
-- **Rate limiter:** O(1) per IP
-
----
-
-## Troubleshooting Dependencies
-
-### Discord.py Issues
-
-- Intents not enabled → `requires message_content` error
-- Token invalid → Connection fails with 401
-- Missing privileged intents → Warning in logs
-
-### Database Issues
-
-- SQLite locked → Wait/retry (5s timeout configured)
-- PostgreSQL connection refused → Check WEB__DATABASE__URL
-- Migration failures → Check alembic.ini, run `alembic current`
-
-### OAuth Issues
-
-- Invalid state → Reload /login
-- Token expired → Redirect to /login
-- Scope insufficient → Bot token vs. user token mismatch
+### Security Improvements
+- NanoID for all public-facing IDs (prevents IDOR)
+- URL validation on screenshot upload
+- CSRF token in all POST/PUT/DELETE requests

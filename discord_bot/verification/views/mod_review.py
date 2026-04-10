@@ -15,8 +15,8 @@ class AcceptButton(discord.ui.Button["ModReviewView"]):
         """Initialize the accept button.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            label (str): Button text
+            public_id (str): Public request ID (NanoID).
+            label (str): Button text.
         """
         super().__init__(
             label=label,
@@ -32,8 +32,8 @@ class RejectButton(discord.ui.Button["ModReviewView"]):
         """Initialize the reject button.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            label (str): Button text
+            public_id (str): Public request ID (NanoID).
+            label (str): Button text.
         """
         super().__init__(
             label=label,
@@ -58,9 +58,9 @@ class ModReviewView(discord.ui.View):
         """Initialize the review view.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            accept_label (str): Accept button text
-            reject_label (str): Reject button text
+            public_id (str): Public request ID (NanoID).
+            accept_label (str): Accept button text.
+            reject_label (str): Reject button text.
         """
         super().__init__(timeout=None)
         self.public_id = public_id

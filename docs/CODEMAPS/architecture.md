@@ -1,8 +1,9 @@
 # Architecture Codemap
 
-**Last Updated:** 2026-03-12
+<!-- Generated: 2026-04-10 | Files scanned: 45 | Token estimate: ~1200 -->
+
+**Last Updated:** 2026-04-10
 **Entry Points:** `discord_bot/__main__.py`, `discord_bot/bot.py`, `discord_bot/web/app.py`
-**Token Estimate:** ~1200 tokens
 
 ## System Architecture Diagram
 
@@ -34,6 +35,7 @@
     │  - Guilds                    │
     │  - Verification Requests     │
     │  - Purge Records             │
+    │  - Stockpiles (NEW)          │
     │  - Guild Configs             │
     └──────────────────────────────┘
 ```
@@ -59,9 +61,13 @@ DiscordBot (base)
 │   ├── Service: VerificationService (verification/service.py)
 │   └── Models: VerificationRequest ORM
 ├── PurgeCog (discord_bot/purge/cog.py)
-│   ├── Handles: commands, confirmations
+│   ├── Handles: commands, confirmations, voting
 │   ├── Service: PurgeService (purge/service.py)
 │   └── Models: PurgeRecord, PurgeUserResult ORM
+├── StockpileCog (discord_bot/stockpile/cog.py) [NEW]
+│   ├── Handles: commands (add, show, delete)
+│   ├── Service: StockpileService (stockpile/service.py)
+│   └── Models: Stockpile ORM
 └── AutoNameCog (discord_bot/autoname/cog.py)
     ├── Handles: member_join, member_update
     ├── Service: AutoNameService (autoname/service.py)
@@ -70,11 +76,26 @@ DiscordBot (base)
 
 ## Web Application Stack
 
-### Middleware Chain (execution order: bottom-to-top)
+### Middleware Chain (execution order: outer to inner)
 
 ```
-Request → Content Size Limit → Proxy Headers → Session Mgmt
-→ CSRF Protection → Rate Limiting → Security Headers → Response
+Request
+  ↓
+Content-Size Limit (reject oversized uploads)
+  ↓
+Proxy Headers (X-Forwarded-* support)
+  ↓
+Session Management (Starlette SessionMiddleware)
+  ↓
+CSRF Protection (validate token in POST/PUT/DELETE)
+  ↓
+Rate Limiting (in-memory limiter, per-IP)
+  ↓
+Security Headers (CSP, X-Frame-Options, etc.)
+  ↓
+Routing (FastAPI app)
+  ↓
+Response
 ```
 
 Middleware files:
@@ -149,7 +170,7 @@ AppSettings (discord_bot/common/core/app_settings.py)
 ### Guild Configuration (Database-Backed)
 
 Models: `discord_bot/common/models/`
-- `GuildConfig` - Key-value pairs per cog
+- `GuildConfig` - Key-value pairs per cog (supports sections in schema)
 - `GuildCogEnabled` - Cog enable/disable per guild
 - `Guild` - Guild metadata (name, prefix, created_at)
 
@@ -164,9 +185,9 @@ timeout = await config_service.get_value(
 )
 ```
 
-## Data Flow
+## Data Flow Examples
 
-### Verification Workflow (Example)
+### Verification Workflow
 
 ```
 Member joins guild
@@ -183,13 +204,61 @@ Member uploads screenshots (on_message handler)
   ↓
 Update VerificationRequest model
   ↓
-Post to mod-channel (with embed)
+Post to mod-channel (with embed, preserving existing data)
   ↓
 Mod reviews + accepts/rejects
   ↓
 Update status + award role
   ↓
 EventBus.publish(VerificationCompleted)
+```
+
+### Stockpile Management (NEW)
+
+```
+User runs /stockpile_add
+  ↓
+VerifyCommand permissions (admin/configured)
+  ↓
+StockpileService.create_stockpile()
+  ↓
+Insert into stockpiles table
+  ↓
+Format response embed
+  ↓
+Post confirmation message
+
+User runs /stockpile_show
+  ↓
+Load guild stockpiles
+  ↓
+Filter by user's visible roles
+  ↓
+Format into embed with role-based fields
+  ↓
+Display to user
+```
+
+### Web Configuration Edit Flow
+
+```
+User visits /dashboard/{guild_id}/config
+  ↓
+Route handler loads config schema + current values
+  ↓
+Render Jinja2 template with form fields
+  ↓
+User submits form
+  ↓
+CSRF middleware validates token
+  ↓
+Config route validates input (Pydantic schemas)
+  ↓
+ConfigService updates guild_configs
+  ↓
+Reload config in memory
+  ↓
+Cogs notified of config change (if using EventBus)
 ```
 
 ## Service Dependencies
@@ -200,22 +269,24 @@ DiscordBot
 │   └── AsyncEngine (SQLAlchemy)
 │       └── SQLite|PostgreSQL
 ├── EventBus (singleton)
-│   └── Internal pub/sub
+│   └── Internal pub/sub for events
 ├── Settings (AppSettings)
 │   └── Environment + config files
 └── Cogs (loaded via _load_cogs)
     ├── VerificationService (owns VerificationRequest)
-    ├── ConfigService (owns GuildConfig)
-    └── PurgeService (owns PurgeRecord)
+    ├── PurgeService (owns PurgeRecord, PurgeUserResult)
+    ├── StockpileService (owns Stockpile)
+    ├── AutoNameService (owns Guild.prefix)
+    └── ConfigService (owns GuildConfig)
 
 FastAPI App
-├── DatabaseService (shared)
-├── AppSettings (shared)
+├── DatabaseService (shared with bot)
+├── AppSettings (shared with bot)
 ├── Jinja2Templates
 ├── OAuth2Client (httpx)
 └── Routers
     ├── Dashboard (lists guilds, configs)
-    ├── Config (CRUD guild settings)
+    ├── Config (CRUD guild settings, validates with schemas)
     └── Auth (OAuth2 flow)
 ```
 
@@ -225,26 +296,69 @@ FastAPI App
 - Discord events wrapped in try/except (log + continue)
 - Service methods raise domain exceptions (caught by cogs)
 - Event handlers have timeout protection
+- Health checks monitor cog state periodically
 
 ### Web Layer
 - HTTPException handlers with HTML error pages
 - Unhandled exceptions → 500 (logged, generic response)
 - Invalid CSRF → 403 Forbidden
 - Rate limit exceeded → 429 Too Many Requests
+- Auth failures → 401 Unauthorized (redirects to /login)
+
+### Database Layer
+- AsyncSession connection pooling prevents exhaustion
+- Transaction rollback on service errors
+- Migrations run automatically on startup (Alembic)
 
 ## Deployment Model
 
 ### Single Process (Default)
-- asyncio.TaskGroup spawns both bot and web server
-- Shared DatabaseService (connection pool)
+- `asyncio.TaskGroup` spawns both bot and web server
+- Shared `DatabaseService` (connection pool)
+- Shared `AppSettings` and `EventBus`
 - Runs on port 8000 (configurable)
 
 ### Docker
 - Image: Python 3.12 slim base
 - CMD: `python -m discord_bot`
-- Health check: GET /health
+- Health check: `GET /health` (returns 200)
+- Graceful shutdown (SIGTERM handling)
 
 ### Environment
-- Box: WSL2 Linux (6.6.87 kernel)
+- Box: WSL2 Linux (kernel 6.6.87+)
 - Database: Default SQLite in `data/bot.db`
 - Config: From env vars, JSON, or CLI args
+
+## State Management
+
+### In-Memory Cog State
+- `VerificationCog._pending_dm_verifications` - tracks active verification flows
+- `VerificationCog._screenshot_timers` - asyncio tasks for timeouts
+- `PurgeCog` - state tracked in database, not memory
+
+### Database State
+- All persistent state in database (guild configs, verification requests, purges, stockpiles)
+- Enables multi-instance deployments (future)
+- Health checks restore state on bot startup
+
+### Session State (Web)
+- Session data stored server-side via SessionMiddleware
+- `discord_user` object cached in session (avoids repeated OAuth calls)
+- Configurable timeout (default: 1 week)
+
+## Recent Architectural Changes
+
+### Stockpile Cog Integration (2026-03-27+)
+- New cog added to bot.py's cog loading list
+- Shares same infrastructure: ConfigService, database models, config schema
+- Config options organized into sections (General, Display, Notifications)
+
+### Verification Improvements
+- Mod message updates now preserve existing embed data (instead of rebuilding)
+- Regiment comparison refactored to use IDs (prevents OCR false negatives)
+- Panel recreation guarded by cog enabled state
+
+### Configuration Schema Evolution
+- Config options now support `group` field (for UI organization)
+- Web UI renders grouped options as collapsible sections
+- Backward compatible with existing configs

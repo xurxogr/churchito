@@ -84,25 +84,6 @@ class ConfigSchemaService:
             return schema.get_option(key)
         return None
 
-    def has_schema(self, cog_name: str) -> bool:
-        """Check if a schema exists for a cog.
-
-        Args:
-            cog_name (str): Name of the cog
-
-        Returns:
-            bool: True if the schema exists
-        """
-        return cog_name in self._schemas
-
-    def get_cog_names(self) -> list[str]:
-        """Get the list of cog names with registered schemas.
-
-        Returns:
-            list[str]: List of cog names
-        """
-        return list(self._schemas.keys())
-
 
 @lru_cache
 def get_config_schema_service() -> ConfigSchemaService:

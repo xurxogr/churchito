@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
 from discord_bot.common.models import Guild, GuildConfig
+from discord_bot.i18n import get_i18n_service
 from discord_bot.web.dependencies import CurrentUser, DbSession, RequireAuth
 from discord_bot.web.middleware import get_csrf_token
 
@@ -40,8 +41,6 @@ def get_browser_language(request: Request) -> str:
     Returns:
         str: Language code ('en' or 'es', defaults to 'en')
     """
-    from discord_bot.i18n import get_i18n_service
-
     i18n = get_i18n_service()
     accept_language = request.headers.get("Accept-Language", "")
 

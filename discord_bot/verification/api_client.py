@@ -3,50 +3,12 @@
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
-from typing import Any
 
 import httpx
 
+from discord_bot.verification.models import VerificationAPIResponse, VerificationAPIResult
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class VerificationAPIResponse:
-    """Verification API response."""
-
-    name: str
-    level: int
-    regiment: str
-    faction: str  # 'colonial' or 'wardens'
-    shard: str  # 'ABLE' or 'CHARLIE'
-    ingame_time: str  # "268, 07:41"
-    war: int
-    current_ingame_time: str  # "278, 08:34"
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VerificationAPIResponse":
-        """Create instance from dictionary."""
-        return cls(
-            name=data.get("name", ""),
-            level=data.get("level", 0),
-            regiment=data.get("regiment", ""),
-            faction=data.get("faction", ""),
-            shard=data.get("shard", ""),
-            ingame_time=data.get("ingame_time", ""),
-            war=data.get("war", 0),
-            current_ingame_time=data.get("current_ingame_time", ""),
-        )
-
-
-@dataclass
-class VerificationAPIResult:
-    """Verification API call result."""
-
-    success: bool
-    status_code: int
-    response: VerificationAPIResponse | None = None
-    error_message: str | None = None
 
 
 async def call_verification_api(
@@ -60,15 +22,15 @@ async def call_verification_api(
     """Call the verification API with the images.
 
     Args:
-        url: Verification endpoint URL
-        api_key: API key (optional)
-        image1_url: URL of the first image (Discord CDN)
-        image2_url: URL of the second image (Discord CDN)
-        timeout_seconds: Timeout in seconds
-        guild_name: Guild name for logs
+        url (str): Verification endpoint URL.
+        api_key (str | None): API key (optional).
+        image1_url (str): URL of the first image (Discord CDN).
+        image2_url (str): URL of the second image (Discord CDN).
+        timeout_seconds (int): Timeout in seconds.
+        guild_name (str): Guild name for logs.
 
     Returns:
-        VerificationAPIResult with the call result
+        VerificationAPIResult: API call result with success status and response data.
     """
     headers: dict[str, str] = {}
     if api_key:
@@ -129,7 +91,7 @@ async def call_verification_api(
                 return VerificationAPIResult(
                     success=True,
                     status_code=status_code,
-                    response=VerificationAPIResponse.from_dict(data),
+                    response=VerificationAPIResponse.model_validate(data),
                 )
             else:
                 error_text = response.text

@@ -19,10 +19,10 @@ class VerificationButton(discord.ui.Button["VerificationPanelView"]):
         """Initialize the verification button.
 
         Args:
-            label (str): Button text
-            verification_type (VerificationType): Verification type
-            style (discord.ButtonStyle): Button style
-            custom_id (str): Unique button ID
+            label (str): Button text.
+            verification_type (VerificationType): Verification type.
+            style (discord.ButtonStyle): Button style.
+            custom_id (str): Unique button ID.
         """
         super().__init__(label=label, style=style, custom_id=custom_id)
         self.verification_type = verification_type
@@ -31,7 +31,7 @@ class VerificationButton(discord.ui.Button["VerificationPanelView"]):
         """Handle verification button click.
 
         Args:
-            interaction (discord.Interaction[discord.Client]): User interaction
+            interaction (discord.Interaction[discord.Client]): User interaction.
         """
         cog = get_verification_cog(interaction)
         if not cog:
@@ -57,8 +57,8 @@ class VerificationPanelView(discord.ui.View):
         """Initialize the panel view.
 
         Args:
-            verify_label (str): Normal verification button text
-            ally_label (str): Ally verification button text
+            verify_label (str): Normal verification button text.
+            ally_label (str): Ally verification button text.
         """
         super().__init__(timeout=None)
 

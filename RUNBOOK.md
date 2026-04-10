@@ -678,7 +678,20 @@ docker-compose logs --tail=500 db >> error.log
    - [CONTRIBUTING.md](./CONTRIBUTING.md) - Development guide
    - [docs/CODEMAPS/](./docs/CODEMAPS/) - Architecture
 
+## Development Utilities
+
+### Available Scripts
+
+Utility scripts in `/scripts` directory:
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [-v]` |
+| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name>` |
+| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py` |
+| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py <cog_path>` |
+
 ---
 
-**Last Updated:** 2026-03-11
-**Version:** 1.0.0
+**Last Updated:** 2026-04-10
+**Version:** 1.0.1

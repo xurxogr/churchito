@@ -239,34 +239,3 @@ class StockpileService:
             f"{stockpile.hex_key}/{stockpile.city} (ID: {stockpile_id})"
         )
         return True
-
-    async def delete_by_location_and_name(
-        self,
-        guild_id: int,
-        hex_key: str,
-        city: str,
-        name: str,
-        guild_name: str,
-    ) -> Stockpile | None:
-        """Delete a stockpile by location and name.
-
-        Args:
-            guild_id (int): Guild ID
-            hex_key (str): Hex key
-            city (str): City name
-            name (str): Stockpile name
-            guild_name (str): Guild name for logging
-
-        Returns:
-            Stockpile | None: Deleted stockpile or None if not found
-        """
-        stockpile = await self.get_by_location_and_name(guild_id, hex_key, city, name)
-        if not stockpile:
-            return None
-
-        await self._session.execute(delete(Stockpile).where(Stockpile.id == stockpile.id))
-        await self._session.flush()
-        logger.info(
-            f"[{guild_name}] Stockpile deleted: {name} at {hex_key}/{city} (ID: {stockpile.id})"
-        )
-        return stockpile

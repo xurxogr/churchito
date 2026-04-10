@@ -1,10 +1,13 @@
 """Moderation messages and tracker management."""
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
 import discord
 
+from discord_bot.common.services.config_service import ConfigService
 from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import (
     AutoProcessMode,
@@ -28,38 +31,36 @@ from discord_bot.verification.handlers.utils import (
     get_embed_additional_sections,
     get_ready_for_approval_status,
 )
+from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
+from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import ModReviewView
 
 if TYPE_CHECKING:
-    from discord_bot.common.services.config_service import ConfigService
-    from discord_bot.verification.api_client import VerificationAPIResult
     from discord_bot.verification.cog import VerificationCog
-    from discord_bot.verification.models import VerificationRequest
-    from discord_bot.verification.service import VerificationService
 
 logger = logging.getLogger(__name__)
 
 
 async def update_mod_message_for_review(
-    cog: "VerificationCog",
+    cog: VerificationCog,
     channel: discord.TextChannel,
-    request: "VerificationRequest",
-    verification_service: "VerificationService",
+    request: VerificationRequest,
+    verification_service: VerificationService,
     config: dict[str, Any],
-    api_result: "VerificationAPIResult | None" = None,
+    api_result: VerificationAPIResult | None = None,
 ) -> bool:
     """Update moderation message when screenshots are received.
 
     Args:
-        cog: Cog instance.
-        channel: Moderation channel.
-        request: Verification request.
-        verification_service: Verification service.
-        config: Cog configuration.
-        api_result: Verification API result.
+        cog (VerificationCog): Cog instance.
+        channel (discord.TextChannel): Moderation channel.
+        request (VerificationRequest): Verification request.
+        verification_service (VerificationService): Verification service.
+        config (dict[str, Any]): Cog configuration.
+        api_result (VerificationAPIResult | None): Verification API result.
 
     Returns:
-        True if auto-approval/rejection was performed, False if manual review required.
+        bool: True if auto-approval/rejection was performed, False if manual review.
     """
     from discord_bot.verification.auto_processor import process_verification
 
@@ -176,7 +177,7 @@ async def update_mod_message_for_review(
                 status_text = get_ready_for_approval_status(config=config, guild=guild)
 
     accept_label = format_message(
-        config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Accept",
+        template=config.get(ConfigKey.ACCEPT_BUTTON_TEXT) or "Accept",
         verification_type=type_display,
     )
     reject_label = config.get(ConfigKey.REJECT_BUTTON_TEXT) or "Reject"
@@ -227,7 +228,7 @@ def _replace_status_text(text: str | None, old_status: str, new_status: str) -> 
 
 async def update_mod_message_status(
     guild: discord.Guild,
-    request: "VerificationRequest",
+    request: VerificationRequest,
     config: dict[str, Any],
     status: str,
     color: discord.Color,
@@ -324,7 +325,7 @@ async def update_mod_message_status(
 
 async def update_mod_message_cancelled(
     guild: discord.Guild,
-    request: "VerificationRequest",
+    request: VerificationRequest,
     config: dict[str, Any],
     previous_status: str,
 ) -> None:
@@ -351,7 +352,7 @@ async def update_mod_message_cancelled(
 
 async def update_mod_message_for_manual_review(
     guild: discord.Guild,
-    request: "VerificationRequest",
+    request: VerificationRequest,
     config: dict[str, Any],
     public_id: str,
 ) -> None:
@@ -406,8 +407,8 @@ async def update_mod_message_for_manual_review(
 async def update_tracker_message(
     guild: discord.Guild,
     config: dict[str, Any],
-    verification_service: "VerificationService",
-    config_service: "ConfigService",
+    verification_service: VerificationService,
+    config_service: ConfigService,
 ) -> None:
     """Update or create the pending verifications tracker message.
 
@@ -415,10 +416,10 @@ async def update_tracker_message(
     displays a list of all pending verifications.
 
     Args:
-        guild: Guild where the moderation channel is
-        config: Cog configuration
-        verification_service: Verification service to get requests
-        config_service: Config service to save/get message ID
+        guild (discord.Guild): Guild where the moderation channel is.
+        config (dict[str, Any]): Cog configuration.
+        verification_service (VerificationService): Verification service to get requests.
+        config_service (ConfigService): Config service to save/get message ID.
     """
     tracker_title = config.get(ConfigKey.TRACKER_TITLE)
     tracker_enabled = bool(tracker_title)

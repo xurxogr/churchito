@@ -21,12 +21,12 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         """Initialize the selector.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            options (list[discord.SelectOption]): Selector options
-            placeholder (str): Placeholder text
-            modal_title (str): Custom reason modal title
-            modal_label (str): Modal text field label
-            modal_placeholder (str): Modal text field placeholder
+            public_id (str): Public request ID (NanoID).
+            options (list[discord.SelectOption]): Selector options.
+            placeholder (str): Placeholder text.
+            modal_title (str): Custom reason modal title.
+            modal_label (str): Modal text field label.
+            modal_placeholder (str): Modal text field placeholder.
         """
         super().__init__(
             placeholder=placeholder,
@@ -42,7 +42,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         """Handle rejection reason selection.
 
         Args:
-            interaction (discord.Interaction[discord.Client]): Moderator interaction
+            interaction (discord.Interaction[discord.Client]): Moderator interaction.
         """
         selected = self.values[0]
 
@@ -88,14 +88,14 @@ class RejectionReasonView(discord.ui.View):
         """Initialize the selection view.
 
         Args:
-            public_id (str): Public request ID (NanoID)
-            reasons (list[str]): List of predefined reasons
-            other_label (str): Label for the "Other" option
-            other_description (str): Description for the "Other" option
-            placeholder (str): Selector placeholder text
-            modal_title (str): Custom reason modal title
-            modal_label (str): Modal text field label
-            modal_placeholder (str): Modal text field placeholder
+            public_id (str): Public request ID (NanoID).
+            reasons (list[str]): List of predefined reasons.
+            other_label (str): Label for the "Other" option.
+            other_description (str): Description for the "Other" option.
+            placeholder (str): Selector placeholder text.
+            modal_title (str): Custom reason modal title.
+            modal_label (str): Modal text field label.
+            modal_placeholder (str): Modal text field placeholder.
         """
         super().__init__(timeout=60)
 

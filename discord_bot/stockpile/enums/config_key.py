@@ -33,8 +33,7 @@ class ConfigKey:
     INVALID_ROLES_TEXT = "invalid_roles_text"
     WRONG_CHANNEL_TEXT = "wrong_channel_text"
 
-    # Legacy keys (kept for migration)
-    SHOW_ITEM_TEXT = "show_item_text"
+    # Legacy key (kept for migration)
     SHOW_EMPTY_TEXT = "show_empty_text"
 
     # Notifications

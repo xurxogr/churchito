@@ -324,52 +324,6 @@ class TestStockpileService:
         result = await service.delete(99999, "Test Guild")
         assert result is False
 
-    async def test_delete_by_location_and_name(self, test_session: AsyncSession) -> None:
-        """Test deleting stockpile by location and name."""
-        service = StockpileService(test_session)
-
-        await service.create(
-            guild_id=123,
-            hex_key="AcrithiaHex",
-            city="Patridia",
-            name="TestStock",
-            code="123456",
-            view_roles=[],
-            created_by=456,
-            guild_name="Test Guild",
-        )
-
-        deleted = await service.delete_by_location_and_name(
-            guild_id=123,
-            hex_key="AcrithiaHex",
-            city="Patridia",
-            name="TestStock",
-            guild_name="Test Guild",
-        )
-        assert deleted is not None
-        assert deleted.name == "TestStock"
-
-        # Verify it's gone
-        result = await service.get_by_location_and_name(
-            guild_id=123,
-            hex_key="AcrithiaHex",
-            city="Patridia",
-            name="TestStock",
-        )
-        assert result is None
-
-    async def test_delete_by_location_and_name_not_found(self, test_session: AsyncSession) -> None:
-        """Test deleting non-existent stockpile by location and name."""
-        service = StockpileService(test_session)
-        result = await service.delete_by_location_and_name(
-            guild_id=123,
-            hex_key="AcrithiaHex",
-            city="Patridia",
-            name="NonExistent",
-            guild_name="Test Guild",
-        )
-        assert result is None
-
 
 class TestStockpileModel:
     """Tests for Stockpile model methods."""

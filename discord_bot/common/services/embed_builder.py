@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import discord
+from discord import Guild, Member
 
 from discord_bot.common.enums.embed_section_type import EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
-
-if TYPE_CHECKING:
-    from discord import Guild, Member
-
 
 # Dot emoji mappings (colored circle emojis)
 DOT_EMOJIS: dict[str, str] = {
@@ -158,8 +156,6 @@ def _has_color_tags(text: str) -> bool:
     Returns:
         True if text contains color tags like {red}, {/red}, etc.
     """
-    import re
-
     # Match opening tags like {red}, {green}, etc.
     pattern = r"\{(" + "|".join(ANSI_COLORS.keys()) + r")\}"
     return bool(re.search(pattern, text))
@@ -197,8 +193,6 @@ def format_placeholders(template: str, context: PlaceholderContext) -> str:
     """
     result = template
     # Find all placeholders {xxx}
-    import re
-
     placeholders = re.findall(r"\{(\w+)\}", template)
 
     for key in placeholders:

@@ -74,44 +74,6 @@ class TestPurgeService:
         result = await service.get_purge(99999)
         assert result is None
 
-    async def test_get_active_purge(self, test_session: AsyncSession) -> None:
-        """Test getting active purge."""
-        service = PurgeService(test_session)
-
-        await service.create_purge(
-            guild_id=123,
-            purge_type=PurgeType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        active = await service.get_active_purge(123)
-        assert active is not None
-        assert active.status == PurgeStatus.PENDING
-
-    async def test_get_active_purge_none(self, test_session: AsyncSession) -> None:
-        """Test getting active purge when there is none."""
-        service = PurgeService(test_session)
-        active = await service.get_active_purge(123)
-        assert active is None
-
-    async def test_get_active_purge_ignores_completed(self, test_session: AsyncSession) -> None:
-        """Test that get_active_purge ignores completed purges."""
-        service = PurgeService(test_session)
-
-        record = await service.create_purge(
-            guild_id=123,
-            purge_type=PurgeType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.update_status(purge_id=record.id, status=PurgeStatus.CANCELLED)
-
-        active = await service.get_active_purge(123)
-        assert active is None
-
     async def test_get_active_purge_for_update(self, test_session: AsyncSession) -> None:
         """Test getting active purge with lock."""
         service = PurgeService(test_session)
@@ -372,33 +334,6 @@ class TestPurgeService:
         authorized = await service.get_authorized_purges()
         assert len(authorized) == 1
         assert authorized[0].guild_id == 222
-
-    async def test_different_guilds_isolated(self, test_session: AsyncSession) -> None:
-        """Test that different guilds have isolated data."""
-        service = PurgeService(test_session)
-
-        await service.create_purge(
-            guild_id=111,
-            purge_type=PurgeType.WAR_END,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-        await service.create_purge(
-            guild_id=222,
-            purge_type=PurgeType.GLOBAL,
-            initiated_by=456,
-            config_snapshot={},
-            scheduled_for=datetime.now(UTC) + timedelta(days=3),
-        )
-
-        active_111 = await service.get_active_purge(111)
-        active_222 = await service.get_active_purge(222)
-
-        assert active_111 is not None
-        assert active_222 is not None
-        assert active_111.purge_type == PurgeType.WAR_END
-        assert active_222.purge_type == PurgeType.GLOBAL
 
     async def test_add_cancellation(self, test_session: AsyncSession) -> None:
         """Test adding cancellation vote."""

@@ -5,16 +5,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from discord_bot.verification.api_client import (
-    VerificationAPIResponse,
-    call_verification_api,
-)
+from discord_bot.verification.api_client import call_verification_api
+from discord_bot.verification.models import VerificationAPIResponse
 
 
 class TestVerificationAPIResponse:
     """Tests for VerificationAPIResponse."""
 
-    def test_from_dict_all_fields(self) -> None:
+    def test_model_validate_all_fields(self) -> None:
         """Test creation from dictionary with all fields."""
         data = {
             "name": "TestPlayer",
@@ -27,7 +25,7 @@ class TestVerificationAPIResponse:
             "current_ingame_time": "278, 08:34",
         }
 
-        response = VerificationAPIResponse.from_dict(data)
+        response = VerificationAPIResponse.model_validate(data)
 
         assert response.name == "TestPlayer"
         assert response.level == 25
@@ -38,13 +36,13 @@ class TestVerificationAPIResponse:
         assert response.war == 100
         assert response.current_ingame_time == "278, 08:34"
 
-    def test_from_dict_missing_fields(self) -> None:
+    def test_model_validate_missing_fields(self) -> None:
         """Test creation from dictionary with missing fields."""
         data = {
             "name": "TestPlayer",
         }
 
-        response = VerificationAPIResponse.from_dict(data)
+        response = VerificationAPIResponse.model_validate(data)
 
         assert response.name == "TestPlayer"
         assert response.level == 0
@@ -55,11 +53,11 @@ class TestVerificationAPIResponse:
         assert response.war == 0
         assert response.current_ingame_time == ""
 
-    def test_from_dict_empty(self) -> None:
+    def test_model_validate_empty(self) -> None:
         """Test creation from empty dictionary."""
         data: dict[str, object] = {}
 
-        response = VerificationAPIResponse.from_dict(data)
+        response = VerificationAPIResponse.model_validate(data)
 
         assert response.name == ""
         assert response.level == 0

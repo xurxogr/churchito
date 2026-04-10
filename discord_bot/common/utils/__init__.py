@@ -11,8 +11,6 @@ from discord_bot.common.utils.embed_config_columns import (
     get_embed_sections_columns,
 )
 from discord_bot.common.utils.game_data import (
-    get_all_hex_keys,
-    get_cities_for_hex,
     get_hex_display_name,
     is_valid_city,
     is_valid_hex,
@@ -23,8 +21,6 @@ __all__ = [
     "DISCORD_CDN_DOMAINS",
     "EMBED_SECTIONS_COLUMNS",
     "delete_message",
-    "get_all_hex_keys",
-    "get_cities_for_hex",
     "get_embed_sections_columns",
     "get_hex_display_name",
     "has_any_role",

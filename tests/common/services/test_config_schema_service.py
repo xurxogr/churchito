@@ -49,13 +49,6 @@ def sample_schema() -> CogConfigSchema:
 class TestConfigSchemaService:
     """Tests for ConfigSchemaService."""
 
-    def test_register_schema(
-        self, schema_service: ConfigSchemaService, sample_schema: CogConfigSchema
-    ) -> None:
-        """Test schema registration."""
-        schema_service.register_schema(sample_schema)
-        assert schema_service.has_schema("sample")
-
     def test_register_schema_overwrites(
         self, schema_service: ConfigSchemaService, sample_schema: CogConfigSchema
     ) -> None:
@@ -79,7 +72,7 @@ class TestConfigSchemaService:
         schema_service.register_schema(sample_schema)
         result = schema_service.unregister_schema("sample")
         assert result is True
-        assert not schema_service.has_schema("sample")
+        assert schema_service.get_schema("sample") is None
 
     def test_unregister_schema_not_exists(self, schema_service: ConfigSchemaService) -> None:
         """Test unregistering a non-existent schema."""
@@ -138,36 +131,3 @@ class TestConfigSchemaService:
         schema_service.register_schema(sample_schema)
         option = schema_service.get_option("sample", "nonexistent")
         assert option is None
-
-    def test_has_schema_true(
-        self, schema_service: ConfigSchemaService, sample_schema: CogConfigSchema
-    ) -> None:
-        """Test has_schema returns True when exists."""
-        schema_service.register_schema(sample_schema)
-        assert schema_service.has_schema("sample") is True
-
-    def test_has_schema_false(self, schema_service: ConfigSchemaService) -> None:
-        """Test has_schema returns False when doesn't exist."""
-        assert schema_service.has_schema("nonexistent") is False
-
-    def test_get_cog_names(
-        self, schema_service: ConfigSchemaService, sample_schema: CogConfigSchema
-    ) -> None:
-        """Test getting cog names."""
-        schema_service.register_schema(sample_schema)
-
-        another_schema = CogConfigSchema(
-            cog_name="another",
-            display_name="Another Cog",
-        )
-        schema_service.register_schema(another_schema)
-
-        names = schema_service.get_cog_names()
-        assert len(names) == 2
-        assert "sample" in names
-        assert "another" in names
-
-    def test_get_cog_names_empty(self, schema_service: ConfigSchemaService) -> None:
-        """Test getting cog names when empty."""
-        names = schema_service.get_cog_names()
-        assert names == []

@@ -1,11 +1,14 @@
 # Discord Bot
 
-Discord bot with user verification system, role management, and web administration panel.
+Discord bot with user verification system, role management, stockpile tracking, and web administration panel.
+
+**Last Updated:** 2026-04-10
 
 ## Features
 
 - **User Verification** - Screenshot-based verification with optional OCR integration
 - **User Purge** - Bulk role management and inactive user cleanup
+- **Stockpile Management** - Inventory tracking with embeds and configurable notifications
 - **Auto-Name** - Automatic username management based on rules
 - **Web Dashboard** - FastAPI-based configuration interface with OAuth2 authentication
 - **Database** - Async SQLAlchemy 2.0 (SQLite or PostgreSQL)
@@ -106,6 +109,16 @@ Bulk user and role management:
 - Moderator confirmation before execution
 - Result logging
 
+### Stockpile
+
+Inventory and stockpile management:
+
+- Create, update, and delete stockpiles with commands
+- Display stockpiles in formatted embeds
+- Configurable notifications on stockpile changes
+- Config sections: General, Display, Notifications
+- Placeholder support for customization
+
 ### Auto-Name
 
 Automatic username management:
@@ -139,6 +152,7 @@ discord_bot/
 │   ├── formatters.py # Embed/message formatting
 │   └── models/       # VerificationRequest ORM model
 ├── purge/            # Purge module
+├── stockpile/        # Stockpile management module
 ├── autoname/         # Auto-name module
 └── web/              # Administration panel
     ├── app.py        # FastAPI application

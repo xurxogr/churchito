@@ -3,7 +3,6 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-from discord_bot.verification.api_client import VerificationAPIResponse
 from discord_bot.verification.auto_processor import (
     calculate_time_diff_days,
     extract_regiment_id,
@@ -12,6 +11,7 @@ from discord_bot.verification.auto_processor import (
     process_verification,
 )
 from discord_bot.verification.enums import ConfigKey, NameMatchMode, VerificationType
+from discord_bot.verification.models import VerificationAPIResponse
 
 
 class TestCalculateTimeDiffDays:
