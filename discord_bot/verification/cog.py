@@ -263,6 +263,11 @@ class VerificationCog(commands.Cog):
                 cog_name=COG_NAME,
             )
 
+            # Save previous status text before updating
+            previous_status = (
+                config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "⏳ Awaiting screenshots"
+            )
+
             # Reject the request
             reason = config.get(ConfigKey.REJECT_SCREENSHOT_TIMEOUT) or "Screenshot timeout"
             await verification_service.reject(
@@ -294,7 +299,7 @@ class VerificationCog(commands.Cog):
                 config=config,
                 status=rejected_status,
                 color=discord.Color.red(),
-                verification_service=verification_service,
+                previous_status=previous_status,
             )
 
             # Notify the user
@@ -482,6 +487,23 @@ class VerificationCog(commands.Cog):
                     logger.debug(f"[{guild.name}] User {request.username} still in server")
                     continue
 
+                # Get config first to determine previous status text
+                config = await config_service.get_all_config(
+                    guild_id=request.guild_id,
+                    cog_name=COG_NAME,
+                )
+
+                # Determine previous status text based on current status
+                if request.status == VerificationStatus.PENDING_SCREENSHOTS:
+                    previous_status = (
+                        config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS)
+                        or "⏳ Awaiting screenshots"
+                    )
+                else:
+                    previous_status = (
+                        config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+                    )
+
                 # User not in server, cancel verification
                 await service.cancel(request_id=request.id, guild_name=guild.name)
 
@@ -490,16 +512,12 @@ class VerificationCog(commands.Cog):
                     del self._pending_dm_verifications[request.user_id]
 
                 # Update moderation message
-                config = await config_service.get_all_config(
-                    guild_id=request.guild_id,
-                    cog_name=COG_NAME,
-                )
                 try:
                     await update_mod_message_cancelled(
                         guild=guild,
                         request=request,
                         config=config,
-                        verification_service=service,
+                        previous_status=previous_status,
                     )
                 except Exception as e:
                     logger.error(f"[{guild.name}] Error updating mod message: {e}")
@@ -1131,21 +1149,34 @@ class VerificationCog(commands.Cog):
                 guild_id=member.guild.id, user_id=member.id
             )
             if pending:
+                # Get config first to determine previous status text
+                config_service = ConfigService(session=session)
+                config = await config_service.get_all_config(
+                    guild_id=member.guild.id, cog_name=COG_NAME
+                )
+
+                # Determine previous status text based on current status
+                if pending.status == VerificationStatus.PENDING_SCREENSHOTS:
+                    previous_status = (
+                        config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS)
+                        or "⏳ Awaiting screenshots"
+                    )
+                else:
+                    previous_status = (
+                        config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+                    )
+
                 await verification_service.cancel(
                     request_id=pending.id, guild_name=member.guild.name
                 )
                 await session.commit()
 
                 # Update moderation message
-                config_service = ConfigService(session=session)
-                config = await config_service.get_all_config(
-                    guild_id=member.guild.id, cog_name=COG_NAME
-                )
                 await update_mod_message_cancelled(
                     guild=member.guild,
                     request=pending,
                     config=config,
-                    verification_service=verification_service,
+                    previous_status=previous_status,
                 )
 
                 # Update tracker message

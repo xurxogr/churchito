@@ -428,6 +428,9 @@ async def handle_accept(
 
         config, request, verification_service = ctx
 
+        # Save previous status text before updating
+        previous_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+
         await verification_service.approve(
             request_id=request.id,
             reviewer_id=interaction.user.id,
@@ -497,7 +500,7 @@ async def handle_accept(
             config=config,
             status=approved_status,
             color=discord.Color.green(),
-            verification_service=verification_service,
+            previous_status=previous_status,
         )
 
         await session.commit()
@@ -654,6 +657,9 @@ async def handle_reject(
 
         config, request, verification_service = ctx
 
+        # Save previous status text before updating
+        previous_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+
         await verification_service.reject(
             request_id=request.id,
             reviewer_id=interaction.user.id,
@@ -690,7 +696,7 @@ async def handle_reject(
             config=config,
             status=rejected_status,
             color=discord.Color.red(),
-            verification_service=verification_service,
+            previous_status=previous_status,
         )
 
         await session.commit()

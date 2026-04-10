@@ -215,14 +215,30 @@ class TestGetApiErrorMessage:
 class TestUpdateModMessageForReview:
     """Tests for update_mod_message_for_manual_review."""
 
+    def _create_mock_request(self) -> MagicMock:
+        """Create a mock request with required attributes."""
+        mock_request = MagicMock()
+        mock_request.mod_message_id = 999
+        mock_request.rejection_reason = "Test rejection"
+        mock_request.verification_type = VerificationType.REGULAR
+        return mock_request
+
+    def _create_config(self) -> dict[str, Any]:
+        """Create a config with required keys."""
+        return {
+            "mod_notification_channel": 888,
+            "status_rejected": "❌ Rejected by {moderator}: {reason}",
+            "status_pending_review": "⏳ Pending review",
+        }
+
     @pytest.mark.asyncio
     async def test_returns_early_when_no_mod_message_id(self) -> None:
         """Test that returns if there is no mod_message_id."""
         mock_guild = MagicMock(spec=discord.Guild)
-        mock_request = MagicMock()
+        mock_request = self._create_mock_request()
         mock_request.mod_message_id = None
 
-        config: dict[str, Any] = {}
+        config = self._create_config()
 
         # Should not fail, just return
         await update_mod_message_for_manual_review(mock_guild, mock_request, config, "abc123")
@@ -231,12 +247,10 @@ class TestUpdateModMessageForReview:
     async def test_returns_early_when_no_mod_channel_id(self) -> None:
         """Test that returns if there is no moderation channel configured."""
         mock_guild = MagicMock(spec=discord.Guild)
-        mock_request = MagicMock()
-        mock_request.mod_message_id = 999
+        mock_request = self._create_mock_request()
 
-        config: dict[str, Any] = {
-            "mod_notification_channel": None,
-        }
+        config = self._create_config()
+        config["mod_notification_channel"] = None
 
         await update_mod_message_for_manual_review(mock_guild, mock_request, config, "abc123")
 
@@ -246,12 +260,8 @@ class TestUpdateModMessageForReview:
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.get_channel = MagicMock(return_value=None)
 
-        mock_request = MagicMock()
-        mock_request.mod_message_id = 999
-
-        config: dict[str, Any] = {
-            "mod_notification_channel": 888,
-        }
+        mock_request = self._create_mock_request()
+        config = self._create_config()
 
         await update_mod_message_for_manual_review(mock_guild, mock_request, config, "abc123")
 
@@ -263,12 +273,8 @@ class TestUpdateModMessageForReview:
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
-        mock_request = MagicMock()
-        mock_request.mod_message_id = 999
-
-        config: dict[str, Any] = {
-            "mod_notification_channel": 888,
-        }
+        mock_request = self._create_mock_request()
+        config = self._create_config()
 
         await update_mod_message_for_manual_review(mock_guild, mock_request, config, "abc123")
 
@@ -283,12 +289,8 @@ class TestUpdateModMessageForReview:
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
-        mock_request = MagicMock()
-        mock_request.mod_message_id = 999
-
-        config: dict[str, Any] = {
-            "mod_notification_channel": 888,
-        }
+        mock_request = self._create_mock_request()
+        config = self._create_config()
 
         # Should not fail
         await update_mod_message_for_manual_review(mock_guild, mock_request, config, "abc123")
@@ -305,7 +307,12 @@ class TestUpdateModMessageCancelled:
         mock_request.mod_message_id = None
 
         # Should not do anything
-        await update_mod_message_cancelled(mock_guild, mock_request, {})
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config={},
+            previous_status="⏳ Pending",
+        )
 
         mock_guild.get_channel.assert_not_called()
 
@@ -316,7 +323,12 @@ class TestUpdateModMessageCancelled:
         mock_request = MagicMock(spec=VerificationRequest)
         mock_request.mod_message_id = 123
 
-        await update_mod_message_cancelled(mock_guild, mock_request, {})
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config={},
+            previous_status="⏳ Pending",
+        )
 
         mock_guild.get_channel.assert_not_called()
 
@@ -330,7 +342,12 @@ class TestUpdateModMessageCancelled:
 
         config = {"mod_notification_channel": 456}
 
-        await update_mod_message_cancelled(mock_guild, mock_request, config)
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config=config,
+            previous_status="⏳ Pending",
+        )
 
         mock_guild.get_channel.assert_called_once_with(456)
 
@@ -354,7 +371,12 @@ class TestUpdateModMessageCancelled:
             "delete_processed_messages": True,
         }
 
-        await update_mod_message_cancelled(mock_guild, mock_request, config)
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config=config,
+            previous_status="⏳ Pending",
+        )
 
         mock_message.delete.assert_called_once()
         mock_message.edit.assert_not_called()
@@ -364,6 +386,9 @@ class TestUpdateModMessageCancelled:
         """Test that updates message with cancelled status."""
         mock_embed = MagicMock(spec=discord.Embed)
         mock_embed.description = "User: Test\n\n⏳ Waiting for screenshots..."
+        mock_embed.title = None
+        mock_embed.fields = []
+        mock_embed.copy = MagicMock(return_value=mock_embed)
 
         mock_message = MagicMock(spec=discord.Message)
         mock_message.embeds = [mock_embed]
@@ -388,7 +413,12 @@ class TestUpdateModMessageCancelled:
             "status_cancelled": "🚫 Cancelled",
         }
 
-        await update_mod_message_cancelled(mock_guild, mock_request, config)
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config=config,
+            previous_status="⏳ Waiting for screenshots...",
+        )
 
         mock_message.edit.assert_called_once()
         call_kwargs = mock_message.edit.call_args[1]
@@ -412,7 +442,12 @@ class TestUpdateModMessageCancelled:
         config = {"mod_notification_channel": 456}
 
         # Should not raise exception
-        await update_mod_message_cancelled(mock_guild, mock_request, config)
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config=config,
+            previous_status="⏳ Pending",
+        )
 
 
 class TestSendModPingMessage:

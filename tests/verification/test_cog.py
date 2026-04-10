@@ -3220,9 +3220,16 @@ class TestModMessageEditing:
 
         pending_status = "🔍 **Status:** Pending review"
 
-        # Create mock of existing embed
+        # Create mock of existing embed with proper copy behavior
+        mock_embed_copy = MagicMock()
+        mock_embed_copy.description = f"Request\n\n{pending_status}"
+        mock_embed_copy.title = None
+        mock_embed_copy.fields = []
+        mock_embed_copy.color = None
+
         mock_embed = MagicMock()
         mock_embed.description = f"Request\n\n{pending_status}"
+        mock_embed.copy = MagicMock(return_value=mock_embed_copy)
 
         mock_mod_message = MagicMock()
         mock_mod_message.embeds = [mock_embed]
@@ -3371,9 +3378,16 @@ class TestModMessageEditing:
 
         pending_status = "🔍 **Status:** Pending review"
 
-        # Create mock of existing embed
+        # Create mock of existing embed with proper copy behavior
+        mock_embed_copy = MagicMock()
+        mock_embed_copy.description = f"Request\n\n{pending_status}"
+        mock_embed_copy.title = None
+        mock_embed_copy.fields = []
+        mock_embed_copy.color = None
+
         mock_embed = MagicMock()
         mock_embed.description = f"Request\n\n{pending_status}"
+        mock_embed.copy = MagicMock(return_value=mock_embed_copy)
 
         mock_mod_message = MagicMock()
         mock_mod_message.embeds = [mock_embed]
@@ -7968,26 +7982,40 @@ class TestStatusReplacementInFormatted:
         mock_mod_message.edit.assert_called_once()
 
 
-class TestHandleReviewRegexFallback:
-    """Tests for regex fallback in _update_mod_message_for_review."""
+class TestUpdateModMessageForManualReview:
+    """Tests for update_mod_message_for_manual_review."""
 
     @pytest.mark.asyncio
-    async def test_regex_fallback_finds_auto_reject_pattern(
+    async def test_replaces_auto_rejected_status_with_pending_review(
         self, mock_discord_guild: MagicMock
     ) -> None:
-        """Test that regex finds auto-reject pattern."""
+        """Test that replaces auto-rejected status with pending review status."""
         request = MagicMock()
         request.mod_message_id = 999
         request.username = "TestUser"
         request.user_id = 456
         request.verification_type = VerificationType.REGULAR
+        request.rejection_reason = "Invalid captures"
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.guild = mock_discord_guild
 
+        # Create a properly configured mock embed
+        mock_embed = MagicMock(spec=discord.Embed)
+        mock_embed.description = "User info\n\n❌ **Status:** Rejected by Auto: Invalid captures"
+        mock_embed.title = "Verification Request"
+        mock_embed.fields = []
+        mock_embed.color = discord.Color.red()
+
+        # Make copy() return a new mock with the same properties
+        mock_embed_copy = MagicMock(spec=discord.Embed)
+        mock_embed_copy.description = mock_embed.description
+        mock_embed_copy.title = mock_embed.title
+        mock_embed_copy.fields = []
+        mock_embed.copy.return_value = mock_embed_copy
+
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_message.content = "Info\n\n❌ Auto-rejected: reason\n\nMore info"
-        mock_mod_message.embeds = []
+        mock_mod_message.embeds = [mock_embed]
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
 
@@ -7996,7 +8024,9 @@ class TestHandleReviewRegexFallback:
         config: dict[str, Any] = {
             "mod_notification_channel": 888,
             "status_pending_review": "⏳ Pending review",
-            "status_rejected": "DIFFERENT STATUS",
+            "status_rejected": "❌ **Status:** Rejected by {moderator}: {reason}",
+            "accept_button_text": "Accept",
+            "reject_button_text": "Reject",
         }
 
         from discord_bot.verification.handlers import update_mod_message_for_manual_review
@@ -8009,23 +8039,25 @@ class TestHandleReviewRegexFallback:
         )
 
         mock_mod_message.edit.assert_called_once()
+        # Verify the view has accept/reject buttons
+        call_kwargs = mock_mod_message.edit.call_args.kwargs
+        assert "view" in call_kwargs
+        assert call_kwargs["view"] is not None
 
     @pytest.mark.asyncio
-    async def test_regex_fallback_appends_when_no_match(
-        self, mock_discord_guild: MagicMock
-    ) -> None:
-        """Test that adds pending status if no match."""
+    async def test_returns_early_when_no_embeds(self, mock_discord_guild: MagicMock) -> None:
+        """Test that returns early when message has no embeds."""
         request = MagicMock()
         request.mod_message_id = 999
         request.username = "TestUser"
         request.user_id = 456
         request.verification_type = VerificationType.REGULAR
+        request.rejection_reason = "Invalid captures"
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.guild = mock_discord_guild
 
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_message.content = "Info without rejection status"
         mock_mod_message.embeds = []
         mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
@@ -8035,7 +8067,7 @@ class TestHandleReviewRegexFallback:
         config: dict[str, Any] = {
             "mod_notification_channel": 888,
             "status_pending_review": "⏳ Pending review",
-            "status_rejected": "",
+            "status_rejected": "❌ **Status:** Rejected by {moderator}: {reason}",
         }
 
         from discord_bot.verification.handlers import update_mod_message_for_manual_review
@@ -8047,7 +8079,8 @@ class TestHandleReviewRegexFallback:
             public_id="test1",
         )
 
-        mock_mod_message.edit.assert_called_once()
+        # Should not edit because no embeds
+        mock_mod_message.edit.assert_not_called()
 
 
 class TestGetLockedOptions:
