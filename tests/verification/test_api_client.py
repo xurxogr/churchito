@@ -68,6 +68,35 @@ class TestVerificationAPIResponse:
         assert response.war == 0
         assert response.current_ingame_time == ""
 
+    def test_model_validate_null_string_fields(self) -> None:
+        """Test creation from dictionary with null string fields.
+
+        The API may return null for string fields like regiment when
+        the OCR could not extract the value. These should be coerced
+        to empty strings.
+        """
+        data = {
+            "name": None,
+            "level": 10,
+            "regiment": None,
+            "faction": None,
+            "shard": "ABLE",
+            "ingame_time": None,
+            "war": 100,
+            "current_ingame_time": None,
+        }
+
+        response = VerificationAPIResponse.model_validate(data)
+
+        assert response.name == ""
+        assert response.level == 10
+        assert response.regiment == ""
+        assert response.faction == ""
+        assert response.shard == "ABLE"
+        assert response.ingame_time == ""
+        assert response.war == 100
+        assert response.current_ingame_time == ""
+
 
 class TestCallVerificationApi:
     """Tests for call_verification_api."""

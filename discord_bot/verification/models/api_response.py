@@ -1,6 +1,15 @@
 """Pydantic models for verification API responses."""
 
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator
+
+
+def _coerce_none_to_empty_string(value: Any) -> str:
+    """Coerce None to empty string for string fields."""
+    if value is None:
+        return ""
+    return str(value)
 
 
 class VerificationAPIResponse(BaseModel):
@@ -28,6 +37,14 @@ class VerificationAPIResponse(BaseModel):
     ingame_time: str = Field(default="", description="Time shown in screenshot")
     war: int = Field(default=0, description="Current war number")
     current_ingame_time: str = Field(default="", description="Current in-game time")
+
+    @field_validator(
+        "name", "regiment", "faction", "shard", "ingame_time", "current_ingame_time", mode="before"
+    )
+    @classmethod
+    def coerce_none_to_empty(cls, value: Any) -> str:
+        """Coerce None values to empty strings for string fields."""
+        return _coerce_none_to_empty_string(value)
 
 
 class VerificationAPIResult(BaseModel):
