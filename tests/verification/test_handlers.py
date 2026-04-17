@@ -311,7 +311,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config={},
-            previous_status="⏳ Pending",
+            previous_statuses=["⏳ Pending"],
         )
 
         mock_guild.get_channel.assert_not_called()
@@ -327,7 +327,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config={},
-            previous_status="⏳ Pending",
+            previous_statuses=["⏳ Pending"],
         )
 
         mock_guild.get_channel.assert_not_called()
@@ -346,7 +346,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config=config,
-            previous_status="⏳ Pending",
+            previous_statuses=["⏳ Pending"],
         )
 
         mock_guild.get_channel.assert_called_once_with(456)
@@ -375,7 +375,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config=config,
-            previous_status="⏳ Pending",
+            previous_statuses=["⏳ Pending"],
         )
 
         mock_message.delete.assert_called_once()
@@ -417,7 +417,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config=config,
-            previous_status="⏳ Waiting for screenshots...",
+            previous_statuses=["⏳ Waiting for screenshots..."],
         )
 
         mock_message.edit.assert_called_once()
@@ -446,7 +446,7 @@ class TestUpdateModMessageCancelled:
             guild=mock_guild,
             request=mock_request,
             config=config,
-            previous_status="⏳ Pending",
+            previous_statuses=["⏳ Pending"],
         )
 
 

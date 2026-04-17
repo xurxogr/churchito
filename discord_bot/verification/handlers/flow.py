@@ -27,7 +27,10 @@ from discord_bot.verification.handlers.mod_messages import (
     update_mod_message_status,
     update_tracker_message,
 )
-from discord_bot.verification.handlers.utils import calculate_expires_timestamp
+from discord_bot.verification.handlers.utils import (
+    calculate_expires_timestamp,
+    get_ready_for_approval_status,
+)
 from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import RejectionReasonView
@@ -426,8 +429,12 @@ async def handle_accept(
 
         config, request, verification_service = ctx
 
-        # Save previous status text before updating
-        previous_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+        # Determine possible previous status texts
+        # Could be either "pending review" or "ready for approval" (when OCR passed)
+        pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+        ready_for_approval_status = get_ready_for_approval_status(
+            config=config, guild=interaction.guild
+        )
 
         await verification_service.approve(
             request_id=request.id,
@@ -498,7 +505,7 @@ async def handle_accept(
             config=config,
             status=approved_status,
             color=discord.Color.green(),
-            previous_status=previous_status,
+            previous_statuses=[ready_for_approval_status, pending_review_status],
         )
 
         await session.commit()
@@ -655,8 +662,11 @@ async def handle_reject(
 
         config, request, verification_service = ctx
 
-        # Save previous status text before updating
-        previous_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+        # Determine possible previous status texts
+        pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+        ready_for_approval_status = get_ready_for_approval_status(
+            config=config, guild=interaction.guild
+        )
 
         await verification_service.reject(
             request_id=request.id,
@@ -694,7 +704,7 @@ async def handle_reject(
             config=config,
             status=rejected_status,
             color=discord.Color.red(),
-            previous_status=previous_status,
+            previous_statuses=[ready_for_approval_status, pending_review_status],
         )
 
         await session.commit()

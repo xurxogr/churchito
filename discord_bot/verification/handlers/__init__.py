@@ -24,6 +24,7 @@ from discord_bot.verification.handlers.mod_messages import (
     update_mod_message_status,
     update_tracker_message,
 )
+from discord_bot.verification.handlers.utils import get_ready_for_approval_status
 
 __all__ = [
     # flow
@@ -41,4 +42,6 @@ __all__ = [
     "update_mod_message_for_review",
     "update_mod_message_status",
     "update_tracker_message",
+    # utils
+    "get_ready_for_approval_status",
 ]

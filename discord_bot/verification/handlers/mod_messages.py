@@ -208,21 +208,24 @@ async def update_mod_message_for_review(
     return False
 
 
-def _replace_status_text(text: str | None, old_status: str, new_status: str) -> str | None:
+def _replace_status_text(text: str | None, old_statuses: list[str], new_status: str) -> str | None:
     """Replace old status with new status in text.
+
+    Tries each possible old status in order until one is found and replaced.
 
     Args:
         text (str | None): Text that may contain the old status.
-        old_status (str): The previous status text to find.
+        old_statuses (list[str]): List of possible previous status texts to find.
         new_status (str): The new status text to replace with.
 
     Returns:
-        str | None: Text with status replaced, or original text if old_status not found.
+        str | None: Text with status replaced, or original text if no old_status found.
     """
     if not text:
         return text
-    if old_status and old_status in text:
-        return text.replace(old_status, new_status)
+    for old_status in old_statuses:
+        if old_status and old_status in text:
+            return text.replace(old_status, new_status)
     return text
 
 
@@ -232,7 +235,7 @@ async def update_mod_message_status(
     config: dict[str, Any],
     status: str,
     color: discord.Color,
-    previous_status: str,
+    previous_statuses: list[str],
     view: discord.ui.View | None = None,
 ) -> None:
     """Update the moderation message with a new status.
@@ -248,7 +251,7 @@ async def update_mod_message_status(
         config (dict[str, Any]): Cog configuration.
         status (str): New status text.
         color (discord.Color): Embed color.
-        previous_status (str): The previous status text to find and replace.
+        previous_statuses (list[str]): Possible previous status texts to find and replace.
         view (discord.ui.View | None): View to attach, or None to remove buttons.
     """
     if not request.mod_message_id:
@@ -280,14 +283,14 @@ async def update_mod_message_status(
     # Replace status in description
     main_embed.description = _replace_status_text(
         text=main_embed.description,
-        old_status=previous_status,
+        old_statuses=previous_statuses,
         new_status=status,
     )
 
     # Replace status in title
     main_embed.title = _replace_status_text(
         text=main_embed.title,
-        old_status=previous_status,
+        old_statuses=previous_statuses,
         new_status=status,
     )
 
@@ -295,12 +298,12 @@ async def update_mod_message_status(
     for i, field in enumerate(main_embed.fields):
         new_name = _replace_status_text(
             text=field.name,
-            old_status=previous_status,
+            old_statuses=previous_statuses,
             new_status=status,
         )
         new_value = _replace_status_text(
             text=field.value,
-            old_status=previous_status,
+            old_statuses=previous_statuses,
             new_status=status,
         )
         if new_name != field.name or new_value != field.value:
@@ -327,7 +330,7 @@ async def update_mod_message_cancelled(
     guild: discord.Guild,
     request: VerificationRequest,
     config: dict[str, Any],
-    previous_status: str,
+    previous_statuses: list[str],
 ) -> None:
     """Update the moderation message when a verification is cancelled.
 
@@ -337,7 +340,7 @@ async def update_mod_message_cancelled(
         guild (discord.Guild): Guild where the moderation channel is.
         request (VerificationRequest): Cancelled verification request.
         config (dict[str, Any]): Cog configuration.
-        previous_status (str): The previous status text to find and replace.
+        previous_statuses (list[str]): Possible previous status texts to find and replace.
     """
     cancelled_status = config.get(ConfigKey.STATUS_CANCELLED) or "🚫 **Status:** Cancelled"
     await update_mod_message_status(
@@ -346,7 +349,7 @@ async def update_mod_message_cancelled(
         config=config,
         status=cancelled_status,
         color=discord.Color.dark_grey(),
-        previous_status=previous_status,
+        previous_statuses=previous_statuses,
     )
 
 
@@ -399,7 +402,7 @@ async def update_mod_message_for_manual_review(
         config=config,
         status=new_status,
         color=discord.Color.orange(),
-        previous_status=previous_status,
+        previous_statuses=[previous_status],
         view=view,
     )
 

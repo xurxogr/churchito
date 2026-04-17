@@ -22,6 +22,7 @@ from discord_bot.verification.formatters import (
     get_verification_type_display,
 )
 from discord_bot.verification.handlers import (
+    get_ready_for_approval_status,
     handle_accept,
     handle_dm_screenshots,
     handle_reject,
@@ -299,7 +300,7 @@ class VerificationCog(commands.Cog):
                 config=config,
                 status=rejected_status,
                 color=discord.Color.red(),
-                previous_status=previous_status,
+                previous_statuses=[previous_status],
             )
 
             # Notify the user
@@ -493,16 +494,17 @@ class VerificationCog(commands.Cog):
                     cog_name=COG_NAME,
                 )
 
-                # Determine previous status text based on current status
-                if request.status == VerificationStatus.PENDING_SCREENSHOTS:
-                    previous_status = (
-                        config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS)
-                        or "⏳ Awaiting screenshots"
-                    )
-                else:
-                    previous_status = (
-                        config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
-                    )
+                # Build list of all possible previous statuses
+                # Status could be "awaiting screenshots", "pending review", or "ready for approval"
+                awaiting_status = (
+                    config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "⏳ Awaiting screenshots"
+                )
+                pending_review_status = (
+                    config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+                )
+                ready_for_approval_status = get_ready_for_approval_status(
+                    config=config, guild=guild
+                )
 
                 # User not in server, cancel verification
                 await service.cancel(request_id=request.id, guild_name=guild.name)
@@ -517,7 +519,11 @@ class VerificationCog(commands.Cog):
                         guild=guild,
                         request=request,
                         config=config,
-                        previous_status=previous_status,
+                        previous_statuses=[
+                            ready_for_approval_status,
+                            pending_review_status,
+                            awaiting_status,
+                        ],
                     )
                 except Exception as e:
                     logger.error(f"[{guild.name}] Error updating mod message: {e}")
@@ -1155,16 +1161,16 @@ class VerificationCog(commands.Cog):
                     guild_id=member.guild.id, cog_name=COG_NAME
                 )
 
-                # Determine previous status text based on current status
-                if pending.status == VerificationStatus.PENDING_SCREENSHOTS:
-                    previous_status = (
-                        config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS)
-                        or "⏳ Awaiting screenshots"
-                    )
-                else:
-                    previous_status = (
-                        config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
-                    )
+                # Build list of all possible previous statuses
+                awaiting_status = (
+                    config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "⏳ Awaiting screenshots"
+                )
+                pending_review_status = (
+                    config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+                )
+                ready_for_approval_status = get_ready_for_approval_status(
+                    config=config, guild=member.guild
+                )
 
                 await verification_service.cancel(
                     request_id=pending.id, guild_name=member.guild.name
@@ -1176,7 +1182,11 @@ class VerificationCog(commands.Cog):
                     guild=member.guild,
                     request=pending,
                     config=config,
-                    previous_status=previous_status,
+                    previous_statuses=[
+                        ready_for_approval_status,
+                        pending_review_status,
+                        awaiting_status,
+                    ],
                 )
 
                 # Update tracker message
