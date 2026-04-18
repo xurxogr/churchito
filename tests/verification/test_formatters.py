@@ -878,9 +878,9 @@ class TestCreateTrackerEmbed:
 
         assert embed.title == "📋 Test Title"
         assert embed.description is not None
-        assert "TestUser" in embed.description
+        assert "[TestUser]" in embed.description  # Username as link
         assert "Normal" in embed.description
-        assert "[#" in embed.description  # Link with ID
+        assert "discord.com" in embed.description  # Link URL present
 
     def test_creates_embed_without_mod_message_id(self) -> None:
         """Test that creates embed without link when there is no mod_message_id."""
@@ -907,9 +907,9 @@ class TestCreateTrackerEmbed:
         )
 
         assert embed.description is not None
-        assert "TestUser" in embed.description
+        assert "TestUser" in embed.description  # Username shown without link
         assert "Ally" in embed.description
-        assert "#42" in embed.description  # ID shown without link
+        assert "[TestUser]" not in embed.description  # No link format
         assert "discord.com" not in embed.description  # No link URL
         assert "<t:" in embed.description  # Still has timestamp
 

@@ -391,17 +391,17 @@ def create_tracker_embed(
             unix_timestamp = int(request.created_at.timestamp())
             relative_time = f"<t:{unix_timestamp}:R>"
 
-            # Link to moderation message using verification public_id
+            # Link username to moderation message
             if request.mod_message_id:
                 message_link = (
                     f"https://discord.com/channels/{guild_id}/{channel_id}/{request.mod_message_id}"
                 )
-                id_text = f"[#{request.public_id}]({message_link})"
+                username_text = f"[{request.username}]({message_link})"
             else:
-                id_text = f"#{request.public_id}"
+                username_text = request.username
 
-            # Compact line: id username - status - time
-            line = f"{id_text} {request.username} - {status_text} - {relative_time}"
+            # Compact line: username - status - time
+            line = f"{username_text} - {status_text} - {relative_time}"
             lines.append(line)
 
         sections.append("\n".join(lines))
