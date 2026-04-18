@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _coerce_none_to_empty_string(value: Any) -> str:
@@ -24,10 +24,12 @@ class VerificationAPIResponse(BaseModel):
         regiment (str): Player's regiment name.
         faction (str): Player's faction ('colonial' or 'wardens').
         shard (str): Server shard ('ABLE' or 'CHARLIE').
-        ingame_time (str): Time shown in screenshot (e.g., "268, 07:41").
-        war (int): Current war number.
-        current_ingame_time (str): Current in-game time (e.g., "278, 08:34").
+        ingame_time (str): Time shown in screenshot (e.g., "267, 21:45").
+        war_number (int): Current war number.
+        current_ingame_time (str): Current in-game time (e.g., "268, 14:30").
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(default="", description="Player's in-game name")
     level: int = Field(default=0, description="Player's level")
@@ -35,7 +37,7 @@ class VerificationAPIResponse(BaseModel):
     faction: str = Field(default="", description="Player's faction ('colonial' or 'wardens')")
     shard: str = Field(default="", description="Server shard ('ABLE' or 'CHARLIE')")
     ingame_time: str = Field(default="", description="Time shown in screenshot")
-    war: int = Field(default=0, description="Current war number")
+    war_number: int = Field(default=0, description="Current war number")
     current_ingame_time: str = Field(default="", description="Current in-game time")
 
     @field_validator(
@@ -59,6 +61,8 @@ class VerificationAPIResult(BaseModel):
         response (VerificationAPIResponse | None): Parsed response data if successful.
         error_message (str | None): Error message if the call failed.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     success: bool = Field(description="Whether the API call was successful")
     status_code: int = Field(description="HTTP status code from the API response")

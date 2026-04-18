@@ -91,7 +91,7 @@ async def update_mod_message_for_review(
                 "faction": api_result.response.faction or "N/A",
                 "shard": api_result.response.shard or "N/A",
                 "time": api_result.response.ingame_time or "N/A",
-                "war": str(api_result.response.war),
+                "war": str(api_result.response.war_number),
                 "war_time": api_result.response.current_ingame_time or "N/A",
             }
             await verification_service.set_player_info(

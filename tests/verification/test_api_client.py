@@ -21,7 +21,7 @@ class TestVerificationAPIResponse:
             "faction": "colonial",
             "shard": "ABLE",
             "ingame_time": "268, 07:41",
-            "war": 100,
+            "war_number": 100,
             "current_ingame_time": "278, 08:34",
         }
 
@@ -33,7 +33,7 @@ class TestVerificationAPIResponse:
         assert response.faction == "colonial"
         assert response.shard == "ABLE"
         assert response.ingame_time == "268, 07:41"
-        assert response.war == 100
+        assert response.war_number == 100
         assert response.current_ingame_time == "278, 08:34"
 
     def test_model_validate_missing_fields(self) -> None:
@@ -50,7 +50,7 @@ class TestVerificationAPIResponse:
         assert response.faction == ""
         assert response.shard == ""
         assert response.ingame_time == ""
-        assert response.war == 0
+        assert response.war_number == 0
         assert response.current_ingame_time == ""
 
     def test_model_validate_empty(self) -> None:
@@ -65,7 +65,7 @@ class TestVerificationAPIResponse:
         assert response.faction == ""
         assert response.shard == ""
         assert response.ingame_time == ""
-        assert response.war == 0
+        assert response.war_number == 0
         assert response.current_ingame_time == ""
 
     def test_model_validate_null_string_fields(self) -> None:
@@ -82,7 +82,7 @@ class TestVerificationAPIResponse:
             "faction": None,
             "shard": "ABLE",
             "ingame_time": None,
-            "war": 100,
+            "war_number": 100,
             "current_ingame_time": None,
         }
 
@@ -94,7 +94,7 @@ class TestVerificationAPIResponse:
         assert response.faction == ""
         assert response.shard == "ABLE"
         assert response.ingame_time == ""
-        assert response.war == 100
+        assert response.war_number == 100
         assert response.current_ingame_time == ""
 
 
@@ -117,7 +117,7 @@ class TestCallVerificationApi:
             "faction": "colonial",
             "shard": "ABLE",
             "ingame_time": "100, 00:00",
-            "war": 100,
+            "war_number": 100,
             "current_ingame_time": "100, 01:00",
         }
 

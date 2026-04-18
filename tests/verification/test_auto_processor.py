@@ -195,7 +195,7 @@ class TestProcessVerification:
             faction=faction,
             shard=shard,
             ingame_time=ingame_time,
-            war=100,
+            war_number=100,
             current_ingame_time=current_ingame_time,
         )
 

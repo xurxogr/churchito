@@ -1719,7 +1719,7 @@ class TestOnMessage:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -1850,7 +1850,7 @@ class TestOnMessage:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -5928,7 +5928,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6058,7 +6058,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6189,7 +6189,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6326,7 +6326,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6458,7 +6458,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6590,7 +6590,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -6936,7 +6936,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -7081,7 +7081,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -7214,7 +7214,7 @@ class TestAutoProcessingEdgeCases:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -7702,7 +7702,7 @@ class TestLegacyBooleanAutoMode:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
@@ -7843,7 +7843,7 @@ class TestStatusReplacementInFormatted:
             faction="colonial",
             shard="ABLE",
             ingame_time="100, 00:00",
-            war=100,
+            war_number=100,
             current_ingame_time="100, 01:00",
         )
         api_result = VerificationAPIResult(
