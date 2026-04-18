@@ -186,6 +186,7 @@ def create_mod_embeds(
     *,
     username: str | None = None,
     user_mention: str | None = None,
+    user_display_name: str | None = None,
     user_id: int | None = None,
     status: str | None = None,
     created_at: str | None = None,
@@ -205,8 +206,9 @@ def create_mod_embeds(
     Args:
         verification_type (VerificationType): Verification type (REGULAR or ALLY).
         config (dict[str, Any]): Cog configuration with the embed config.
-        username (str | None): User's name.
-        user_mention (str | None): User mention.
+        username (str | None): User's name (stored username from request).
+        user_mention (str | None): User mention (<@user_id> format).
+        user_display_name (str | None): User's display name in plain text (fallback to username).
         user_id (int | None): User ID (for thumbnail fallback).
         status (str | None): Current status text.
         created_at (str | None): Formatted creation date (YYYY-MM-DD HH:MM).
@@ -241,6 +243,7 @@ def create_mod_embeds(
     extra_data: dict[str, Any] = {
         "username": username or "",
         "user_mention": user_mention or "",
+        "user_display_name": user_display_name or username or "",
         "verification_type": type_display,
         "status": status or "",
         "created_at": created_at or "",

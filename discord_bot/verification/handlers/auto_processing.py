@@ -140,11 +140,13 @@ async def handle_auto_approval(
         verification_type = VerificationType(request.verification_type)
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+        user_display_name = member.display_name if member else request.username
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
             username=request.username,
             user_mention=f"<@{request.user_id}>",
+            user_display_name=user_display_name,
             user_id=request.user_id,
             status=approved_status,
             created_at=created_at_str,
@@ -224,11 +226,13 @@ async def handle_auto_rejection(
         )
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+        user_display_name = member.display_name if member else request.username
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
             username=request.username,
             user_mention=f"<@{request.user_id}>",
+            user_display_name=user_display_name,
             user_id=request.user_id,
             status=rejected_status,
             created_at=created_at_str,

@@ -186,11 +186,13 @@ async def update_mod_message_for_review(
     )
 
     member = channel.guild.get_member(request.user_id)
+    user_display_name = member.display_name if member else request.username
     main_embeds = create_mod_embeds(
         verification_type=verification_type,
         config=config,
         username=request.username,
         user_mention=f"<@{request.user_id}>",
+        user_display_name=user_display_name,
         user_id=request.user_id,
         status=status_text,
         created_at=created_at_str,

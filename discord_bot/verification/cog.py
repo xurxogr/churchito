@@ -749,11 +749,13 @@ class VerificationCog(commands.Cog):
         # Create new embeds with current configuration
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+        user_display_name = member.display_name if member else request.username
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
             username=request.username,
             user_mention=user_mention,
+            user_display_name=user_display_name,
             user_id=request.user_id,
             status=status_text,
             created_at=created_at_str,

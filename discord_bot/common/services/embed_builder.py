@@ -115,6 +115,7 @@ GLOBAL_PLACEHOLDERS: list[dict[str, str]] = [
     {"key": "server_member_count", "description": "Member count"},
     # User
     {"key": "user_name", "description": "User's name"},
+    {"key": "user_display_name", "description": "User's display name (plain text)"},
     {"key": "user_mention", "description": "User mention"},
     {"key": "user_id", "description": "User ID"},
     {"key": "user_avatar_url", "description": "Avatar URL"},

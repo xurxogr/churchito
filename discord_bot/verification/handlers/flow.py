@@ -232,11 +232,13 @@ async def handle_verification_start(
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
         created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
         member = user if isinstance(user, discord.Member) else None
+        user_display_name = member.display_name if member else user.display_name
         mod_embeds = create_mod_embeds(
             verification_type=verification_type,
             config=config,
             username=user.name,
             user_mention=user.mention,
+            user_display_name=user_display_name,
             user_id=user.id,
             status=status_text,
             created_at=created_at_str,
