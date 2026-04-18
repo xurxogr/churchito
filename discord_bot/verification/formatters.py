@@ -40,6 +40,8 @@ def format_message(template: str | None = None, **kwargs: str | None) -> str:
     result = template or ""
     for key, value in kwargs.items():
         result = result.replace(f"{{{key}}}", value or "")
+    # Convert literal \n to actual newlines
+    result = result.replace("\\n", "\n")
     return result
 
 
