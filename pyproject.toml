@@ -92,6 +92,23 @@ plugins = ["pydantic.mypy"]
 module = ["discord.*", "nanoid", "nanoid.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+# Relax strict checking for tests - mock patterns are common and don't type-check well
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_return_any = false
+disable_error_code = [
+    "method-assign",       # Allow assigning to methods (mock patterns)
+    "attr-defined",        # Allow accessing mock attributes like .assert_called
+    "union-attr",          # Allow accessing attrs on potentially None (mock.user.id)
+    "arg-type",            # Allow flexible argument types with mocks
+    "comparison-overlap",  # Allow comparing StrEnum values with strings
+    "no-redef",            # Allow duplicate test class names
+    "type-arg",            # Allow missing type parameters for generics
+    "misc",                # Allow assigning to read-only properties (mock.guilds)
+]
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

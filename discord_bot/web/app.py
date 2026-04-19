@@ -25,6 +25,7 @@ from discord_bot.web.middleware import (
 )
 from discord_bot.web.routers.config import router as config_router
 from discord_bot.web.routers.dashboard import router as dashboard_router
+from discord_bot.web.routers.panels import router as panels_router
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(dashboard_router)
     app.include_router(config_router)
+    app.include_router(panels_router)
 
     @app.exception_handler(NotAuthenticatedException)
     async def not_authenticated_handler(

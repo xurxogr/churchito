@@ -1,8 +1,8 @@
 # Discord Bot Cogs Codemap
 
-<!-- Generated: 2026-04-10 | Files scanned: 114 | Token estimate: ~1400 -->
+<!-- Generated: 2026-04-18 | Files scanned: 114 | Token estimate: ~1400 -->
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-18
 **Entry Point:** `discord_bot/bot.py:_load_cogs()`
 
 ## Cog Loading System
@@ -133,20 +133,42 @@ Publishes:
 
 ```python
 class VerificationAPIResponse(BaseModel):
-    name: str           # Player's in-game name
-    level: int          # Player's level
-    regiment: str       # Regiment name
-    faction: str        # 'colonial' or 'wardens'
-    shard: str          # 'ABLE' or 'CHARLIE'
-    ingame_time: str    # Time in screenshot
-    war: int            # Current war number
+    model_config = ConfigDict(extra="forbid")  # Strict validation
+
+    name: str              # Player's in-game name
+    level: int             # Player's level
+    regiment: str          # Regiment name
+    faction: str           # 'colonial' or 'wardens'
+    shard: str             # 'ABLE' or 'CHARLIE'
+    ingame_time: str       # Time in screenshot (e.g., "267, 21:45")
+    war_number: int        # Current war number
+    current_ingame_time: str  # Current in-game time (e.g., "268, 14:30")
 
 class VerificationAPIResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # Strict validation
+
     success: bool
     status_code: int
     response: VerificationAPIResponse | None
     error_message: str | None
 ```
+
+### Embed Placeholders
+
+Available placeholders for mod embed templates:
+
+| Placeholder | Description |
+|-------------|-------------|
+| `{username}` | Stored username from request |
+| `{user_mention}` | Discord mention (`<@user_id>`) |
+| `{user_display_name}` | Display name (plain text, fallback to username) |
+| `{verification_type}` | Type display name |
+| `{status}` | Current status text |
+| `{created_at}` | Formatted date (YYYY-MM-DD HH:MM) |
+| `{created_at_relative}` | Relative timestamp (`<t:UNIX:R>`) |
+| `{war}` | War number from OCR |
+
+**Note:** `format_message()` converts literal `\n` to actual newlines.
 
 ---
 
@@ -297,6 +319,99 @@ Organized into sections:
 - **General:** Command channel, command names (add/show/delete)
 - **Display:** Embed title, description, color, field formatting
 - **Notifications:** Show all stockpiles on change, notification channel
+
+---
+
+## Roles Cog (NEW)
+
+**File:** `discord_bot/roles/cog.py`
+**Class:** `RolesCog(commands.Cog)`
+
+### Commands
+
+```python
+/{prefix} create <name> <channel> <type>  # Create a new panel
+/{prefix} add_role <panel> <emoji> <role>  # Add emoji-role mapping
+/{prefix} remove_role <panel> <emoji>       # Remove mapping
+/{prefix} post <panel>                       # Post panel to channel
+/{prefix} refresh <panel>                    # Update posted panel
+/{prefix} delete <panel>                     # Delete panel
+/{prefix} list                               # List all panels
+/{prefix} info <panel>                       # Show panel details
+```
+
+### Panel Types
+
+| Type | Behavior |
+|------|----------|
+| `toggle` | React = add role, unreact = remove role |
+| `exclusive` | Only one role allowed, switching removes previous |
+| `verify` | One-time selection, reaction removed after role assignment |
+
+### Data Models
+
+**File:** `discord_bot/roles/models/reaction_panel.py`
+
+```python
+class ReactionPanel(Base):
+    __tablename__ = "reaction_panels"
+
+    id: int (primary key)
+    public_id: str(21)        # NanoID, prevents IDOR
+    guild_id: int
+    channel_id: int
+    message_id: int | None    # Set after posting
+    name: str(100)
+    panel_type: str(20)       # toggle, exclusive, verify
+
+    role_mappings: list[dict] # [{emoji, emoji_id, role_id, display_name}]
+    required_roles: list[int] # Role IDs required to use panel
+
+    dm_on_missing_role: bool
+    dm_on_role_change: bool
+    embed_config: dict | None
+
+    created_by: int
+    created_at: datetime
+```
+
+**Indexes:** `ix_reaction_panel_guild_id`, `ix_reaction_panel_message`
+
+### Service
+
+**File:** `discord_bot/roles/service.py`
+
+```python
+async def create_panel(...) -> ReactionPanel
+async def get_by_id(panel_id: int) -> ReactionPanel | None
+async def get_by_message_id(guild_id, channel_id, message_id) -> ReactionPanel | None
+async def get_all_for_guild(guild_id: int) -> list[ReactionPanel]
+async def add_mapping(...) -> ReactionPanel | None
+async def remove_mapping(...) -> ReactionPanel | None
+async def delete(panel_id: int) -> bool
+```
+
+### Event Handlers
+
+| Event | Handler | Purpose |
+|-------|---------|---------|
+| `on_raw_reaction_add` | `_handle_reaction()` | Add role on reaction |
+| `on_raw_reaction_remove` | `_handle_reaction()` | Remove role on unreaction |
+
+**User Lock Manager:** Prevents race conditions when same user clicks multiple reactions quickly.
+
+### Configuration Schema
+
+**File:** `discord_bot/roles/config.py`
+
+Organized into groups:
+- **General:** Command prefix (default: "roles")
+- **Permissions:** Manage roles permission
+- **Audit:** Audit channel, notification switches
+- **Audit Messages:** Templates for panel/role change notifications
+- **User DM Messages:** Missing role, role added/removed templates
+- **Display:** Default panel embed template
+- **Error Messages:** No permission, not found, missing required role
 
 ---
 

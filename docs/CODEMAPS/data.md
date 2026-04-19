@@ -326,6 +326,53 @@ class Stockpile(Base):
 
 ---
 
+### 8. reaction_panels (NEW)
+
+**File:** `discord_bot/roles/models/reaction_panel.py`
+
+```python
+class ReactionPanel(Base):
+    __tablename__ = "reaction_panels"
+    __table_args__ = (
+        Index("ix_reaction_panel_guild_id", "guild_id"),
+        Index("ix_reaction_panel_message", "guild_id", "channel_id", "message_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    public_id: Mapped[str] = mapped_column(String(21), unique=True)
+    guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    panel_type: Mapped[str] = mapped_column(String(20), nullable=False)  # toggle, exclusive, verify
+
+    role_mappings: Mapped[list[dict]] = mapped_column(JSON, default=list)  # [{emoji, emoji_id, role_id, display_name}]
+    required_roles: Mapped[list[int]] = mapped_column(JSON, default=list)
+
+    dm_on_missing_role: Mapped[bool] = mapped_column(Boolean, default=False)
+    dm_on_role_change: Mapped[bool] = mapped_column(Boolean, default=False)
+    embed_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+```
+
+**Purpose:** Store reaction role panels with emoji-role mappings
+**Panel Types:**
+- `toggle`: React = add role, unreact = remove role
+- `exclusive`: Only one role allowed at a time
+- `verify`: One-time selection, reaction removed after role assignment
+**Key Features:**
+- User lock manager prevents race conditions
+- Required roles for access control
+- Optional DM notifications on role changes
+- Compound index on `(guild_id, channel_id, message_id)` for reaction lookups
+**Access:** `ReactionRolesService` (CRUD)
+**IDOR Protection:** `public_id` is NanoID
+
+---
+
 ## Migrations (Alembic)
 
 **Location:** `/home/xurxogr/code/discord/alembic/versions/`

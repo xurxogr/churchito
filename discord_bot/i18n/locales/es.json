@@ -97,6 +97,79 @@
     "footer": {
       "copyright": "Panel del Bot"
     },
+    "panels": {
+      "title": "Paneles de Reacción",
+      "create_button": "+ Crear Panel",
+      "create_title": "Crear Nuevo Panel",
+      "edit_title": "Editar Panel: {name}",
+      "back_to_list": "Volver a la Lista",
+      "basic_settings": "Configuración Básica",
+      "panel_name": "Nombre del Panel",
+      "panel_name_placeholder": "ej., Roles de Color",
+      "panel_type": "Tipo de Panel",
+      "channel": "Canal",
+      "select_channel": "-- Seleccionar Canal --",
+      "select_role": "-- Seleccionar Rol --",
+      "select": "-- Seleccionar --",
+      "embed_appearance": "Apariencia del Embed",
+      "embed_description": "Personaliza cómo se ve el mensaje del panel en Discord. Deja los campos vacíos para ocultarlos.",
+      "title_field": "Título",
+      "title_placeholder": "Título del panel (por defecto usa el nombre)",
+      "color": "Color",
+      "description_field": "Descripción",
+      "description_placeholder": "Deja vacío si no quieres descripción",
+      "show_roles": "Mostrar lista de roles en el embed",
+      "roles_field_name": "Nombre del Campo de Roles",
+      "footer": "Pie de página",
+      "footer_placeholder": "Deja vacío para indicador de modo por defecto, o escribe texto personalizado",
+      "role_mappings": "Mapeo de Roles",
+      "emoji_role_mappings": "Mapeo Emoji-Rol",
+      "role_mappings_description": "Configura qué emoji asigna qué rol.",
+      "click_emoji_description": "Haz clic en el botón de emoji para elegir de los disponibles.",
+      "emoji": "Emoji",
+      "role": "Rol",
+      "display_name": "Nombre a Mostrar",
+      "display_name_optional": "Nombre a Mostrar (opcional)",
+      "custom_display_name": "Nombre personalizado",
+      "actions": "Acciones",
+      "add_role": "+ Añadir Rol",
+      "add_mapping": "+ Añadir Mapeo",
+      "dm_notifications": "Notificaciones por DM",
+      "dm_missing_role": "Enviar DM cuando el usuario no tiene el rol requerido",
+      "dm_role_change": "Enviar DM cuando se añade/quita un rol",
+      "cancel": "Cancelar",
+      "create": "Crear Panel",
+      "save": "Guardar Cambios",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "delete_confirm": "¿Estás seguro de que quieres eliminar este panel?",
+      "no_panels": "No hay paneles de reacción todavía. ¡Crea uno para empezar!",
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "posted": "Publicado",
+      "draft": "Borrador",
+      "role_count": "{count} rol",
+      "roles_count": "{count} roles",
+      "pick_emoji": "Elegir emoji",
+      "server_emojis": "Emojis del Servidor",
+      "common_emojis": "Emojis Comunes",
+      "preview": "Vista Previa",
+      "no_roles_configured": "No hay roles configurados",
+      "required_roles": "Roles Requeridos",
+      "required_roles_description": "Solo usuarios con estos roles pueden usar el panel. Deja vacío para permitir a todos.",
+      "add_required_role": "+ Añadir rol requerido",
+      "exclusive_require_existing": "Requerir rol existente para cambiar (usuarios sin rol del panel no pueden reaccionar)",
+      "panel_types": {
+        "toggle": "Alternar (añadir/quitar al reaccionar)",
+        "exclusive": "Exclusivo (solo un rol)",
+        "verify": "Verificar (selección única)"
+      },
+      "panel_type_footers": {
+        "toggle": "Modo alternar - clic para añadir/quitar",
+        "exclusive": "Modo exclusivo - solo un rol permitido",
+        "verify": "Modo verificar - selección única"
+      }
+    },
     "login": {
       "title": "Iniciar sesión",
       "button": "Iniciar sesión con Discord",
@@ -648,6 +721,104 @@
           "name": "Canal incorrecto",
           "description": "Mensaje cuando el comando se usa en el canal incorrecto",
           "default": "Este comando solo puede usarse en {channel}."
+        }
+      }
+    },
+    "roles": {
+      "display_name": "Roles por Reacción",
+      "description": "Roles autoasignables mediante paneles de reacción",
+      "groups": {
+        "General": "General",
+        "Permissions": "Permisos",
+        "Audit": "Auditoría",
+        "Audit Messages": "Mensajes de Auditoría",
+        "User DM Messages": "Mensajes DM al Usuario",
+        "Error Messages": "Mensajes de Error"
+      },
+      "options": {
+        "command_prefix": {
+          "name": "Prefijo de comando",
+          "description": "Prefijo para los comandos de roles. Por defecto: 'roles' (ej: /roles create, /roles add_role)"
+        },
+        "manage_roles": {
+          "name": "Permiso para gestionar roles",
+          "description": "Roles que pueden crear, editar y eliminar paneles de reacción"
+        },
+        "audit_channel": {
+          "name": "Canal de auditoría",
+          "description": "Canal para notificaciones de auditoría (cambios en paneles, asignaciones de roles)"
+        },
+        "audit_panel_created": {
+          "name": "Notificar al crear panel",
+          "description": "Enviar notificación cuando se crea un panel"
+        },
+        "audit_panel_edited": {
+          "name": "Notificar al editar panel",
+          "description": "Enviar notificación cuando se edita un panel"
+        },
+        "audit_panel_deleted": {
+          "name": "Notificar al eliminar panel",
+          "description": "Enviar notificación cuando se elimina un panel"
+        },
+        "audit_user_role_add": {
+          "name": "Notificar al añadir rol a usuario",
+          "description": "Enviar notificación cuando un usuario obtiene un rol mediante reacción"
+        },
+        "audit_user_role_remove": {
+          "name": "Notificar al quitar rol a usuario",
+          "description": "Enviar notificación cuando un usuario pierde un rol mediante reacción"
+        },
+        "audit_panel_created_msg": {
+          "name": "Mensaje de panel creado",
+          "description": "Mensaje de auditoría para creación de panel",
+          "default": "**Panel Creado:** {panel_name} por {user_mention}"
+        },
+        "audit_panel_edited_msg": {
+          "name": "Mensaje de panel editado",
+          "description": "Mensaje de auditoría para edición de panel",
+          "default": "**Panel Editado:** {panel_name} por {user_mention}"
+        },
+        "audit_panel_deleted_msg": {
+          "name": "Mensaje de panel eliminado",
+          "description": "Mensaje de auditoría para eliminación de panel",
+          "default": "**Panel Eliminado:** {panel_name} por {user_mention}"
+        },
+        "audit_user_role_add_msg": {
+          "name": "Mensaje de rol añadido a usuario",
+          "description": "Mensaje de auditoría cuando un usuario obtiene un rol",
+          "default": "{user_name} obtuvo el rol {role_name} mediante {panel_name}"
+        },
+        "audit_user_role_remove_msg": {
+          "name": "Mensaje de rol quitado a usuario",
+          "description": "Mensaje de auditoría cuando un usuario pierde un rol",
+          "default": "{user_name} perdió el rol {role_name} mediante {panel_name}"
+        },
+        "dm_missing_role_msg": {
+          "name": "DM por rol requerido faltante",
+          "description": "DM enviado cuando el usuario no tiene el rol requerido. Deja vacío para deshabilitar."
+        },
+        "dm_role_added_msg": {
+          "name": "DM al añadir rol",
+          "description": "DM enviado cuando el usuario obtiene un rol. Deja vacío para deshabilitar."
+        },
+        "dm_role_removed_msg": {
+          "name": "DM al quitar rol",
+          "description": "DM enviado cuando el usuario pierde un rol. Deja vacío para deshabilitar."
+        },
+        "no_permission_text": {
+          "name": "Mensaje sin permisos",
+          "description": "Mensaje cuando el usuario no tiene permiso para gestionar paneles",
+          "default": "No tienes permiso para gestionar paneles de reacción."
+        },
+        "not_found_text": {
+          "name": "Mensaje de panel no encontrado",
+          "description": "Mensaje cuando no se encuentra el panel",
+          "default": "Panel no encontrado."
+        },
+        "missing_required_role_text": {
+          "name": "Mensaje de rol requerido faltante",
+          "description": "Respuesta efímera cuando el usuario no tiene el rol requerido (si DM está deshabilitado)",
+          "default": "No tienes el rol requerido para usar este panel."
         }
       }
     },

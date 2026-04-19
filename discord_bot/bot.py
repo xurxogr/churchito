@@ -117,6 +117,7 @@ class DiscordBot(commands.Bot):
             "discord_bot.autoname.cog",
             "discord_bot.purge.cog",
             "discord_bot.stockpile.cog",
+            "discord_bot.roles.cog",
         ]
 
         for cog in cogs_to_load:

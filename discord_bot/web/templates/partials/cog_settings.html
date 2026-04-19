@@ -990,6 +990,16 @@
             {% endfor %}
         {% endif %}
     </div>
+
+    <!-- Cog-specific sections (loaded via HTMX) -->
+    {% if cog_name == 'roles' %}
+    <div id="panels-section"
+         hx-get="{{ root_path }}/guild/{{ guild_id }}/panels"
+         hx-trigger="load"
+         hx-swap="outerHTML">
+        <div class="loading-state">Loading panels...</div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Floating Save Bar -->

@@ -97,6 +97,79 @@
     "footer": {
       "copyright": "Bot Dashboard"
     },
+    "panels": {
+      "title": "Reaction Panels",
+      "create_button": "+ Create Panel",
+      "create_title": "Create New Panel",
+      "edit_title": "Edit Panel: {name}",
+      "back_to_list": "Back to List",
+      "basic_settings": "Basic Settings",
+      "panel_name": "Panel Name",
+      "panel_name_placeholder": "e.g., Color Roles",
+      "panel_type": "Panel Type",
+      "channel": "Channel",
+      "select_channel": "-- Select Channel --",
+      "select_role": "-- Select Role --",
+      "select": "-- Select --",
+      "embed_appearance": "Embed Appearance",
+      "embed_description": "Customize how the panel message looks in Discord. Leave fields empty to hide them.",
+      "title_field": "Title",
+      "title_placeholder": "Panel title (defaults to panel name)",
+      "color": "Color",
+      "description_field": "Description",
+      "description_placeholder": "Leave empty for no description",
+      "show_roles": "Show roles list in embed",
+      "roles_field_name": "Roles Field Name",
+      "footer": "Footer",
+      "footer_placeholder": "Leave empty for default mode indicator, or enter custom text",
+      "role_mappings": "Role Mappings",
+      "emoji_role_mappings": "Emoji-Role Mappings",
+      "role_mappings_description": "Configure which emoji assigns which role.",
+      "click_emoji_description": "Click the emoji button to pick from available emojis.",
+      "emoji": "Emoji",
+      "role": "Role",
+      "display_name": "Display Name",
+      "display_name_optional": "Display Name (optional)",
+      "custom_display_name": "Custom display name",
+      "actions": "Actions",
+      "add_role": "+ Add Role",
+      "add_mapping": "+ Add Mapping",
+      "dm_notifications": "DM Notifications",
+      "dm_missing_role": "Send DM when user lacks required role",
+      "dm_role_change": "Send DM when role is added/removed",
+      "cancel": "Cancel",
+      "create": "Create Panel",
+      "save": "Save Changes",
+      "edit": "Edit",
+      "delete": "Delete",
+      "delete_confirm": "Are you sure you want to delete this panel?",
+      "no_panels": "No reaction panels yet. Create one to get started!",
+      "active": "Active",
+      "inactive": "Inactive",
+      "posted": "Posted",
+      "draft": "Draft",
+      "role_count": "{count} role",
+      "roles_count": "{count} roles",
+      "pick_emoji": "Pick emoji",
+      "server_emojis": "Server Emojis",
+      "common_emojis": "Common Emojis",
+      "preview": "Preview",
+      "no_roles_configured": "No roles configured",
+      "required_roles": "Required Roles",
+      "required_roles_description": "Only users with these roles can use the panel. Leave empty to allow everyone.",
+      "add_required_role": "+ Add required role",
+      "exclusive_require_existing": "Require existing role to switch (users without a panel role cannot react)",
+      "panel_types": {
+        "toggle": "Toggle (add/remove on react)",
+        "exclusive": "Exclusive (only one role)",
+        "verify": "Verify (one-time selection)"
+      },
+      "panel_type_footers": {
+        "toggle": "Toggle mode - click to add/remove",
+        "exclusive": "Exclusive mode - only one role allowed",
+        "verify": "Verify mode - one-time selection"
+      }
+    },
     "login": {
       "title": "Log in",
       "button": "Log in with Discord",
@@ -648,6 +721,104 @@
           "name": "Wrong channel",
           "description": "Message when command is used in the wrong channel",
           "default": "This command can only be used in {channel}."
+        }
+      }
+    },
+    "roles": {
+      "display_name": "Reaction Roles",
+      "description": "Self-assignable roles via reaction panels",
+      "groups": {
+        "General": "General",
+        "Permissions": "Permissions",
+        "Audit": "Audit",
+        "Audit Messages": "Audit Messages",
+        "User DM Messages": "User DM Messages",
+        "Error Messages": "Error Messages"
+      },
+      "options": {
+        "command_prefix": {
+          "name": "Command prefix",
+          "description": "Prefix for role commands. Default: 'roles' (e.g., /roles create, /roles add_role)"
+        },
+        "manage_roles": {
+          "name": "Manage roles permission",
+          "description": "Roles that can create, edit, and delete reaction panels"
+        },
+        "audit_channel": {
+          "name": "Audit channel",
+          "description": "Channel for audit notifications (panel changes, role assignments)"
+        },
+        "audit_panel_created": {
+          "name": "Notify on panel created",
+          "description": "Send notification when a panel is created"
+        },
+        "audit_panel_edited": {
+          "name": "Notify on panel edited",
+          "description": "Send notification when a panel is edited"
+        },
+        "audit_panel_deleted": {
+          "name": "Notify on panel deleted",
+          "description": "Send notification when a panel is deleted"
+        },
+        "audit_user_role_add": {
+          "name": "Notify on user role add",
+          "description": "Send notification when a user gains a role via reaction"
+        },
+        "audit_user_role_remove": {
+          "name": "Notify on user role remove",
+          "description": "Send notification when a user loses a role via reaction"
+        },
+        "audit_panel_created_msg": {
+          "name": "Panel created message",
+          "description": "Audit message for panel creation",
+          "default": "**Panel Created:** {panel_name} by {user_mention}"
+        },
+        "audit_panel_edited_msg": {
+          "name": "Panel edited message",
+          "description": "Audit message for panel edit",
+          "default": "**Panel Edited:** {panel_name} by {user_mention}"
+        },
+        "audit_panel_deleted_msg": {
+          "name": "Panel deleted message",
+          "description": "Audit message for panel deletion",
+          "default": "**Panel Deleted:** {panel_name} by {user_mention}"
+        },
+        "audit_user_role_add_msg": {
+          "name": "User role added message",
+          "description": "Audit message when user gains role",
+          "default": "{user_name} gained role {role_name} via {panel_name}"
+        },
+        "audit_user_role_remove_msg": {
+          "name": "User role removed message",
+          "description": "Audit message when user loses role",
+          "default": "{user_name} lost role {role_name} via {panel_name}"
+        },
+        "dm_missing_role_msg": {
+          "name": "Missing required role DM",
+          "description": "DM sent when user lacks required role. Leave empty to disable."
+        },
+        "dm_role_added_msg": {
+          "name": "Role added DM",
+          "description": "DM sent when user gains a role. Leave empty to disable."
+        },
+        "dm_role_removed_msg": {
+          "name": "Role removed DM",
+          "description": "DM sent when user loses a role. Leave empty to disable."
+        },
+        "no_permission_text": {
+          "name": "No permission message",
+          "description": "Message when user lacks permission to manage panels",
+          "default": "You don't have permission to manage reaction panels."
+        },
+        "not_found_text": {
+          "name": "Panel not found message",
+          "description": "Message when panel is not found",
+          "default": "Panel not found."
+        },
+        "missing_required_role_text": {
+          "name": "Missing required role message",
+          "description": "Ephemeral response when user lacks required role (if DM disabled)",
+          "default": "You don't have the required role to use this panel."
         }
       }
     },

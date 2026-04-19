@@ -1,0 +1,910 @@
+<div class="panels-section" id="panels-section">
+    <div class="panel-edit-header">
+        <h3>{{ _('ui.panels.edit_title', lang)|replace('{name}', panel.name) }}</h3>
+        <button
+            type="button"
+            class="btn btn-secondary"
+            hx-get="{{ root_path }}/guild/{{ guild_id }}/panels"
+            hx-target="#panels-section"
+            hx-swap="outerHTML"
+        >
+            &larr; {{ _('ui.panels.back_to_list', lang) }}
+        </button>
+    </div>
+
+    <form
+        id="edit-panel-form"
+        hx-post="{{ root_path }}/guild/{{ guild_id }}/panels/{{ panel.id }}/update"
+        hx-target="#panels-section"
+        hx-swap="outerHTML"
+        onsubmit="collectEmbedConfig()"
+    >
+        <!-- Basic Settings -->
+        <div class="panel-edit-section">
+            <h4>{{ _('ui.panels.basic_settings', lang) }}</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-panel-name">{{ _('ui.panels.panel_name', lang) }}</label>
+                    <input
+                        type="text"
+                        id="edit-panel-name"
+                        name="name"
+                        class="input"
+                        maxlength="100"
+                        required
+                        value="{{ panel.name }}"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="edit-panel-channel">{{ _('ui.panels.channel', lang) }}</label>
+                    <select id="edit-panel-channel" name="channel_id" class="select" required>
+                        {% for ch in channels %}
+                        <option value="{{ ch.id }}" {% if ch.id == panel.channel_id %}selected{% endif %}>#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-panel-type">{{ _('ui.panels.panel_type', lang) }}</label>
+                    <select id="edit-panel-type" name="panel_type" class="select" required onchange="toggleExclusiveOptions()">
+                        {% for pt in panel_types %}
+                        <option value="{{ pt.value }}" {% if pt.value == panel.panel_type %}selected{% endif %}>{{ pt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <!-- Exclusive Panel Options -->
+            <div id="exclusive-options" class="form-row" style="margin-top: 12px; {% if panel.panel_type != 'exclusive' %}display: none;{% endif %}">
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="exclusive_require_existing"
+                        {% if panel.exclusive_require_existing %}checked{% endif %}
+                    >
+                    {{ _('ui.panels.exclusive_require_existing', lang) }}
+                </label>
+            </div>
+        </div>
+
+        <!-- Embed Configuration -->
+        <div class="panel-edit-section">
+            <h4>{{ _('ui.panels.embed_appearance', lang) }}</h4>
+            <p class="section-description">{{ _('ui.panels.embed_description', lang) }}</p>
+            {% set embed = panel.embed_config or {} %}
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label for="embed-title">{{ _('ui.panels.title_field', lang) }}</label>
+                    <input
+                        type="text"
+                        id="embed-title"
+                        class="input"
+                        maxlength="256"
+                        placeholder="{{ _('ui.panels.title_placeholder', lang) }}"
+                        value="{{ embed.title or '' }}"
+                        oninput="updateEmbedPreview()"
+                    >
+                </div>
+                <div class="form-group" style="flex: 0 0 160px;">
+                    <label for="embed-color">{{ _('ui.panels.color', lang) }}</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input
+                            type="color"
+                            id="embed-color-picker"
+                            value="{{ embed.color or '#5865F2' }}"
+                            style="width: 38px; height: 38px; padding: 0; border: none; cursor: pointer; border-radius: 4px;"
+                            oninput="document.getElementById('embed-color').value = this.value; updateEmbedPreview()"
+                        >
+                        <input
+                            type="text"
+                            id="embed-color"
+                            class="input"
+                            value="{{ embed.color or '' }}"
+                            placeholder="#5865F2"
+                            maxlength="7"
+                            style="flex: 1;"
+                            oninput="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)) document.getElementById('embed-color-picker').value = this.value; updateEmbedPreview()"
+                        >
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="embed-description">{{ _('ui.panels.description_field', lang) }}</label>
+                <textarea
+                    id="embed-description"
+                    class="textarea"
+                    rows="3"
+                    placeholder="{{ _('ui.panels.description_placeholder', lang) }}"
+                    oninput="updateEmbedPreview()"
+                >{{ embed.description or '' }}</textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input
+                            type="checkbox"
+                            id="embed-show-roles"
+                            {% if embed.show_roles is not defined or embed.show_roles %}checked{% endif %}
+                            onchange="updateEmbedPreview()"
+                        >
+                        {{ _('ui.panels.show_roles', lang) }}
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="embed-roles-field-name">{{ _('ui.panels.roles_field_name', lang) }}</label>
+                    <input
+                        type="text"
+                        id="embed-roles-field-name"
+                        class="input"
+                        maxlength="256"
+                        placeholder="Roles"
+                        value="{{ embed.roles_field_name or '' }}"
+                        oninput="updateEmbedPreview()"
+                    >
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="embed-footer">{{ _('ui.panels.footer', lang) }}</label>
+                <input
+                    type="text"
+                    id="embed-footer"
+                    class="input"
+                    maxlength="2048"
+                    placeholder="{{ _('ui.panels.footer_placeholder', lang) }}"
+                    value="{{ embed.footer or '' }}"
+                    oninput="updateEmbedPreview()"
+                >
+            </div>
+            <input type="hidden" name="embed_config" id="embed-config-input" value="{{ panel.embed_config | tojson if panel.embed_config else '{}' }}">
+
+            <!-- Embed Preview -->
+            <div class="embed-preview-wrapper">
+                <div class="embed-preview-label">{{ _('ui.panels.preview', lang) }}</div>
+                <div class="discord-embed-preview" id="embed-preview">
+                    <div class="embed-title" id="preview-title">{{ embed.title or panel.name }}</div>
+                    <div class="embed-description" id="preview-description" {% if not embed.description %}style="display: none;"{% endif %}>{{ embed.description or '' }}</div>
+                    <div class="embed-field" id="preview-roles-field" {% if embed.show_roles is defined and not embed.show_roles %}style="display: none;"{% endif %}>
+                        <div class="embed-field-name" id="preview-roles-field-name" {% if not embed.roles_field_name %}style="display: none;"{% endif %}>{{ embed.roles_field_name or '' }}</div>
+                        <div class="embed-field-value" id="preview-roles">
+                            {% for mapping in panel.role_mappings %}
+                            {% set role_name = mapping.display_name %}
+                            {% if not role_name %}
+                            {% for role in roles if role.id == mapping.role_id|string %}
+                            {% set role_name = role.name %}
+                            {% endfor %}
+                            {% endif %}
+                            {{ mapping.emoji }} - {{ role_name or 'Unknown Role' }}<br>
+                            {% endfor %}
+                            {% if not panel.role_mappings %}
+                            <em>{{ _('ui.panels.no_roles_configured', lang) }}</em>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="embed-footer" id="preview-footer">
+                        {% if embed.footer %}
+                        {{ embed.footer }}
+                        {% else %}
+                        {% if panel.panel_type == 'toggle' %}{{ _('ui.panels.panel_type_footers.toggle', lang) }}{% endif %}
+                        {% if panel.panel_type == 'exclusive' %}{{ _('ui.panels.panel_type_footers.exclusive', lang) }}{% endif %}
+                        {% if panel.panel_type == 'verify' %}{{ _('ui.panels.panel_type_footers.verify', lang) }}{% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DM Settings -->
+        <div class="panel-edit-section">
+            <h4>{{ _('ui.panels.dm_notifications', lang) }}</h4>
+            <div class="form-row">
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="dm_on_missing_role"
+                        {% if panel.dm_on_missing_role %}checked{% endif %}
+                    >
+                    {{ _('ui.panels.dm_missing_role', lang) }}
+                </label>
+                <label class="checkbox-label">
+                    <input
+                        type="checkbox"
+                        name="dm_on_role_change"
+                        {% if panel.dm_on_role_change %}checked{% endif %}
+                    >
+                    {{ _('ui.panels.dm_role_change', lang) }}
+                </label>
+            </div>
+        </div>
+
+        <!-- Required Roles -->
+        <div class="panel-edit-section">
+            <h4>{{ _('ui.panels.required_roles', lang) }}</h4>
+            <p class="section-description">{{ _('ui.panels.required_roles_description', lang) }}</p>
+            <div id="required-roles-list" class="roles-chip-list">
+                {% for role_id in panel.required_roles %}
+                {% set role_id_str = role_id|string %}
+                {% for role in roles if role.id == role_id_str %}
+                <span class="role-chip" data-role-id="{{ role.id }}">
+                    @{{ role.name }}
+                    <button type="button" class="chip-remove" onclick="removeRequiredRole('{{ role.id }}')">&times;</button>
+                </span>
+                {% endfor %}
+                {% endfor %}
+            </div>
+            <div class="form-group">
+                <select id="add-required-role" class="select select-sm" onchange="addRequiredRole(this)">
+                    <option value="">{{ _('ui.panels.add_required_role', lang) }}</option>
+                    {% for role in roles %}
+                    <option value="{{ role.id }}">@{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="hidden" name="required_roles" id="required-roles-input" value="{{ panel.required_roles | tojson }}">
+        </div>
+
+        <!-- Role Mappings -->
+        <div class="panel-edit-section">
+            <h4>{{ _('ui.panels.emoji_role_mappings', lang) }}</h4>
+            <p class="section-description">{{ _('ui.panels.role_mappings_description', lang) }}</p>
+            <table class="mappings-table" id="mappings-table">
+                <thead>
+                    <tr>
+                        <th>{{ _('ui.panels.emoji', lang) }}</th>
+                        <th>{{ _('ui.panels.role', lang) }}</th>
+                        <th>{{ _('ui.panels.display_name_optional', lang) }}</th>
+                        <th>{{ _('ui.panels.actions', lang) }}</th>
+                    </tr>
+                </thead>
+                <tbody id="mappings-tbody">
+                    {% for mapping in panel.role_mappings %}
+                    <tr data-row-index="{{ loop.index0 }}">
+                        <td>
+                            <div class="emoji-picker-wrapper">
+                                <input type="hidden" data-col="emoji_id" value="{{ mapping.emoji_id or '' }}">
+                                <button type="button" class="btn btn-secondary btn-sm emoji-picker-btn" onclick="toggleEmojiPicker(this)">
+                                    <span class="emoji-preview">
+                                        {% if mapping.emoji_id %}
+                                        {% for em in emojis if em.id == mapping.emoji_id|string %}
+                                        <img src="{{ em.url }}" alt="{{ mapping.emoji }}" class="emoji-preview-img">
+                                        {% endfor %}
+                                        {% else %}
+                                        {{ mapping.emoji }}
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                <input type="hidden" data-col="emoji" value="{{ mapping.emoji }}">
+                            </div>
+                        </td>
+                        <td>
+                            <select class="select select-sm" data-col="role_id">
+                                <option value="">{{ _('ui.panels.select', lang) }}</option>
+                                {% for role in roles %}
+                                <option value="{{ role.id }}" {% if mapping.role_id|string == role.id %}selected{% endif %}>@{{ role.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input
+                                type="text"
+                                class="input input-sm"
+                                data-col="display_name"
+                                value="{{ mapping.display_name or '' }}"
+                                placeholder="{{ _('ui.panels.custom_display_name', lang) }}"
+                            >
+                        </td>
+                        <td class="actions-col">
+                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Move up">&#9650;</button>
+                            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Move down">&#9660;</button>
+                            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Delete">&#10005;</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addMappingRow()">{{ _('ui.panels.add_mapping', lang) }}</button>
+            <input type="hidden" name="role_mappings" id="role-mappings-input" value="{{ panel.role_mappings | tojson }}">
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+            <button
+                type="button"
+                class="btn btn-secondary"
+                hx-get="{{ root_path }}/guild/{{ guild_id }}/panels"
+                hx-target="#panels-section"
+                hx-swap="outerHTML"
+            >
+                {{ _('ui.panels.cancel', lang) }}
+            </button>
+            <button type="submit" class="btn btn-primary" onclick="prepareMappingsSubmit()">{{ _('ui.panels.save', lang) }}</button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Store roles and emojis data for adding new rows
+window.panelRoles = {{ roles | tojson }};
+window.guildEmojis = {{ emojis | tojson }};
+
+// i18n strings
+window.i18n = {
+    pickEmoji: "{{ _('ui.panels.pick_emoji', lang) }}",
+    selectRole: "{{ _('ui.panels.select', lang) }}",
+    serverEmojis: "{{ _('ui.panels.server_emojis', lang) }}",
+    commonEmojis: "{{ _('ui.panels.common_emojis', lang) }}",
+    customDisplayName: "{{ _('ui.panels.custom_display_name', lang) }}"
+};
+
+// Common Unicode emojis for quick selection
+window.commonEmojis = [
+    '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟',
+    '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚫', '⚪', '🩷',
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💗',
+    '⭐', '🌟', '✨', '💫', '🌙', '☀️', '🌈', '🔥', '💧', '🍀',
+    '✅', '❌', '⬆️', '⬇️', '➡️', '⬅️', '🎮', '🎵', '🎨', '📚',
+    '👍', '👎', '👋', '✋', '🤚', '🖐️', '✌️', '🤞', '🤟', '🤘',
+];
+
+let activeEmojiPicker = null;
+
+// Toggle exclusive panel options visibility
+function toggleExclusiveOptions() {
+    const panelType = document.getElementById('edit-panel-type').value;
+    const exclusiveOptions = document.getElementById('exclusive-options');
+    if (panelType === 'exclusive') {
+        exclusiveOptions.style.display = '';
+    } else {
+        exclusiveOptions.style.display = 'none';
+    }
+}
+
+// Required Roles Management
+function addRequiredRole(selectEl) {
+    const roleId = selectEl.value;
+    if (!roleId) return;
+
+    const role = window.panelRoles.find(r => r.id === roleId);
+    if (!role) return;
+
+    const list = document.getElementById('required-roles-list');
+    const input = document.getElementById('required-roles-input');
+    let roles = JSON.parse(input.value || '[]');
+
+    // Check if already added
+    if (roles.includes(parseInt(roleId))) {
+        selectEl.value = '';
+        return;
+    }
+
+    roles.push(parseInt(roleId));
+    input.value = JSON.stringify(roles);
+
+    // Add chip
+    const chip = document.createElement('span');
+    chip.className = 'role-chip';
+    chip.dataset.roleId = roleId;
+    chip.innerHTML = `@${role.name} <button type="button" class="chip-remove" onclick="removeRequiredRole('${roleId}')">&times;</button>`;
+    list.appendChild(chip);
+
+    selectEl.value = '';
+}
+
+function removeRequiredRole(roleId) {
+    const input = document.getElementById('required-roles-input');
+    let roles = JSON.parse(input.value || '[]');
+    roles = roles.filter(id => id !== parseInt(roleId));
+    input.value = JSON.stringify(roles);
+
+    const chip = document.querySelector(`.role-chip[data-role-id="${roleId}"]`);
+    if (chip) chip.remove();
+}
+
+// Role Mappings Management
+function addMappingRow() {
+    const tbody = document.getElementById('mappings-tbody');
+    const rowIndex = tbody.children.length;
+
+    const rolesOptions = window.panelRoles.map(r =>
+        `<option value="${r.id}">@${r.name}</option>`
+    ).join('');
+
+    const tr = document.createElement('tr');
+    tr.dataset.rowIndex = rowIndex;
+    tr.innerHTML = `
+        <td>
+            <div class="emoji-picker-wrapper">
+                <input type="hidden" data-col="emoji_id">
+                <button type="button" class="btn btn-secondary btn-sm emoji-picker-btn" onclick="toggleEmojiPicker(this)">
+                    <span class="emoji-preview">${window.i18n.pickEmoji}</span>
+                </button>
+                <input type="hidden" data-col="emoji">
+            </div>
+        </td>
+        <td>
+            <select class="select select-sm" data-col="role_id">
+                <option value="">${window.i18n.selectRole}</option>
+                ${rolesOptions}
+            </select>
+        </td>
+        <td>
+            <input type="text" class="input input-sm" data-col="display_name" placeholder="${window.i18n.customDisplayName}">
+        </td>
+        <td class="actions-col">
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Move up">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Move down">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Delete">&#10005;</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function moveRowUp(btn) {
+    const row = btn.closest('tr');
+    const prev = row.previousElementSibling;
+    if (prev) {
+        row.parentNode.insertBefore(row, prev);
+    }
+}
+
+function moveRowDown(btn) {
+    const row = btn.closest('tr');
+    const next = row.nextElementSibling;
+    if (next) {
+        row.parentNode.insertBefore(next, row);
+    }
+}
+
+function deleteRow(btn) {
+    const row = btn.closest('tr');
+    row.remove();
+}
+
+function prepareMappingsSubmit() {
+    // NOTE: Keep IDs as strings to avoid JavaScript precision loss on 64-bit Discord snowflakes
+    const tbody = document.getElementById('mappings-tbody');
+    const mappings = [];
+
+    for (const row of tbody.children) {
+        const emoji = row.querySelector('[data-col="emoji"]').value.trim();
+        const emojiId = row.querySelector('[data-col="emoji_id"]').value.trim();
+        const roleId = row.querySelector('[data-col="role_id"]').value;
+        const displayName = row.querySelector('[data-col="display_name"]').value.trim();
+
+        if (emoji && roleId) {
+            const mapping = {
+                emoji: emoji,
+                role_id: roleId  // Keep as string - Python will convert
+            };
+            if (emojiId) mapping.emoji_id = emojiId;  // Keep as string
+            if (displayName) mapping.display_name = displayName;
+            mappings.push(mapping);
+        }
+    }
+
+    document.getElementById('role-mappings-input').value = JSON.stringify(mappings);
+
+    // Collect embed config
+    const embedConfig = {};
+    const title = document.getElementById('embed-title').value.trim();
+    const description = document.getElementById('embed-description').value.trim();
+    const color = document.getElementById('embed-color').value.trim();
+    const showRoles = document.getElementById('embed-show-roles').checked;
+    const rolesFieldName = document.getElementById('embed-roles-field-name').value.trim();
+    const footer = document.getElementById('embed-footer').value.trim();
+
+    if (title) embedConfig.title = title;
+    if (description) embedConfig.description = description;
+    if (color) embedConfig.color = color;
+    embedConfig.show_roles = showRoles;
+    if (rolesFieldName) embedConfig.roles_field_name = rolesFieldName;
+    if (footer) embedConfig.footer = footer;
+
+    document.getElementById('embed-config-input').value = JSON.stringify(embedConfig);
+}
+
+function updateEmbedPreview() {
+    const title = document.getElementById('embed-title').value.trim();
+    const description = document.getElementById('embed-description').value.trim();
+    const color = document.getElementById('embed-color').value.trim() || '#5865F2';
+    const showRoles = document.getElementById('embed-show-roles').checked;
+    const rolesFieldName = document.getElementById('embed-roles-field-name').value.trim();
+
+    const previewTitle = document.getElementById('preview-title');
+    const previewDescription = document.getElementById('preview-description');
+    const previewRolesField = document.getElementById('preview-roles-field');
+    const previewRolesFieldName = document.getElementById('preview-roles-field-name');
+    const preview = document.getElementById('embed-preview');
+
+    previewTitle.textContent = title || document.getElementById('edit-panel-name').value || 'Panel Title';
+    previewDescription.textContent = description || '';
+    previewDescription.style.display = description ? 'block' : 'none';
+    if (previewRolesField) {
+        previewRolesField.style.display = showRoles ? 'block' : 'none';
+    }
+    if (previewRolesFieldName) {
+        previewRolesFieldName.textContent = rolesFieldName;
+        previewRolesFieldName.style.display = rolesFieldName ? 'block' : 'none';
+    }
+    preview.style.borderLeftColor = color;
+}
+
+// Emoji Picker Functions
+function toggleEmojiPicker(btn) {
+    closeEmojiPicker();
+
+    // Create picker dropdown and append to body (avoids overflow clipping)
+    const picker = document.createElement('div');
+    picker.className = 'emoji-picker-dropdown';
+    picker.innerHTML = buildEmojiPickerContent();
+
+    document.body.appendChild(picker);
+
+    // Position the picker below the button
+    const rect = btn.getBoundingClientRect();
+    picker.style.position = 'fixed';
+    picker.style.top = (rect.bottom + 4) + 'px';
+    picker.style.left = rect.left + 'px';
+
+    // Ensure picker doesn't go off-screen
+    const pickerRect = picker.getBoundingClientRect();
+    if (pickerRect.right > window.innerWidth) {
+        picker.style.left = (window.innerWidth - pickerRect.width - 8) + 'px';
+    }
+    if (pickerRect.bottom > window.innerHeight) {
+        picker.style.top = (rect.top - pickerRect.height - 4) + 'px';
+    }
+
+    activeEmojiPicker = { picker, btn };
+
+    setTimeout(() => {
+        document.addEventListener('click', closeOnOutsideClick);
+    }, 0);
+}
+
+function closeEmojiPicker() {
+    if (activeEmojiPicker) {
+        activeEmojiPicker.picker.remove();
+        document.removeEventListener('click', closeOnOutsideClick);
+        activeEmojiPicker = null;
+    }
+}
+
+function closeOnOutsideClick(e) {
+    if (activeEmojiPicker && !activeEmojiPicker.picker.contains(e.target) && e.target !== activeEmojiPicker.btn) {
+        closeEmojiPicker();
+    }
+}
+
+function buildEmojiPickerContent() {
+    let html = '<div class="emoji-picker-content">';
+
+    if (window.guildEmojis && window.guildEmojis.length > 0) {
+        html += `<div class="emoji-section"><div class="emoji-section-title">${window.i18n.serverEmojis}</div><div class="emoji-grid">`;
+        for (const emoji of window.guildEmojis) {
+            html += `<button type="button" class="emoji-item" onclick="selectEmoji('${emoji.name}', '${emoji.id}', '${emoji.url}')" title=":${emoji.name}:">
+                <img src="${emoji.url}" alt="${emoji.name}" class="emoji-img">
+            </button>`;
+        }
+        html += '</div></div>';
+    }
+
+    html += `<div class="emoji-section"><div class="emoji-section-title">${window.i18n.commonEmojis}</div><div class="emoji-grid">`;
+    for (const emoji of window.commonEmojis) {
+        html += `<button type="button" class="emoji-item" onclick="selectEmoji('${emoji}', '', '')">${emoji}</button>`;
+    }
+    html += '</div></div>';
+
+    html += '</div>';
+    return html;
+}
+
+function selectEmoji(emoji, emojiId, emojiUrl) {
+    if (!activeEmojiPicker) return;
+
+    const btn = activeEmojiPicker.btn;
+    const wrapper = btn.parentElement;
+    const emojiInput = wrapper.querySelector('[data-col="emoji"]');
+    const emojiIdInput = wrapper.querySelector('[data-col="emoji_id"]');
+    const preview = btn.querySelector('.emoji-preview');
+
+    emojiInput.value = emoji;
+    emojiIdInput.value = emojiId || '';
+
+    if (emojiUrl) {
+        preview.innerHTML = `<img src="${emojiUrl}" alt="${emoji}" class="emoji-preview-img">`;
+    } else {
+        preview.textContent = emoji;
+    }
+
+    closeEmojiPicker();
+}
+
+// Parse custom emoji format on input
+document.querySelectorAll('.emoji-input').forEach(input => {
+    input.addEventListener('blur', function() {
+        const value = this.value.trim();
+        const customEmojiMatch = value.match(/^<a?:(\w+):(\d+)>$/);
+        if (customEmojiMatch) {
+            this.value = customEmojiMatch[1];
+            const emojiIdInput = this.parentNode.querySelector('[data-col="emoji_id"]');
+            if (emojiIdInput) {
+                emojiIdInput.value = customEmojiMatch[2];
+            }
+        }
+    });
+});
+</script>
+
+<style>
+.panel-edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.panel-edit-header h3 {
+    margin: 0;
+}
+
+.panel-edit-section {
+    background: var(--bg-tertiary);
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.panel-edit-section h4 {
+    margin: 0 0 12px 0;
+}
+
+.section-description {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 12px;
+}
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.form-row .form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.roles-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    min-height: 32px;
+}
+
+.role-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-secondary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.chip-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 1.1em;
+}
+
+.chip-remove:hover {
+    color: var(--error);
+}
+
+.mappings-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+}
+
+.mappings-table th,
+.mappings-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.mappings-table th {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.mappings-table .actions-col {
+    width: 100px;
+    text-align: center;
+}
+
+.emoji-input {
+    width: 120px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+.textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.embed-preview-wrapper {
+    margin-top: 16px;
+}
+
+.embed-preview-label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.discord-embed-preview {
+    background: var(--bg-secondary);
+    border-left: 4px solid #5865F2;
+    border-radius: 4px;
+    padding: 12px 16px;
+    max-width: 520px;
+}
+
+.embed-title {
+    font-weight: 600;
+    font-size: 1em;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.embed-description {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+}
+
+.embed-field {
+    margin-bottom: 8px;
+}
+
+.embed-field-name {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.embed-field-value {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.embed-footer {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+/* Emoji Picker Styles */
+.emoji-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.emoji-picker-btn {
+    min-width: 100px;
+    text-align: center;
+}
+
+.emoji-preview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.emoji-preview-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.emoji-picker-dropdown {
+    position: fixed;
+    z-index: 10000;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    min-width: 300px;
+    max-width: 340px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.emoji-picker-content {
+    padding: 8px;
+}
+
+.emoji-section {
+    margin-bottom: 12px;
+}
+
+.emoji-section:last-child {
+    margin-bottom: 0;
+}
+
+.emoji-section-title {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    padding: 0 4px;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+}
+
+.emoji-item {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.1s;
+}
+
+.emoji-item:hover {
+    background: var(--bg-secondary);
+}
+
+.emoji-img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+</style>

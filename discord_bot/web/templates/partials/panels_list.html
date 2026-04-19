@@ -1,0 +1,882 @@
+<div class="panels-section" id="panels-section">
+    <div class="panels-header">
+        <h3>{{ _('ui.panels.title', lang) }}</h3>
+        <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            onclick="showCreatePanelForm()"
+        >
+            {{ _('ui.panels.create_button', lang) }}
+        </button>
+    </div>
+
+    <!-- Create Panel Form (hidden by default) -->
+    <div id="create-panel-form" class="panel-form panel-form-full" style="display: none;">
+        <h4>{{ _('ui.panels.create_title', lang) }}</h4>
+        <form
+            hx-post="{{ root_path }}/guild/{{ guild_id }}/panels/create"
+            hx-target="#panels-section"
+            hx-swap="outerHTML"
+            onsubmit="prepareCreateSubmit()"
+        >
+            <!-- Basic Settings -->
+            <div class="panel-edit-section">
+                <h5>{{ _('ui.panels.basic_settings', lang) }}</h5>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="new-panel-name">{{ _('ui.panels.panel_name', lang) }}</label>
+                        <input
+                            type="text"
+                            id="new-panel-name"
+                            name="name"
+                            class="input"
+                            maxlength="100"
+                            required
+                            placeholder="{{ _('ui.panels.panel_name_placeholder', lang) }}"
+                        >
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="new-panel-type">{{ _('ui.panels.panel_type', lang) }}</label>
+                        <select id="new-panel-type" name="panel_type" class="select" required onchange="toggleCreateExclusiveOptions()">
+                            {% for pt in panel_types %}
+                            <option value="{{ pt.value }}">{{ pt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <!-- Exclusive Panel Options -->
+                <div id="create-exclusive-options" class="form-row" style="display: none;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="exclusive_require_existing">
+                        {{ _('ui.panels.exclusive_require_existing', lang) }}
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="new-panel-channel">{{ _('ui.panels.channel', lang) }}</label>
+                    <select id="new-panel-channel" name="channel_id" class="select" required>
+                        <option value="">{{ _('ui.panels.select_channel', lang) }}</option>
+                        {% for ch in channels %}
+                        <option value="{{ ch.id }}">#{{ ch.name }}{% if ch.category %} ({{ ch.category }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Embed Configuration -->
+            <div class="panel-edit-section">
+                <h5>{{ _('ui.panels.embed_appearance', lang) }}</h5>
+                <p class="section-description">{{ _('ui.panels.embed_description', lang) }}</p>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="new-embed-title">{{ _('ui.panels.title_field', lang) }}</label>
+                        <input
+                            type="text"
+                            id="new-embed-title"
+                            class="input"
+                            maxlength="256"
+                            placeholder="{{ _('ui.panels.title_placeholder', lang) }}"
+                            oninput="updateCreatePreview()"
+                        >
+                    </div>
+                    <div class="form-group" style="flex: 0 0 160px;">
+                        <label for="new-embed-color">{{ _('ui.panels.color', lang) }}</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input
+                                type="color"
+                                id="new-embed-color-picker"
+                                value="#5865F2"
+                                style="width: 38px; height: 38px; padding: 0; border: none; cursor: pointer; border-radius: 4px;"
+                                oninput="document.getElementById('new-embed-color').value = this.value; updateCreatePreview()"
+                            >
+                            <input
+                                type="text"
+                                id="new-embed-color"
+                                class="input"
+                                placeholder="#5865F2"
+                                maxlength="7"
+                                style="flex: 1;"
+                                oninput="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)) document.getElementById('new-embed-color-picker').value = this.value; updateCreatePreview()"
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="new-embed-description">{{ _('ui.panels.description_field', lang) }}</label>
+                    <textarea
+                        id="new-embed-description"
+                        class="textarea"
+                        rows="2"
+                        placeholder="{{ _('ui.panels.description_placeholder', lang) }}"
+                        oninput="updateCreatePreview()"
+                    ></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input
+                                type="checkbox"
+                                id="new-embed-show-roles"
+                                checked
+                                onchange="updateCreatePreview()"
+                            >
+                            {{ _('ui.panels.show_roles', lang) }}
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-embed-roles-field-name">{{ _('ui.panels.roles_field_name', lang) }}</label>
+                        <input
+                            type="text"
+                            id="new-embed-roles-field-name"
+                            class="input"
+                            maxlength="256"
+                            placeholder="Roles"
+                            oninput="updateCreatePreview()"
+                        >
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="new-embed-footer">{{ _('ui.panels.footer', lang) }}</label>
+                    <input
+                        type="text"
+                        id="new-embed-footer"
+                        class="input"
+                        maxlength="2048"
+                        placeholder="{{ _('ui.panels.footer_placeholder', lang) }}"
+                        oninput="updateCreatePreview()"
+                    >
+                </div>
+                <input type="hidden" name="embed_config" id="new-embed-config-input" value="{}">
+            </div>
+
+            <!-- Role Mappings -->
+            <div class="panel-edit-section">
+                <h5>{{ _('ui.panels.role_mappings', lang) }}</h5>
+                <p class="section-description">{{ _('ui.panels.role_mappings_description', lang) }} {{ _('ui.panels.click_emoji_description', lang) }}</p>
+                <div class="config-table-wrapper">
+                    <table class="config-table" id="new-mappings-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 140px;">{{ _('ui.panels.emoji', lang) }}</th>
+                                <th>{{ _('ui.panels.role', lang) }}</th>
+                                <th>{{ _('ui.panels.display_name', lang) }}</th>
+                                <th style="width: 80px;">{{ _('ui.panels.actions', lang) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="new-mappings-tbody">
+                        </tbody>
+                    </table>
+                    <div class="config-table-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addNewMappingRow()">{{ _('ui.panels.add_role', lang) }}</button>
+                    </div>
+                </div>
+                <input type="hidden" name="role_mappings" id="new-role-mappings-input" value="[]">
+            </div>
+
+            <!-- DM Settings -->
+            <div class="panel-edit-section">
+                <h5>{{ _('ui.panels.dm_notifications', lang) }}</h5>
+                <div class="form-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="dm_on_missing_role">
+                        {{ _('ui.panels.dm_missing_role', lang) }}
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="dm_on_role_change">
+                        {{ _('ui.panels.dm_role_change', lang) }}
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideCreatePanelForm()">{{ _('ui.panels.cancel', lang) }}</button>
+                <button type="submit" class="btn btn-primary">{{ _('ui.panels.create', lang) }}</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Panels List -->
+    {% if panels %}
+    <div class="panels-list">
+        {% for panel in panels %}
+        <div class="panel-card" data-panel-id="{{ panel.id }}">
+            <div class="panel-card-header">
+                <span class="panel-name">{{ panel.name }}</span>
+                <span class="panel-type badge badge-{{ panel.panel_type }}">{{ _('ui.panels.panel_types.' ~ panel.panel_type, lang) }}</span>
+            </div>
+            <div class="panel-card-body">
+                <div class="panel-info">
+                    <span class="panel-channel">#{{ panel.channel_name }}</span>
+                    <span class="panel-mappings">{% if panel.mappings_count == 1 %}{{ _('ui.panels.role_count', lang)|replace('{count}', panel.mappings_count|string) }}{% else %}{{ _('ui.panels.roles_count', lang)|replace('{count}', panel.mappings_count|string) }}{% endif %}</span>
+                    <span class="panel-status {% if panel.is_posted %}status-posted{% else %}status-draft{% endif %}">
+                        {% if panel.is_posted %}{{ _('ui.panels.posted', lang) }}{% else %}{{ _('ui.panels.draft', lang) }}{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="panel-card-actions">
+                <label class="toggle-switch">
+                    <input
+                        type="checkbox"
+                        {% if panel.is_posted %}checked{% endif %}
+                        {% if panel.mappings_count == 0 %}disabled{% endif %}
+                        hx-post="{{ root_path }}/guild/{{ guild_id }}/panels/{{ panel.id }}/{% if panel.is_posted %}unpost{% else %}post{% endif %}"
+                        hx-target="#panels-section"
+                        hx-swap="outerHTML"
+                    >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">{% if panel.is_posted %}{{ _('ui.panels.active', lang) }}{% else %}{{ _('ui.panels.inactive', lang) }}{% endif %}</span>
+                </label>
+                <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    hx-get="{{ root_path }}/guild/{{ guild_id }}/panels/{{ panel.id }}/edit"
+                    hx-target="#panels-section"
+                    hx-swap="outerHTML"
+                >
+                    {{ _('ui.panels.edit', lang) }}
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-danger btn-sm"
+                    hx-post="{{ root_path }}/guild/{{ guild_id }}/panels/{{ panel.id }}/delete"
+                    hx-target="#panels-section"
+                    hx-swap="outerHTML"
+                    hx-confirm="{{ _('ui.panels.delete_confirm', lang) }}"
+                >
+                    {{ _('ui.panels.delete', lang) }}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="panels-empty">
+        <p>{{ _('ui.panels.no_panels', lang) }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Store roles and emojis data for the create form
+window.createFormRoles = {{ roles | tojson }};
+window.guildEmojis = {{ emojis | tojson }};
+
+// i18n strings
+window.i18n = {
+    pickEmoji: "{{ _('ui.panels.pick_emoji', lang) }}",
+    selectRole: "{{ _('ui.panels.select_role', lang) }}",
+    serverEmojis: "{{ _('ui.panels.server_emojis', lang) }}",
+    commonEmojis: "{{ _('ui.panels.common_emojis', lang) }}"
+};
+
+// Common Unicode emojis for quick selection
+window.commonEmojis = [
+    '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟',
+    '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚫', '⚪', '🩷',
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💗',
+    '⭐', '🌟', '✨', '💫', '🌙', '☀️', '🌈', '🔥', '💧', '🍀',
+    '✅', '❌', '⬆️', '⬇️', '➡️', '⬅️', '🎮', '🎵', '🎨', '📚',
+    '👍', '👎', '👋', '✋', '🤚', '🖐️', '✌️', '🤞', '🤟', '🤘',
+];
+
+let activeEmojiPicker = null;
+
+function showCreatePanelForm() {
+    document.getElementById('create-panel-form').style.display = 'block';
+    // Add one empty row by default
+    if (document.getElementById('new-mappings-tbody').children.length === 0) {
+        addNewMappingRow();
+    }
+    // Check if exclusive type is selected and show options
+    toggleCreateExclusiveOptions();
+}
+
+function toggleCreateExclusiveOptions() {
+    const panelType = document.getElementById('new-panel-type').value;
+    const exclusiveOptions = document.getElementById('create-exclusive-options');
+    if (panelType === 'exclusive') {
+        exclusiveOptions.style.display = '';
+    } else {
+        exclusiveOptions.style.display = 'none';
+    }
+}
+
+function hideCreatePanelForm() {
+    document.getElementById('create-panel-form').style.display = 'none';
+}
+
+function addNewMappingRow() {
+    const tbody = document.getElementById('new-mappings-tbody');
+    const rowIndex = tbody.children.length;
+
+    const row = document.createElement('tr');
+    row.dataset.rowIndex = rowIndex;
+
+    // Build role options
+    let roleOptions = `<option value="">${window.i18n.selectRole}</option>`;
+    for (const role of window.createFormRoles) {
+        const colorStyle = role.color ? `style="color: ${role.color}"` : '';
+        roleOptions += `<option value="${role.id}" ${colorStyle}>@${role.name}</option>`;
+    }
+
+    row.innerHTML = `
+        <td>
+            <div class="emoji-picker-wrapper">
+                <input type="hidden" data-col="emoji_id">
+                <button type="button" class="btn btn-secondary btn-sm emoji-picker-btn" onclick="toggleEmojiPicker(this)">
+                    <span class="emoji-preview">${window.i18n.pickEmoji}</span>
+                </button>
+                <input type="hidden" data-col="emoji">
+            </div>
+        </td>
+        <td>
+            <select class="select select-sm" data-col="role_id">${roleOptions}</select>
+        </td>
+        <td>
+            <input type="text" class="input input-sm" data-col="display_name" placeholder="(optional)">
+        </td>
+        <td class="actions-col">
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowUp(this)" title="Move up">&#9650;</button>
+            <button type="button" class="btn btn-icon btn-sm" onclick="moveRowDown(this)" title="Move down">&#9660;</button>
+            <button type="button" class="btn btn-icon btn-sm btn-danger" onclick="deleteRow(this)" title="Delete">&#10005;</button>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+}
+
+function toggleEmojiPicker(btn) {
+    // Close any open picker
+    closeEmojiPicker();
+
+    // Create picker dropdown and append to body (avoids overflow clipping)
+    const picker = document.createElement('div');
+    picker.className = 'emoji-picker-dropdown';
+    picker.innerHTML = buildEmojiPickerContent();
+
+    document.body.appendChild(picker);
+
+    // Position the picker below the button
+    const rect = btn.getBoundingClientRect();
+    picker.style.position = 'fixed';
+    picker.style.top = (rect.bottom + 4) + 'px';
+    picker.style.left = rect.left + 'px';
+
+    // Ensure picker doesn't go off-screen
+    const pickerRect = picker.getBoundingClientRect();
+    if (pickerRect.right > window.innerWidth) {
+        picker.style.left = (window.innerWidth - pickerRect.width - 8) + 'px';
+    }
+    if (pickerRect.bottom > window.innerHeight) {
+        picker.style.top = (rect.top - pickerRect.height - 4) + 'px';
+    }
+
+    activeEmojiPicker = { picker, btn };
+
+    // Close on outside click
+    setTimeout(() => {
+        document.addEventListener('click', closeOnOutsideClick);
+    }, 0);
+}
+
+function closeEmojiPicker() {
+    if (activeEmojiPicker) {
+        activeEmojiPicker.picker.remove();
+        document.removeEventListener('click', closeOnOutsideClick);
+        activeEmojiPicker = null;
+    }
+}
+
+function closeOnOutsideClick(e) {
+    if (activeEmojiPicker && !activeEmojiPicker.picker.contains(e.target) && e.target !== activeEmojiPicker.btn) {
+        closeEmojiPicker();
+    }
+}
+
+function buildEmojiPickerContent() {
+    let html = '<div class="emoji-picker-content">';
+
+    // Guild custom emojis section
+    if (window.guildEmojis && window.guildEmojis.length > 0) {
+        html += `<div class="emoji-section"><div class="emoji-section-title">${window.i18n.serverEmojis}</div><div class="emoji-grid">`;
+        for (const emoji of window.guildEmojis) {
+            html += `<button type="button" class="emoji-item" onclick="selectEmoji('${emoji.name}', '${emoji.id}', '${emoji.url}')" title=":${emoji.name}:">
+                <img src="${emoji.url}" alt="${emoji.name}" class="emoji-img">
+            </button>`;
+        }
+        html += '</div></div>';
+    }
+
+    // Common Unicode emojis
+    html += `<div class="emoji-section"><div class="emoji-section-title">${window.i18n.commonEmojis}</div><div class="emoji-grid">`;
+    for (const emoji of window.commonEmojis) {
+        html += `<button type="button" class="emoji-item" onclick="selectEmoji('${emoji}', '', '')">${emoji}</button>`;
+    }
+    html += '</div></div>';
+
+    html += '</div>';
+    return html;
+}
+
+function selectEmoji(emoji, emojiId, emojiUrl) {
+    if (!activeEmojiPicker) return;
+
+    const btn = activeEmojiPicker.btn;
+    const wrapper = btn.parentElement;
+    const emojiInput = wrapper.querySelector('[data-col="emoji"]');
+    const emojiIdInput = wrapper.querySelector('[data-col="emoji_id"]');
+    const preview = btn.querySelector('.emoji-preview');
+
+    emojiInput.value = emoji;
+    emojiIdInput.value = emojiId || '';
+
+    if (emojiUrl) {
+        preview.innerHTML = `<img src="${emojiUrl}" alt="${emoji}" class="emoji-preview-img">`;
+    } else {
+        preview.textContent = emoji;
+    }
+
+    closeEmojiPicker();
+}
+
+function moveRowUp(btn) {
+    const row = btn.closest('tr');
+    const prev = row.previousElementSibling;
+    if (prev) {
+        row.parentNode.insertBefore(row, prev);
+    }
+}
+
+function moveRowDown(btn) {
+    const row = btn.closest('tr');
+    const next = row.nextElementSibling;
+    if (next) {
+        row.parentNode.insertBefore(next, row);
+    }
+}
+
+function deleteRow(btn) {
+    const row = btn.closest('tr');
+    row.remove();
+}
+
+function prepareCreateSubmit() {
+    // Collect role mappings
+    // NOTE: Keep IDs as strings to avoid JavaScript precision loss on 64-bit Discord snowflakes
+    const tbody = document.getElementById('new-mappings-tbody');
+    const mappings = [];
+
+    for (const row of tbody.children) {
+        const emoji = row.querySelector('[data-col="emoji"]').value.trim();
+        const emojiId = row.querySelector('[data-col="emoji_id"]').value.trim();
+        const roleId = row.querySelector('[data-col="role_id"]').value;
+        const displayName = row.querySelector('[data-col="display_name"]').value.trim();
+
+        if (emoji && roleId) {
+            const mapping = {
+                emoji: emoji,
+                role_id: roleId  // Keep as string - Python will convert
+            };
+            if (emojiId) mapping.emoji_id = emojiId;  // Keep as string
+            if (displayName) mapping.display_name = displayName;
+            mappings.push(mapping);
+        }
+    }
+
+    document.getElementById('new-role-mappings-input').value = JSON.stringify(mappings);
+
+    // Collect embed config
+    const embedConfig = {};
+    const title = document.getElementById('new-embed-title').value.trim();
+    const description = document.getElementById('new-embed-description').value.trim();
+    const color = document.getElementById('new-embed-color').value.trim();
+    const showRoles = document.getElementById('new-embed-show-roles').checked;
+    const rolesFieldName = document.getElementById('new-embed-roles-field-name').value.trim();
+    const footer = document.getElementById('new-embed-footer').value.trim();
+
+    if (title) embedConfig.title = title;
+    if (description) embedConfig.description = description;
+    if (color) embedConfig.color = color;
+    embedConfig.show_roles = showRoles;
+    if (rolesFieldName) embedConfig.roles_field_name = rolesFieldName;
+    if (footer) embedConfig.footer = footer;
+
+    document.getElementById('new-embed-config-input').value = JSON.stringify(embedConfig);
+}
+
+function updateCreatePreview() {
+    // Optional: could add a live preview here
+}
+</script>
+
+<style>
+.panels-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.panels-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.panels-header h3 {
+    margin: 0;
+}
+
+.panel-form {
+    background: var(--bg-tertiary);
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.panel-form h4 {
+    margin: 0 0 16px 0;
+}
+
+.panel-form-full h5 {
+    margin: 0 0 12px 0;
+    font-size: 1em;
+    color: var(--text-primary);
+}
+
+.panel-edit-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-edit-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.section-description {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    margin: 0 0 12px 0;
+}
+
+.form-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.form-group {
+    margin-bottom: 12px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin-right: 24px;
+}
+
+.config-table-wrapper {
+    overflow-x: auto;
+}
+
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.config-table th,
+.config-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.config-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.config-table-actions {
+    margin-top: 8px;
+}
+
+.actions-col {
+    white-space: nowrap;
+}
+
+.emoji-input {
+    width: 80px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.panels-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.panel-card {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.panel-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.panel-name {
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.panel-type {
+    font-size: 0.8em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: capitalize;
+}
+
+.badge-toggle {
+    background: #5865f2;
+    color: white;
+}
+
+.badge-exclusive {
+    background: #ed4245;
+    color: white;
+}
+
+.badge-verify {
+    background: #57f287;
+    color: black;
+}
+
+.panel-info {
+    display: flex;
+    gap: 16px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.panel-status {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.status-posted {
+    background: #57f287;
+    color: black;
+}
+
+.status-draft {
+    background: #faa61a;
+    color: black;
+}
+
+.panel-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    align-items: center;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-switch input {
+    display: none;
+}
+
+.toggle-slider {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: #57f287;
+    border-color: #57f287;
+}
+
+.toggle-switch input:checked + .toggle-slider::after {
+    transform: translateX(20px);
+    background: white;
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-switch:has(input:disabled) {
+    cursor: not-allowed;
+}
+
+.toggle-label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    min-width: 50px;
+}
+
+.toggle-switch input:checked ~ .toggle-label {
+    color: #57f287;
+}
+
+.panels-empty {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-muted);
+}
+
+/* Emoji Picker Styles */
+.emoji-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.emoji-picker-btn {
+    min-width: 100px;
+    text-align: center;
+}
+
+.emoji-preview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.emoji-preview-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.emoji-picker-dropdown {
+    position: fixed;
+    z-index: 10000;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    min-width: 300px;
+    max-width: 340px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.emoji-picker-content {
+    padding: 8px;
+}
+
+.emoji-section {
+    margin-bottom: 12px;
+}
+
+.emoji-section:last-child {
+    margin-bottom: 0;
+}
+
+.emoji-section-title {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    padding: 0 4px;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+}
+
+.emoji-item {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.1s;
+}
+
+.emoji-item:hover {
+    background: var(--bg-secondary);
+}
+
+.emoji-img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+</style>

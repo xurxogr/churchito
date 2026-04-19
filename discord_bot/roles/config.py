@@ -1,0 +1,240 @@
+"""Configuration and schema for the roles cog."""
+
+from discord_bot.common.enums.config_option_type import ConfigOptionType
+from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
+from discord_bot.common.schemas.config_option import ConfigOption
+from discord_bot.roles.enums import ConfigKey
+
+COG_NAME = "roles"
+
+ROLES_CONFIG_SCHEMA = CogConfigSchema(
+    cog_name=COG_NAME,
+    display_name="Reaction Roles",
+    description="Self-assignable roles via reaction panels",
+    icon="🎭",
+    options=[
+        # ===== 1. GENERAL =====
+        ConfigOption(
+            key=ConfigKey.COMMAND_PREFIX,
+            name="Command prefix",
+            description=(
+                "Prefix for role commands. Default: 'roles' (e.g., /roles create, /roles add_role)"
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="roles",
+            max_length=32,
+            group="General",
+        ),
+        # ===== 2. PERMISSIONS =====
+        ConfigOption(
+            key=ConfigKey.MANAGE_ROLES,
+            name="Manage roles permission",
+            description="Roles that can create, edit, and delete reaction panels",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Permissions",
+        ),
+        # ===== 3. AUDIT CHANNEL =====
+        ConfigOption(
+            key=ConfigKey.AUDIT_CHANNEL,
+            name="Audit channel",
+            description="Channel for audit notifications (panel changes, role assignments)",
+            option_type=ConfigOptionType.CHANNEL,
+            default=None,
+            group="Audit",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_CREATED,
+            name="Notify on panel created",
+            description="Send notification when a panel is created",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=True,
+            group="Audit",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_EDITED,
+            name="Notify on panel edited",
+            description="Send notification when a panel is edited",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=True,
+            group="Audit",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_DELETED,
+            name="Notify on panel deleted",
+            description="Send notification when a panel is deleted",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=True,
+            group="Audit",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_USER_ROLE_ADD,
+            name="Notify on user role add",
+            description="Send notification when a user gains a role via reaction",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Audit",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_USER_ROLE_REMOVE,
+            name="Notify on user role remove",
+            description="Send notification when a user loses a role via reaction",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Audit",
+        ),
+        # ===== 4. AUDIT MESSAGES =====
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_CREATED_MSG,
+            name="Panel created message",
+            description="Audit message for panel creation",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="**Panel Created:** {panel_name} by {user_mention}",
+            max_length=500,
+            placeholders=[
+                "panel_name",
+                "panel_type",
+                "channel_mention",
+                "user_mention",
+                "created_at",
+            ],
+            group="Audit Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_EDITED_MSG,
+            name="Panel edited message",
+            description="Audit message for panel edit",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="**Panel Edited:** {panel_name} by {user_mention}",
+            max_length=500,
+            placeholders=[
+                "panel_name",
+                "panel_type",
+                "channel_mention",
+                "user_mention",
+            ],
+            group="Audit Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_PANEL_DELETED_MSG,
+            name="Panel deleted message",
+            description="Audit message for panel deletion",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="**Panel Deleted:** {panel_name} by {user_mention}",
+            max_length=500,
+            placeholders=[
+                "panel_name",
+                "user_mention",
+            ],
+            group="Audit Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_USER_ROLE_ADD_MSG,
+            name="User role added message",
+            description="Audit message when user gains role",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="{user_name} gained role {role_name} via {panel_name}",
+            max_length=500,
+            placeholders=[
+                "user_name",
+                "user_mention",
+                "role_name",
+                "role_mention",
+                "panel_name",
+            ],
+            group="Audit Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUDIT_USER_ROLE_REMOVE_MSG,
+            name="User role removed message",
+            description="Audit message when user loses role",
+            option_type=ConfigOptionType.TEXTAREA,
+            default="{user_name} lost role {role_name} via {panel_name}",
+            max_length=500,
+            placeholders=[
+                "user_name",
+                "user_mention",
+                "role_name",
+                "role_mention",
+                "panel_name",
+            ],
+            group="Audit Messages",
+        ),
+        # ===== 5. USER DM MESSAGES =====
+        ConfigOption(
+            key=ConfigKey.DM_MISSING_ROLE_MSG,
+            name="Missing required role DM",
+            description=("DM sent when user lacks required role. Leave empty to disable."),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=None,
+            max_length=1000,
+            placeholders=[
+                "user_name",
+                "panel_name",
+                "required_roles",
+                "guild_name",
+            ],
+            group="User DM Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.DM_ROLE_ADDED_MSG,
+            name="Role added DM",
+            description=("DM sent when user gains a role. Leave empty to disable."),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=None,
+            max_length=1000,
+            placeholders=[
+                "user_name",
+                "role_name",
+                "role_mention",
+                "panel_name",
+                "guild_name",
+            ],
+            group="User DM Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.DM_ROLE_REMOVED_MSG,
+            name="Role removed DM",
+            description=("DM sent when user loses a role. Leave empty to disable."),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=None,
+            max_length=1000,
+            placeholders=[
+                "user_name",
+                "role_name",
+                "role_mention",
+                "panel_name",
+                "guild_name",
+            ],
+            group="User DM Messages",
+        ),
+        # ===== 6. ERROR MESSAGES =====
+        ConfigOption(
+            key=ConfigKey.NO_PERMISSION_TEXT,
+            name="No permission message",
+            description="Message when user lacks permission to manage panels",
+            option_type=ConfigOptionType.STRING,
+            default="You don't have permission to manage reaction panels.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.NOT_FOUND_TEXT,
+            name="Panel not found message",
+            description="Message when panel is not found",
+            option_type=ConfigOptionType.STRING,
+            default="Panel not found.",
+            max_length=200,
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.MISSING_REQUIRED_ROLE_TEXT,
+            name="Missing required role message",
+            description="Ephemeral response when user lacks required role (if DM disabled)",
+            option_type=ConfigOptionType.STRING,
+            default="You don't have the required role to use this panel.",
+            max_length=200,
+            group="Error Messages",
+        ),
+    ],
+)

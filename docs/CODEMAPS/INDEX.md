@@ -1,8 +1,8 @@
 # Discord Bot Codemaps Index
 
-<!-- Generated: 2026-04-10 | Files scanned: 114 | Token estimate: ~900 -->
+<!-- Generated: 2026-04-18 | Files scanned: 114 | Token estimate: ~900 -->
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-18
 **Version:** 1.1.0
 **Language:** Python 3.12+
 **Framework:** discord.py 2.x + FastAPI + SQLAlchemy 2.0
@@ -57,6 +57,12 @@ discord_bot/
 │   ├── models/                 # Stockpile ORM model
 │   ├── formatters.py           # Embed formatting
 │   └── config.py               # Config schema with sections
+├── roles/                      # Reaction roles module
+│   ├── cog.py                  # Commands + event handlers
+│   ├── service.py              # CRUD operations
+│   ├── models/                 # ReactionPanel ORM model
+│   ├── formatters.py           # Embed/message formatting
+│   └── config.py               # Config schema
 ├── autoname/                   # Automatic username management
 │   ├── cog.py                  # Auto-rename on join
 │   └── service.py              # Name formatting logic
@@ -87,6 +93,7 @@ Services encapsulate DB operations behind stable interfaces:
 # ConfigService -> GuildConfig model (get/set/delete)
 # VerificationService -> VerificationRequest model (CRUD)
 # StockpileService -> Stockpile model (CRUD)
+# ReactionRolesService -> ReactionPanel model (CRUD)
 ```
 
 ### Configuration
@@ -154,17 +161,25 @@ Template render / JSON response
 - Environment variable overrides
 - JSON config file (~/.config/discord-bot/config.json)
 
-## Recent Changes (Since 2026-03-27)
+## Recent Changes (Since 2026-04-10)
 
-**New Cog: Stockpile Management**
-- Fully featured stockpile CRUD with embed formatting
-- Config options organized into sections (General, Display, Notifications)
-- Comprehensive command set (/stockpile_add, /stockpile_show, /stockpile_delete)
+**Verification API Model (2026-04-18)**
+- Renamed `war` field to `war_number` to match OCR API response
+- Added `extra="forbid"` to Pydantic models for strict validation
+- Added `current_ingame_time` field to API response model
 
-**Verification Improvements**
-- Refactored mod message updates to preserve existing data
-- Regiment comparison using IDs (prevents OCR character issues)
-- Panel recreation prevention when disabled
+**Verification Placeholders (2026-04-18)**
+- Added `{user_display_name}` placeholder (plain text, fallback to username)
+- `format_message()` now converts literal `\n` to actual newlines
+
+**Tracker Embed (2026-04-18)**
+- Username is now the clickable link (instead of exposing internal ID)
+- Format: `[username](message_link) - status - time`
+
+**Previous Changes (2026-03-27 to 2026-04-10)**
+- Stockpile cog with full CRUD and embed formatting
+- Mod message updates preserve existing data
+- Regiment comparison using IDs
 
 ## Related Documentation
 
