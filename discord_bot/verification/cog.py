@@ -55,6 +55,8 @@ class VerificationCog(commands.Cog):
         self._health_check_started = False
         # Timers for screenshot timeout: request_id -> Task
         self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
+        # User locks to prevent race conditions on verification start
+        self._user_locks: dict[int, asyncio.Lock] = {}
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -63,6 +65,19 @@ class VerificationCog(commands.Cog):
             dict[str, dict[str, Any]]: Map of key -> {locked, reason}
         """
         return {}
+
+    async def get_user_lock(self, user_id: int) -> asyncio.Lock:
+        """Get or create a lock for a user to prevent race conditions.
+
+        Args:
+            user_id: Discord user ID
+
+        Returns:
+            asyncio.Lock: Lock for this user
+        """
+        if user_id not in self._user_locks:
+            self._user_locks[user_id] = asyncio.Lock()
+        return self._user_locks[user_id]
 
     async def cog_load(self) -> None:
         """Register persistent views and restore state when loading the cog."""

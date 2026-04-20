@@ -135,6 +135,28 @@ async def handle_verification_start(
 
     await interaction.response.defer(ephemeral=True)
 
+    # Acquire user lock to prevent race conditions from rapid clicks
+    lock = await cog.get_user_lock(user.id)
+    async with lock:
+        await _handle_verification_start_locked(cog, interaction, guild, user, verification_type)
+
+
+async def _handle_verification_start_locked(
+    cog: VerificationCog,
+    interaction: discord.Interaction,
+    guild: discord.Guild,
+    user: discord.User | discord.Member,
+    verification_type: VerificationType,
+) -> None:
+    """Handle verification start (locked section).
+
+    Args:
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): User interaction.
+        guild (discord.Guild): Guild where verification started.
+        user (discord.User | discord.Member): User starting verification.
+        verification_type (VerificationType): Verification type.
+    """
     config = await cog._get_all_config(guild.id)
 
     if config.get(ConfigKey.VERIFICATION_ENABLED) is False:
