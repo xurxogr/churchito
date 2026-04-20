@@ -65,6 +65,7 @@ class DiscordBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True  # Required to read message content
         intents.members = True  # Required for member information
+        intents.emojis_and_stickers = True  # Required for custom emoji access
 
         # Initialize bot
         super().__init__(
