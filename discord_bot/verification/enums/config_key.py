@@ -100,6 +100,14 @@ class ConfigKey(StrEnum):
     VERIFICATION_VALID_REGIMENT = "verification_valid_regiment"
     PLAYER_INFO_SECTIONS = "player_info_sections"
 
+    # Auto-reject toggles (per rejection reason)
+    AUTO_REJECT_INVALID_SCREENSHOTS = "auto_reject_invalid_screenshots"
+    AUTO_REJECT_NAME_MISMATCH = "auto_reject_name_mismatch"
+    AUTO_REJECT_HAS_REGIMENT = "auto_reject_has_regiment"
+    AUTO_REJECT_TIME_DIFF = "auto_reject_time_diff"
+    AUTO_REJECT_WRONG_SHARD = "auto_reject_wrong_shard"
+    AUTO_REJECT_WRONG_FACTION = "auto_reject_wrong_faction"
+
     # Pending verifications tracker
     TRACKER_TITLE = "tracker_title"
 

@@ -3,7 +3,12 @@
 import logging
 from typing import Any
 
-from discord_bot.verification.enums import ConfigKey, NameMatchMode, VerificationType
+from discord_bot.verification.enums import (
+    ConfigKey,
+    NameMatchMode,
+    RejectType,
+    VerificationType,
+)
 from discord_bot.verification.formatters import format_message
 from discord_bot.verification.models import VerificationAPIResponse, VerificationRequest
 
@@ -51,6 +56,85 @@ def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
     elif mode == NameMatchMode.CONTAINS:
         return discord_lower in game_lower or game_lower in discord_lower
     return True
+
+
+def is_auto_reject_enabled(config: dict[str, Any], reason: RejectType) -> bool:
+    """Check if auto-rejection is enabled for a specific reason.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        reason (RejectType): The rejection reason type.
+
+    Returns:
+        bool: True if auto-rejection is enabled for this reason.
+    """
+    config_key = get_auto_reject_config_key(reason)
+    if not config_key:
+        return True  # Default to enabled for unknown reasons
+
+    # Default to True if not configured
+    return bool(config.get(config_key, True))
+
+
+def get_auto_reject_config_key(reason: RejectType) -> ConfigKey | None:
+    """Get the config key for an auto-reject toggle.
+
+    Args:
+        reason (RejectType): The rejection reason type.
+
+    Returns:
+        ConfigKey | None: The config key for the toggle, or None if unknown.
+    """
+    config_key_map = {
+        RejectType.INVALID_SCREENSHOTS: ConfigKey.AUTO_REJECT_INVALID_SCREENSHOTS,
+        RejectType.NAME_MISMATCH: ConfigKey.AUTO_REJECT_NAME_MISMATCH,
+        RejectType.HAS_REGIMENT: ConfigKey.AUTO_REJECT_HAS_REGIMENT,
+        RejectType.TIME_DIFF: ConfigKey.AUTO_REJECT_TIME_DIFF,
+        RejectType.WRONG_SHARD: ConfigKey.AUTO_REJECT_WRONG_SHARD,
+        RejectType.WRONG_FACTION: ConfigKey.AUTO_REJECT_WRONG_FACTION,
+    }
+    return config_key_map.get(reason)
+
+
+def get_rejection_message(
+    config: dict[str, Any],
+    reason: RejectType,
+    **format_kwargs: Any,
+) -> str:
+    """Get the rejection message for a rejection type.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        reason (RejectType): The rejection reason type.
+        **format_kwargs: Placeholders for message formatting (e.g., shard="ABLE").
+
+    Returns:
+        str: The formatted rejection message.
+    """
+    message_key_map = {
+        RejectType.INVALID_SCREENSHOTS: ConfigKey.REJECT_WRONG_CAPTURES,
+        RejectType.NAME_MISMATCH: ConfigKey.REJECT_NAME_MISMATCH,
+        RejectType.HAS_REGIMENT: ConfigKey.REJECT_HAS_REGIMENT,
+        RejectType.TIME_DIFF: ConfigKey.REJECT_TIME_DIFF,
+        RejectType.WRONG_SHARD: ConfigKey.REJECT_WRONG_SHARD,
+        RejectType.WRONG_FACTION: ConfigKey.REJECT_WRONG_FACTION,
+    }
+    default_messages = {
+        RejectType.INVALID_SCREENSHOTS: "Screenshots incorrect or unreadable",
+        RejectType.NAME_MISMATCH: "Username does not match",
+        RejectType.HAS_REGIMENT: "User already belongs to a regiment",
+        RejectType.TIME_DIFF: "Screenshot too old",
+        RejectType.WRONG_SHARD: "Wrong shard, must be {shard}",
+        RejectType.WRONG_FACTION: "Wrong faction",
+    }
+
+    message_key = message_key_map.get(reason)
+    default = default_messages.get(reason, "Verification rejected")
+    template = config.get(message_key, default) if message_key else default
+
+    if format_kwargs:
+        return format_message(template, **format_kwargs)
+    return template
 
 
 def extract_regiment_id(regiment: str) -> str | None:
@@ -102,8 +186,11 @@ def process_verification(
     api_response: VerificationAPIResponse,
     config: dict[str, Any],
     member_display_name: str,
-) -> tuple[bool, str | None]:
+) -> RejectType | None:
     """Process verification rules and determine approval/rejection.
+
+    Check order: Faction -> Shard -> Regiment -> Name -> Time diff
+    (Invalid screenshots is handled separately before this function is called)
 
     Args:
         request (VerificationRequest): Verification request.
@@ -112,26 +199,20 @@ def process_verification(
         member_display_name (str): Discord member display name.
 
     Returns:
-        tuple[bool, str | None]: Tuple of (should_approve, rejection_reason).
+        RejectType | None: The rejection reason if rejected, None if approved.
+            Use get_rejection_message() to get the user-facing message.
     """
-    # 1. Check name match (if enabled)
-    match_name_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
-    # Handle legacy boolean values for compatibility
-    if match_name_mode is True:
-        match_name_mode = NameMatchMode.EXACT
-    elif match_name_mode is False or not match_name_mode:
-        match_name_mode = NameMatchMode.NONE
+    # 1. Check faction (if configured)
+    expected_faction = config.get(ConfigKey.VERIFICATION_FACTION)
+    if expected_faction and api_response.faction.lower() != expected_faction.lower():
+        return RejectType.WRONG_FACTION
 
-    if match_name_mode != NameMatchMode.NONE:
-        if not names_match(
-            discord_name=member_display_name,
-            game_name=api_response.name,
-            mode=match_name_mode,
-        ):
-            reason = config.get(ConfigKey.REJECT_NAME_MISMATCH) or "Username does not match"
-            return False, reason
+    # 2. Check shard (if configured)
+    expected_shard = config.get(ConfigKey.VERIFICATION_SHARD)
+    if expected_shard and api_response.shard.upper() != expected_shard.upper():
+        return RejectType.WRONG_SHARD
 
-    # 2. Check regiment (only for REGULAR verification)
+    # 3. Check regiment (only for REGULAR verification)
     if request.verification_type == VerificationType.REGULAR and api_response.regiment:
         valid_regiment = config.get(ConfigKey.VERIFICATION_VALID_REGIMENT, "")
         logger.debug(
@@ -150,20 +231,29 @@ def process_verification(
                 f"match={detected_number == valid_number}"
             )
             if detected_number != valid_number:
-                reason = (
-                    config.get(ConfigKey.REJECT_HAS_REGIMENT)
-                    or "User already belongs to a regiment"
-                )
-                return False, reason
+                return RejectType.HAS_REGIMENT
         else:
             # If no valid regiment is configured, reject any regiment
             logger.debug("No valid_regiment configured, rejecting any regiment")
-            reason = (
-                config.get(ConfigKey.REJECT_HAS_REGIMENT) or "User already belongs to a regiment"
-            )
-            return False, reason
+            return RejectType.HAS_REGIMENT
 
-    # 3. Check time difference (if configured > 0)
+    # 4. Check name match (if enabled)
+    match_name_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
+    # Handle legacy boolean values for compatibility
+    if match_name_mode is True:
+        match_name_mode = NameMatchMode.EXACT
+    elif match_name_mode is False or not match_name_mode:
+        match_name_mode = NameMatchMode.NONE
+
+    if match_name_mode != NameMatchMode.NONE:
+        if not names_match(
+            discord_name=member_display_name,
+            game_name=api_response.name,
+            mode=match_name_mode,
+        ):
+            return RejectType.NAME_MISMATCH
+
+    # 5. Check time difference (if configured > 0)
     time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)
     if time_diff_limit and time_diff_limit > 0:
         diff = calculate_time_diff_days(
@@ -171,21 +261,7 @@ def process_verification(
             current_ingame_time=api_response.current_ingame_time,
         )
         if diff > time_diff_limit:
-            reason = config.get(ConfigKey.REJECT_TIME_DIFF) or "Screenshot too old"
-            return False, reason
-
-    # 4. Check shard (if configured)
-    expected_shard = config.get(ConfigKey.VERIFICATION_SHARD)
-    if expected_shard and api_response.shard.upper() != expected_shard.upper():
-        reason_template = config.get(ConfigKey.REJECT_WRONG_SHARD) or "Wrong shard, must be {shard}"
-        reason = format_message(reason_template, shard=expected_shard)
-        return False, reason
-
-    # 5. Check faction (if configured)
-    expected_faction = config.get(ConfigKey.VERIFICATION_FACTION)
-    if expected_faction and api_response.faction.lower() != expected_faction.lower():
-        reason = config.get(ConfigKey.REJECT_WRONG_FACTION) or "Wrong faction"
-        return False, reason
+            return RejectType.TIME_DIFF
 
     # All checks passed
-    return True, None
+    return None

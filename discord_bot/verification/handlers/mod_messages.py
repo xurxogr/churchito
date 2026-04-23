@@ -12,6 +12,7 @@ from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import (
     AutoProcessMode,
     ConfigKey,
+    RejectType,
     VerificationType,
 )
 from discord_bot.verification.formatters import (
@@ -124,35 +125,61 @@ async def update_mod_message_for_review(
     auto_approve = auto_mode in (AutoProcessMode.APPROVE_ONLY, AutoProcessMode.BOTH)
 
     if (auto_reject or auto_approve) and api_result:
+        from discord_bot.verification.auto_processor import (
+            get_rejection_message,
+            is_auto_reject_enabled,
+        )
+
         guild = channel.guild
 
         if api_result.status_code == 422 and auto_reject:
-            reject_reason = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Invalid captures"
-            await handle_auto_rejection(
-                cog=cog,
-                guild=guild,
-                request=request,
-                verification_service=verification_service,
-                config=config,
-                mod_message=mod_message,
-                additional_content=additional_content,
-                embeds=embeds,
-                reason=reject_reason,
-                additional_sections=additional_sections,
-                sections_context=sections_context,
-            )
-            return True
+            # Check if auto-reject for invalid screenshots is enabled
+            if is_auto_reject_enabled(config=config, reason=RejectType.INVALID_SCREENSHOTS):
+                reject_reason = get_rejection_message(
+                    config=config, reason=RejectType.INVALID_SCREENSHOTS
+                )
+                await handle_auto_rejection(
+                    cog=cog,
+                    guild=guild,
+                    request=request,
+                    verification_service=verification_service,
+                    config=config,
+                    mod_message=mod_message,
+                    additional_content=additional_content,
+                    embeds=embeds,
+                    reason=reject_reason,
+                    additional_sections=additional_sections,
+                    sections_context=sections_context,
+                )
+                return True
 
         if api_result.success and api_result.response:
             member = guild.get_member(request.user_id)
             member_display_name = member.display_name if member else request.username
 
-            should_approve, rejection_reason = process_verification(
+            rejection_type = process_verification(
                 request=request,
                 api_response=api_result.response,
                 config=config,
                 member_display_name=member_display_name,
             )
+            should_approve = rejection_type is None
+
+            # Check if this specific rejection type is enabled for auto-reject
+            should_auto_reject = auto_reject
+            if rejection_type and auto_reject:
+                should_auto_reject = is_auto_reject_enabled(config=config, reason=rejection_type)
+
+            # Get rejection message from rejection type
+            rejection_reason: str | None = None
+            if rejection_type:
+                # Pass shard for WRONG_SHARD message formatting
+                format_kwargs = {}
+                if rejection_type == RejectType.WRONG_SHARD:
+                    format_kwargs["shard"] = config.get(ConfigKey.VERIFICATION_SHARD, "")
+                rejection_reason = get_rejection_message(
+                    config=config, reason=rejection_type, **format_kwargs
+                )
 
             processed = await process_auto_verification(
                 cog=cog,
@@ -166,7 +193,7 @@ async def update_mod_message_for_review(
                 should_approve=should_approve,
                 rejection_reason=rejection_reason,
                 auto_approve=auto_approve,
-                auto_reject=auto_reject,
+                auto_reject=should_auto_reject,
                 additional_sections=additional_sections,
                 sections_context=sections_context,
             )
