@@ -455,9 +455,15 @@ async def handle_accept(
 
         # Determine possible previous status texts
         # Could be either "pending review" or "ready for approval" (when OCR passed)
+        # Also include auto-rejected status in case Review didn't properly update
         pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
         ready_for_approval_status = get_ready_for_approval_status(
             config=config, guild=interaction.guild
+        )
+        auto_rejected_status = format_message(
+            template=config.get(ConfigKey.STATUS_REJECTED),
+            moderator="Auto",
+            reason=request.rejection_reason or "",
         )
 
         await verification_service.approve(
@@ -529,7 +535,11 @@ async def handle_accept(
             config=config,
             status=approved_status,
             color=discord.Color.green(),
-            previous_statuses=[ready_for_approval_status, pending_review_status],
+            previous_statuses=[
+                ready_for_approval_status,
+                pending_review_status,
+                auto_rejected_status,
+            ],
         )
 
         await session.commit()
@@ -687,9 +697,15 @@ async def handle_reject(
         config, request, verification_service = ctx
 
         # Determine possible previous status texts
+        # Also include auto-rejected status in case Review didn't properly update
         pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
         ready_for_approval_status = get_ready_for_approval_status(
             config=config, guild=interaction.guild
+        )
+        auto_rejected_status = format_message(
+            template=config.get(ConfigKey.STATUS_REJECTED),
+            moderator="Auto",
+            reason=request.rejection_reason or "",
         )
 
         await verification_service.reject(
@@ -728,7 +744,11 @@ async def handle_reject(
             config=config,
             status=rejected_status,
             color=discord.Color.red(),
-            previous_statuses=[ready_for_approval_status, pending_review_status],
+            previous_statuses=[
+                ready_for_approval_status,
+                pending_review_status,
+                auto_rejected_status,
+            ],
         )
 
         await session.commit()
