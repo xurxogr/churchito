@@ -7,6 +7,7 @@ from discord_bot.verification.auto_processor import (
     calculate_time_diff_days,
     extract_regiment_id,
     extract_regiment_number,
+    get_auto_rejectable_failures,
     get_rejection_message,
     is_auto_reject_enabled,
     names_match,
@@ -215,14 +216,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_TIME_DIFF: 0,
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_name_mismatch_exact_rejected(self) -> None:
         """Test rejection for different name in exact mode."""
@@ -233,16 +234,17 @@ class TestProcessVerification:
             ConfigKey.REJECT_NAME_MISMATCH: "Name does not match",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.NAME_MISMATCH
+        assert RejectType.NAME_MISMATCH in failures
         # Verify message can be retrieved
-        assert get_rejection_message(config=config, reason=rejection_type) == "Name does not match"
+        message = get_rejection_message(config=config, reason=RejectType.NAME_MISMATCH)
+        assert message == "Name does not match"
 
     def test_name_match_contains_approved(self) -> None:
         """Test approval when name is contained."""
@@ -252,14 +254,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.CONTAINS,
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_name_match_contains_rejected(self) -> None:
         """Test rejection when name is not contained."""
@@ -270,14 +272,14 @@ class TestProcessVerification:
             ConfigKey.REJECT_NAME_MISMATCH: "Name does not match",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.NAME_MISMATCH
+        assert RejectType.NAME_MISMATCH in failures
 
     def test_has_regiment_rejected_for_regular(self) -> None:
         """Test rejection for having regiment in regular verification."""
@@ -287,15 +289,16 @@ class TestProcessVerification:
             ConfigKey.REJECT_HAS_REGIMENT: "Has regiment",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.HAS_REGIMENT
-        assert get_rejection_message(config=config, reason=rejection_type) == "Has regiment"
+        assert RejectType.HAS_REGIMENT in failures
+        message = get_rejection_message(config=config, reason=RejectType.HAS_REGIMENT)
+        assert message == "Has regiment"
 
     def test_has_regiment_allowed_for_ally(self) -> None:
         """Test that having regiment is allowed for allies."""
@@ -303,14 +306,14 @@ class TestProcessVerification:
         api_response = self._create_api_response(regiment="SomeRegiment")
         config: dict[str, Any] = {}
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_valid_regiment_configured_and_matches(self) -> None:
         """Test approval when regiment matches the valid one."""
@@ -320,14 +323,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_valid_regiment_matches_with_ocr_error(self) -> None:
         """Test approval when OCR misses characters but number matches."""
@@ -338,14 +341,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_VALID_REGIMENT: "7-HP#8707",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_valid_regiment_configured_but_different(self) -> None:
         """Test rejection when regiment does not match the valid one."""
@@ -356,15 +359,16 @@ class TestProcessVerification:
             ConfigKey.REJECT_HAS_REGIMENT: "Invalid regiment",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.HAS_REGIMENT
-        assert get_rejection_message(config=config, reason=rejection_type) == "Invalid regiment"
+        assert RejectType.HAS_REGIMENT in failures
+        message = get_rejection_message(config=config, reason=RejectType.HAS_REGIMENT)
+        assert message == "Invalid regiment"
 
     def test_valid_regiment_empty_rejects_any_regiment(self) -> None:
         """Test that if there is no valid regiment, rejects any regiment."""
@@ -375,14 +379,14 @@ class TestProcessVerification:
             ConfigKey.REJECT_HAS_REGIMENT: "Has regiment",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.HAS_REGIMENT
+        assert RejectType.HAS_REGIMENT in failures
 
     def test_time_diff_exceeded(self) -> None:
         """Test rejection for excessive time difference."""
@@ -396,15 +400,16 @@ class TestProcessVerification:
             ConfigKey.REJECT_TIME_DIFF: "Old screenshot",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.TIME_DIFF
-        assert get_rejection_message(config=config, reason=rejection_type) == "Old screenshot"
+        assert RejectType.TIME_DIFF in failures
+        message = get_rejection_message(config=config, reason=RejectType.TIME_DIFF)
+        assert message == "Old screenshot"
 
     def test_wrong_shard_rejected(self) -> None:
         """Test rejection for incorrect shard."""
@@ -415,16 +420,16 @@ class TestProcessVerification:
             ConfigKey.REJECT_WRONG_SHARD: "Wrong shard, must be {shard}",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.WRONG_SHARD
+        assert RejectType.WRONG_SHARD in failures
         # Message formatting with shard placeholder
-        message = get_rejection_message(config=config, reason=rejection_type, shard="ABLE")
+        message = get_rejection_message(config=config, reason=RejectType.WRONG_SHARD, shard="ABLE")
         assert "ABLE" in message
 
     def test_wrong_faction_rejected(self) -> None:
@@ -436,15 +441,16 @@ class TestProcessVerification:
             ConfigKey.REJECT_WRONG_FACTION: "Wrong faction",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type == RejectType.WRONG_FACTION
-        assert get_rejection_message(config=config, reason=rejection_type) == "Wrong faction"
+        assert RejectType.WRONG_FACTION in failures
+        message = get_rejection_message(config=config, reason=RejectType.WRONG_FACTION)
+        assert message == "Wrong faction"
 
     def test_correct_faction_approved(self) -> None:
         """Test approval with correct faction."""
@@ -454,14 +460,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_FACTION: "colonial",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_faction_case_insensitive(self) -> None:
         """Test that faction comparison is case insensitive."""
@@ -471,14 +477,14 @@ class TestProcessVerification:
             ConfigKey.VERIFICATION_FACTION: "colonial",
         }
 
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_legacy_boolean_true_match_name(self) -> None:
         """Test compatibility with legacy boolean True for match_name."""
@@ -489,14 +495,14 @@ class TestProcessVerification:
         }
 
         # Name matches exactly
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="TestPlayer",
         )
 
-        assert rejection_type is None
+        assert failures == set()
 
     def test_legacy_boolean_false_match_name(self) -> None:
         """Test compatibility with legacy boolean False for match_name."""
@@ -507,14 +513,44 @@ class TestProcessVerification:
         }
 
         # Name does not match but it does not matter because it is disabled
-        rejection_type = process_verification(
+        failures = process_verification(
             request=request,
             api_response=api_response,
             config=config,
             member_display_name="DifferentName",
         )
 
-        assert rejection_type is None
+        assert failures == set()
+
+    def test_multiple_failures(self) -> None:
+        """Test that multiple failures are collected."""
+        request = self._create_request()
+        api_response = self._create_api_response(
+            faction="wardens",  # Wrong faction
+            shard="CHARLIE",  # Wrong shard
+            name="DifferentName",  # Wrong name
+            ingame_time="100, 07:41",
+            current_ingame_time="200, 08:34",  # 100 days diff
+        )
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_FACTION: "colonial",
+            ConfigKey.VERIFICATION_SHARD: "ABLE",
+            ConfigKey.VERIFICATION_MATCH_NAME: NameMatchMode.EXACT,
+            ConfigKey.VERIFICATION_TIME_DIFF: 30,
+        }
+
+        failures = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert RejectType.WRONG_FACTION in failures
+        assert RejectType.WRONG_SHARD in failures
+        assert RejectType.NAME_MISMATCH in failures
+        assert RejectType.TIME_DIFF in failures
+        assert len(failures) == 4
 
 
 class TestIsAutoRejectEnabled:
@@ -596,3 +632,49 @@ class TestIsAutoRejectEnabled:
         assert is_auto_reject_enabled(config=config, reason=RejectType.HAS_REGIMENT) is True
         assert is_auto_reject_enabled(config=config, reason=RejectType.WRONG_FACTION) is True
         assert is_auto_reject_enabled(config=config, reason=RejectType.TIME_DIFF) is True
+
+
+class TestGetAutoRejectableFailures:
+    """Tests for get_auto_rejectable_failures."""
+
+    def test_all_failures_auto_rejectable_by_default(self) -> None:
+        """Test all failures are auto-rejectable when nothing is disabled."""
+        config: dict[str, Any] = {}
+        failures = {RejectType.WRONG_FACTION, RejectType.WRONG_SHARD, RejectType.NAME_MISMATCH}
+
+        result = get_auto_rejectable_failures(config=config, failures=failures)
+
+        assert result == failures
+
+    def test_filters_out_disabled_failures(self) -> None:
+        """Test that failures with disabled auto-reject are filtered out."""
+        config: dict[str, Any] = {
+            ConfigKey.AUTO_REJECT_WRONG_SHARD: False,
+        }
+        failures = {RejectType.WRONG_FACTION, RejectType.WRONG_SHARD, RejectType.NAME_MISMATCH}
+
+        result = get_auto_rejectable_failures(config=config, failures=failures)
+
+        assert result == {RejectType.WRONG_FACTION, RejectType.NAME_MISMATCH}
+        assert RejectType.WRONG_SHARD not in result
+
+    def test_empty_failures_returns_empty(self) -> None:
+        """Test empty failures returns empty set."""
+        config: dict[str, Any] = {}
+        failures: set[RejectType] = set()
+
+        result = get_auto_rejectable_failures(config=config, failures=failures)
+
+        assert result == set()
+
+    def test_all_disabled_returns_empty(self) -> None:
+        """Test when all failures have auto-reject disabled."""
+        config: dict[str, Any] = {
+            ConfigKey.AUTO_REJECT_WRONG_FACTION: False,
+            ConfigKey.AUTO_REJECT_WRONG_SHARD: False,
+        }
+        failures = {RejectType.WRONG_FACTION, RejectType.WRONG_SHARD}
+
+        result = get_auto_rejectable_failures(config=config, failures=failures)
+
+        assert result == set()

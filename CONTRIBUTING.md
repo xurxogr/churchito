@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing! This guide explains how to set up your development environment, run tests, and follow our code standards.
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-24
 
 ## Prerequisites
 
@@ -191,6 +191,25 @@ Rationale: Prevents hidden side effects, makes debugging easier, enables safe co
 - Use Pydantic schemas for API requests
 - Fail fast with clear error messages
 - Never trust external data (API responses, file content)
+
+### Import Ordering (CRITICAL)
+
+ALWAYS place imports at the top of the file, NEVER inside methods:
+
+```python
+# WRONG: Import inside method
+def get_config():
+    from discord_bot.config import Config  # Don't do this!
+    return Config()
+
+# CORRECT: Import at top of file
+from discord_bot.config import Config
+
+def get_config():
+    return Config()
+```
+
+Rationale: Ensures imports happen once during module load, enables static analysis, prevents circular dependencies at runtime.
 
 ### Code Quality Checklist
 

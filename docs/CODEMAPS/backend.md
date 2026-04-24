@@ -1,8 +1,8 @@
 # Backend (Web API) Codemap
 
-<!-- Generated: 2026-04-10 | Files scanned: 8 | Token estimate: ~1000 -->
+<!-- Generated: 2026-04-24 | Files scanned: 9 | Token estimate: ~1100 -->
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-24
 **Entry Point:** `discord_bot/web/app.py:create_app()`
 **Port:** 8000 (default)
 

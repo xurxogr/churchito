@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Any
 import discord
 
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.verification.auto_processor import (
+    get_auto_rejectable_failures,
+    get_rejection_message,
+    is_auto_reject_enabled,
+    process_verification,
+)
 from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import (
     AutoProcessMode,
@@ -42,6 +48,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _build_rejection_messages(
+    config: dict[str, Any],
+    failures: set[RejectType],
+) -> list[str]:
+    """Build rejection messages for all failures.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        failures (set[RejectType]): Set of failure types.
+
+    Returns:
+        list[str]: List of formatted rejection messages.
+    """
+    messages = []
+    # Process in enum order for consistent output
+    for reject_type in RejectType:
+        if reject_type in failures:
+            format_kwargs: dict[str, Any] = {}
+            if reject_type == RejectType.WRONG_SHARD:
+                format_kwargs["shard"] = config.get(ConfigKey.VERIFICATION_SHARD, "")
+            messages.append(
+                get_rejection_message(config=config, reason=reject_type, **format_kwargs)
+            )
+    return messages
+
+
 async def update_mod_message_for_review(
     cog: VerificationCog,
     channel: discord.TextChannel,
@@ -63,8 +95,6 @@ async def update_mod_message_for_review(
     Returns:
         bool: True if auto-approval/rejection was performed, False if manual review.
     """
-    from discord_bot.verification.auto_processor import process_verification
-
     if not request.mod_message_id:
         return False
 
@@ -125,11 +155,6 @@ async def update_mod_message_for_review(
     auto_approve = auto_mode in (AutoProcessMode.APPROVE_ONLY, AutoProcessMode.BOTH)
 
     if (auto_reject or auto_approve) and api_result:
-        from discord_bot.verification.auto_processor import (
-            get_rejection_message,
-            is_auto_reject_enabled,
-        )
-
         guild = channel.guild
 
         if api_result.status_code == 422 and auto_reject:
@@ -157,29 +182,26 @@ async def update_mod_message_for_review(
             member = guild.get_member(request.user_id)
             member_display_name = member.display_name if member else request.username
 
-            rejection_type = process_verification(
+            failures = process_verification(
                 request=request,
                 api_response=api_result.response,
                 config=config,
                 member_display_name=member_display_name,
             )
-            should_approve = rejection_type is None
+            should_approve = len(failures) == 0
 
-            # Check if this specific rejection type is enabled for auto-reject
+            # Check if all failures have auto-reject enabled
             should_auto_reject = auto_reject
-            if rejection_type and auto_reject:
-                should_auto_reject = is_auto_reject_enabled(config=config, reason=rejection_type)
+            if failures and auto_reject:
+                auto_rejectable = get_auto_rejectable_failures(config=config, failures=failures)
+                # Only auto-reject if ALL failures have auto-reject enabled
+                should_auto_reject = auto_rejectable == failures
 
-            # Get rejection message from rejection type
+            # Build rejection messages for all failures
             rejection_reason: str | None = None
-            if rejection_type:
-                # Pass shard for WRONG_SHARD message formatting
-                format_kwargs = {}
-                if rejection_type == RejectType.WRONG_SHARD:
-                    format_kwargs["shard"] = config.get(ConfigKey.VERIFICATION_SHARD, "")
-                rejection_reason = get_rejection_message(
-                    config=config, reason=rejection_type, **format_kwargs
-                )
+            if failures:
+                rejection_messages = _build_rejection_messages(config=config, failures=failures)
+                rejection_reason = "\n".join(rejection_messages)
 
             processed = await process_auto_verification(
                 cog=cog,

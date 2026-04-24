@@ -1,9 +1,9 @@
 # Discord Bot Codemaps Index
 
-<!-- Generated: 2026-04-18 | Files scanned: 114 | Token estimate: ~900 -->
+<!-- Generated: 2026-04-24 | Files scanned: 125 | Token estimate: ~1000 -->
 
-**Last Updated:** 2026-04-18
-**Version:** 1.1.0
+**Last Updated:** 2026-04-24
+**Version:** 1.2.0
 **Language:** Python 3.12+
 **Framework:** discord.py 2.x + FastAPI + SQLAlchemy 2.0
 
@@ -162,6 +162,18 @@ Template render / JSON response
 - JSON config file (~/.config/discord-bot/config.json)
 
 ## Recent Changes (Since 2026-04-10)
+
+**Per-Reason Auto-Reject Toggles (2026-04-24, CRITICAL)**
+- `RejectType` enum: 6 rejection types (INVALID_SCREENSHOTS, WRONG_FACTION, WRONG_SHARD, HAS_REGIMENT, NAME_MISMATCH, TIME_DIFF)
+- `process_verification()` now returns `set[RejectType]` (all failures) instead of single reason
+- New function `get_auto_rejectable_failures()` filters by per-reason auto-reject config toggles
+- Config schema adds 6 new boolean toggles: `auto_reject_*` per reason
+- Enables granular control: reject auto for name mismatch but not for faction
+
+**Verification Race Condition Protection (2026-04-20)**
+- Added `_user_locks` dict to `VerificationCog` (per-user asyncio.Lock)
+- `get_user_lock()` method prevents rapid-click race conditions during verification start
+- User lock acquired in flow handler before state transitions
 
 **Verification API Model (2026-04-18)**
 - Renamed `war` field to `war_number` to match OCR API response

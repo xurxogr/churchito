@@ -1,8 +1,8 @@
 # External Dependencies & Integrations Codemap
 
-<!-- Generated: 2026-04-10 | Files scanned: 40 | Token estimate: ~900 -->
+<!-- Generated: 2026-04-24 | Files scanned: 42 | Token estimate: ~950 -->
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-24
 **Location:** `discord_bot/` (all modules)
 
 ## Runtime Dependencies

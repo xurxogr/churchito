@@ -693,5 +693,5 @@ Utility scripts in `/scripts` directory:
 
 ---
 
-**Last Updated:** 2026-04-10
-**Version:** 1.0.1
+**Last Updated:** 2026-04-24
+**Version:** 1.0.2

@@ -2,7 +2,7 @@
 
 Discord bot with user verification system, role management, stockpile tracking, and web administration panel.
 
-**Last Updated:** 2026-04-10
+**Last Updated:** 2026-04-24
 
 ## Features
 
@@ -97,8 +97,11 @@ Screenshot-based user verification system:
 - DM instructions to users
 - Mod channel with configurable embeds
 - Optional OCR API integration for automatic verification
+  - Per-reason auto-rejection toggles (6 configurable rejection reasons)
+  - Check faction, shard, regiment, name matching, screenshot age, API validity
 - User verification history
 - Pending verification tracker
+- Race condition protection for rapid interaction clicks
 
 ### Purge
 
@@ -118,6 +121,14 @@ Inventory and stockpile management:
 - Configurable notifications on stockpile changes
 - Config sections: General, Display, Notifications
 - Placeholder support for customization
+
+### Reaction Roles
+
+Emoji-based role assignment system:
+
+- Reaction-triggered role assignment
+- Custom emoji support
+- Per-server configuration
 
 ### Auto-Name
 

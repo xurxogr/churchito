@@ -1,8 +1,8 @@
 # Discord Bot Cogs Codemap
 
-<!-- Generated: 2026-04-18 | Files scanned: 114 | Token estimate: ~1400 -->
+<!-- Generated: 2026-04-24 | Files scanned: 120 | Token estimate: ~1500 -->
 
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-24
 **Entry Point:** `discord_bot/bot.py:_load_cogs()`
 
 ## Cog Loading System
@@ -14,6 +14,7 @@ cogs_to_load = [
     "discord_bot.autoname.cog",
     "discord_bot.purge.cog",
     "discord_bot.stockpile.cog",
+    "discord_bot.roles.cog",
 ]
 for cog_module in cogs_to_load:
     await self.load_extension(cog_module)
@@ -83,6 +84,47 @@ class VerificationRequest(Base):
 
 **Indexes:** `ix_verification_guild_id`, `ix_verification_user_id`, `ix_verification_status`
 
+### Verification Processing
+
+**File:** `discord_bot/verification/auto_processor.py`
+
+New functions for per-reason auto-reject toggles:
+```python
+def process_verification(
+    request: VerificationRequest,
+    api_response: VerificationAPIResponse,
+    config: dict[str, Any],
+    member_display_name: str,
+) -> set[RejectType]:
+    """Check all verification rules, return set of ALL failures."""
+    # Returns: {RejectType.WRONG_FACTION, RejectType.TIME_DIFF, ...}
+
+def get_auto_rejectable_failures(
+    config: dict[str, Any],
+    failures: set[RejectType],
+) -> set[RejectType]:
+    """Filter failures to only those with auto-reject enabled (per-reason toggles)."""
+
+def is_auto_reject_enabled(config: dict[str, Any], reason: RejectType) -> bool:
+    """Check if auto-rejection is enabled for a specific reason."""
+
+def get_auto_reject_config_key(reason: RejectType) -> ConfigKey | None:
+    """Get the config key for an auto-reject toggle."""
+```
+
+**File:** `discord_bot/verification/enums/reject_type.py`
+
+```python
+class RejectType(StrEnum):
+    """Types of verification rejection (6 types)."""
+    INVALID_SCREENSHOTS = "invalid_screenshots"  # API 422
+    WRONG_FACTION = "wrong_faction"
+    WRONG_SHARD = "wrong_shard"
+    HAS_REGIMENT = "has_regiment"
+    NAME_MISMATCH = "name_mismatch"
+    TIME_DIFF = "time_diff"
+```
+
 ### Service
 
 **File:** `discord_bot/verification/service.py`
@@ -110,6 +152,13 @@ Config options include:
 - `screenshot_timeout_minutes` - Screenshot submission deadline
 - `auto_process_mode` - OCR integration (BOTH, ACCEPT_ONLY, REJECT_ONLY, NONE)
 - `name_match_mode` - Match user's in-game name (EXACT, CONTAINS)
+- **Per-reason auto-reject toggles** (NEW, v2025-04-24):
+  - `auto_reject_invalid_screenshots` - Auto-reject if API returns 422
+  - `auto_reject_wrong_faction` - Auto-reject if faction mismatch
+  - `auto_reject_wrong_shard` - Auto-reject if shard mismatch
+  - `auto_reject_has_regiment` - Auto-reject if user has wrong regiment
+  - `auto_reject_name_mismatch` - Auto-reject if name doesn't match
+  - `auto_reject_time_diff` - Auto-reject if screenshot too old
 - Plus embed customization (titles, colors, descriptions)
 
 ### Event Bus
@@ -504,6 +553,7 @@ async def health_check_loop(self):
 get_config_schema_service().register_schema(VERIFICATION_CONFIG_SCHEMA)
 get_config_schema_service().register_schema(PURGE_CONFIG_SCHEMA)
 get_config_schema_service().register_schema(STOCKPILE_CONFIG_SCHEMA)
+get_config_schema_service().register_schema(ROLES_CONFIG_SCHEMA)
 get_config_schema_service().register_schema(AUTONAME_CONFIG_SCHEMA)
 ```
 

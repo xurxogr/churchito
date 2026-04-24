@@ -186,8 +186,8 @@ def process_verification(
     api_response: VerificationAPIResponse,
     config: dict[str, Any],
     member_display_name: str,
-) -> RejectType | None:
-    """Process verification rules and determine approval/rejection.
+) -> set[RejectType]:
+    """Process verification rules and collect all failures.
 
     Check order: Faction -> Shard -> Regiment -> Name -> Time diff
     (Invalid screenshots is handled separately before this function is called)
@@ -199,18 +199,20 @@ def process_verification(
         member_display_name (str): Discord member display name.
 
     Returns:
-        RejectType | None: The rejection reason if rejected, None if approved.
-            Use get_rejection_message() to get the user-facing message.
+        set[RejectType]: Set of all failed checks. Empty set means approved.
+            Use get_rejection_message() to get user-facing messages.
     """
+    failures: set[RejectType] = set()
+
     # 1. Check faction (if configured)
     expected_faction = config.get(ConfigKey.VERIFICATION_FACTION)
     if expected_faction and api_response.faction.lower() != expected_faction.lower():
-        return RejectType.WRONG_FACTION
+        failures.add(RejectType.WRONG_FACTION)
 
     # 2. Check shard (if configured)
     expected_shard = config.get(ConfigKey.VERIFICATION_SHARD)
     if expected_shard and api_response.shard.upper() != expected_shard.upper():
-        return RejectType.WRONG_SHARD
+        failures.add(RejectType.WRONG_SHARD)
 
     # 3. Check regiment (only for REGULAR verification)
     if request.verification_type == VerificationType.REGULAR and api_response.regiment:
@@ -231,11 +233,11 @@ def process_verification(
                 f"match={detected_number == valid_number}"
             )
             if detected_number != valid_number:
-                return RejectType.HAS_REGIMENT
+                failures.add(RejectType.HAS_REGIMENT)
         else:
             # If no valid regiment is configured, reject any regiment
             logger.debug("No valid_regiment configured, rejecting any regiment")
-            return RejectType.HAS_REGIMENT
+            failures.add(RejectType.HAS_REGIMENT)
 
     # 4. Check name match (if enabled)
     match_name_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
@@ -251,7 +253,7 @@ def process_verification(
             game_name=api_response.name,
             mode=match_name_mode,
         ):
-            return RejectType.NAME_MISMATCH
+            failures.add(RejectType.NAME_MISMATCH)
 
     # 5. Check time difference (if configured > 0)
     time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)
@@ -261,7 +263,24 @@ def process_verification(
             current_ingame_time=api_response.current_ingame_time,
         )
         if diff > time_diff_limit:
-            return RejectType.TIME_DIFF
+            failures.add(RejectType.TIME_DIFF)
 
-    # All checks passed
-    return None
+    return failures
+
+
+def get_auto_rejectable_failures(
+    config: dict[str, Any],
+    failures: set[RejectType],
+) -> set[RejectType]:
+    """Filter failures to only those with auto-reject enabled.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        failures (set[RejectType]): Set of all failures.
+
+    Returns:
+        set[RejectType]: Subset of failures that have auto-reject enabled.
+    """
+    return {
+        failure for failure in failures if is_auto_reject_enabled(config=config, reason=failure)
+    }
