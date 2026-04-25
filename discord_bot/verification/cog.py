@@ -780,6 +780,7 @@ class VerificationCog(commands.Cog):
             additional_content=extra_content,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            api_status="",
         )
 
         # Keep screenshot embeds (identified by having an image)

@@ -267,6 +267,7 @@ async def _handle_verification_start_locked(
             created_at_relative=created_at_relative,
             guild=guild,
             member=member,
+            api_status="",
         )
 
         mod_message = await mod_channel.send(embeds=mod_embeds)
