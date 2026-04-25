@@ -835,6 +835,9 @@ async def handle_review(
             )
             return
 
+        # Save the original rejection reason before it gets cleared
+        original_rejection_reason = request.rejection_reason
+
         reverted = await verification_service.revert_to_pending_review(
             request_id=request.id, guild_name=interaction.guild.name
         )
@@ -850,6 +853,7 @@ async def handle_review(
             request=request,
             config=config,
             public_id=request.public_id,
+            original_rejection_reason=original_rejection_reason,
         )
 
         await session.commit()

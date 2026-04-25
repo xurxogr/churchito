@@ -47,6 +47,89 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Status indicators for check results
+STATUS_PASSED = "✅"
+STATUS_FAILED = "❌"
+STATUS_DISABLED = "⏸️"
+
+
+def _build_check_statuses(
+    config: dict[str, Any],
+    failures: set[RejectType],
+    request: VerificationRequest,
+    api_response_exists: bool,
+) -> dict[str, str]:
+    """Build status indicators for each verification check.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        failures (set[RejectType]): Set of failed checks.
+        request (VerificationRequest): Verification request.
+        api_response_exists (bool): Whether API response exists (checks ran).
+
+    Returns:
+        dict[str, str]: Status placeholders (faction_status, shard_status, etc.)
+    """
+    from discord_bot.verification.enums import NameMatchMode
+
+    statuses: dict[str, str] = {}
+
+    # Faction check - enabled if VERIFICATION_FACTION is configured
+    faction_configured = bool(config.get(ConfigKey.VERIFICATION_FACTION))
+    if not api_response_exists or not faction_configured:
+        statuses["faction_status"] = STATUS_DISABLED
+    elif RejectType.WRONG_FACTION in failures:
+        statuses["faction_status"] = STATUS_FAILED
+    else:
+        statuses["faction_status"] = STATUS_PASSED
+
+    # Shard check - enabled if VERIFICATION_SHARD is configured
+    shard_configured = bool(config.get(ConfigKey.VERIFICATION_SHARD))
+    if not api_response_exists or not shard_configured:
+        statuses["shard_status"] = STATUS_DISABLED
+    elif RejectType.WRONG_SHARD in failures:
+        statuses["shard_status"] = STATUS_FAILED
+    else:
+        statuses["shard_status"] = STATUS_PASSED
+
+    # Regiment check - only for REGULAR verification
+    is_regular = request.verification_type == VerificationType.REGULAR
+    if not api_response_exists or not is_regular:
+        statuses["regiment_status"] = STATUS_DISABLED
+    elif RejectType.HAS_REGIMENT in failures:
+        statuses["regiment_status"] = STATUS_FAILED
+    else:
+        statuses["regiment_status"] = STATUS_PASSED
+
+    # Name check - enabled if VERIFICATION_MATCH_NAME is not NONE
+    match_mode = config.get(ConfigKey.VERIFICATION_MATCH_NAME, NameMatchMode.NONE)
+    # Handle legacy boolean values
+    if match_mode is True:
+        name_check_enabled = True
+    elif match_mode is False or not match_mode:
+        name_check_enabled = False
+    else:
+        name_check_enabled = match_mode != NameMatchMode.NONE
+
+    if not api_response_exists or not name_check_enabled:
+        statuses["name_status"] = STATUS_DISABLED
+    elif RejectType.NAME_MISMATCH in failures:
+        statuses["name_status"] = STATUS_FAILED
+    else:
+        statuses["name_status"] = STATUS_PASSED
+
+    # Time diff check - enabled if VERIFICATION_TIME_DIFF > 0
+    time_diff_limit = config.get(ConfigKey.VERIFICATION_TIME_DIFF, 0)
+    time_check_enabled = time_diff_limit and time_diff_limit > 0
+    if not api_response_exists or not time_check_enabled:
+        statuses["time_status"] = STATUS_DISABLED
+    elif RejectType.TIME_DIFF in failures:
+        statuses["time_status"] = STATUS_FAILED
+    else:
+        statuses["time_status"] = STATUS_PASSED
+
+    return statuses
+
 
 def _build_rejection_messages(
     config: dict[str, Any],
@@ -112,9 +195,12 @@ async def update_mod_message_for_review(
 
     additional_content = ""
     player_info: dict[str, Any] | None = None
+    failures: set[RejectType] = set()
+    api_response_exists = False
 
     if api_result:
         if api_result.success and api_result.response:
+            api_response_exists = True
             player_info = {
                 "name": api_result.response.name or "N/A",
                 "regiment": api_result.response.regiment or "N/A",
@@ -163,6 +249,13 @@ async def update_mod_message_for_review(
                 reject_reason = get_rejection_message(
                     config=config, reason=RejectType.INVALID_SCREENSHOTS
                 )
+                # Build check statuses for 422 error (checks didn't run)
+                check_statuses_422 = _build_check_statuses(
+                    config=config,
+                    failures={RejectType.INVALID_SCREENSHOTS},
+                    request=request,
+                    api_response_exists=False,  # No valid response, so checks didn't run
+                )
                 await handle_auto_rejection(
                     cog=cog,
                     guild=guild,
@@ -175,6 +268,7 @@ async def update_mod_message_for_review(
                     reason=reject_reason,
                     additional_sections=additional_sections,
                     sections_context=sections_context,
+                    check_statuses=check_statuses_422,
                 )
                 return True
 
@@ -203,6 +297,14 @@ async def update_mod_message_for_review(
                 rejection_messages = _build_rejection_messages(config=config, failures=failures)
                 rejection_reason = "\n".join(rejection_messages)
 
+            # Build check statuses for the verification result
+            check_statuses_auto = _build_check_statuses(
+                config=config,
+                failures=failures,
+                request=request,
+                api_response_exists=True,
+            )
+
             processed = await process_auto_verification(
                 cog=cog,
                 guild=guild,
@@ -218,6 +320,7 @@ async def update_mod_message_for_review(
                 auto_reject=should_auto_reject,
                 additional_sections=additional_sections,
                 sections_context=sections_context,
+                check_statuses=check_statuses_auto,
             )
             if processed:
                 return True
@@ -236,6 +339,15 @@ async def update_mod_message_for_review(
 
     member = channel.guild.get_member(request.user_id)
     user_display_name = member.display_name if member else request.username
+
+    # Build check status placeholders
+    check_statuses = _build_check_statuses(
+        config=config,
+        failures=failures,
+        request=request,
+        api_response_exists=api_response_exists,
+    )
+
     main_embeds = create_mod_embeds(
         verification_type=verification_type,
         config=config,
@@ -251,6 +363,7 @@ async def update_mod_message_for_review(
         additional_content=additional_content,
         additional_sections=additional_sections,
         sections_context=sections_context,
+        **check_statuses,
     )
     all_embeds = [*main_embeds, *embeds]
     await mod_message.edit(embeds=all_embeds, view=view)
@@ -409,6 +522,7 @@ async def update_mod_message_for_manual_review(
     request: VerificationRequest,
     config: dict[str, Any],
     public_id: str,
+    original_rejection_reason: str | None = None,
 ) -> None:
     """Update moderation message for manual review.
 
@@ -420,12 +534,18 @@ async def update_mod_message_for_manual_review(
         request (VerificationRequest): Verification request.
         config (dict[str, Any]): Cog configuration.
         public_id (str): Public request ID (NanoID).
+        original_rejection_reason (str | None): Original rejection reason before
+            it was cleared by revert_to_pending_review. If not provided, falls
+            back to request.rejection_reason.
     """
     # Build the previous status (auto-rejected)
+    # Use original_rejection_reason if provided, as request.rejection_reason
+    # may have been cleared by revert_to_pending_review
+    rejection_reason = original_rejection_reason or request.rejection_reason or ""
     previous_status = format_message(
         template=config.get(ConfigKey.STATUS_REJECTED),
         moderator="Auto",
-        reason=request.rejection_reason or "",
+        reason=rejection_reason,
     )
 
     # Build the new status (pending review)

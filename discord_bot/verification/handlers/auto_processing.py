@@ -65,6 +65,7 @@ async def handle_auto_approval(
     embeds: list[discord.Embed],
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
+    check_statuses: dict[str, str] | None = None,
 ) -> None:
     """Handle automatic approval of verification.
 
@@ -79,6 +80,7 @@ async def handle_auto_approval(
         embeds (list[discord.Embed]): Screenshot embeds.
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
+        check_statuses (dict[str, str] | None): Status placeholders for checks.
     """
     await verification_service.approve(
         request_id=request.id,
@@ -156,6 +158,7 @@ async def handle_auto_approval(
             additional_content=additional_content,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            **(check_statuses or {}),
         )
         for embed in main_embeds:
             embed.color = discord.Color.green()
@@ -175,6 +178,7 @@ async def handle_auto_rejection(
     reason: str,
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
+    check_statuses: dict[str, str] | None = None,
 ) -> None:
     """Handle automatic rejection of verification.
 
@@ -190,6 +194,7 @@ async def handle_auto_rejection(
         reason (str): Rejection reason.
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
+        check_statuses (dict[str, str] | None): Status placeholders for checks.
     """
     await verification_service.reject(
         request_id=request.id,
@@ -242,6 +247,7 @@ async def handle_auto_rejection(
             additional_content=additional_content,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            **(check_statuses or {}),
         )
         for embed in main_embeds:
             embed.color = discord.Color.red()
@@ -276,6 +282,7 @@ async def process_auto_verification(
     auto_reject: bool,
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
+    check_statuses: dict[str, str] | None = None,
 ) -> bool:
     """Process auto-approval or auto-rejection based on rules.
 
@@ -294,6 +301,7 @@ async def process_auto_verification(
         auto_reject (bool): Whether auto-rejection is enabled.
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
+        check_statuses (dict[str, str] | None): Status placeholders for checks.
 
     Returns:
         bool: True if processed automatically, False if manual review required.
@@ -310,6 +318,7 @@ async def process_auto_verification(
             embeds=embeds,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            check_statuses=check_statuses,
         )
         return True
     elif not should_approve and auto_reject:
@@ -325,6 +334,7 @@ async def process_auto_verification(
             reason=rejection_reason or "Auto-rejected",
             additional_sections=additional_sections,
             sections_context=sections_context,
+            check_statuses=check_statuses,
         )
         return True
 
