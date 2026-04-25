@@ -228,6 +228,8 @@ async def _handle_verification_start_locked(
             server_name=guild.name,
             verification_type=type_display,
             expires=expires_relative,
+            expected_faction=config.get(ConfigKey.VERIFICATION_FACTION) or "",
+            expected_shard=config.get(ConfigKey.VERIFICATION_SHARD) or "",
         )
 
         try:
