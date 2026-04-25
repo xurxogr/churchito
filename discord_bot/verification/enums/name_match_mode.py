@@ -9,3 +9,4 @@ class NameMatchMode(StrEnum):
     NONE = "none"  # Don't check
     EXACT = "exact"  # Exact comparison
     CONTAINS = "contains"  # One must contain the other
+    ALPHA_ONLY = "alpha_only"  # Compare only alphabetic characters (a-z)

@@ -37,13 +37,25 @@ def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
         return 0
 
 
+def _extract_alpha_only(text: str) -> str:
+    """Extract only alphabetic characters (a-z) from text.
+
+    Args:
+        text (str): Input text.
+
+    Returns:
+        str: Only lowercase alphabetic characters.
+    """
+    return "".join(c for c in text.lower() if c.isalpha())
+
+
 def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
     """Check if Discord name matches the game name.
 
     Args:
         discord_name (str): Discord display name.
         game_name (str): In-game name from the API.
-        mode (NameMatchMode): Comparison mode (EXACT or CONTAINS).
+        mode (NameMatchMode): Comparison mode (EXACT, CONTAINS, or ALPHA_ONLY).
 
     Returns:
         bool: True if names match according to the mode.
@@ -55,6 +67,10 @@ def names_match(discord_name: str, game_name: str, mode: NameMatchMode) -> bool:
         return discord_lower == game_lower
     elif mode == NameMatchMode.CONTAINS:
         return discord_lower in game_lower or game_lower in discord_lower
+    elif mode == NameMatchMode.ALPHA_ONLY:
+        discord_alpha = _extract_alpha_only(discord_name)
+        game_alpha = _extract_alpha_only(game_name)
+        return discord_alpha == game_alpha
     return True
 
 

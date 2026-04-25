@@ -874,6 +874,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 ("Do not check", NameMatchMode.NONE),
                 ("Exact", NameMatchMode.EXACT),
                 ("Must contain", NameMatchMode.CONTAINS),
+                ("Letters only (a-z)", NameMatchMode.ALPHA_ONLY),
             ],
             default=NameMatchMode.NONE,
             group="Verification API",
