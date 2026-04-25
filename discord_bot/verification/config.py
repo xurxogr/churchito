@@ -288,6 +288,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=[
                 "username",
                 "user_mention",
+                "user_display_name",
                 "user_avatar_url",
                 "verification_type",
                 "status",
@@ -324,6 +325,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=[
                 "username",
                 "user_mention",
+                "user_display_name",
                 "user_avatar_url",
                 "verification_type",
                 "status",
