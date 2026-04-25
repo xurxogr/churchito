@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -102,6 +103,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
 
     # Cleanup
     await engine.dispose()
+    # Small delay to let aiosqlite worker thread finish before event loop closes
+    await asyncio.sleep(0.01)
 
 
 @pytest.fixture
@@ -142,6 +145,8 @@ async def test_database(
     yield db
 
     await db.close()
+    # Small delay to let aiosqlite worker thread finish before event loop closes
+    await asyncio.sleep(0.01)
 
 
 @pytest.fixture
