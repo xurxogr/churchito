@@ -523,10 +523,11 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
         ConfigOption(
             key=ConfigKey.REJECT_WRONG_FACTION,
             name="Rejection: Wrong faction",
-            description="Reason when faction is incorrect",
+            description="Reason when faction is incorrect. Use {faction} for the expected one",
             option_type=ConfigOptionType.STRING,
-            default="Wrong faction",
+            default="Wrong faction, must be {faction}",
             max_length=200,
+            placeholders=["faction"],
             group="Moderation Panel",
         ),
         ConfigOption(

@@ -151,6 +151,8 @@ def _build_rejection_messages(
             format_kwargs: dict[str, Any] = {}
             if reject_type == RejectType.WRONG_SHARD:
                 format_kwargs["shard"] = config.get(ConfigKey.VERIFICATION_SHARD, "")
+            elif reject_type == RejectType.WRONG_FACTION:
+                format_kwargs["faction"] = config.get(ConfigKey.VERIFICATION_FACTION, "")
             messages.append(
                 get_rejection_message(config=config, reason=reject_type, **format_kwargs)
             )
