@@ -61,11 +61,11 @@ async def handle_auto_approval(
     verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
-    additional_content: str,
     embeds: list[discord.Embed],
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
     check_statuses: dict[str, str] | None = None,
+    api_status: str = "",
 ) -> None:
     """Handle automatic approval of verification.
 
@@ -76,11 +76,11 @@ async def handle_auto_approval(
         verification_service (VerificationService): Verification service.
         config (dict[str, Any]): Cog configuration.
         mod_message (discord.Message): Moderation message to update.
-        additional_content (str): Additional content (player info, history).
         embeds (list[discord.Embed]): Screenshot embeds.
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
         check_statuses (dict[str, str] | None): Status placeholders for checks.
+        api_status (str): API status message placeholder.
     """
     await verification_service.approve(
         request_id=request.id,
@@ -155,9 +155,9 @@ async def handle_auto_approval(
             created_at_relative=created_at_relative,
             guild=guild,
             member=member,
-            additional_content=additional_content,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            api_status=api_status,
             **(check_statuses or {}),
         )
         for embed in main_embeds:
@@ -173,12 +173,12 @@ async def handle_auto_rejection(
     verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
-    additional_content: str,
     embeds: list[discord.Embed],
     reason: str,
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
     check_statuses: dict[str, str] | None = None,
+    api_status: str = "",
 ) -> None:
     """Handle automatic rejection of verification.
 
@@ -189,12 +189,12 @@ async def handle_auto_rejection(
         verification_service (VerificationService): Verification service.
         config (dict[str, Any]): Cog configuration.
         mod_message (discord.Message): Moderation message to update.
-        additional_content (str): Additional content (player info, history).
         embeds (list[discord.Embed]): Screenshot embeds.
         reason (str): Rejection reason.
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
         check_statuses (dict[str, str] | None): Status placeholders for checks.
+        api_status (str): API status message placeholder.
     """
     await verification_service.reject(
         request_id=request.id,
@@ -244,9 +244,9 @@ async def handle_auto_rejection(
             created_at_relative=created_at_relative,
             guild=guild,
             member=member,
-            additional_content=additional_content,
             additional_sections=additional_sections,
             sections_context=sections_context,
+            api_status=api_status,
             **(check_statuses or {}),
         )
         for embed in main_embeds:
@@ -274,7 +274,6 @@ async def process_auto_verification(
     verification_service: VerificationService,
     config: dict[str, Any],
     mod_message: discord.Message,
-    additional_content: str,
     embeds: list[discord.Embed],
     should_approve: bool,
     rejection_reason: str | None,
@@ -283,6 +282,7 @@ async def process_auto_verification(
     additional_sections: list[dict[str, Any]] | None = None,
     sections_context: dict[str, Any] | None = None,
     check_statuses: dict[str, str] | None = None,
+    api_status: str = "",
 ) -> bool:
     """Process auto-approval or auto-rejection based on rules.
 
@@ -293,7 +293,6 @@ async def process_auto_verification(
         verification_service (VerificationService): Verification service.
         config (dict[str, Any]): Cog configuration.
         mod_message (discord.Message): Moderation message to update.
-        additional_content (str): Additional content.
         embeds (list[discord.Embed]): Screenshot embeds.
         should_approve (bool): Whether it should be approved.
         rejection_reason (str | None): Rejection reason if not approved.
@@ -302,6 +301,7 @@ async def process_auto_verification(
         additional_sections (list[dict[str, Any]] | None): Additional sections for the embed.
         sections_context (dict[str, Any] | None): Context for section placeholders.
         check_statuses (dict[str, str] | None): Status placeholders for checks.
+        api_status (str): API status message placeholder.
 
     Returns:
         bool: True if processed automatically, False if manual review required.
@@ -314,11 +314,11 @@ async def process_auto_verification(
             verification_service=verification_service,
             config=config,
             mod_message=mod_message,
-            additional_content=additional_content,
             embeds=embeds,
             additional_sections=additional_sections,
             sections_context=sections_context,
             check_statuses=check_statuses,
+            api_status=api_status,
         )
         return True
     elif not should_approve and auto_reject:
@@ -329,12 +329,12 @@ async def process_auto_verification(
             verification_service=verification_service,
             config=config,
             mod_message=mod_message,
-            additional_content=additional_content,
             embeds=embeds,
             reason=rejection_reason or "Auto-rejected",
             additional_sections=additional_sections,
             sections_context=sections_context,
             check_statuses=check_statuses,
+            api_status=api_status,
         )
         return True
 

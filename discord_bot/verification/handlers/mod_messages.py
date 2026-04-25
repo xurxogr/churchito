@@ -193,10 +193,10 @@ async def update_mod_message_for_review(
     created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
     created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
 
-    additional_content = ""
     player_info: dict[str, Any] | None = None
     failures: set[RejectType] = set()
     api_response_exists = False
+    api_status = ""
 
     if api_result:
         if api_result.success and api_result.response:
@@ -217,10 +217,10 @@ async def update_mod_message_for_review(
             )
         elif api_result.status_code == 422:
             reject_msg = config.get(ConfigKey.REJECT_WRONG_CAPTURES) or "Invalid captures"
-            additional_content += f"\n\n⚠️ **{reject_msg}**"
+            api_status = f"⚠️ **{reject_msg}**"
         else:
             error_msg = get_api_error_message(api_result.status_code)
-            additional_content += f"\n\n❌ **API Error:** {error_msg}"
+            api_status = f"❌ **API Error:** {error_msg}"
 
     embeds = create_screenshot_embeds(url1=request.screenshot_1_url, url2=request.screenshot_2_url)
 
@@ -232,6 +232,9 @@ async def update_mod_message_for_review(
     )
 
     auto_mode = config.get(ConfigKey.VERIFICATION_AUTOMATIC, AutoProcessMode.NONE)
+    logger.debug(
+        f"[{channel.guild.name}] Auto mode: {auto_mode!r} (type={type(auto_mode).__name__})"
+    )
     if auto_mode is True:
         auto_mode = AutoProcessMode.BOTH
     elif auto_mode is False or not auto_mode:
@@ -239,6 +242,7 @@ async def update_mod_message_for_review(
 
     auto_reject = auto_mode in (AutoProcessMode.REJECT_ONLY, AutoProcessMode.BOTH)
     auto_approve = auto_mode in (AutoProcessMode.APPROVE_ONLY, AutoProcessMode.BOTH)
+    logger.debug(f"[{channel.guild.name}] auto_reject={auto_reject}, auto_approve={auto_approve}")
 
     if (auto_reject or auto_approve) and api_result:
         guild = channel.guild
@@ -263,12 +267,12 @@ async def update_mod_message_for_review(
                     verification_service=verification_service,
                     config=config,
                     mod_message=mod_message,
-                    additional_content=additional_content,
                     embeds=embeds,
                     reason=reject_reason,
                     additional_sections=additional_sections,
                     sections_context=sections_context,
                     check_statuses=check_statuses_422,
+                    api_status=api_status,
                 )
                 return True
 
@@ -283,18 +287,31 @@ async def update_mod_message_for_review(
                 member_display_name=member_display_name,
             )
             should_approve = len(failures) == 0
+            logger.debug(
+                f"[{guild.name}] Verification result: failures={failures}, "
+                f"should_approve={should_approve}, auto_reject={auto_reject}"
+            )
 
-            # Check if all failures have auto-reject enabled
+            # Check if any failures have auto-reject enabled
             should_auto_reject = auto_reject
+            auto_rejectable: set[RejectType] = set()
             if failures and auto_reject:
                 auto_rejectable = get_auto_rejectable_failures(config=config, failures=failures)
-                # Only auto-reject if ALL failures have auto-reject enabled
-                should_auto_reject = auto_rejectable == failures
+                # Auto-reject if ANY failure has auto-reject enabled
+                should_auto_reject = len(auto_rejectable) > 0
+                logger.debug(
+                    f"[{guild.name}] Auto-reject check: auto_rejectable={auto_rejectable}, "
+                    f"should_auto_reject={should_auto_reject}"
+                )
 
-            # Build rejection messages for all failures
+            # Build rejection messages - only for auto-rejectable failures if auto-rejecting
             rejection_reason: str | None = None
             if failures:
-                rejection_messages = _build_rejection_messages(config=config, failures=failures)
+                # Use only auto-rejectable failures for the rejection message
+                failures_for_message = auto_rejectable if should_auto_reject else failures
+                rejection_messages = _build_rejection_messages(
+                    config=config, failures=failures_for_message
+                )
                 rejection_reason = "\n".join(rejection_messages)
 
             # Build check statuses for the verification result
@@ -312,7 +329,6 @@ async def update_mod_message_for_review(
                 verification_service=verification_service,
                 config=config,
                 mod_message=mod_message,
-                additional_content=additional_content,
                 embeds=embeds,
                 should_approve=should_approve,
                 rejection_reason=rejection_reason,
@@ -321,6 +337,7 @@ async def update_mod_message_for_review(
                 additional_sections=additional_sections,
                 sections_context=sections_context,
                 check_statuses=check_statuses_auto,
+                api_status=api_status,
             )
             if processed:
                 return True
@@ -360,9 +377,9 @@ async def update_mod_message_for_review(
         created_at_relative=created_at_relative,
         guild=channel.guild,
         member=member,
-        additional_content=additional_content,
         additional_sections=additional_sections,
         sections_context=sections_context,
+        api_status=api_status,
         **check_statuses,
     )
     all_embeds = [*main_embeds, *embeds]
