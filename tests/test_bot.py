@@ -31,12 +31,12 @@ async def test_bot(
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
         # Mock necessary properties
-        type(bot).guilds = PropertyMock(return_value=[])  # type: ignore[method-assign]
+        type(bot).guilds = PropertyMock(return_value=[])
         mock_user = MagicMock()
         mock_user.name = "TestBot"
         mock_user.id = 123456789
-        type(bot).user = PropertyMock(return_value=mock_user)  # type: ignore[method-assign]
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        type(bot).user = PropertyMock(return_value=mock_user)
+        bot.load_extension = AsyncMock()
         yield bot
 
 
@@ -63,7 +63,7 @@ async def test_bot_on_ready(test_bot: DiscordBot) -> None:
     """
     # Mock the event bus emit method
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # Call on_ready
     await test_bot.on_ready()
@@ -88,11 +88,11 @@ async def test_bot_close(test_bot: DiscordBot) -> None:
         test_bot: Test bot instance
     """
     # Mock the database close
-    test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
+    test_bot.database.close = AsyncMock()
 
     # Mock the event bus emit method
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # Create a fake monitor task
     async def dummy_monitor() -> None:
@@ -125,10 +125,14 @@ async def test_bot_setup_hook(test_settings: AppSettings, test_database: Databas
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock()
+
+        # Mock the tree for error handler assignment
+        mock_tree = MagicMock()
+        bot._BotBase__tree = mock_tree
 
         # Mock the database initialization
-        test_database.initialize = AsyncMock()  # type: ignore[method-assign]
+        test_database.initialize = AsyncMock()
 
         with (
             patch.object(bot, "_create_tables", new_callable=AsyncMock) as mock_create_tables,
@@ -140,6 +144,9 @@ async def test_bot_setup_hook(test_settings: AppSettings, test_database: Databas
             test_database.initialize.assert_called_once()
             mock_create_tables.assert_called_once()
             mock_load_cogs.assert_called_once()
+
+            # Verify that the error handler was set
+            assert mock_tree.on_error == bot._on_app_command_error
 
 
 async def test_bot_load_cogs_success(
@@ -153,7 +160,7 @@ async def test_bot_load_cogs_success(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock()
 
         # Should load without errors
         await bot._load_cogs()
@@ -174,7 +181,7 @@ async def test_bot_load_cogs_with_error(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock(side_effect=Exception("Test error"))  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock(side_effect=Exception("Test error"))
 
         # Should handle the error internally
         await bot._load_cogs()
@@ -210,11 +217,11 @@ async def test_bot_close_with_done_monitor_task(test_bot: DiscordBot) -> None:
         test_bot: Test bot instance
     """
     # Mock database close
-    test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
+    test_bot.database.close = AsyncMock()
 
     # Mock event bus emit method
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # Mock an already completed monitor task
     mock_task = AsyncMock()
@@ -240,11 +247,11 @@ async def test_bot_close_without_monitor_task(test_bot: DiscordBot) -> None:
         test_bot: Test bot instance
     """
     # Mock database close
-    test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
+    test_bot.database.close = AsyncMock()
 
     # Mock event bus emit method
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # No monitor task
     test_bot._monitor_task = None
@@ -383,10 +390,10 @@ async def test_bot_on_ready_without_user(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        type(bot).user = PropertyMock(return_value=None)  # type: ignore[method-assign]
+        type(bot).user = PropertyMock(return_value=None)
 
         mock_emit = MagicMock()
-        bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+        bot.event_bus.emit = mock_emit
 
         # Should execute without errors when user is None
         await bot.on_ready()
@@ -402,12 +409,12 @@ async def test_bot_on_ready_sync_error(test_bot: DiscordBot) -> None:
         test_bot: Test bot instance
     """
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # Mock tree.sync to raise exception
     mock_tree = MagicMock()
     mock_tree.sync = AsyncMock(side_effect=Exception("Sync failed"))
-    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)
 
     # Should handle error without propagating
     with patch("discord_bot.bot.logger") as mock_logger:
@@ -441,12 +448,12 @@ async def test_bot_on_ready_sync_success(test_bot: DiscordBot) -> None:
         test_bot: Test bot instance
     """
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     # Mock tree.sync to return synced commands
     mock_tree = MagicMock()
     mock_tree.sync = AsyncMock(return_value=[MagicMock(), MagicMock()])
-    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)
 
     with patch("discord_bot.bot.logger") as mock_logger:
         await test_bot.on_ready()
@@ -471,8 +478,8 @@ async def test_bot_setup_hook_creates_monitor_task(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
-        test_database.initialize = AsyncMock()  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock()
+        test_database.initialize = AsyncMock()
 
         # Mock _create_tables and _load_cogs
         with (
@@ -561,14 +568,14 @@ async def test_bot_on_ready_logs_guild_count(test_bot: DiscordBot) -> None:
     """
     # Setup multiple guilds
     mock_guilds = [MagicMock(), MagicMock(), MagicMock()]
-    type(test_bot).guilds = PropertyMock(return_value=mock_guilds)  # type: ignore[method-assign]
+    type(test_bot).guilds = PropertyMock(return_value=mock_guilds)
 
     mock_emit = MagicMock()
-    test_bot.event_bus.emit = mock_emit  # type: ignore[method-assign]
+    test_bot.event_bus.emit = mock_emit
 
     mock_tree = MagicMock()
     mock_tree.sync = AsyncMock(return_value=[])
-    type(test_bot).tree = PropertyMock(return_value=mock_tree)  # type: ignore[method-assign]
+    type(test_bot).tree = PropertyMock(return_value=mock_tree)
 
     with patch("discord_bot.bot.logger") as mock_logger:
         await test_bot.on_ready()
@@ -603,7 +610,7 @@ async def test_bot_load_cogs_loads_all_configured_cogs(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock()
 
         with patch("discord_bot.bot.logger") as mock_logger:
             await bot._load_cogs()
@@ -626,9 +633,7 @@ async def test_bot_load_cogs_logs_errors(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock(  # type: ignore[method-assign]
-            side_effect=Exception("Failed to load")
-        )
+        bot.load_extension = AsyncMock(side_effect=Exception("Failed to load"))
 
         with patch("discord_bot.bot.logger") as mock_logger:
             await bot._load_cogs()
@@ -675,8 +680,8 @@ async def test_bot_close_logs_shutdown(test_bot: DiscordBot) -> None:
     Args:
         test_bot: Test bot instance
     """
-    test_bot.database.close = AsyncMock()  # type: ignore[method-assign]
-    test_bot.event_bus.emit = MagicMock()  # type: ignore[method-assign]
+    test_bot.database.close = AsyncMock()
+    test_bot.event_bus.emit = MagicMock()
     test_bot._monitor_task = None
 
     with (
@@ -702,8 +707,8 @@ async def test_bot_setup_hook_logs_progress(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        bot.load_extension = AsyncMock()  # type: ignore[method-assign]
-        test_database.initialize = AsyncMock()  # type: ignore[method-assign]
+        bot.load_extension = AsyncMock()
+        test_database.initialize = AsyncMock()
 
         with (
             patch.object(bot, "_create_tables", new_callable=AsyncMock),
@@ -885,7 +890,7 @@ async def test_on_guild_join_fallback_to_owner_when_bot_user_is_none(
     """
     with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
         bot = DiscordBot(test_settings, test_database)
-        type(bot).user = PropertyMock(return_value=None)  # type: ignore[method-assign]
+        type(bot).user = PropertyMock(return_value=None)
 
         mock_guild = MagicMock()
         mock_guild.id = 123456
@@ -1281,3 +1286,159 @@ async def test_save_guild_logs_success(
                 if "Server saved to DB: Log Test Server" in str(call)
             ]
             assert len(info_calls) > 0
+
+
+# Tests for on_guild_remove
+
+
+async def test_on_guild_remove_logs_info(test_bot: DiscordBot) -> None:
+    """Test that on_guild_remove logs removal.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    mock_guild = MagicMock()
+    mock_guild.id = 123456
+    mock_guild.name = "Removed Server"
+
+    # Mock guilds list (remaining servers)
+    mock_remaining_guilds = [MagicMock(), MagicMock()]
+    type(test_bot).guilds = PropertyMock(return_value=mock_remaining_guilds)
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot.on_guild_remove(mock_guild)
+
+        # Verify removal log
+        info_calls = [str(call) for call in mock_logger.info.call_args_list]
+        assert any("Bot removed from server: Removed Server" in call for call in info_calls)
+        assert any("2 server(s)" in call for call in info_calls)
+
+
+# Tests for _on_app_command_error
+
+
+async def test_on_app_command_error_handles_command_not_found(test_bot: DiscordBot) -> None:
+    """Test that _on_app_command_error handles CommandNotFound.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    from discord import app_commands
+
+    # Create mock interaction
+    mock_interaction = MagicMock()
+    mock_interaction.guild = MagicMock()
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.response.send_message = AsyncMock()
+
+    # Create CommandNotFound error (requires name and parents list)
+    error = app_commands.CommandNotFound("test_command", [])
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot._on_app_command_error(mock_interaction, error)
+
+        # Verify warning was logged
+        warning_calls = [
+            call
+            for call in mock_logger.warning.call_args_list
+            if "CommandNotFound" in str(call) and "test_command" in str(call)
+        ]
+        assert len(warning_calls) > 0
+
+        # Verify user was notified
+        mock_interaction.response.send_message.assert_called_once()
+        call_kwargs = mock_interaction.response.send_message.call_args.kwargs
+        assert call_kwargs["ephemeral"] is True
+
+
+async def test_on_app_command_error_command_not_found_response_already_done(
+    test_bot: DiscordBot,
+) -> None:
+    """Test CommandNotFound when response is already done.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    from discord import app_commands
+
+    mock_interaction = MagicMock()
+    mock_interaction.guild = MagicMock()
+    mock_interaction.response.is_done.return_value = True
+    mock_interaction.response.send_message = AsyncMock()
+
+    error = app_commands.CommandNotFound("test_command", [])
+
+    with patch("discord_bot.bot.logger"):
+        await test_bot._on_app_command_error(mock_interaction, error)
+
+        # Should not try to send message when response is done
+        mock_interaction.response.send_message.assert_not_called()
+
+
+async def test_on_app_command_error_command_not_found_http_exception(
+    test_bot: DiscordBot,
+) -> None:
+    """Test CommandNotFound when HTTPException is raised.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    from discord import app_commands
+
+    mock_interaction = MagicMock()
+    mock_interaction.guild = MagicMock()
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.response.send_message = AsyncMock(
+        side_effect=discord.HTTPException(MagicMock(), "Interaction expired")
+    )
+
+    error = app_commands.CommandNotFound("test_command", [])
+
+    with patch("discord_bot.bot.logger"):
+        # Should not raise - HTTPException is caught
+        await test_bot._on_app_command_error(mock_interaction, error)
+
+
+async def test_on_app_command_error_handles_other_errors(test_bot: DiscordBot) -> None:
+    """Test that _on_app_command_error logs other errors.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    from discord import app_commands
+
+    mock_interaction = MagicMock()
+    mock_interaction.command = MagicMock()
+    mock_interaction.command.name = "failing_command"
+
+    error = app_commands.AppCommandError("Something went wrong")
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot._on_app_command_error(mock_interaction, error)
+
+        # Verify error was logged
+        error_calls = [
+            call for call in mock_logger.error.call_args_list if "failing_command" in str(call)
+        ]
+        assert len(error_calls) > 0
+
+
+async def test_on_app_command_error_handles_unknown_command(test_bot: DiscordBot) -> None:
+    """Test that _on_app_command_error handles None command.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    from discord import app_commands
+
+    mock_interaction = MagicMock()
+    mock_interaction.command = None
+
+    error = app_commands.AppCommandError("Error with unknown command")
+
+    with patch("discord_bot.bot.logger") as mock_logger:
+        await test_bot._on_app_command_error(mock_interaction, error)
+
+        # Verify error was logged with "unknown"
+        error_calls = [call for call in mock_logger.error.call_args_list if "unknown" in str(call)]
+        assert len(error_calls) > 0

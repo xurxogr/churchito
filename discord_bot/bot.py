@@ -7,6 +7,7 @@ import time
 import discord
 from alembic import command
 from alembic.config import Config as AlembicConfig
+from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
@@ -95,10 +96,46 @@ class DiscordBot(commands.Bot):
         # Load cogs
         await self._load_cogs()
 
+        # Set up error handler for app commands
+        self.tree.on_error = self._on_app_command_error  # type: ignore[method-assign]
+
         # Start event loop monitoring
         self._monitor_task = asyncio.create_task(self._monitor_event_loop())
 
         logger.info("Setup hook completed")
+
+    async def _on_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        """Handle errors in application commands.
+
+        Args:
+            interaction: The interaction that caused the error.
+            error: The error that was raised.
+        """
+        if isinstance(error, app_commands.CommandNotFound):
+            # This happens when Discord has a cached command that the bot
+            # no longer has registered (e.g., after config changes or restart)
+            logger.warning(
+                f"CommandNotFound: /{error.name} (guild: {interaction.guild}). "
+                "Discord has a stale cached command."
+            )
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This command is no longer available. "
+                        "Please wait a few minutes for Discord to update.",
+                        ephemeral=True,
+                    )
+            except discord.HTTPException:
+                pass  # Interaction may have expired
+            return
+
+        # Log other errors
+        cmd_name = interaction.command.name if interaction.command else "unknown"
+        logger.error(f"App command error in /{cmd_name}: {error}", exc_info=error)
 
     async def _create_tables(self) -> None:
         """Apply Alembic migrations to the database."""
