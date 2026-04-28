@@ -353,7 +353,7 @@ class TestComputeNickname:
         assert result == "[ABC | CAP] Xurxo"
 
     def test_computes_nickname_with_only_prefix(self) -> None:
-        """Should compute nickname with only prefix, using format with empty tag."""
+        """Should compute nickname with only prefix, without tag format."""
         prefixes_config = [{"role_id": 100, "prefix": "★"}]
 
         result = compute_nickname(
@@ -365,16 +365,16 @@ class TestComputeNickname:
             tag_format=DEFAULT_FORMAT,
         )
 
-        # Always uses format, with empty tag if no tag is configured
-        assert result == "★[ABC | ] Xurxo"
+        # Only prefix should be applied, no empty tag format
+        assert result == "★ Xurxo"
 
     def test_no_change_with_only_prefix(self) -> None:
         """Should not re-add prefix if already has correct format."""
         prefixes_config = [{"role_id": 100, "prefix": "★"}]
 
         result = compute_nickname(
-            display_name="★[ABC | ] Xurxo",
-            current_nick="★[ABC | ] Xurxo",
+            display_name="★ Xurxo",
+            current_nick="★ Xurxo",
             member_role_ids=[100],
             tags_config=[],
             prefixes_config=prefixes_config,

@@ -125,9 +125,9 @@ def build_nickname(
     Returns:
         str: Complete nickname, truncated to 32 characters if necessary
     """
-    # If there's prefix or tag, always apply the format (tag can be empty)
-    # E.g.: prefix="★ ", tag="" → "★ [ABC | ] Xurxo" (space included in prefix)
-    formatted_tag = tag_format.format(tag=tag) if (tag or prefix) else ""
+    # Only format the tag if there's an actual tag value
+    # If only prefix exists without tag, don't include the empty tag format
+    formatted_tag = tag_format.format(tag=tag) if tag else ""
 
     # Build nickname: prefix attaches directly (no extra space)
     # If user wants space, include it in prefix: "★ " instead of "★"
