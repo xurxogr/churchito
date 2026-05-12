@@ -1,8 +1,8 @@
 # Discord Bot Cogs Codemap
 
-<!-- Generated: 2026-04-24 | Files scanned: 120 | Token estimate: ~1500 -->
+<!-- Generated: 2026-05-13 | Files scanned: 126 | Token estimate: ~1500 -->
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 **Entry Point:** `discord_bot/bot.py:_load_cogs()`
 
 ## Cog Loading System
@@ -204,20 +204,23 @@ class VerificationAPIResult(BaseModel):
 
 ### Embed Placeholders
 
-Available placeholders for mod embed templates:
+Available placeholders for mod embed templates and status messages:
 
-| Placeholder | Description |
-|-------------|-------------|
-| `{username}` | Stored username from request |
-| `{user_mention}` | Discord mention (`<@user_id>`) |
-| `{user_display_name}` | Display name (plain text, fallback to username) |
-| `{verification_type}` | Type display name |
-| `{status}` | Current status text |
-| `{created_at}` | Formatted date (YYYY-MM-DD HH:MM) |
-| `{created_at_relative}` | Relative timestamp (`<t:UNIX:R>`) |
-| `{war}` | War number from OCR |
+| Placeholder | Description | Used In |
+|-------------|-------------|---------|
+| `{username}` | Stored username from request | All templates |
+| `{user_mention}` | Discord mention (`<@user_id>`) | All templates |
+| `{user_display_name}` | Display name (plain text, fallback to username) | Mod embed (pending) |
+| `{verification_type}` | Type display name | All templates |
+| `{status}` | Current status text | Mod embed |
+| `{created_at}` | Formatted date (YYYY-MM-DD HH:MM) | Mod embed |
+| `{created_at_relative}` | Relative timestamp (`<t:UNIX:R>`) | Mod embed |
+| `{war}` | War number from OCR | Mod embed |
+| `{moderator}` | Moderator username (NEW: 2026-05-13) | Status templates |
+| `{moderator_display_name}` | Moderator Discord display name (NEW: 2026-05-13) | Status templates (approved/rejected) |
+| `{reason}` | Rejection reason | Status rejected template |
 
-**Note:** `format_message()` converts literal `\n` to actual newlines.
+**Note:** `format_message()` converts literal `\n` to actual newlines and passes both `moderator` and `moderator_display_name` for status updates.
 
 ---
 

@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing! This guide explains how to set up your development environment, run tests, and follow our code standards.
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 
 ## Prerequisites
 
@@ -64,10 +64,10 @@ Utility scripts in `/scripts` directory:
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [-v]` |
-| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name>` |
-| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py` |
-| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py <cog_path>` |
+| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [--no-html] [-v] [--test PATH]` |
+| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name> [--with-service]` |
+| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py [--dry-run] [--security-only]` |
+| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py` |
 
 ### Running Tests
 
@@ -274,10 +274,10 @@ discord_bot/
 │   ├── core/                   # Settings, logging, app configuration
 │   ├── models/                 # SQLAlchemy ORM models
 │   ├── services/               # Database, config, event bus
-│   ├── schemas/                # Pydantic schemas for validation
+│   ├── schemas/                # Pydantic schemas
 │   ├── enums/                  # Event types, config option types
 │   └── utils/                  # Utilities (message handling)
-├── verification/               # Verification module (cog + service)
+├── verification/               # Verification module
 │   ├── cog.py                  # Discord event handler
 │   ├── service.py              # Database CRUD operations
 │   ├── handlers/               # Async event handlers
@@ -289,6 +289,18 @@ discord_bot/
 │   ├── models/                 # PurgeRecord, PurgeUserResult
 │   ├── execution.py            # Purge execution engine
 │   └── views.py                # Button views for confirmations
+├── stockpile/                  # Stockpile management module
+│   ├── cog.py                  # Commands for stockpile CRUD
+│   ├── service.py              # Business logic
+│   ├── models/                 # Stockpile ORM model
+│   ├── formatters.py           # Embed formatting
+│   └── config.py               # Config schema with sections
+├── roles/                      # Reaction roles module
+│   ├── cog.py                  # Commands + event handlers
+│   ├── service.py              # CRUD operations
+│   ├── models/                 # ReactionPanel ORM model
+│   ├── formatters.py           # Embed/message formatting
+│   └── config.py               # Config schema
 ├── autoname/                   # Automatic username management
 │   ├── cog.py                  # Auto-rename on join
 │   └── service.py              # Name formatting logic

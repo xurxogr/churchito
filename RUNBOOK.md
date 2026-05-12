@@ -686,12 +686,12 @@ Utility scripts in `/scripts` directory:
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [-v]` |
-| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name>` |
-| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py` |
-| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py <cog_path>` |
+| `run_tests.sh` | Run tests with coverage reporting | `./scripts/run_tests.sh [--no-coverage] [--no-html] [-v] [--test PATH]` |
+| `new_cog.py` | Scaffold a new cog with best practices | `python scripts/new_cog.py <cog_name> [--with-service]` |
+| `update_dependencies.py` | Safely update dependency versions | `python scripts/update_dependencies.py [--dry-run] [--security-only]` |
+| `validate_cog_structure.py` | Validate cog directory structure | `python scripts/validate_cog_structure.py` |
 
 ---
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 **Version:** 1.0.2

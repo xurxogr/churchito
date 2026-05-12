@@ -1,8 +1,8 @@
 # Architecture Codemap
 
-<!-- Generated: 2026-04-24 | Files scanned: 48 | Token estimate: ~1300 -->
+<!-- Generated: 2026-05-13 | Files scanned: 126 | Token estimate: ~1300 -->
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 **Entry Points:** `discord_bot/__main__.py`, `discord_bot/bot.py`, `discord_bot/web/app.py`
 
 ## System Architecture Diagram
@@ -347,6 +347,11 @@ FastAPI App
 - Configurable timeout (default: 1 week)
 
 ## Recent Architectural Changes
+
+### Moderator Display Name Support (2026-05-13)
+- Status templates now support both `{moderator}` (username) and `{moderator_display_name}` (display name)
+- `format_message()` passes moderator_display_name when formatting approval/rejection status
+- Enables more flexible mod notification messages (e.g., "Approved by @Discord Display Name")
 
 ### Stockpile Cog Integration (2026-03-27+)
 - New cog added to bot.py's cog loading list

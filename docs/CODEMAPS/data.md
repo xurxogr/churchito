@@ -1,8 +1,8 @@
 # Database Schema Codemap
 
-<!-- Generated: 2026-04-24 | Files scanned: 13 | Token estimate: ~1200 -->
+<!-- Generated: 2026-05-13 | Files scanned: 126 | Token estimate: ~1200 -->
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 **Entry Point:** `discord_bot/common/models/`, Alembic migrations
 **Database:** SQLite (default) | PostgreSQL (optional)
 

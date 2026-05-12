@@ -2,8 +2,8 @@
 
 <!-- Generated: 2026-04-24 | Files scanned: 125 | Token estimate: ~1000 -->
 
-**Last Updated:** 2026-04-24
-**Version:** 1.2.0
+**Last Updated:** 2026-05-13
+**Version:** 1.2.1
 **Language:** Python 3.12+
 **Framework:** discord.py 2.x + FastAPI + SQLAlchemy 2.0
 
@@ -162,6 +162,12 @@ Template render / JSON response
 - JSON config file (~/.config/discord-bot/config.json)
 
 ## Recent Changes (Since 2026-04-10)
+
+**Moderator Display Name Placeholder (2026-05-13)**
+- Added `{moderator_display_name}` placeholder to STATUS_APPROVED and STATUS_REJECTED templates
+- `format_message()` now passes `moderator_display_name` parameter
+- Allows mod embeds to display moderator's Discord display name (or username fallback)
+- Used when formatting approval/rejection status lines in mod notification channel
 
 **Per-Reason Auto-Reject Toggles (2026-04-24, CRITICAL)**
 - `RejectType` enum: 6 rejection types (INVALID_SCREENSHOTS, WRONG_FACTION, WRONG_SHARD, HAS_REGIMENT, NAME_MISMATCH, TIME_DIFF)

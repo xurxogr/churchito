@@ -2,7 +2,7 @@
 
 Discord bot with user verification system, role management, stockpile tracking, and web administration panel.
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-05-13
 
 ## Features
 
