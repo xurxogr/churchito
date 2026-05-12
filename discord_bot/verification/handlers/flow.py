@@ -531,6 +531,7 @@ async def handle_accept(
         approved_status = format_message(
             template=config.get(ConfigKey.STATUS_APPROVED),
             moderator=interaction.user.name,
+            moderator_display_name=interaction.user.display_name,
         )
         await update_mod_message_status(
             guild=interaction.guild,
@@ -739,6 +740,7 @@ async def handle_reject(
         rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
             moderator=interaction.user.name,
+            moderator_display_name=interaction.user.display_name,
             reason=reason,
         )
         await update_mod_message_status(

@@ -207,6 +207,7 @@ class TestHandleVerificationStart:
         interaction.user = MagicMock(spec=discord.User)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.mention = "<@456>"
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -258,6 +259,7 @@ class TestHandleVerificationStart:
         interaction.user = MagicMock(spec=discord.User)
         interaction.user.id = 456  # Same user
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.mention = "<@456>"
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -294,6 +296,7 @@ class TestHandleVerificationStart:
         interaction.user = MagicMock(spec=discord.User)
         interaction.user.id = 888
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.mention = "<@888>"
         interaction.user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
         interaction.response = MagicMock()
@@ -370,6 +373,7 @@ class TestHandleAccept:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "Mod"
+        interaction.user.display_name = "Mod"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -928,7 +932,7 @@ class TestCleanupStaleVerifications:
         mock_guild.name = "Test Guild"
         mock_guild.get_member.return_value = None  # User is not present
         mock_guild.get_channel.return_value = None  # Without mod channel
-        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = mock_guild
 
         await verification_cog._cleanup_stale_verifications()
 
@@ -960,7 +964,7 @@ class TestCleanupStaleVerifications:
             public_id = request.public_id
 
         # Bot doesn't find the guild
-        verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = None
 
         await verification_cog._cleanup_stale_verifications()
 
@@ -994,7 +998,7 @@ class TestCleanupStaleVerifications:
         mock_guild = MagicMock()
         mock_guild.id = 123
         mock_guild.get_member.return_value = mock_member  # User is present
-        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = mock_guild
 
         await verification_cog._cleanup_stale_verifications()
 
@@ -1029,7 +1033,7 @@ class TestCleanupStaleVerifications:
         mock_guild.name = "Test Guild"
         mock_guild.get_member.return_value = None
         mock_guild.get_channel.return_value = None
-        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = mock_guild
 
         # Mock update_mod_message_cancelled to fail
         with patch(
@@ -1085,7 +1089,7 @@ class TestInitializeTrackers:
         mock_guild.name = "Test Guild"
         mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
 
-        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = mock_guild
 
         await verification_cog._initialize_trackers()
 
@@ -1109,7 +1113,7 @@ class TestInitializeTrackers:
             await session.commit()
 
         # Bot doesn't find the guild
-        verification_cog.bot.get_guild.return_value = None  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = None
 
         # Should not throw exception
         await verification_cog._initialize_trackers()
@@ -1134,7 +1138,7 @@ class TestInitializeTrackers:
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
 
-        verification_cog.bot.get_guild.return_value = mock_guild  # type: ignore[attr-defined]
+        verification_cog.bot.get_guild.return_value = mock_guild
 
         # Cog disabled
         with patch.object(
@@ -1190,7 +1194,7 @@ class TestOnMessage:
         message.reply = AsyncMock()
 
         # Configure mock bot to not find common server
-        verification_cog.bot.guilds = []  # type: ignore[misc]
+        verification_cog.bot.guilds = []
 
         # Mock to not find in database
         with patch.object(
@@ -1220,7 +1224,7 @@ class TestOnMessage:
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
         mock_guild.get_member = MagicMock(return_value=MagicMock())
-        verification_cog.bot.guilds = [mock_guild]  # type: ignore[misc]
+        verification_cog.bot.guilds = [mock_guild]
 
         config_values = {
             "no_pending_verification_message": "Custom message no verification",
@@ -1256,7 +1260,7 @@ class TestOnMessage:
         message.author.id = 999
         message.reply = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
 
-        verification_cog.bot.guilds = []  # type: ignore[misc]
+        verification_cog.bot.guilds = []
 
         with patch.object(
             verification_cog, "_get_pending_verification", new_callable=AsyncMock
@@ -1932,6 +1936,7 @@ class TestHandleAcceptHappyPath:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -2061,6 +2066,7 @@ class TestHandleRejectHappyPath:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3040,6 +3046,7 @@ class TestRoleOperations:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3107,6 +3114,7 @@ class TestRoleOperations:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3168,6 +3176,7 @@ class TestRoleOperations:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3255,6 +3264,7 @@ class TestModMessageEditing:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3330,6 +3340,7 @@ class TestModMessageEditing:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3410,6 +3421,7 @@ class TestModMessageEditing:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3745,6 +3757,7 @@ class TestHandleAcceptAllyRoles:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3785,6 +3798,7 @@ class TestHandleRejectEdgeCases:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "Mod"
+        interaction.user.display_name = "Mod"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3894,6 +3908,7 @@ class TestHandleRejectEdgeCases:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -3961,6 +3976,7 @@ class TestHandleRejectEdgeCases:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -4385,6 +4401,7 @@ class TestHandleVerificationStartExtended:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
         interaction.followup = MagicMock()
@@ -4419,6 +4436,7 @@ class TestHandleVerificationStartExtended:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.roles = [mock_role]
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -4460,6 +4478,7 @@ class TestHandleVerificationStartExtended:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.roles = [mock_role]
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -4503,6 +4522,7 @@ class TestHandleVerificationStartExtended:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.roles = [mock_role]
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -4547,6 +4567,7 @@ class TestHandleVerificationStartExtended:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 456
         interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
         interaction.user.roles = [mock_role]
         interaction.response = MagicMock()
         interaction.response.defer = AsyncMock()
@@ -5079,6 +5100,7 @@ class TestHandleAcceptRoleNotFound:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5143,6 +5165,7 @@ class TestHandleAcceptRoleNotFound:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5218,6 +5241,7 @@ class TestHandleAcceptDeleteModMessage:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5340,6 +5364,7 @@ class TestHandleRejectDeleteModMessage:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5451,6 +5476,7 @@ class TestHandleReview:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5516,6 +5542,7 @@ class TestHandleReview:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
@@ -5600,6 +5627,7 @@ class TestHandleReview:
         interaction.user = MagicMock(spec=discord.Member)
         interaction.user.id = 789
         interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
         interaction.user.roles = []
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True

@@ -443,7 +443,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.STRING,
             default="✅ **Status:** Approved by {moderator}",
             max_length=200,
-            placeholders=["moderator"],
+            placeholders=["moderator", "moderator_display_name"],
             group="Moderation Panel",
         ),
         ConfigOption(
@@ -453,7 +453,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.STRING,
             default="❌ **Status:** Rejected by {moderator}\n**Reason:** {reason}",
             max_length=200,
-            placeholders=["moderator", "reason"],
+            placeholders=["moderator", "moderator_display_name", "reason"],
             group="Moderation Panel",
         ),
         ConfigOption(
