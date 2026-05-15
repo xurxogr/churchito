@@ -466,6 +466,7 @@ async def handle_accept(
         auto_rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
             moderator="Auto",
+            moderator_display_name="Auto",
             reason=request.rejection_reason or "",
         )
 
@@ -709,6 +710,7 @@ async def handle_reject(
         auto_rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
             moderator="Auto",
+            moderator_display_name="Auto",
             reason=request.rejection_reason or "",
         )
 

@@ -564,6 +564,7 @@ async def update_mod_message_for_manual_review(
     previous_status = format_message(
         template=config.get(ConfigKey.STATUS_REJECTED),
         moderator="Auto",
+        moderator_display_name="Auto",
         reason=rejection_reason,
     )
 

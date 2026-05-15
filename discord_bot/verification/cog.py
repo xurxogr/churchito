@@ -307,6 +307,7 @@ class VerificationCog(commands.Cog):
             rejected_status = format_message(
                 template=config.get(ConfigKey.STATUS_REJECTED),
                 moderator="Auto",
+                moderator_display_name="Auto",
                 reason=reason,
             )
             await update_mod_message_status(

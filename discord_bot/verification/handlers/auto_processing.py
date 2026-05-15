@@ -138,6 +138,7 @@ async def handle_auto_approval(
         approved_status = format_message(
             template=config.get(ConfigKey.STATUS_APPROVED),
             moderator="Auto",
+            moderator_display_name="Auto",
         )
         verification_type = VerificationType(request.verification_type)
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
@@ -227,6 +228,7 @@ async def handle_auto_rejection(
         rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
             moderator="Auto",
+            moderator_display_name="Auto",
             reason=reason,
         )
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
