@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing! This guide explains how to set up your development environment, run tests, and follow our code standards.
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-17
 
 ## Prerequisites
 

@@ -1,8 +1,11 @@
 # Discord Bot
 
+![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+
 Discord bot with user verification system, role management, stockpile tracking, and web administration panel.
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-17
 
 ## Features
 

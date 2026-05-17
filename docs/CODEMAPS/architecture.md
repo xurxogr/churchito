@@ -1,8 +1,8 @@
 # Architecture Codemap
 
-<!-- Generated: 2026-05-13 | Files scanned: 126 | Token estimate: ~1300 -->
+<!-- Generated: 2026-05-17 | Files scanned: 126 | Token estimate: ~1300 -->
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-17
 **Entry Points:** `discord_bot/__main__.py`, `discord_bot/bot.py`, `discord_bot/web/app.py`
 
 ## System Architecture Diagram

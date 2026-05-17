@@ -155,3 +155,9 @@ custom/
 docker-compose.override.yml
 config.json
 purge.json
+
+# Local scripts and generated files
+run_bot.sh
+deploy-changes.sh
+.reports/
+coverage.json

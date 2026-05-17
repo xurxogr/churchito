@@ -1,8 +1,8 @@
 # Discord Bot Cogs Codemap
 
-<!-- Generated: 2026-05-13 | Files scanned: 126 | Token estimate: ~1500 -->
+<!-- Generated: 2026-05-17 | Files scanned: 126 | Token estimate: ~1500 -->
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-17
 **Entry Point:** `discord_bot/bot.py:_load_cogs()`
 
 ## Cog Loading System

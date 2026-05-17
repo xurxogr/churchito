@@ -1,8 +1,8 @@
 # Discord Bot Codemaps Index
 
-<!-- Generated: 2026-04-24 | Files scanned: 125 | Token estimate: ~1000 -->
+<!-- Generated: 2026-05-17 | Files scanned: 126 | Token estimate: ~1000 -->
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-05-17
 **Version:** 1.2.1
 **Language:** Python 3.12+
 **Framework:** discord.py 2.x + FastAPI + SQLAlchemy 2.0
@@ -162,6 +162,10 @@ Template render / JSON response
 - JSON config file (~/.config/discord-bot/config.json)
 
 ## Recent Changes (Since 2026-04-10)
+
+**Moderator Display Name Fix (2026-05-17)**
+- Fixed `{moderator_display_name}` not being replaced by "Auto" in auto rejections
+- Auto-processing handlers now pass moderator_display_name="Auto" for automated actions
 
 **Moderator Display Name Placeholder (2026-05-13)**
 - Added `{moderator_display_name}` placeholder to STATUS_APPROVED and STATUS_REJECTED templates
