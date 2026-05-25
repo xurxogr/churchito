@@ -23,7 +23,7 @@ class VerificationAPIResponse(BaseModel):
         level (int): Player's level.
         regiment (str): Player's regiment name.
         faction (str): Player's faction ('colonial' or 'wardens').
-        shard (str): Server shard ('ABLE' or 'CHARLIE').
+        shard (str): Server shard ('ABLE', 'CHARLIE', or 'LIVE').
         ingame_time (str): Time shown in screenshot (e.g., "267, 21:45").
         war_number (int): Current war number.
         current_ingame_time (str): Current in-game time (e.g., "268, 14:30").
@@ -35,7 +35,7 @@ class VerificationAPIResponse(BaseModel):
     level: int = Field(default=0, description="Player's level")
     regiment: str = Field(default="", description="Player's regiment name")
     faction: str = Field(default="", description="Player's faction ('colonial' or 'wardens')")
-    shard: str = Field(default="", description="Server shard ('ABLE' or 'CHARLIE')")
+    shard: str = Field(default="", description="Server shard ('ABLE', 'CHARLIE', or 'LIVE')")
     ingame_time: str = Field(default="", description="Time shown in screenshot")
     war_number: int = Field(default=0, description="Current war number")
     current_ingame_time: str = Field(default="", description="Current in-game time")

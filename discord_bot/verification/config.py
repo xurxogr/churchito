@@ -789,6 +789,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             choices=[
                 ("ABLE", "ABLE"),
                 ("CHARLIE", "CHARLIE"),
+                ("LIVE", "LIVE"),
             ],
             default="",
             group="Verification API",
