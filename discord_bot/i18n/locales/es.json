@@ -602,6 +602,10 @@
           "name": "Canal de la tarjeta de bienvenida",
           "description": "Canal donde se publica la tarjeta de bienvenida del miembro. Solo se muestran los canales donde el bot tiene permiso de escritura."
         },
+        "welcome_card_message": {
+          "name": "Mensaje de la tarjeta de bienvenida",
+          "description": "Texto opcional publicado junto a la imagen de la tarjeta de bienvenida. Usa {user_mention} para mencionar al nuevo miembro. Déjalo vacío para publicar solo la imagen."
+        },
         "welcome_card_template_url": {
           "name": "URL de la plantilla de la tarjeta",
           "description": "URL de la imagen de plantilla (PNG/JPG) sobre la que se dibuja el nombre del miembro. El nombre se dibuja dentro del recuadro definido por las coordenadas de abajo."

@@ -18,6 +18,7 @@ import httpx
 from PIL import Image, ImageDraw, ImageFont
 
 from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.formatters import format_message
 
 if TYPE_CHECKING:
     from discord_bot.verification.models import VerificationRequest
@@ -92,6 +93,42 @@ def _in_game_name(request: VerificationRequest) -> str | None:
         if isinstance(name, str) and name.strip():
             return name
     return None
+
+
+def build_card_message(
+    *,
+    template: str | None,
+    request: VerificationRequest,
+    member: discord.Member | None,
+    name: str,
+    server_name: str,
+) -> str | None:
+    """Format the optional text posted alongside the welcome card.
+
+    Supported placeholders: {user_mention}, {username}, {display_name}, {name}
+    (the name drawn on the card) and {server_name}.
+
+    Args:
+        template (str | None): Message template from config.
+        request (VerificationRequest): Approved verification request.
+        member (discord.Member | None): Approved member, if still present.
+        name (str): The resolved name drawn on the card.
+        server_name (str): Guild name.
+
+    Returns:
+        str | None: The formatted message, or None when there is nothing to post.
+    """
+    if not template:
+        return None
+    content = format_message(
+        template=template,
+        user_mention=f"<@{request.user_id}>",
+        username=request.username,
+        display_name=member.display_name if member is not None else request.username,
+        name=name,
+        server_name=server_name,
+    )
+    return content or None
 
 
 def sanitize_name(name: str) -> str:
@@ -352,7 +389,15 @@ async def post_welcome_card(
             max_font_size=max_font_size,
         )
 
+        content = build_card_message(
+            template=config.get(ConfigKey.WELCOME_CARD_MESSAGE),
+            request=request,
+            member=member,
+            name=name,
+            server_name=guild.name,
+        )
+
         file = discord.File(io.BytesIO(image_bytes), filename=OUTPUT_FILENAME)
-        await channel.send(file=file)
+        await channel.send(content=content, file=file)
     except Exception as exc:
         logger.exception(f"[{guild.name}] Failed to post welcome card: {exc}")

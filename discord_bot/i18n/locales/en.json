@@ -602,6 +602,10 @@
           "name": "Welcome card channel",
           "description": "Channel where the member welcome card is posted. Only channels where the bot has write permission are shown."
         },
+        "welcome_card_message": {
+          "name": "Welcome card message",
+          "description": "Optional text posted together with the welcome card image. Use {user_mention} to ping the new member. Leave empty to post only the image."
+        },
         "welcome_card_template_url": {
           "name": "Welcome card template URL",
           "description": "URL of the template image (PNG/JPG) onto which the member's name is drawn. The name is rendered inside the box defined by the coordinates below."

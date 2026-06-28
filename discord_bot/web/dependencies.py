@@ -35,8 +35,10 @@ async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession, None]
         AsyncSession: Database session
     """
     db_service = request.app.state.db_service
+    # FastAPI closes this dependency generator (via AsyncExitStack.aclose), so the
+    # `async with` cleanup is guaranteed to run despite the ASYNC119 warning.
     async with db_service.session() as session:
-        yield session
+        yield session  # noqa: ASYNC119
 
 
 async def get_current_user(request: Request) -> dict[str, Any] | None:

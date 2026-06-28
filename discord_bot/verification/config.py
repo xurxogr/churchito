@@ -200,6 +200,25 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             group="Verification (Normal)",
         ),
         ConfigOption(
+            key=ConfigKey.WELCOME_CARD_MESSAGE,
+            name="Welcome card message",
+            description=(
+                "Optional text posted together with the welcome card image. "
+                "Use {user_mention} to ping the new member. Leave empty to post only the image."
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default="",
+            max_length=2000,
+            placeholders=[
+                "user_mention",
+                "username",
+                "display_name",
+                "name",
+                "server_name",
+            ],
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
             key=ConfigKey.WELCOME_CARD_TEMPLATE_URL,
             name="Welcome card template URL",
             description=(

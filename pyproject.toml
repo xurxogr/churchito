@@ -64,7 +64,7 @@ dev = [
 
     # Code Quality & Formatting
     "mypy>=1.19.1",
-    "ruff>=0.15.5",
+    "ruff==0.15.20",
     "pre-commit>=4.5.1",
 
     # Security & Code Analysis

@@ -114,6 +114,7 @@ class ConfigKey(StrEnum):
     # Welcome card (image posted to a channel on approval)
     WELCOME_CARD_ENABLED = "welcome_card_enabled"
     WELCOME_CARD_CHANNEL = "welcome_card_channel"
+    WELCOME_CARD_MESSAGE = "welcome_card_message"
     WELCOME_CARD_TEMPLATE_URL = "welcome_card_template_url"
     WELCOME_CARD_BOX_X1 = "welcome_card_box_x1"
     WELCOME_CARD_BOX_Y1 = "welcome_card_box_y1"

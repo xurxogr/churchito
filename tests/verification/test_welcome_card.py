@@ -137,6 +137,63 @@ class TestResolveCardName:
         assert result == "Xurxogr"
 
 
+class TestBuildCardMessage:
+    """Tests for build_card_message."""
+
+    def test_empty_template_returns_none(self) -> None:
+        """Test that an empty template yields no message."""
+        request = MagicMock(user_id=456, username="xurxogr")
+        assert (
+            welcome_card.build_card_message(
+                template="", request=request, member=None, name="Xurxogr", server_name="Guild"
+            )
+            is None
+        )
+
+    def test_replaces_user_mention(self) -> None:
+        """Test that {user_mention} becomes a Discord mention."""
+        request = MagicMock(user_id=456, username="xurxogr")
+
+        result = welcome_card.build_card_message(
+            template="Welcome {user_mention}!",
+            request=request,
+            member=None,
+            name="Xurxogr",
+            server_name="Guild",
+        )
+
+        assert result == "Welcome <@456>!"
+
+    def test_replaces_all_placeholders(self) -> None:
+        """Test that every supported placeholder is substituted."""
+        request = MagicMock(user_id=456, username="xurxogr")
+        member = MagicMock(display_name="★ Xurxogr")
+
+        result = welcome_card.build_card_message(
+            template="{user_mention} {username} {display_name} {name} {server_name}",
+            request=request,
+            member=member,
+            name="Xurxogr",
+            server_name="7th Pelotón",
+        )
+
+        assert result == "<@456> xurxogr ★ Xurxogr Xurxogr 7th Pelotón"
+
+    def test_display_name_falls_back_to_username_without_member(self) -> None:
+        """Test that {display_name} falls back to the username when member is None."""
+        request = MagicMock(user_id=456, username="xurxogr")
+
+        result = welcome_card.build_card_message(
+            template="{display_name}",
+            request=request,
+            member=None,
+            name="Xurxogr",
+            server_name="Guild",
+        )
+
+        assert result == "xurxogr"
+
+
 class TestParseBox:
     """Tests for parse_box."""
 
@@ -404,6 +461,38 @@ class TestPostWelcomeCard:
 
         channel.send.assert_awaited_once()
         _, kwargs = channel.send.call_args
+        assert "file" in kwargs
+        assert kwargs["content"] is None
+
+    @pytest.mark.asyncio
+    async def test_message_posted_as_content(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that a configured message is sent as content with the user mention."""
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.send = AsyncMock()
+        guild = self._guild_with_channel(channel)
+        monkeypatch.setattr(
+            welcome_card, "fetch_template", AsyncMock(return_value=_make_template())
+        )
+
+        config = _valid_config()
+        config[ConfigKey.WELCOME_CARD_MESSAGE] = "Welcome {user_mention} to {server_name}!"
+        request = MagicMock(
+            user_id=456,
+            username="xurxogr",
+            verification_type=VerificationType.REGULAR,
+            player_info={"name": "Xurxogr"},
+        )
+
+        await welcome_card.post_welcome_card(
+            guild=guild,
+            config=config,
+            request=request,
+            member=MagicMock(display_name="Xurxogr"),
+        )
+
+        channel.send.assert_awaited_once()
+        _, kwargs = channel.send.call_args
+        assert kwargs["content"] == "Welcome <@456> to Test Guild!"
         assert "file" in kwargs
 
     @pytest.mark.asyncio

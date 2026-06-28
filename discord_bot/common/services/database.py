@@ -35,7 +35,7 @@ class DatabaseService:
 
     @property
     def engine(self) -> AsyncEngine:
-        """Get the database engine.
+        """The database engine.
 
         Returns:
             AsyncEngine: SQLAlchemy async engine
@@ -49,7 +49,7 @@ class DatabaseService:
 
     @property
     def session_maker(self) -> async_sessionmaker[AsyncSession]:
-        """Get the session maker.
+        """The session maker.
 
         Returns:
             async_sessionmaker[AsyncSession]: SQLAlchemy async session maker
