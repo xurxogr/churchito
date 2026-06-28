@@ -27,15 +27,15 @@ dependencies = [
     "discord.py>=2.3.0",
 
     # Settings & Configuration
-    "pydantic>=2.12.3",
-    "pydantic_settings>=2.13.1",
+    "pydantic>=2.13.4",
+    "pydantic_settings>=2.14.2",
 
     # Database
-    "sqlalchemy[asyncio]>=2.0.48",
+    "sqlalchemy[asyncio]>=2.0.51",
     "aiosqlite>=0.22.1",
     "asyncpg>=0.30.0",
-    "psycopg[binary]>=3.2.0",
-    "alembic>=1.18.4",
+    "psycopg[binary]>=3.3.4",
+    "alembic>=1.18.5",
 
     # HTTP Client
     "httpx>=0.27.0",
@@ -48,28 +48,28 @@ dependencies = [
 
     # Web Dashboard
     "fastapi==0.138.1",
-    "uvicorn[standard]>=0.41.0",
+    "uvicorn[standard]>=0.49.0",
     "jinja2>=3.1.0",
-    "python-multipart>=0.0.6",
+    "python-multipart>=0.0.32",
     "itsdangerous>=2.1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
-    "pytest-cov>=7.0.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
     "pytest-xdist>=3.5.0",
 
     # Code Quality & Formatting
-    "mypy>=1.19.1",
+    "mypy>=2.1.0",
     "ruff==0.15.20",
-    "pre-commit>=4.5.1",
+    "pre-commit>=4.6.0",
 
     # Security & Code Analysis
-    "vulture>=2.14",
-    "pip-audit>=2.9.0",
+    "vulture>=2.16",
+    "pip-audit>=2.10.1",
 ]
 
 [project.urls]
