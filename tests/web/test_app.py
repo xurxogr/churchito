@@ -65,9 +65,13 @@ class TestCreateApp:
         """Test that it includes routers."""
         app = create_app(test_app_settings, mock_db_service)
 
-        # Verify routes are registered
-        routes = [route.path for route in app.routes if hasattr(route, "path")]
-        assert "/auth/login" in routes or any("/auth" in r for r in routes)
+        # FastAPI >= 0.138 nests included routes under an internal _IncludedRouter
+        # instead of flattening them into ``app.routes``, so introspecting paths is
+        # version-fragile. Verify inclusion via behavior instead: a route from the
+        # auth router must resolve (not 404), even if it redirects.
+        client = TestClient(app, follow_redirects=False)
+        response = client.get("/auth/login")
+        assert response.status_code != 404
 
     def test_health_check_endpoint(
         self,
