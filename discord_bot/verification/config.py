@@ -177,6 +177,116 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=["username", "server_name"],
             group="Verification (Normal)",
         ),
+        # Member welcome card (image posted on approval; members only, not allies)
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_ENABLED,
+            name="Member welcome card",
+            description=(
+                "Post an image with the new member's name when a Member verification "
+                "is approved. Not applied to ally verifications."
+            ),
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_CHANNEL,
+            name="Welcome card channel",
+            description=(
+                "Channel where the member welcome card is posted. "
+                "Only channels where the bot has write permission are shown."
+            ),
+            option_type=ConfigOptionType.CHANNEL,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_TEMPLATE_URL,
+            name="Welcome card template URL",
+            description=(
+                "URL of the template image (PNG/JPG) onto which the member's name is drawn. "
+                "The name is rendered inside the box defined by the coordinates below."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="",
+            max_length=500,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_NAME_SOURCE,
+            name="Welcome card name",
+            description=(
+                "Which name to write on the member's welcome card: the in-game name "
+                "read from the verification screenshot, the member's Discord display "
+                "name, or the raw Discord username."
+            ),
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("In-game name", "in_game"),
+                ("Discord display name", "display"),
+                ("Discord username", "username"),
+            ],
+            default="in_game",
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_BOX_X1,
+            name="Welcome card text box - left (x1)",
+            description="X coordinate (pixels) of the box's top-left corner",
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=10000,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_BOX_Y1,
+            name="Welcome card text box - top (y1)",
+            description="Y coordinate (pixels) of the box's top-left corner",
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=10000,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_BOX_X2,
+            name="Welcome card text box - right (x2)",
+            description="X coordinate (pixels) of the box's bottom-right corner",
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=10000,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_BOX_Y2,
+            name="Welcome card text box - bottom (y2)",
+            description="Y coordinate (pixels) of the box's bottom-right corner",
+            option_type=ConfigOptionType.INTEGER,
+            default=0,
+            min_value=0,
+            max_value=10000,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_FONT_COLOR,
+            name="Welcome card font color",
+            description="Text color in hex format (e.g. #000000 for black)",
+            option_type=ConfigOptionType.STRING,
+            default="#000000",
+            max_length=7,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_MAX_FONT_SIZE,
+            name="Welcome card maximum font size",
+            description="Largest font size (pt); the text shrinks to fit the box",
+            option_type=ConfigOptionType.INTEGER,
+            default=120,
+            min_value=8,
+            max_value=512,
+            group="Verification (Normal)",
+        ),
         # ===== 3. ALLY VERIFICATION =====
         ConfigOption(
             key=ConfigKey.VERIFICATION_TYPE_ALLY_DISPLAY,

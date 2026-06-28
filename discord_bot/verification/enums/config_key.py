@@ -111,6 +111,18 @@ class ConfigKey(StrEnum):
     # Pending verifications tracker
     TRACKER_TITLE = "tracker_title"
 
+    # Welcome card (image posted to a channel on approval)
+    WELCOME_CARD_ENABLED = "welcome_card_enabled"
+    WELCOME_CARD_CHANNEL = "welcome_card_channel"
+    WELCOME_CARD_TEMPLATE_URL = "welcome_card_template_url"
+    WELCOME_CARD_BOX_X1 = "welcome_card_box_x1"
+    WELCOME_CARD_BOX_Y1 = "welcome_card_box_y1"
+    WELCOME_CARD_BOX_X2 = "welcome_card_box_x2"
+    WELCOME_CARD_BOX_Y2 = "welcome_card_box_y2"
+    WELCOME_CARD_NAME_SOURCE = "welcome_card_name_source"
+    WELCOME_CARD_FONT_COLOR = "welcome_card_font_color"
+    WELCOME_CARD_MAX_FONT_SIZE = "welcome_card_max_font_size"
+
     # Internal keys (prefix _ indicates they are not user-configurable)
     PANEL_MESSAGE_ID = "_panel_message_id"
     PANEL_CHANNEL_ID = "_panel_channel_id"

@@ -13,6 +13,7 @@ from discord_bot.verification.formatters import (
     format_message,
     get_verification_type_display,
 )
+from discord_bot.verification.handlers.welcome_card import post_welcome_card
 from discord_bot.verification.models import VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import AutoRejectReviewView
@@ -130,6 +131,13 @@ async def handle_auto_approval(
             await member.send(content=approval_msg)
         except discord.Forbidden:
             pass
+
+    await post_welcome_card(
+        guild=guild,
+        config=config,
+        request=request,
+        member=member,
+    )
 
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:

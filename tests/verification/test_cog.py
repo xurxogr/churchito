@@ -1975,6 +1975,83 @@ class TestHandleAcceptHappyPath:
             assert updated.status == VerificationStatus.APPROVED
             assert updated.reviewed_by_id == 789
 
+    async def test_accept_posts_welcome_card(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that approval invokes the welcome card poster with the approved member."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request.id,
+                "https://cdn.discordapp.com/attachments/123/456/1.png",
+                "https://cdn.discordapp.com/attachments/123/456/2.png",
+                "Test Guild",
+            )
+            await session.commit()
+            public_id = request.public_id
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.get_channel = MagicMock(return_value=None)
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.name = "ModUser"
+        interaction.user.display_name = "ModUser"
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "mod_roles": [],
+            "regular_roles_add": [],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Approved!",
+            "mod_notification_channel": None,
+            "welcome_card_enabled": True,
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.flow.post_welcome_card",
+                new_callable=AsyncMock,
+            ) as mock_post_card,
+        ):
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_accept(interaction=interaction, public_id=public_id)
+
+            mock_post_card.assert_awaited_once()
+            _, kwargs = mock_post_card.call_args
+            assert kwargs["guild"] is mock_guild
+            assert kwargs["config"] is config_values
+            assert kwargs["member"] is mock_member
+            assert kwargs["request"].public_id == public_id
+
     async def test_accept_already_processed(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -14,7 +14,10 @@ from discord_bot.verification.handlers import (
     update_mod_message_for_manual_review,
     update_tracker_message,
 )
-from discord_bot.verification.handlers.auto_processing import send_mod_ping_message
+from discord_bot.verification.handlers.auto_processing import (
+    handle_auto_approval,
+    send_mod_ping_message,
+)
 from discord_bot.verification.handlers.utils import (
     calculate_expires_timestamp,
     create_screenshot_embeds,
@@ -82,6 +85,67 @@ class TestCalculateExpiresTimestamp:
         result_1440 = calculate_expires_timestamp(created_at, 1440)
         timestamp_1440 = int(result_1440[3:-3])
         assert timestamp_1440 == base_timestamp + (1440 * 60)
+
+
+class TestHandleAutoApprovalWelcomeCard:
+    """Tests for the welcome card wiring in handle_auto_approval."""
+
+    @pytest.mark.asyncio
+    async def test_auto_approval_posts_welcome_card(self) -> None:
+        """Test that auto-approval invokes the welcome card poster."""
+        member = MagicMock(spec=discord.Member)
+        member.add_roles = AsyncMock()
+        member.remove_roles = AsyncMock()
+        member.send = AsyncMock()
+        member.display_name = "AutoMember"
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.name = "Test Guild"
+        guild.get_member = MagicMock(return_value=member)
+
+        cog = MagicMock()
+        cog.bot.user.id = 42
+
+        verification_service = MagicMock()
+        verification_service.approve = AsyncMock()
+
+        request = MagicMock()
+        request.id = 1
+        request.user_id = 456
+        request.username = "AutoUser"
+        request.verification_type = VerificationType.REGULAR
+
+        mod_message = MagicMock()
+        mod_message.delete = AsyncMock()
+
+        config: dict[str, Any] = {
+            ConfigKey.REGULAR_ROLES_ADD: [],
+            ConfigKey.REGULAR_ROLES_REMOVE: [],
+            ConfigKey.APPROVAL_MESSAGE_REGULAR: "Approved!",
+            ConfigKey.DELETE_PROCESSED_MESSAGES: True,
+            ConfigKey.WELCOME_CARD_ENABLED: True,
+        }
+
+        with patch(
+            "discord_bot.verification.handlers.auto_processing.post_welcome_card",
+            new_callable=AsyncMock,
+        ) as mock_post_card:
+            await handle_auto_approval(
+                cog=cog,
+                guild=guild,
+                request=request,
+                verification_service=verification_service,
+                config=config,
+                mod_message=mod_message,
+                embeds=[],
+            )
+
+            mock_post_card.assert_awaited_once()
+            _, kwargs = mock_post_card.call_args
+            assert kwargs["guild"] is guild
+            assert kwargs["config"] is config
+            assert kwargs["member"] is member
+            assert kwargs["request"] is request
 
 
 class TestIsValidDiscordUrl:

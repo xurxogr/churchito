@@ -593,6 +593,51 @@
         "player_info_sections": {
           "name": "Player information sections",
           "description": "Sections to display player information in the moderation message. Use the 'Fields (3 col)' type to display data in columns."
+        },
+        "welcome_card_enabled": {
+          "name": "Member welcome card",
+          "description": "Post an image with the new member's name when a Member verification is approved. Not applied to ally verifications."
+        },
+        "welcome_card_channel": {
+          "name": "Welcome card channel",
+          "description": "Channel where the member welcome card is posted. Only channels where the bot has write permission are shown."
+        },
+        "welcome_card_template_url": {
+          "name": "Welcome card template URL",
+          "description": "URL of the template image (PNG/JPG) onto which the member's name is drawn. The name is rendered inside the box defined by the coordinates below."
+        },
+        "welcome_card_name_source": {
+          "name": "Welcome card name",
+          "description": "Which name to write on the member's welcome card: the in-game name read from the verification screenshot, the member's Discord display name, or the raw Discord username.",
+          "choices": {
+            "In-game name": "In-game name",
+            "Discord display name": "Discord display name",
+            "Discord username": "Discord username"
+          }
+        },
+        "welcome_card_box_x1": {
+          "name": "Welcome card text box - left (x1)",
+          "description": "X coordinate (pixels) of the box's top-left corner"
+        },
+        "welcome_card_box_y1": {
+          "name": "Welcome card text box - top (y1)",
+          "description": "Y coordinate (pixels) of the box's top-left corner"
+        },
+        "welcome_card_box_x2": {
+          "name": "Welcome card text box - right (x2)",
+          "description": "X coordinate (pixels) of the box's bottom-right corner"
+        },
+        "welcome_card_box_y2": {
+          "name": "Welcome card text box - bottom (y2)",
+          "description": "Y coordinate (pixels) of the box's bottom-right corner"
+        },
+        "welcome_card_font_color": {
+          "name": "Welcome card font color",
+          "description": "Text color in hex format (e.g. #000000 for black)"
+        },
+        "welcome_card_max_font_size": {
+          "name": "Welcome card maximum font size",
+          "description": "Largest font size (pt); the text shrinks to fit the box"
         }
       },
       "choices": {

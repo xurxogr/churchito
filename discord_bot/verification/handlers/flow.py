@@ -31,6 +31,7 @@ from discord_bot.verification.handlers.utils import (
     calculate_expires_timestamp,
     get_ready_for_approval_status,
 )
+from discord_bot.verification.handlers.welcome_card import post_welcome_card
 from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import RejectionReasonView
@@ -528,6 +529,13 @@ async def handle_accept(
                 await member.send(content=formatted)
             except discord.Forbidden:
                 pass
+
+        await post_welcome_card(
+            guild=interaction.guild,
+            config=config,
+            request=request,
+            member=member,
+        )
 
         approved_status = format_message(
             template=config.get(ConfigKey.STATUS_APPROVED),

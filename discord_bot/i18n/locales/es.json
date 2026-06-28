@@ -593,6 +593,51 @@
         "player_info_sections": {
           "name": "Secciones de información del jugador",
           "description": "Secciones para mostrar información del jugador en el mensaje de moderación. Usa el tipo 'Campos (3 col)' para mostrar datos en columnas."
+        },
+        "welcome_card_enabled": {
+          "name": "Tarjeta de bienvenida de Miembro",
+          "description": "Publica una imagen con el nombre del nuevo miembro cuando se aprueba una verificación de Miembro. No se aplica a las verificaciones de aliado."
+        },
+        "welcome_card_channel": {
+          "name": "Canal de la tarjeta de bienvenida",
+          "description": "Canal donde se publica la tarjeta de bienvenida del miembro. Solo se muestran los canales donde el bot tiene permiso de escritura."
+        },
+        "welcome_card_template_url": {
+          "name": "URL de la plantilla de la tarjeta",
+          "description": "URL de la imagen de plantilla (PNG/JPG) sobre la que se dibuja el nombre del miembro. El nombre se dibuja dentro del recuadro definido por las coordenadas de abajo."
+        },
+        "welcome_card_name_source": {
+          "name": "Nombre de la tarjeta de bienvenida",
+          "description": "Qué nombre escribir en la tarjeta de bienvenida del miembro: el nombre en el juego leído de la captura de verificación, el nombre visible de Discord del miembro o el nombre de usuario de Discord.",
+          "choices": {
+            "In-game name": "Nombre en el juego",
+            "Discord display name": "Nombre visible de Discord",
+            "Discord username": "Nombre de usuario de Discord"
+          }
+        },
+        "welcome_card_box_x1": {
+          "name": "Recuadro de la tarjeta - izquierda (x1)",
+          "description": "Coordenada X (píxeles) de la esquina superior izquierda del recuadro"
+        },
+        "welcome_card_box_y1": {
+          "name": "Recuadro de la tarjeta - arriba (y1)",
+          "description": "Coordenada Y (píxeles) de la esquina superior izquierda del recuadro"
+        },
+        "welcome_card_box_x2": {
+          "name": "Recuadro de la tarjeta - derecha (x2)",
+          "description": "Coordenada X (píxeles) de la esquina inferior derecha del recuadro"
+        },
+        "welcome_card_box_y2": {
+          "name": "Recuadro de la tarjeta - abajo (y2)",
+          "description": "Coordenada Y (píxeles) de la esquina inferior derecha del recuadro"
+        },
+        "welcome_card_font_color": {
+          "name": "Color de fuente de la tarjeta",
+          "description": "Color del texto en formato hexadecimal (p. ej. #000000 para negro)"
+        },
+        "welcome_card_max_font_size": {
+          "name": "Tamaño máximo de fuente de la tarjeta",
+          "description": "Tamaño de fuente máximo (pt); el texto se reduce para caber en el recuadro"
         }
       },
       "choices": {
