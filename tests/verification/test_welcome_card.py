@@ -87,6 +87,23 @@ class TestResolveCardName:
 
         assert result == "xurxogr"
 
+    def test_in_game_source_falls_back_to_display_name_without_request(self) -> None:
+        """Test that in-game falls back to the member's display name with no request."""
+        member = MagicMock(display_name="★[7-HP | CMD] Xurxogr")
+
+        result = welcome_card.resolve_card_name(request=None, member=member, name_source="in_game")
+
+        assert result == "★[7-HP | CMD] Xurxogr"
+
+    def test_username_source_falls_back_to_member_name_without_request(self) -> None:
+        """Test that username source falls back to the member's raw name with no request."""
+        member = MagicMock()
+        member.name = "xurxogr"
+
+        result = welcome_card.resolve_card_name(request=None, member=member, name_source="username")
+
+        assert result == "xurxogr"
+
     def test_in_game_source_ignores_blank_ocr_name(self) -> None:
         """Test that a blank OCR name falls back to the username."""
         request = MagicMock(username="xurxogr", player_info={"name": "   "})
@@ -167,7 +184,7 @@ class TestBuildCardMessage:
     def test_replaces_all_placeholders(self) -> None:
         """Test that every supported placeholder is substituted."""
         request = MagicMock(user_id=456, username="xurxogr")
-        member = MagicMock(display_name="★ Xurxogr")
+        member = MagicMock(id=456, display_name="★ Xurxogr")
 
         result = welcome_card.build_card_message(
             template="{user_mention} {username} {display_name} {name} {server_name}",
@@ -192,6 +209,70 @@ class TestBuildCardMessage:
         )
 
         assert result == "xurxogr"
+
+    def test_uses_member_when_no_request(self) -> None:
+        """Test that mention/username come from the member when there is no request."""
+        member = MagicMock(id=789, display_name="Role Joiner")
+        member.name = "rolejoiner"
+
+        result = welcome_card.build_card_message(
+            template="{user_mention} {username} {display_name}",
+            request=None,
+            member=member,
+            name="Xurxogr",
+            server_name="Guild",
+        )
+
+        assert result == "<@789> rolejoiner Role Joiner"
+
+
+class TestShouldTriggerWelcomeCard:
+    """Tests for should_trigger_welcome_card."""
+
+    def test_no_required_roles_never_triggers(self) -> None:
+        """Test that an empty required-role config never triggers."""
+        assert (
+            welcome_card.should_trigger_welcome_card(
+                before_role_ids={1}, after_role_ids={1, 2}, required_role_ids=[]
+            )
+            is False
+        )
+
+    def test_completing_the_set_triggers(self) -> None:
+        """Test that adding the last missing required role triggers."""
+        assert (
+            welcome_card.should_trigger_welcome_card(
+                before_role_ids={10}, after_role_ids={10, 20}, required_role_ids=[10, 20]
+            )
+            is True
+        )
+
+    def test_already_complete_does_not_retrigger(self) -> None:
+        """Test that a role change while already complete does not retrigger."""
+        assert (
+            welcome_card.should_trigger_welcome_card(
+                before_role_ids={10, 20}, after_role_ids={10, 20, 30}, required_role_ids=[10, 20]
+            )
+            is False
+        )
+
+    def test_still_incomplete_does_not_trigger(self) -> None:
+        """Test that adding a role that still leaves the set incomplete does not trigger."""
+        assert (
+            welcome_card.should_trigger_welcome_card(
+                before_role_ids=set(), after_role_ids={10}, required_role_ids=[10, 20]
+            )
+            is False
+        )
+
+    def test_losing_a_required_role_does_not_trigger(self) -> None:
+        """Test that removing a required role never triggers."""
+        assert (
+            welcome_card.should_trigger_welcome_card(
+                before_role_ids={10, 20}, after_role_ids={10}, required_role_ids=[10, 20]
+            )
+            is False
+        )
 
 
 class TestParseBox:
@@ -487,7 +568,7 @@ class TestPostWelcomeCard:
             guild=guild,
             config=config,
             request=request,
-            member=MagicMock(display_name="Xurxogr"),
+            member=MagicMock(id=456, display_name="Xurxogr"),
         )
 
         channel.send.assert_awaited_once()
@@ -496,18 +577,23 @@ class TestPostWelcomeCard:
         assert "file" in kwargs
 
     @pytest.mark.asyncio
-    async def test_ally_verification_does_not_post(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that an ally verification never posts a welcome card."""
+    async def test_posts_without_a_verification_request(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that the card posts for a plain role-completion trigger with no request."""
         channel = MagicMock(spec=discord.TextChannel)
         channel.send = AsyncMock()
         guild = self._guild_with_channel(channel)
-        fetch = AsyncMock(return_value=_make_template())
-        monkeypatch.setattr(welcome_card, "fetch_template", fetch)
-
-        ally_request = MagicMock(username="AllyUser", verification_type=VerificationType.ALLY)
-        await welcome_card.post_welcome_card(
-            guild=guild, config=_valid_config(), request=ally_request, member=MagicMock()
+        monkeypatch.setattr(
+            welcome_card, "fetch_template", AsyncMock(return_value=_make_template())
         )
 
-        channel.send.assert_not_called()
-        fetch.assert_not_called()
+        await welcome_card.post_welcome_card(
+            guild=guild,
+            config=_valid_config(),
+            member=MagicMock(id=456, display_name="Role Joiner", name="rolejoiner"),
+        )
+
+        channel.send.assert_awaited_once()
+        _, kwargs = channel.send.call_args
+        assert "file" in kwargs

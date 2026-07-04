@@ -177,16 +177,29 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             placeholders=["username", "server_name"],
             group="Verification (Normal)",
         ),
-        # Member welcome card (image posted on approval; members only, not allies)
+        # Member welcome card (image posted once a member holds all required roles)
         ConfigOption(
             key=ConfigKey.WELCOME_CARD_ENABLED,
             name="Member welcome card",
             description=(
-                "Post an image with the new member's name when a Member verification "
-                "is approved. Not applied to ally verifications."
+                "Post an image with the member's name once they hold every role listed "
+                "below. Triggers the moment the last required role is added, however it "
+                "got added (verification approval, manual role edit, another bot, etc.)."
             ),
             option_type=ConfigOptionType.BOOLEAN,
             default=False,
+            group="Verification (Normal)",
+        ),
+        ConfigOption(
+            key=ConfigKey.WELCOME_CARD_REQUIRED_ROLES,
+            name="Welcome card required roles",
+            description=(
+                "Roles a member must hold, all at once, to trigger the welcome card. "
+                "The card is posted only on the update that completes the full set, "
+                "not on every later role change."
+            ),
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
             group="Verification (Normal)",
         ),
         ConfigOption(

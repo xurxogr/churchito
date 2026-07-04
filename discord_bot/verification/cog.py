@@ -33,6 +33,10 @@ from discord_bot.verification.handlers import (
     update_mod_message_status,
     update_tracker_message,
 )
+from discord_bot.verification.handlers.welcome_card import (
+    post_welcome_card,
+    should_trigger_welcome_card,
+)
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import ModReviewView, VerificationPanelView
@@ -1221,6 +1225,44 @@ class VerificationCog(commands.Cog):
                     f"[{member.guild.name}] Verification cancelled: "
                     f"user={member.name} (left the server)"
                 )
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        """Post the welcome card once a member's roles complete the required set.
+
+        Args:
+            before (discord.Member): Member state before the update
+            after (discord.Member): Member state after the update
+        """
+        before_role_ids = {role.id for role in before.roles}
+        after_role_ids = {role.id for role in after.roles}
+        if before_role_ids == after_role_ids:
+            return
+
+        try:
+            if not await self._is_cog_enabled(after.guild.id):
+                return
+
+            async with self.bot.database.session() as session:
+                config_service = ConfigService(session=session)
+                config = await config_service.get_all_config(
+                    guild_id=after.guild.id, cog_name=COG_NAME
+                )
+
+            if not config.get(ConfigKey.WELCOME_CARD_ENABLED):
+                return
+
+            required_role_ids = config.get(ConfigKey.WELCOME_CARD_REQUIRED_ROLES) or []
+            if not should_trigger_welcome_card(
+                before_role_ids=before_role_ids,
+                after_role_ids=after_role_ids,
+                required_role_ids=required_role_ids,
+            ):
+                return
+
+            await post_welcome_card(guild=after.guild, config=config, member=after)
+        except Exception as e:
+            logger.exception(f"[{after.guild.name}] Error in on_member_update: {e}")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction) -> None:

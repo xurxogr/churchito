@@ -1,8 +1,9 @@
-"""Welcome card rendering and posting for approved verifications.
+"""Welcome card rendering and posting for members reaching a required role set.
 
-Renders the approved member's name onto a guild-provided template image and
-posts it to a configured channel. Everything here is best-effort: any failure
-is logged and swallowed so it can never block or break the approval flow.
+Renders a member's name onto a guild-provided template image and posts it to
+a configured channel once the member holds every required role. Everything
+here is best-effort: any failure is logged and swallowed so it can never
+block or break the caller (e.g. a role-update event).
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import discord
 import httpx
 from PIL import Image, ImageDraw, ImageFont
 
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.formatters import format_message
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ _CONTROL_CHARS = re.compile(r"\s+")
 
 def resolve_card_name(
     *,
-    request: VerificationRequest,
+    request: VerificationRequest | None,
     member: discord.Member | None,
     name_source: str,
 ) -> str:
@@ -57,14 +58,16 @@ def resolve_card_name(
 
     Three sources are supported:
         - "in_game" (default): the OCR Foxhole name from the verification
-          screenshot (``player_info["name"]``), falling back to the Discord
-          username if no OCR data is present.
+          screenshot (``player_info["name"]``), falling back to the request's
+          Discord username, and to the member's display name if there is no
+          associated verification request at all.
         - "display": the member's server display name (nick / global / username).
         - "username": the raw Discord username (@handle, lowercase).
 
     Args:
-        request (VerificationRequest): Verification request.
-        member (discord.Member | None): Approved member, if still in the guild.
+        request (VerificationRequest | None): Verification request, if one
+            triggered the card. None when the trigger was a plain role update.
+        member (discord.Member | None): Member the card is for, if still in the guild.
         name_source (str): One of "in_game", "display" or "username".
 
     Returns:
@@ -73,16 +76,26 @@ def resolve_card_name(
     if name_source == NAME_SOURCE_DISPLAY and member is not None:
         return sanitize_name(member.display_name)
     if name_source == NAME_SOURCE_USERNAME:
+        if request is not None:
+            return sanitize_name(request.username)
+        return sanitize_name(member.name) if member is not None else ""
+    # Default / "in_game": OCR Foxhole name, falling back to the request's
+    # username, then to the member's display name.
+    in_game = _in_game_name(request) if request is not None else None
+    if in_game:
+        return sanitize_name(in_game)
+    if request is not None:
         return sanitize_name(request.username)
-    # Default / "in_game": OCR Foxhole name, fall back to the Discord username.
-    return sanitize_name(_in_game_name(request) or request.username)
+    if member is not None:
+        return sanitize_name(member.display_name)
+    return ""
 
 
-def _in_game_name(request: VerificationRequest) -> str | None:
+def _in_game_name(request: VerificationRequest | None) -> str | None:
     """Read the OCR-extracted in-game name from the request, if present.
 
     Args:
-        request (VerificationRequest): Verification request.
+        request (VerificationRequest | None): Verification request.
 
     Returns:
         str | None: The in-game name, or None if no usable OCR data exists.
@@ -95,10 +108,40 @@ def _in_game_name(request: VerificationRequest) -> str | None:
     return None
 
 
+def should_trigger_welcome_card(
+    *,
+    before_role_ids: set[int],
+    after_role_ids: set[int],
+    required_role_ids: list[int],
+) -> bool:
+    """Decide whether a role change just completed the required role set.
+
+    Fires only on the transition into holding every required role: the
+    member must not have held them all before the change, and must hold
+    them all after it. This prevents re-posting on every later role change
+    once the set is already complete, and ignores role changes that leave
+    the set incomplete either way.
+
+    Args:
+        before_role_ids (set[int]): Role IDs the member held before the change.
+        after_role_ids (set[int]): Role IDs the member holds after the change.
+        required_role_ids (list[int]): Configured required role IDs.
+
+    Returns:
+        bool: True if the welcome card should be posted.
+    """
+    if not required_role_ids:
+        return False
+    required = set(required_role_ids)
+    had_all_before = required.issubset(before_role_ids)
+    has_all_after = required.issubset(after_role_ids)
+    return has_all_after and not had_all_before
+
+
 def build_card_message(
     *,
     template: str | None,
-    request: VerificationRequest,
+    request: VerificationRequest | None,
     member: discord.Member | None,
     name: str,
     server_name: str,
@@ -110,8 +153,8 @@ def build_card_message(
 
     Args:
         template (str | None): Message template from config.
-        request (VerificationRequest): Approved verification request.
-        member (discord.Member | None): Approved member, if still present.
+        request (VerificationRequest | None): Associated verification request, if any.
+        member (discord.Member | None): Member the card is for, if still present.
         name (str): The resolved name drawn on the card.
         server_name (str): Guild name.
 
@@ -120,11 +163,14 @@ def build_card_message(
     """
     if not template:
         return None
+    user_id = member.id if member is not None else getattr(request, "user_id", None)
+    username = request.username if request is not None else getattr(member, "name", "")
+    display_name = member.display_name if member is not None else username
     content = format_message(
         template=template,
-        user_mention=f"<@{request.user_id}>",
-        username=request.username,
-        display_name=member.display_name if member is not None else request.username,
+        user_mention=f"<@{user_id}>",
+        username=username,
+        display_name=display_name,
         name=name,
         server_name=server_name,
     )
@@ -335,26 +381,23 @@ async def post_welcome_card(
     *,
     guild: discord.Guild,
     config: dict[str, Any],
-    request: VerificationRequest,
     member: discord.Member | None,
+    request: VerificationRequest | None = None,
 ) -> None:
-    """Render and post the welcome card for an approved regular member.
+    """Render and post the welcome card for a member holding the required roles.
 
-    Only regular (member) verifications produce a card; ally verifications are
-    skipped. Best-effort: any misconfiguration or failure is logged and swallowed
-    so the approval flow is never affected.
+    Called once a member's roles complete the configured required-role set.
+    Best-effort: any misconfiguration or failure is logged and swallowed so
+    the caller (a role-update event) is never affected.
 
     Args:
-        guild (discord.Guild): Guild where the approval happened.
+        guild (discord.Guild): Guild where the role change happened.
         config (dict[str, Any]): Cog configuration.
-        request (VerificationRequest): Approved verification request.
-        member (discord.Member | None): Approved member, if still present.
+        member (discord.Member | None): Member the card is for, if still present.
+        request (VerificationRequest | None): Associated verification request,
+            used to source the in-game/username name when available.
     """
     try:
-        # The welcome card is only posted for regular members, not allies.
-        if request.verification_type != VerificationType.REGULAR:
-            return
-
         if not config.get(ConfigKey.WELCOME_CARD_ENABLED):
             return
 
