@@ -291,6 +291,7 @@ async def _handle_verification_start_locked(
             guild=guild,
             member=member,
             api_status="",
+            steam_profile_url="",
         )
 
         mod_message = await mod_channel.send(embeds=mod_embeds)

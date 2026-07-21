@@ -2412,6 +2412,105 @@ class TestOnMessageSteamProfile:
             assert updated.status == VerificationStatus.PENDING_REVIEW
             assert updated.reviewed_by_username is None
 
+    async def test_mod_embed_renders_steam_profile_url_and_status(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that the mod embed placeholders render the Steam URL and pass/fail status."""
+        from discord_bot.verification.models import SteamProfileCheckResult
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = ""
+        mock_settings.verification.api_key = ""
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        config_values: dict[str, Any] = {
+            "steam_profile_required_regular": True,
+            "screenshots_received_message": "All done!",
+            "mod_notification_channel": 888,
+            "mod_embed_regular": {
+                "color": "#FFA500",
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": "Steam: {steam_profile_url} ({steam_status})",
+                    }
+                ],
+            },
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.flow.check_steam_profile_private",
+                new_callable=AsyncMock,
+            ) as mock_steam_check,
+        ):
+            mock_config.return_value = config_values
+            mock_steam_check.return_value = SteamProfileCheckResult(success=True, is_private=False)
+
+            steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(steam_message)
+
+            screenshots_message = self._image_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+            )
+            await verification_cog.on_message(screenshots_message)
+
+        mock_mod_message.edit.assert_called_once()
+        edit_kwargs = mock_mod_message.edit.call_args.kwargs
+        main_embed = edit_kwargs["embeds"][0]
+        field_values = [field.value or "" for field in main_embed.fields]
+        assert any("https://steamcommunity.com/id/testuser123" in value for value in field_values)
+        assert any("✅" in value for value in field_values)
+
 
 class TestHandleAcceptHappyPath:
     """Tests for handle_accept successful flow."""

@@ -435,6 +435,7 @@ async def update_mod_message_for_review(
         additional_sections=additional_sections,
         sections_context=sections_context,
         api_status=api_status,
+        steam_profile_url=request.steam_profile_url or "",
         **check_statuses,
     )
     all_embeds = [*main_embeds, *embeds]

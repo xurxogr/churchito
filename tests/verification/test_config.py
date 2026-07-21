@@ -137,3 +137,9 @@ class TestVerificationConfigSchema:
         for opt in VERIFICATION_CONFIG_SCHEMA.options:
             if opt.key in ("mod_embed_regular", "mod_embed_ally"):
                 assert "steam_status" in (opt.placeholders or [])
+
+    def test_mod_embed_options_have_steam_profile_url_placeholder(self) -> None:
+        """Test that mod embed options include the steam_profile_url placeholder."""
+        for opt in VERIFICATION_CONFIG_SCHEMA.options:
+            if opt.key in ("mod_embed_regular", "mod_embed_ally"):
+                assert "steam_profile_url" in (opt.placeholders or [])

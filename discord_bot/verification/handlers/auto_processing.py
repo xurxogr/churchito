@@ -159,6 +159,7 @@ async def handle_auto_approval(
             additional_sections=additional_sections,
             sections_context=sections_context,
             api_status=api_status,
+            steam_profile_url=request.steam_profile_url or "",
             **(check_statuses or {}),
         )
         for embed in main_embeds:
@@ -249,6 +250,7 @@ async def handle_auto_rejection(
             additional_sections=additional_sections,
             sections_context=sections_context,
             api_status=api_status,
+            steam_profile_url=request.steam_profile_url or "",
             **(check_statuses or {}),
         )
         for embed in main_embeds:
