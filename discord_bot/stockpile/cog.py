@@ -46,7 +46,7 @@ class StockpileCog(commands.Cog):
         """
         self.bot = bot
         # Track registered commands per guild:
-        # {guild_id: {"add": name, "show": name, "delete": name}}
+        # {guild_id: {"add": name, "show": name, "delete": name, "edit": name}}
         self._registered_commands: dict[int, dict[str, str]] = {}
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
@@ -88,10 +88,12 @@ class StockpileCog(commands.Cog):
         add_name = config.get(ConfigKey.ADD_COMMAND_NAME, "stockpile_add")
         show_name = config.get(ConfigKey.SHOW_COMMAND_NAME, "stockpile_show")
         delete_name = config.get(ConfigKey.DELETE_COMMAND_NAME, "stockpile_delete")
+        edit_name = config.get(ConfigKey.EDIT_COMMAND_NAME, "stockpile_edit")
 
         await self._register_command(guild, "add", add_name, "Add a new stockpile")
         await self._register_command(guild, "show", show_name, "Show stockpiles")
         await self._register_command(guild, "delete", delete_name, "Delete a stockpile")
+        await self._register_command(guild, "edit", edit_name, "Edit a stockpile's code")
 
     async def _register_command(
         self,
@@ -122,6 +124,8 @@ class StockpileCog(commands.Cog):
             cmd = self._create_show_command(name, description)
         elif key == "delete":
             cmd = self._create_delete_command(name, description)
+        elif key == "edit":
+            cmd = self._create_edit_command(name, description)
         else:
             return
 
@@ -237,6 +241,42 @@ class StockpileCog(commands.Cog):
 
         return stockpile_delete_cmd
 
+    def _create_edit_command(
+        self, name: str, description: str
+    ) -> app_commands.Command[Any, Any, Any]:
+        """Create the stockpile_edit command.
+
+        Args:
+            name (str): Command name
+            description (str): Command description
+
+        Returns:
+            app_commands.Command: The command
+        """
+
+        @app_commands.command(name=name, description=description)
+        @app_commands.describe(
+            stockpile_name="The stockpile name to edit",
+            code="New 6-digit access code",
+            hex="The hex location (only needed if the name is ambiguous)",
+            city="The city within the hex (only needed if the name is ambiguous)",
+        )
+        @app_commands.autocomplete(
+            stockpile_name=self.edit_stockpile_name_autocomplete,
+            hex=self.hex_autocomplete,
+            city=self.city_autocomplete,
+        )
+        async def stockpile_edit_cmd(
+            interaction: discord.Interaction,
+            stockpile_name: str,
+            code: str,
+            hex: str | None = None,
+            city: str | None = None,
+        ) -> None:
+            await self._handle_stockpile_edit(interaction, stockpile_name, code, hex, city)
+
+        return stockpile_edit_cmd
+
     async def _unregister_guild_commands(self, guild: discord.Guild) -> None:
         """Remove registered commands from a guild.
 
@@ -316,6 +356,7 @@ class StockpileCog(commands.Cog):
             ConfigKey.ADD_COMMAND_NAME,
             ConfigKey.SHOW_COMMAND_NAME,
             ConfigKey.DELETE_COMMAND_NAME,
+            ConfigKey.EDIT_COMMAND_NAME,
             ConfigKey.COMMAND_CHANNEL,
         }
 
@@ -664,6 +705,74 @@ class StockpileCog(commands.Cog):
         except Exception as e:
             logger.error(f"[{guild.name}] Error sending delete notification: {e}")
 
+    async def _send_edit_notification(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        name: str,
+        hex_display: str,
+        city: str,
+        code: str,
+        view_role_ids: list[int],
+        created_by: int,
+        created_at: datetime,
+        edited_by: discord.Member,
+    ) -> None:
+        """Send notification embed when a stockpile's code is edited.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            config (dict[str, Any]): Cog configuration
+            name (str): Stockpile name
+            hex_display (str): Hex display name
+            city (str): City name
+            code (str): New access code
+            view_role_ids (list[int]): Role IDs that can view
+            created_by (int): User ID who originally created the stockpile
+            created_at (datetime): Original creation timestamp
+            edited_by (discord.Member): User who edited the stockpile
+        """
+        channel_id = config.get(ConfigKey.COMMAND_CHANNEL)
+        embed_config_data = config.get(ConfigKey.EDIT_NOTIFICATION_TEXT)
+
+        if not channel_id or not embed_config_data:
+            return
+
+        channel = guild.get_channel(channel_id)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return
+
+        # Build context using shared function
+        extra_data = build_stockpile_embed_context(
+            name=name,
+            code=code,
+            hex_display=hex_display,
+            city=city,
+            created_at=created_at,
+            role_ids=view_role_ids,
+            creator_id=created_by,
+            guild=guild,
+        )
+        extra_data["edited_by"] = edited_by.display_name
+        extra_data["edited_by_mention"] = edited_by.mention
+
+        context = PlaceholderContext(
+            guild=guild,
+            member=edited_by,
+            extra_data=extra_data,
+        )
+
+        # Build embed from config
+        embed_config = EmbedConfig(**embed_config_data)
+        embed = build_embed(embed_config, context)
+
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            logger.warning(f"[{guild.name}] Cannot send edit notification: no permission")
+        except Exception as e:
+            logger.error(f"[{guild.name}] Error sending edit notification: {e}")
+
     # ===== AUTOCOMPLETE HANDLERS =====
 
     async def _get_allowed_roles(
@@ -887,6 +996,47 @@ class StockpileCog(commands.Cog):
                 guild_id=interaction.guild.id,
                 hex_key=hex_key,
                 city=city,
+                user_role_ids=user_role_ids,
+            )
+
+        choices = [
+            app_commands.Choice(name=name, value=name)
+            for name in names
+            if current_lower in name.lower()
+        ]
+        return choices[:25]
+
+    async def edit_stockpile_name_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete for stockpile name (for edit command).
+
+        Unlike the delete autocomplete, this is not scoped to a hex/city
+        since those are optional and only used to disambiguate.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction
+            current (str): Current input value
+
+        Returns:
+            list[app_commands.Choice[str]]: Matching stockpile name choices
+        """
+        if not interaction.guild:
+            return []
+
+        member = interaction.user
+        if not isinstance(member, discord.Member):
+            return []
+
+        user_role_ids = [role.id for role in member.roles]
+        current_lower = current.lower()
+
+        async with self.bot.database.session() as session:
+            service = StockpileService(session=session)
+            names = await service.get_distinct_stockpile_names(
+                guild_id=interaction.guild.id,
                 user_role_ids=user_role_ids,
             )
 
@@ -1369,6 +1519,191 @@ class StockpileCog(commands.Cog):
             created_by=stockpile_created_by,
             created_at=stockpile_created_at,
             deleted_by=member,
+        )
+
+        # Update pinned message if enabled
+        await self._update_pinned_message(interaction.guild)
+
+    async def _handle_stockpile_edit(
+        self,
+        interaction: discord.Interaction,
+        stockpile_name: str,
+        code: str,
+        hex: str | None = None,
+        city: str | None = None,
+    ) -> None:
+        """Handle stockpile edit command.
+
+        Identifies the stockpile by name. If more than one stockpile shares
+        that name (across different locations), hex and city are required
+        to disambiguate.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction
+            stockpile_name (str): Stockpile name to edit
+            code (str): New 6-digit access code
+            hex (str | None): Hex key, required only to disambiguate
+            city (str | None): City name, required only to disambiguate
+        """
+        if not interaction.guild:
+            return
+
+        if not await self._is_cog_enabled(interaction.guild.id):
+            await interaction.response.send_message("This feature is not enabled.", ephemeral=True)
+            return
+
+        config = await self._get_config(interaction.guild.id)
+
+        # Check if command is used in the correct channel
+        if not await self._check_channel(interaction, config):
+            return
+
+        member = interaction.user
+        if not isinstance(member, discord.Member):
+            return
+
+        # Check edit permission
+        edit_roles = config.get(ConfigKey.EDIT_ROLES) or []
+        if not self._has_permission(member, edit_roles):
+            await interaction.response.send_message(
+                config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
+                ephemeral=True,
+            )
+            return
+
+        # Validate new code format
+        if not validate_code(code):
+            await interaction.response.send_message(
+                config.get(ConfigKey.INVALID_CODE_TEXT) or "Invalid code.",
+                ephemeral=True,
+            )
+            return
+
+        user_role_ids = [role.id for role in member.roles]
+
+        async with self.bot.database.session() as session:
+            service = StockpileService(session=session)
+
+            # Find stockpile(s) matching the name, narrowing by hex/city if given
+            candidates = list(
+                await service.get_all_by_guild_and_name(
+                    guild_id=interaction.guild.id,
+                    name=stockpile_name,
+                )
+            )
+            if hex is not None or city is not None:
+                candidates = [
+                    s
+                    for s in candidates
+                    if (hex is None or s.hex_key == hex) and (city is None or s.city == city)
+                ]
+
+            if not candidates:
+                await interaction.response.send_message(
+                    config.get(ConfigKey.NOT_FOUND_TEXT) or "Not found.",
+                    ephemeral=True,
+                )
+                return
+
+            if len(candidates) > 1:
+                ambiguous_template = (
+                    config.get(ConfigKey.AMBIGUOUS_STOCKPILE_TEXT)
+                    or "Multiple stockpiles named **{name}** exist. Please specify hex and city."
+                )
+                await interaction.response.send_message(
+                    format_message(ambiguous_template, name=stockpile_name),
+                    ephemeral=True,
+                )
+                return
+
+            stockpile = candidates[0]
+
+            # Verify user can view this stockpile before allowing an edit
+            if not stockpile.can_view(user_role_ids):
+                await interaction.response.send_message(
+                    config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
+                    ephemeral=True,
+                )
+                return
+
+            stockpile_hex_key = stockpile.hex_key
+            stockpile_city = stockpile.city
+            stockpile_view_roles = stockpile.view_roles.copy()
+            stockpile_created_by = stockpile.created_by
+            stockpile_created_at = stockpile.created_at
+
+            updated = await service.update_code(
+                stockpile_id=stockpile.id,
+                code=code,
+                guild_name=interaction.guild.name,
+            )
+            await session.commit()
+
+        if not updated:
+            await interaction.response.send_message(
+                config.get(ConfigKey.NOT_FOUND_TEXT) or "Not found.",
+                ephemeral=True,
+            )
+            return
+
+        hex_display = get_hex_display_name(stockpile_hex_key)
+
+        # Send success message (if configured)
+        success_template = config.get(ConfigKey.EDIT_SUCCESS_TEXT)
+        if success_template:
+            role_names = []
+            for role_id in stockpile_view_roles:
+                role = interaction.guild.get_role(role_id)
+                role_names.append(role.name if role else f"Unknown({role_id})")
+            roles_str = ", ".join(role_names) if role_names else "Everyone"
+            roles_mention_str = (
+                ", ".join(f"<@&{role_id}>" for role_id in stockpile_view_roles)
+                if stockpile_view_roles
+                else "Everyone"
+            )
+
+            creator_member = interaction.guild.get_member(stockpile_created_by)
+            creator_str = (
+                creator_member.display_name
+                if creator_member
+                else f"Unknown({stockpile_created_by})"
+            )
+            creator_mention_str = f"<@{stockpile_created_by}>"
+
+            created_at_str = stockpile_created_at.strftime("%Y-%m-%d %H:%M")
+            created_at_unix = int(stockpile_created_at.timestamp())
+            created_at_relative = f"<t:{created_at_unix}:R>"
+
+            success_msg = format_message(
+                success_template,
+                name=stockpile_name,
+                hex=hex_display,
+                city=stockpile_city,
+                code=code,
+                roles=roles_str,
+                roles_mention=roles_mention_str,
+                creator=creator_str,
+                creator_mention=creator_mention_str,
+                created_at=created_at_str,
+                created_at_relative=created_at_relative,
+            )
+            await interaction.response.send_message(success_msg, ephemeral=True)
+        else:
+            # Acknowledge interaction without visible message
+            await interaction.response.defer(ephemeral=True)
+
+        # Send notification if configured
+        await self._send_edit_notification(
+            interaction.guild,
+            config,
+            name=stockpile_name,
+            hex_display=hex_display,
+            city=stockpile_city,
+            code=code,
+            view_role_ids=stockpile_view_roles,
+            created_by=stockpile_created_by,
+            created_at=stockpile_created_at,
+            edited_by=member,
         )
 
         # Update pinned message if enabled

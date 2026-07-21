@@ -296,6 +296,125 @@ class TestStockpileService:
         )
         assert names == ["Stock1"]
 
+    async def test_get_all_by_guild_and_name(self, test_session: AsyncSession) -> None:
+        """Test getting all stockpiles matching a guild and name."""
+        service = StockpileService(test_session)
+
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock1",
+            code="111111",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Swordfort",
+            name="Stock1",
+            code="222222",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Nereid Keep",
+            name="Stock2",
+            code="333333",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        matches = await service.get_all_by_guild_and_name(guild_id=123, name="Stock1")
+        assert len(matches) == 2
+        cities = {s.city for s in matches}
+        assert cities == {"Patridia", "Swordfort"}
+
+    async def test_get_all_by_guild_and_name_not_found(self, test_session: AsyncSession) -> None:
+        """Test getting stockpiles by guild and name with no matches."""
+        service = StockpileService(test_session)
+        matches = await service.get_all_by_guild_and_name(guild_id=123, name="NonExistent")
+        assert matches == []
+
+    async def test_get_distinct_stockpile_names(self, test_session: AsyncSession) -> None:
+        """Test getting distinct accessible stockpile names across the guild."""
+        service = StockpileService(test_session)
+
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock1",
+            code="111111",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        # Same name, different location, still visible to role 111
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Swordfort",
+            name="Stock1",
+            code="222222",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        # Different name, not visible to role 111
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Nereid Keep",
+            name="Stock2",
+            code="333333",
+            view_roles=[222],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        names = await service.get_distinct_stockpile_names(guild_id=123, user_role_ids=[111])
+        assert names == ["Stock1"]
+
+    async def test_update_code(self, test_session: AsyncSession) -> None:
+        """Test updating a stockpile's access code."""
+        service = StockpileService(test_session)
+
+        stockpile = await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="TestStock",
+            code="123456",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        updated = await service.update_code(
+            stockpile_id=stockpile.id, code="654321", guild_name="Test Guild"
+        )
+        assert updated is not None
+        assert updated.code == "654321"
+
+        result = await service.get_by_id(stockpile.id)
+        assert result is not None
+        assert result.code == "654321"
+
+    async def test_update_code_not_found(self, test_session: AsyncSession) -> None:
+        """Test updating the code of a non-existent stockpile."""
+        service = StockpileService(test_session)
+        result = await service.update_code(
+            stockpile_id=99999, code="654321", guild_name="Test Guild"
+        )
+        assert result is None
+
     async def test_delete(self, test_session: AsyncSession) -> None:
         """Test deleting a stockpile."""
         service = StockpileService(test_session)

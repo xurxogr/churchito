@@ -143,6 +143,32 @@ class StockpileService:
         )
         return result.scalar_one_or_none()
 
+    async def get_all_by_guild_and_name(
+        self,
+        guild_id: int,
+        name: str,
+    ) -> Sequence[Stockpile]:
+        """Get all stockpiles matching a guild and name.
+
+        Unlike get_by_guild_and_name, returns every match instead of a single
+        one, since legacy data may contain more than one stockpile sharing a
+        name at different locations.
+
+        Args:
+            guild_id (int): Guild ID
+            name (str): Stockpile name
+
+        Returns:
+            Sequence[Stockpile]: Matching stockpiles
+        """
+        result = await self._session.execute(
+            select(Stockpile).where(
+                Stockpile.guild_id == guild_id,
+                Stockpile.name == name,
+            )
+        )
+        return result.scalars().all()
+
     async def get_all_for_guild(
         self,
         guild_id: int,
@@ -213,6 +239,54 @@ class StockpileService:
         """
         stockpiles = await self.get_accessible_stockpiles(guild_id, user_role_ids, hex_key, city)
         return [s.name for s in stockpiles]
+
+    async def get_distinct_stockpile_names(
+        self,
+        guild_id: int,
+        user_role_ids: list[int],
+    ) -> list[str]:
+        """Get distinct names of accessible stockpiles across the guild.
+
+        Used for autocomplete in the edit command, which identifies a
+        stockpile by name first and only needs hex/city to disambiguate.
+
+        Args:
+            guild_id (int): Guild ID
+            user_role_ids (list[int]): User's role IDs for filtering
+
+        Returns:
+            list[str]: Sorted list of distinct stockpile names
+        """
+        stockpiles = await self.get_accessible_stockpiles(guild_id, user_role_ids)
+        return sorted({s.name for s in stockpiles})
+
+    async def update_code(
+        self,
+        stockpile_id: int,
+        code: str,
+        guild_name: str,
+    ) -> Stockpile | None:
+        """Update the access code of a stockpile.
+
+        Args:
+            stockpile_id (int): Stockpile ID
+            code (str): New 6-digit access code
+            guild_name (str): Guild name for logging
+
+        Returns:
+            Stockpile | None: Updated stockpile, or None if not found
+        """
+        stockpile = await self.get_by_id(stockpile_id)
+        if not stockpile:
+            return None
+
+        stockpile.code = code
+        await self._session.flush()
+        logger.info(
+            f"[{guild_name}] Stockpile code updated: {stockpile.name} at "
+            f"{stockpile.hex_key}/{stockpile.city} (ID: {stockpile_id})"
+        )
+        return stockpile
 
     async def delete(
         self,

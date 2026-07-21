@@ -118,6 +118,7 @@ class TestStockpileConfigSchema:
             "Add Command",
             "Show Command",
             "Delete Command",
+            "Edit Command",
             "Pinned Message",
             "Error Messages",
         }

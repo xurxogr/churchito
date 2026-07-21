@@ -51,6 +51,15 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             max_length=32,
             group="General",
         ),
+        ConfigOption(
+            key=ConfigKey.EDIT_COMMAND_NAME,
+            name="Edit command name",
+            description="Name for the command to edit a stockpile's code (without slash)",
+            option_type=ConfigOptionType.STRING,
+            default="stockpile_edit",
+            max_length=32,
+            group="General",
+        ),
         # ===== 2. PERMISSIONS =====
         ConfigOption(
             key=ConfigKey.ADD_ROLES,
@@ -64,6 +73,14 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             key=ConfigKey.DELETE_ROLES,
             name="Roles that can delete stockpiles",
             description="Only users with these roles can delete stockpiles",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            group="Permissions",
+        ),
+        ConfigOption(
+            key=ConfigKey.EDIT_ROLES,
+            name="Roles that can edit stockpiles",
+            description="Only users with these roles can edit a stockpile's code",
             option_type=ConfigOptionType.ROLE_LIST,
             default=[],
             group="Permissions",
@@ -239,6 +256,63 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             ],
             group="Delete Command",
         ),
+        # ===== 5b. EDIT COMMAND =====
+        ConfigOption(
+            key=ConfigKey.EDIT_SUCCESS_TEXT,
+            name="Response to user",
+            description=(
+                "Ephemeral message shown to the user after editing a stockpile's code. "
+                "Leave empty to not send any message."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="Stockpile **{name}** at **{hex}** - **{city}** code updated to `{code}`.",
+            max_length=200,
+            placeholders=[
+                "name",
+                "hex",
+                "city",
+                "code",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+            ],
+            group="Edit Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.EDIT_NOTIFICATION_TEXT,
+            name="Channel notification",
+            description=(
+                "Embed sent to the channel when a stockpile's code is edited. "
+                "Leave empty to disable."
+            ),
+            option_type=ConfigOptionType.EMBED,
+            default={
+                "sections": [
+                    {
+                        "type": "text",
+                        "content": ("✏️ **{name}** at {hex} - {city} edited by {edited_by_mention}"),
+                    }
+                ],
+            },
+            placeholders=[
+                "name",
+                "hex",
+                "city",
+                "code",
+                "roles",
+                "roles_mention",
+                "creator",
+                "creator_mention",
+                "created_at",
+                "created_at_relative",
+                "edited_by",
+                "edited_by_mention",
+            ],
+            group="Edit Command",
+        ),
         # ===== 6. PINNED MESSAGE =====
         ConfigOption(
             key=ConfigKey.PINNED_HEADER_TEXT,
@@ -322,6 +396,19 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
             default="This command can only be used in {channel}.",
             max_length=200,
             placeholders=["channel"],
+            group="Error Messages",
+        ),
+        ConfigOption(
+            key=ConfigKey.AMBIGUOUS_STOCKPILE_TEXT,
+            name="Ambiguous stockpile",
+            description=(
+                "Message when multiple stockpiles share the same name and hex/city "
+                "were not provided (or don't narrow it down) to disambiguate"
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="Multiple stockpiles named **{name}** exist. Please specify hex and city.",
+            max_length=200,
+            placeholders=["name"],
             group="Error Messages",
         ),
     ],

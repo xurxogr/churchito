@@ -12,6 +12,7 @@ class ConfigKey:
     ADD_COMMAND_NAME = "add_command_name"
     SHOW_COMMAND_NAME = "show_command_name"
     DELETE_COMMAND_NAME = "delete_command_name"
+    EDIT_COMMAND_NAME = "edit_command_name"
 
     # Channels
     COMMAND_CHANNEL = "command_channel"
@@ -19,6 +20,7 @@ class ConfigKey:
     # Permissions
     ADD_ROLES = "add_roles"
     DELETE_ROLES = "delete_roles"
+    EDIT_ROLES = "edit_roles"
     ALLOWED_VIEW_ROLES = "allowed_view_roles"
 
     # Messages
@@ -27,11 +29,13 @@ class ConfigKey:
     SHOW_LOCATION_EMBED = "show_location_embed"
     SHOW_EMPTY_EMBED = "show_empty_embed"
     DELETE_SUCCESS_TEXT = "delete_success_text"
+    EDIT_SUCCESS_TEXT = "edit_success_text"
     NO_PERMISSION_TEXT = "no_permission_text"
     NOT_FOUND_TEXT = "not_found_text"
     INVALID_CODE_TEXT = "invalid_code_text"
     INVALID_ROLES_TEXT = "invalid_roles_text"
     WRONG_CHANNEL_TEXT = "wrong_channel_text"
+    AMBIGUOUS_STOCKPILE_TEXT = "ambiguous_stockpile_text"
 
     # Legacy key (kept for migration)
     SHOW_EMPTY_TEXT = "show_empty_text"
@@ -39,6 +43,7 @@ class ConfigKey:
     # Notifications
     ADD_NOTIFICATION_TEXT = "add_notification_text"
     DELETE_NOTIFICATION_TEXT = "delete_notification_text"
+    EDIT_NOTIFICATION_TEXT = "edit_notification_text"
 
     # Pinned Message
     PINNED_HEADER_TEXT = "pinned_header_text"

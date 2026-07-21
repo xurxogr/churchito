@@ -342,6 +342,93 @@ class TestStockpileNameAutocomplete:
         assert result == []
 
 
+class TestEditStockpileNameAutocomplete:
+    """Tests for edit_stockpile_name_autocomplete."""
+
+    async def test_returns_empty_without_guild(
+        self, stockpile_cog: StockpileCog, mock_interaction: MagicMock
+    ) -> None:
+        """Test that returns empty when not in guild."""
+        mock_interaction.guild = None
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "")
+        assert result == []
+
+    async def test_returns_empty_when_user_not_member(
+        self, stockpile_cog: StockpileCog, mock_interaction: MagicMock
+    ) -> None:
+        """Test that returns empty when user is not a Member (e.g., in DMs)."""
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 12345
+        mock_interaction.user = mock_user
+
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "")
+        assert result == []
+
+    async def test_returns_accessible_stockpile_names_without_location(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns names of accessible stockpiles without hex/city set."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="TestStock",
+                code="123456",
+                view_roles=[100],  # Role that mock_member has
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "")
+        assert len(result) == 1
+        assert result[0].name == "TestStock"
+
+    async def test_filters_by_current_input(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that filters names by the current partial input."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Alpha",
+                code="123456",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Swordfort",
+                name="Beta",
+                code="654321",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "alp")
+        assert len(result) == 1
+        assert result[0].name == "Alpha"
+
+
 # ===== COMMAND TESTS =====
 
 
@@ -1350,6 +1437,438 @@ class TestStockpileDeleteCommand:
         assert call_args[1]["ephemeral"] is True
 
 
+class TestStockpileEditCommand:
+    """Tests for stockpile_edit command handler."""
+
+    async def test_returns_when_not_in_guild(
+        self, stockpile_cog: StockpileCog, mock_interaction: MagicMock
+    ) -> None:
+        """Test that returns early when not in guild."""
+        mock_interaction.guild = None
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="Test",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_not_called()
+
+    async def test_returns_when_cog_disabled(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns error when cog is disabled."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=guild_id, cog_name=COG_NAME, enabled=False
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="Test",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "not enabled" in call_args[0][0]
+        assert call_args[1]["ephemeral"] is True
+
+    async def test_returns_when_user_not_member(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns early when user is not a Member."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await session.commit()
+
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 12345
+        mock_interaction.user = mock_user
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="Test",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_not_called()
+
+    async def test_returns_when_no_permission(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns error when user lacks edit permission."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[999],
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="Test",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert call_args[1]["ephemeral"] is True
+
+    async def test_returns_error_for_invalid_code(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns error when the new code is not 6 digits."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="Test",
+            code="abc",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert call_args[1]["ephemeral"] is True
+
+    async def test_returns_not_found_when_stockpile_missing(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that returns not found when no stockpile matches the name."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="NonExistent",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert call_args[1]["ephemeral"] is True
+
+    async def test_requires_hex_city_when_name_ambiguous(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that asks for hex/city when multiple stockpiles share the name."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="DupeStock",
+                code="111111",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Swordfort",
+                name="DupeStock",
+                code="222222",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="DupeStock",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "DupeStock" in call_args[0][0]
+        assert call_args[1]["ephemeral"] is True
+
+        # Verify neither stockpile was modified
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            matches = await service.get_all_by_guild_and_name(guild_id=guild_id, name="DupeStock")
+            codes = {s.code for s in matches}
+            assert codes == {"111111", "222222"}
+
+    async def test_edits_unique_stockpile_without_hex_city(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a uniquely-named stockpile can be edited by name alone."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="UniqueStock",
+                code="111111",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="UniqueStock",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "654321" in call_args[0][0]
+        assert call_args[1]["ephemeral"] is True
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            stockpile = await service.get_by_location_and_name(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="UniqueStock",
+            )
+            assert stockpile is not None
+            assert stockpile.code == "654321"
+
+    async def test_edits_ambiguous_stockpile_with_hex_city(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that hex/city disambiguates an edit among same-named stockpiles."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="DupeStock",
+                code="111111",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Swordfort",
+                name="DupeStock",
+                code="222222",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="DupeStock",
+            code="654321",
+            hex="AcrithiaHex",
+            city="Swordfort",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "654321" in call_args[0][0]
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            patridia = await service.get_by_location_and_name(
+                guild_id=guild_id, hex_key="AcrithiaHex", city="Patridia", name="DupeStock"
+            )
+            swordfort = await service.get_by_location_and_name(
+                guild_id=guild_id, hex_key="AcrithiaHex", city="Swordfort", name="DupeStock"
+            )
+            assert patridia is not None
+            assert patridia.code == "111111"
+            assert swordfort is not None
+            assert swordfort.code == "654321"
+
+    async def test_checks_view_permission_before_edit(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that verifies user can view stockpile before editing it."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="HiddenStock",
+                code="111111",
+                view_roles=[999],  # User doesn't have this role
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_edit(
+            mock_interaction,
+            stockpile_name="HiddenStock",
+            code="654321",
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert call_args[1]["ephemeral"] is True
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            stockpile = await service.get_by_location_and_name(
+                guild_id=guild_id, hex_key="AcrithiaHex", city="Patridia", name="HiddenStock"
+            )
+            assert stockpile is not None
+            assert stockpile.code == "111111"
+
+    async def test_handles_update_returning_none(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test defensive handling when update_code returns None unexpectedly."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.EDIT_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="TestStock",
+                code="111111",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        with patch.object(
+            StockpileService, "update_code", new_callable=AsyncMock, return_value=None
+        ):
+            await stockpile_cog._handle_stockpile_edit(
+                mock_interaction,
+                stockpile_name="TestStock",
+                code="654321",
+            )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert call_args[1]["ephemeral"] is True
+
+
 # ===== SETUP/TEARDOWN TESTS =====
 
 
@@ -1506,7 +2025,7 @@ class TestRegisterGuildCommands:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert guild_id in stockpile_cog._registered_commands
-        assert stockpile_cog.bot.tree.add_command.call_count == 3  # type: ignore[attr-defined]
+        assert stockpile_cog.bot.tree.add_command.call_count == 4  # type: ignore[attr-defined]
 
 
 class TestRegisterCommand:
