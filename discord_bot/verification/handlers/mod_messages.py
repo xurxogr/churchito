@@ -12,12 +12,14 @@ from discord_bot.verification.auto_processor import (
     get_auto_rejectable_failures,
     get_rejection_message,
     is_auto_reject_enabled,
+    is_steam_profile_required,
     process_verification,
 )
 from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import (
     AutoProcessMode,
     ConfigKey,
+    NameMatchMode,
     RejectType,
     VerificationType,
 )
@@ -38,7 +40,11 @@ from discord_bot.verification.handlers.utils import (
     get_embed_additional_sections,
     get_ready_for_approval_status,
 )
-from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
+from discord_bot.verification.models import (
+    SteamProfileCheckResult,
+    VerificationAPIResult,
+    VerificationRequest,
+)
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import ModReviewView
 
@@ -70,8 +76,6 @@ def _build_check_statuses(
     Returns:
         dict[str, str]: Status placeholders (faction_status, shard_status, etc.)
     """
-    from discord_bot.verification.enums import NameMatchMode
-
     statuses: dict[str, str] = {}
 
     # Faction check - enabled if VERIFICATION_FACTION is configured
@@ -128,6 +132,17 @@ def _build_check_statuses(
     else:
         statuses["time_status"] = STATUS_PASSED
 
+    # Steam profile check - enabled if required for this verification type
+    steam_required = is_steam_profile_required(
+        config=config, verification_type=VerificationType(request.verification_type)
+    )
+    if not steam_required:
+        statuses["steam_status"] = STATUS_DISABLED
+    elif RejectType.STEAM_PRIVATE in failures:
+        statuses["steam_status"] = STATUS_FAILED
+    else:
+        statuses["steam_status"] = STATUS_PASSED
+
     return statuses
 
 
@@ -166,6 +181,7 @@ async def update_mod_message_for_review(
     verification_service: VerificationService,
     config: dict[str, Any],
     api_result: VerificationAPIResult | None = None,
+    steam_check: SteamProfileCheckResult | None = None,
 ) -> bool:
     """Update moderation message when screenshots are received.
 
@@ -176,6 +192,7 @@ async def update_mod_message_for_review(
         verification_service (VerificationService): Verification service.
         config (dict[str, Any]): Cog configuration.
         api_result (VerificationAPIResult | None): Verification API result.
+        steam_check (SteamProfileCheckResult | None): Steam profile privacy check result.
 
     Returns:
         bool: True if auto-approval/rejection was performed, False if manual review.
@@ -199,6 +216,10 @@ async def update_mod_message_for_review(
     failures: set[RejectType] = set()
     api_response_exists = False
     api_status = ""
+
+    steam_check_inconclusive = bool(steam_check and not steam_check.success)
+    if steam_check and steam_check.success and steam_check.is_private:
+        failures.add(RejectType.STEAM_PRIVATE)
 
     if api_result:
         if api_result.success and api_result.response:
@@ -244,12 +265,44 @@ async def update_mod_message_for_review(
 
     auto_reject = auto_mode in (AutoProcessMode.REJECT_ONLY, AutoProcessMode.BOTH)
     auto_approve = auto_mode in (AutoProcessMode.APPROVE_ONLY, AutoProcessMode.BOTH)
+    if steam_check_inconclusive:
+        # Could not determine the Steam profile's privacy state - do not auto-approve
+        # on an unverified assumption of "public". Falls through to manual review.
+        auto_approve = False
     logger.debug(f"[{channel.guild.name}] auto_reject={auto_reject}, auto_approve={auto_approve}")
 
-    if (auto_reject or auto_approve) and api_result:
+    if (auto_reject or auto_approve) and (api_result or failures):
         guild = channel.guild
 
-        if api_result.status_code == 422 and auto_reject:
+        if not api_result and failures and auto_reject:
+            auto_rejectable = get_auto_rejectable_failures(config=config, failures=failures)
+            if auto_rejectable:
+                reject_reason = "\n".join(
+                    _build_rejection_messages(config=config, failures=auto_rejectable)
+                )
+                check_statuses_steam_only = _build_check_statuses(
+                    config=config,
+                    failures=failures,
+                    request=request,
+                    api_response_exists=False,
+                )
+                await handle_auto_rejection(
+                    cog=cog,
+                    guild=guild,
+                    request=request,
+                    verification_service=verification_service,
+                    config=config,
+                    mod_message=mod_message,
+                    embeds=embeds,
+                    reason=reject_reason,
+                    additional_sections=additional_sections,
+                    sections_context=sections_context,
+                    check_statuses=check_statuses_steam_only,
+                    api_status=api_status,
+                )
+                return True
+
+        if api_result and api_result.status_code == 422 and auto_reject:
             # Check if auto-reject for invalid screenshots is enabled
             if is_auto_reject_enabled(config=config, reason=RejectType.INVALID_SCREENSHOTS):
                 reject_reason = get_rejection_message(
@@ -278,11 +331,11 @@ async def update_mod_message_for_review(
                 )
                 return True
 
-        if api_result.success and api_result.response:
+        if api_result and api_result.success and api_result.response:
             member = guild.get_member(request.user_id)
             member_display_name = member.display_name if member else request.username
 
-            failures = process_verification(
+            failures |= process_verification(
                 request=request,
                 api_response=api_result.response,
                 config=config,
@@ -296,7 +349,7 @@ async def update_mod_message_for_review(
 
             # Check if any failures have auto-reject enabled
             should_auto_reject = auto_reject
-            auto_rejectable: set[RejectType] = set()
+            auto_rejectable = set()
             if failures and auto_reject:
                 auto_rejectable = get_auto_rejectable_failures(config=config, failures=failures)
                 # Auto-reject if ANY failure has auto-reject enabled

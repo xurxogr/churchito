@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import has_any_role, is_valid_discord_cdn_url
 from discord_bot.verification.api_client import call_verification_api
+from discord_bot.verification.auto_processor import is_steam_profile_required
 from discord_bot.verification.enums import (
     ConfigKey,
     VerificationStatus,
@@ -31,8 +32,16 @@ from discord_bot.verification.handlers.utils import (
     calculate_expires_timestamp,
     get_ready_for_approval_status,
 )
-from discord_bot.verification.models import VerificationAPIResult, VerificationRequest
+from discord_bot.verification.models import (
+    SteamProfileCheckResult,
+    VerificationAPIResult,
+    VerificationRequest,
+)
 from discord_bot.verification.service import VerificationService
+from discord_bot.verification.steam_client import (
+    check_steam_profile_private,
+    is_valid_steam_profile_url,
+)
 from discord_bot.verification.views import RejectionReasonView
 
 if TYPE_CHECKING:
@@ -242,6 +251,18 @@ async def _handle_verification_start_locked(
             )
             return
 
+        if is_steam_profile_required(config=config, verification_type=verification_type):
+            formatted_steam_request = format_message(
+                template=config.get(ConfigKey.STEAM_PROFILE_REQUEST_MESSAGE),
+                username=user.name,
+                user_mention=user.mention,
+                server_name=guild.name,
+            )
+            try:
+                await user.send(content=formatted_steam_request)
+            except discord.Forbidden:
+                pass
+
         cog._pending_dm_verifications[user.id] = (guild.id, request.id)
 
         if timeout_minutes > 0:
@@ -298,7 +319,12 @@ async def handle_dm_screenshots(
     guild_id: int,
     request_id: int,
 ) -> None:
-    """Process DM message with screenshots.
+    """Process DM message with screenshots and/or a Steam profile URL.
+
+    Screenshots and the (optional) Steam profile URL may arrive together or
+    across separate DMs, in any order. Each item received gets its own
+    acknowledgment; only once every required item is present does the
+    existing OCR/mod-notification flow proceed.
 
     Args:
         cog (VerificationCog): Cog instance.
@@ -309,53 +335,121 @@ async def handle_dm_screenshots(
     image_attachments = [
         a for a in message.attachments if a.content_type and a.content_type.startswith("image/")
     ]
+    message_text = (message.content or "").strip()
+
+    guild = cog.bot.get_guild(guild_id)
+    guild_name = guild.name if guild else f"Guild {guild_id}"
 
     async with cog.bot.database.session() as session:
         config_service = ConfigService(session=session)
         config = await cog._get_all_config(guild_id=guild_id, config_service=config_service)
 
-        if len(image_attachments) != 2:
+        verification_service = VerificationService(session=session)
+        request = await verification_service.get_request(request_id)
+        if not request:
+            await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
+            return
+
+        steam_required = is_steam_profile_required(
+            config=config, verification_type=VerificationType(request.verification_type)
+        )
+        screenshots_saved = bool(request.screenshot_1_url and request.screenshot_2_url)
+        steam_saved = bool(request.steam_profile_url)
+
+        completed_screenshots = False
+        completed_steam = False
+
+        if image_attachments and not screenshots_saved:
+            if len(image_attachments) != 2:
+                formatted = format_message(
+                    template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
+                    username=message.author.name,
+                )
+                await message.channel.send(content=formatted)
+                return
+
+            url1 = image_attachments[0].url
+            url2 = image_attachments[1].url
+
+            if not is_valid_discord_cdn_url(url1) or not is_valid_discord_cdn_url(url2):
+                logger.warning(
+                    f"[{guild_name}] Invalid screenshot URLs for {message.author.name}: "
+                    f"{url1[:50]}..., {url2[:50]}..."
+                )
+                formatted = format_message(
+                    template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
+                    username=message.author.name,
+                )
+                await message.channel.send(content=formatted)
+                return
+
+            request = await verification_service.update_screenshots(
+                request_id=request_id,
+                url1=url1,
+                url2=url2,
+                guild_name=guild_name,
+            )
+            if not request:
+                await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
+                return
+            completed_screenshots = True
+
+        if steam_required and not steam_saved and message_text:
+            if not is_valid_steam_profile_url(message_text):
+                formatted = format_message(
+                    template=config.get(ConfigKey.INVALID_STEAM_URL_MESSAGE),
+                    username=message.author.name,
+                )
+                await message.channel.send(content=formatted)
+                return
+
+            request = await verification_service.set_steam_profile_url(
+                request_id=request_id,
+                url=message_text,
+                guild_name=guild_name,
+            )
+            if not request:
+                await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
+                return
+            completed_steam = True
+
+        if not completed_screenshots and not completed_steam:
+            # Nothing new was submitted; remind the user what is still outstanding.
+            if not screenshots_saved:
+                reminder_key = ConfigKey.WRONG_IMAGES_MESSAGE
+            elif steam_required and not steam_saved:
+                reminder_key = ConfigKey.STEAM_URL_RECEIVED_MESSAGE
+            else:
+                return
             formatted = format_message(
-                template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
+                template=config.get(reminder_key),
                 username=message.author.name,
             )
             await message.channel.send(content=formatted)
             return
 
-        url1 = image_attachments[0].url
-        url2 = image_attachments[1].url
+        requirements_met = bool(request.screenshot_1_url and request.screenshot_2_url) and (
+            not steam_required or bool(request.steam_profile_url)
+        )
 
-        guild = cog.bot.get_guild(guild_id)
-        guild_name = guild.name if guild else f"Guild {guild_id}"
-
-        if not is_valid_discord_cdn_url(url1) or not is_valid_discord_cdn_url(url2):
-            logger.warning(
-                f"[{guild_name}] Invalid screenshot URLs for {message.author.name}: "
-                f"{url1[:50]}..., {url2[:50]}..."
-            )
-            formatted = format_message(
-                template=config.get(ConfigKey.WRONG_IMAGES_MESSAGE),
+        if not requirements_met:
+            if completed_screenshots:
+                ack_key = ConfigKey.SCREENSHOTS_RECEIVED_AWAITING_STEAM_MESSAGE
+            else:
+                ack_key = ConfigKey.STEAM_URL_RECEIVED_MESSAGE
+            formatted_ack = format_message(
+                template=config.get(ack_key),
                 username=message.author.name,
             )
-            await message.channel.send(content=formatted)
+            await message.channel.send(content=formatted_ack)
+            await session.commit()
             return
 
         del cog._pending_dm_verifications[message.author.id]
 
         cog.cancel_screenshot_timer(request_id)
 
-        verification_service = VerificationService(session=session)
-
-        request = await verification_service.update_screenshots(
-            request_id=request_id,
-            url1=url1,
-            url2=url2,
-            guild_name=guild_name,
-        )
-
-        if not request:
-            await message.channel.send(content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
-            return
+        await verification_service.mark_pending_review(request_id=request_id, guild_name=guild_name)
 
         server_name = guild_name if guild else "the server"
         formatted_received = format_message(
@@ -367,12 +461,12 @@ async def handle_dm_screenshots(
 
         api_result: VerificationAPIResult | None = None
         verification_settings = cog.bot.settings.verification
-        if verification_settings.api_url:
+        if verification_settings.api_url and request.screenshot_1_url and request.screenshot_2_url:
             api_result = await call_verification_api(
                 url=verification_settings.api_url,
                 api_key=verification_settings.api_key or None,
-                image1_url=url1,
-                image2_url=url2,
+                image1_url=request.screenshot_1_url,
+                image2_url=request.screenshot_2_url,
                 timeout_seconds=verification_settings.api_timeout,
                 guild_name=guild.name if guild else "Unknown",
             )
@@ -389,6 +483,13 @@ async def handle_dm_screenshots(
                         f"status={api_result.status_code}, error={api_result.error_message}"
                     )
 
+        steam_check: SteamProfileCheckResult | None = None
+        if steam_required and request.steam_profile_url:
+            steam_check = await check_steam_profile_private(
+                url=request.steam_profile_url,
+                guild_name=guild_name,
+            )
+
         if guild and request.mod_message_id:
             mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
             if mod_channel_id:
@@ -401,6 +502,7 @@ async def handle_dm_screenshots(
                         verification_service=verification_service,
                         config=config,
                         api_result=api_result,
+                        steam_check=steam_check,
                     )
                     if auto_processed:
                         await session.commit()
@@ -623,6 +725,7 @@ async def show_rejection_select(
         ConfigKey.REJECT_TIME_DIFF,
         ConfigKey.REJECT_WRONG_SHARD,
         ConfigKey.REJECT_WRONG_FACTION,
+        ConfigKey.REJECT_STEAM_PRIVATE,
     ]
     for key in rejection_reason_keys:
         reason = config.get(key) or ""

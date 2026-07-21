@@ -389,6 +389,8 @@ class VerificationCog(commands.Cog):
             ConfigKey.REJECT_BUTTON_TEXT,
             ConfigKey.PLAYER_INFO_SECTIONS,
             ConfigKey.HISTORY_LABEL,
+            ConfigKey.STEAM_PROFILE_REQUIRED_REGULAR,
+            ConfigKey.STEAM_PROFILE_REQUIRED_ALLY,
         }
     )
 

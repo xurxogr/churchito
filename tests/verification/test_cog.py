@@ -892,6 +892,7 @@ class TestRestorePendingVerifications:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await session.commit()
 
         verification_cog._pending_dm_verifications.clear()
@@ -1886,6 +1887,532 @@ class TestOnMessage:
             assert updated.reviewed_by_username == "Auto"
 
 
+class TestOnMessageSteamProfile:
+    """Tests for on_message with the optional Steam profile requirement."""
+
+    @staticmethod
+    def _image_message(user_id: int, urls: list[str]) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = user_id
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+        message.content = ""
+        attachments = []
+        for url in urls:
+            attachment = MagicMock()
+            attachment.content_type = "image/png"
+            attachment.url = url
+            attachments.append(attachment)
+        message.attachments = attachments
+        return message
+
+    @staticmethod
+    def _text_message(user_id: int, content: str) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = user_id
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+        message.content = content
+        message.attachments = []
+        return message
+
+    @staticmethod
+    def _combined_message(user_id: int, urls: list[str], content: str) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = user_id
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+        message.content = content
+        attachments = []
+        for url in urls:
+            attachment = MagicMock()
+            attachment.content_type = "image/png"
+            attachment.url = url
+            attachments.append(attachment)
+        message.attachments = attachments
+        return message
+
+    async def test_screenshots_and_steam_url_together_completes_requirements(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that screenshots and a Steam URL sent in the same DM both get saved."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "screenshots_received_message": "All done!",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            combined_message = self._combined_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+                "https://steamcommunity.com/id/testuser123",
+            )
+            await verification_cog.on_message(combined_message)
+
+            # Both requirements met in one message - removed from pending
+            assert 456 not in verification_cog._pending_dm_verifications
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+            assert updated.steam_profile_url == "https://steamcommunity.com/id/testuser123"
+            assert (
+                updated.screenshot_1_url == "https://cdn.discordapp.com/attachments/123/456/1.png"
+            )
+            assert (
+                updated.screenshot_2_url == "https://cdn.discordapp.com/attachments/123/456/2.png"
+            )
+
+    async def test_screenshots_then_steam_url_completes_requirements(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that sending screenshots then a Steam URL completes verification."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "screenshots_received_awaiting_steam_message": "Screenshots received, send Steam URL",
+            "steam_url_received_message": "Steam URL received, send screenshots",
+            "screenshots_received_message": "All done!",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            screenshots_message = self._image_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+            )
+            await verification_cog.on_message(screenshots_message)
+
+            # Still pending - Steam URL outstanding
+            assert 456 in verification_cog._pending_dm_verifications
+            screenshots_message.channel.send.assert_called_once()
+            assert "send Steam URL" in screenshots_message.channel.send.call_args.kwargs["content"]
+
+            steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(steam_message)
+
+            # Requirements met - removed from pending
+            assert 456 not in verification_cog._pending_dm_verifications
+            steam_message.channel.send.assert_called()
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+            assert updated.steam_profile_url == "https://steamcommunity.com/id/testuser123"
+
+    async def test_steam_url_then_screenshots_completes_requirements(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that sending a Steam URL then screenshots completes verification."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "screenshots_received_awaiting_steam_message": "Screenshots received, send Steam URL",
+            "steam_url_received_message": "Steam URL received, send screenshots",
+            "screenshots_received_message": "All done!",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(steam_message)
+
+            assert 456 in verification_cog._pending_dm_verifications
+            steam_message.channel.send.assert_called_once()
+            assert "send screenshots" in steam_message.channel.send.call_args.kwargs["content"]
+
+            screenshots_message = self._image_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+            )
+            await verification_cog.on_message(screenshots_message)
+
+            assert 456 not in verification_cog._pending_dm_verifications
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
+    async def test_invalid_steam_url_rejected(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that an invalid Steam URL is rejected with the configured message."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "invalid_steam_url_message": "That is not a valid Steam profile URL",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            message = self._text_message(456, "not-a-steam-url")
+            await verification_cog.on_message(message)
+
+            message.channel.send.assert_called_once_with(
+                content="That is not a valid Steam profile URL"
+            )
+            assert 456 in verification_cog._pending_dm_verifications
+
+    async def test_steam_not_required_ignores_text_and_reminds(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that when Steam is not required, only images are processed."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        config_values = {
+            "steam_profile_required_regular": False,
+            "wrong_images_message": "Please send 2 screenshots",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(message)
+
+            message.channel.send.assert_called_once_with(content="Please send 2 screenshots")
+            assert 456 in verification_cog._pending_dm_verifications
+
+    async def test_no_ocr_steam_only_auto_reject(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that a private Steam profile is auto-rejected when no OCR API is configured."""
+        from discord_bot.verification.enums import AutoProcessMode
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        # No API URL configured - no OCR verification
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = ""
+        mock_settings.verification.api_key = ""
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        config_values: dict[str, Any] = {
+            "steam_profile_required_regular": True,
+            "verification_automatic": AutoProcessMode.REJECT_ONLY,
+            "auto_reject_steam_private": True,
+            "reject_steam_private": "Steam profile is private",
+            "screenshots_received_message": "All done!",
+            "mod_notification_channel": 888,
+        }
+
+        from discord_bot.verification.models import SteamProfileCheckResult
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.flow.check_steam_profile_private",
+                new_callable=AsyncMock,
+            ) as mock_steam_check,
+        ):
+            mock_config.return_value = config_values
+            mock_steam_check.return_value = SteamProfileCheckResult(success=True, is_private=True)
+
+            steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(steam_message)
+
+            screenshots_message = self._image_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+            )
+            await verification_cog.on_message(screenshots_message)
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
+            assert updated.reviewed_by_username == "Auto"
+            assert updated.rejection_reason == "Steam profile is private"
+
+    async def test_inconclusive_steam_check_blocks_auto_approve(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that an errored Steam check does not get treated as a pass and auto-approved."""
+        from discord_bot.verification.enums import AutoProcessMode
+        from discord_bot.verification.models import (
+            SteamProfileCheckResult,
+            VerificationAPIResponse,
+            VerificationAPIResult,
+        )
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_message.delete = AsyncMock()
+        mock_mod_message.edit = AsyncMock()
+        mock_mod_message.embeds = []
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 888
+        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.guild = mock_guild
+
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        mock_user = MagicMock()
+        mock_user.id = 111
+        object.__setattr__(verification_cog.bot, "user", mock_user)
+
+        mock_settings = MagicMock()
+        mock_settings.verification.api_url = "https://api.example.com"
+        mock_settings.verification.api_key = "test-key"
+        mock_settings.verification.api_timeout = 30
+        object.__setattr__(verification_cog.bot, "settings", mock_settings)
+
+        config_values: dict[str, Any] = {
+            "steam_profile_required_regular": True,
+            "verification_automatic": AutoProcessMode.BOTH,
+            "screenshots_received_message": "All done!",
+            "mod_notification_channel": 888,
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+        }
+
+        # API check would otherwise pass every check for REGULAR
+        api_response = VerificationAPIResponse(
+            name="TestUser",
+            level=10,
+            regiment="",
+            faction="colonial",
+            shard="ABLE",
+            ingame_time="100, 00:00",
+            war_number=100,
+            current_ingame_time="100, 01:00",
+        )
+        api_result = VerificationAPIResult(success=True, status_code=200, response=api_response)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.flow.call_verification_api",
+                new_callable=AsyncMock,
+            ) as mock_api,
+            patch(
+                "discord_bot.verification.handlers.flow.check_steam_profile_private",
+                new_callable=AsyncMock,
+            ) as mock_steam_check,
+        ):
+            mock_config.return_value = config_values
+            mock_api.return_value = api_result
+            # Steam check errored (e.g. network failure) - inconclusive, not "public"
+            mock_steam_check.return_value = SteamProfileCheckResult(
+                success=False, error_message="Timed out"
+            )
+
+            steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+            await verification_cog.on_message(steam_message)
+
+            screenshots_message = self._image_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+            )
+            await verification_cog.on_message(screenshots_message)
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+            assert updated.reviewed_by_username is None
+
+
 class TestHandleAcceptHappyPath:
     """Tests for handle_accept successful flow."""
 
@@ -1909,6 +2436,7 @@ class TestHandleAcceptHappyPath:
                 "https://cdn.discordapp.com/attachments/123/456/2.png",
                 "Test Guild",
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await session.commit()
             public_id = request.public_id
 
@@ -2047,6 +2575,7 @@ class TestHandleRejectHappyPath:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await session.commit()
             public_id = request.public_id
 
@@ -3223,6 +3752,7 @@ class TestModMessageEditing:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             public_id = request.public_id
@@ -3383,6 +3913,7 @@ class TestModMessageEditing:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await service.set_mod_message_id(request_id=request.id, message_id=777)
             await session.commit()
             public_id = request.public_id
@@ -3734,6 +4265,7 @@ class TestHandleAcceptAllyRoles:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await session.commit()
             public_id = request.public_id
 
@@ -5215,6 +5747,7 @@ class TestHandleAcceptDeleteModMessage:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             request.mod_message_id = 777
             await session.commit()
             public_id = request.public_id
@@ -5340,6 +5873,7 @@ class TestHandleRejectDeleteModMessage:
             await service.update_screenshots(
                 request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             request.mod_message_id = 777
             await session.commit()
             public_id = request.public_id
@@ -8833,6 +9367,7 @@ class TestAutoRejectByTimeout:
                 url2="http://example.com/2.png",
                 guild_name="Test Guild",
             )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
             await session.commit()
             public_id = request.public_id
             request_id = request.id

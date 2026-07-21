@@ -248,7 +248,8 @@ class VerificationService:
     ) -> VerificationRequest | None:
         """Update request with screenshots.
 
-        Changes status to PENDING_REVIEW.
+        Does not change status - use mark_pending_review() once all
+        required items (screenshots, and optionally Steam profile URL) are in.
 
         Args:
             request_id (int): Request ID
@@ -265,11 +266,60 @@ class VerificationService:
 
         request.screenshot_1_url = url1
         request.screenshot_2_url = url2
+        await self._session.flush()
+
+        logger.info(f"[{guild_name}] Screenshots updated: {request.username} (ID: {request_id})")
+        return request
+
+    async def set_steam_profile_url(
+        self, request_id: int, url: str, guild_name: str
+    ) -> VerificationRequest | None:
+        """Save the Steam profile URL submitted by the user.
+
+        Does not change status - use mark_pending_review() once all
+        required items are in.
+
+        Args:
+            request_id (int): Request ID
+            url (str): Steam profile URL
+            guild_name (str): Guild name
+
+        Returns:
+            VerificationRequest | None: Updated request or None
+        """
+        request = await self.get_request(request_id)
+        if not request:
+            return None
+
+        request.steam_profile_url = url
+        await self._session.flush()
+
+        logger.info(
+            f"[{guild_name}] Steam profile URL updated: {request.username} (ID: {request_id})"
+        )
+        return request
+
+    async def mark_pending_review(
+        self, request_id: int, guild_name: str
+    ) -> VerificationRequest | None:
+        """Transition a request to PENDING_REVIEW once all required items are in.
+
+        Args:
+            request_id (int): Request ID
+            guild_name (str): Guild name
+
+        Returns:
+            VerificationRequest | None: Updated request or None
+        """
+        request = await self.get_request(request_id)
+        if not request:
+            return None
+
         request.status = VerificationStatus.PENDING_REVIEW
         request.screenshots_submitted_at = datetime.now(UTC)
         await self._session.flush()
 
-        logger.info(f"[{guild_name}] Screenshots updated: {request.username} (ID: {request_id})")
+        logger.info(f"[{guild_name}] Marked pending review: {request.username} (ID: {request_id})")
         return request
 
     async def set_mod_message_id(

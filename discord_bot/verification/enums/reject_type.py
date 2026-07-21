@@ -7,7 +7,7 @@ class RejectType(StrEnum):
     """Types of verification rejection.
 
     Used to identify the reason for rejection and control auto-rejection per type.
-    Order: Invalid screenshots -> Faction -> Shard -> Regiment -> Name -> Time diff
+    Order: Invalid screenshots -> Faction -> Shard -> Regiment -> Name -> Time diff -> Steam
     """
 
     INVALID_SCREENSHOTS = "invalid_screenshots"  # API 422 - unreadable screenshots
@@ -16,3 +16,4 @@ class RejectType(StrEnum):
     HAS_REGIMENT = "has_regiment"  # User has (wrong) regiment
     NAME_MISMATCH = "name_mismatch"  # Discord name doesn't match game name
     TIME_DIFF = "time_diff"  # Screenshot too old
+    STEAM_PRIVATE = "steam_private"  # Steam profile is private

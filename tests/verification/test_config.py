@@ -104,3 +104,36 @@ class TestVerificationConfigSchema:
         assert "verification_automatic" in keys
         assert "verification_match_name" in keys
         assert "player_info_sections" in keys
+
+    def test_schema_has_steam_profile_options(self) -> None:
+        """Test that Steam profile options exist."""
+        keys = [opt.key for opt in VERIFICATION_CONFIG_SCHEMA.options]
+        assert "steam_profile_required_regular" in keys
+        assert "steam_profile_required_ally" in keys
+        assert "steam_profile_request_message" in keys
+        assert "screenshots_received_awaiting_steam_message" in keys
+        assert "steam_url_received_message" in keys
+        assert "invalid_steam_url_message" in keys
+        assert "auto_reject_steam_private" in keys
+        assert "reject_steam_private" in keys
+
+    def test_steam_profile_options_grouped_together(self) -> None:
+        """Test that all Steam profile options share the same dashboard group."""
+        steam_keys = {
+            "steam_profile_required_regular",
+            "steam_profile_required_ally",
+            "steam_profile_request_message",
+            "screenshots_received_awaiting_steam_message",
+            "steam_url_received_message",
+            "invalid_steam_url_message",
+            "auto_reject_steam_private",
+            "reject_steam_private",
+        }
+        groups = {opt.group for opt in VERIFICATION_CONFIG_SCHEMA.options if opt.key in steam_keys}
+        assert groups == {"Steam Profile"}
+
+    def test_mod_embed_options_have_steam_status_placeholder(self) -> None:
+        """Test that mod embed options include the steam_status placeholder."""
+        for opt in VERIFICATION_CONFIG_SCHEMA.options:
+            if opt.key in ("mod_embed_regular", "mod_embed_ally"):
+                assert "steam_status" in (opt.placeholders or [])

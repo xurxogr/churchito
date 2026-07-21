@@ -48,6 +48,9 @@ class VerificationRequest(Base):
     screenshot_1_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     screenshot_2_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Steam profile URL (optional requirement)
+    steam_profile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Player information extracted by OCR (name, regiment, level, faction, shard, etc.)
     player_info: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 

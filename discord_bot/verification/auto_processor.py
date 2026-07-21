@@ -108,6 +108,7 @@ def get_auto_reject_config_key(reason: RejectType) -> ConfigKey | None:
         RejectType.TIME_DIFF: ConfigKey.AUTO_REJECT_TIME_DIFF,
         RejectType.WRONG_SHARD: ConfigKey.AUTO_REJECT_WRONG_SHARD,
         RejectType.WRONG_FACTION: ConfigKey.AUTO_REJECT_WRONG_FACTION,
+        RejectType.STEAM_PRIVATE: ConfigKey.AUTO_REJECT_STEAM_PRIVATE,
     }
     return config_key_map.get(reason)
 
@@ -134,6 +135,7 @@ def get_rejection_message(
         RejectType.TIME_DIFF: ConfigKey.REJECT_TIME_DIFF,
         RejectType.WRONG_SHARD: ConfigKey.REJECT_WRONG_SHARD,
         RejectType.WRONG_FACTION: ConfigKey.REJECT_WRONG_FACTION,
+        RejectType.STEAM_PRIVATE: ConfigKey.REJECT_STEAM_PRIVATE,
     }
     default_messages = {
         RejectType.INVALID_SCREENSHOTS: "Screenshots incorrect or unreadable",
@@ -142,6 +144,7 @@ def get_rejection_message(
         RejectType.TIME_DIFF: "Screenshot too old",
         RejectType.WRONG_SHARD: "Wrong shard, must be {shard}",
         RejectType.WRONG_FACTION: "Wrong faction",
+        RejectType.STEAM_PRIVATE: "Steam profile is private",
     }
 
     message_key = message_key_map.get(reason)
@@ -282,6 +285,27 @@ def process_verification(
             failures.add(RejectType.TIME_DIFF)
 
     return failures
+
+
+def is_steam_profile_required(
+    config: dict[str, Any],
+    verification_type: VerificationType,
+) -> bool:
+    """Check if the Steam profile URL is required for a verification type.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        verification_type (VerificationType): Verification type (REGULAR or ALLY).
+
+    Returns:
+        bool: True if the Steam profile URL is required for this type.
+    """
+    config_key = (
+        ConfigKey.STEAM_PROFILE_REQUIRED_REGULAR
+        if verification_type == VerificationType.REGULAR
+        else ConfigKey.STEAM_PROFILE_REQUIRED_ALLY
+    )
+    return bool(config.get(config_key, False))
 
 
 def get_auto_rejectable_failures(

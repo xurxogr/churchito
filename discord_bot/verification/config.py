@@ -446,6 +446,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "name_status",
                 "time_status",
                 "api_status",
+                "steam_status",
             ],
             group="Moderation Panel",
         ),
@@ -483,6 +484,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "name_status",
                 "time_status",
                 "api_status",
+                "steam_status",
             ],
             group="Moderation Panel",
         ),
@@ -1097,6 +1099,94 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
                 "time_status",
             ],
             group="Verification API",
+        ),
+        # ===== 8. STEAM PROFILE =====
+        ConfigOption(
+            key=ConfigKey.STEAM_PROFILE_REQUIRED_REGULAR,
+            name="Require Steam profile (Normal)",
+            description="Require a public Steam profile URL for normal verification",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.STEAM_PROFILE_REQUIRED_ALLY,
+            name="Require Steam profile (Ally)",
+            description="Require a public Steam profile URL for ally verification",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=False,
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.STEAM_PROFILE_REQUEST_MESSAGE,
+            name="Steam profile request",
+            description="Message sent via DM asking for the Steam profile URL",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "Please also send the URL of your Steam profile "
+                "(e.g., https://steamcommunity.com/id/yourprofile)."
+            ),
+            max_length=2000,
+            placeholders=["username"],
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.SCREENSHOTS_RECEIVED_AWAITING_STEAM_MESSAGE,
+            name="Screenshots received, awaiting Steam URL",
+            description="Message shown when screenshots arrived but the Steam URL is still missing",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "Your screenshots have been received. "
+                "Please also send your Steam profile URL to continue."
+            ),
+            max_length=2000,
+            placeholders=["username"],
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.STEAM_URL_RECEIVED_MESSAGE,
+            name="Steam URL received, awaiting screenshots",
+            description=(
+                "Message shown when the Steam URL arrived but screenshots are still missing"
+            ),
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "Your Steam profile URL has been received. "
+                "Please also send your **2 screenshots** to continue."
+            ),
+            max_length=2000,
+            placeholders=["username"],
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.INVALID_STEAM_URL_MESSAGE,
+            name="Error: invalid Steam URL",
+            description="Message when the submitted text is not a valid Steam profile URL",
+            option_type=ConfigOptionType.TEXTAREA,
+            default=(
+                "That doesn't look like a valid Steam profile URL. "
+                "Please send a link like https://steamcommunity.com/id/yourprofile."
+            ),
+            max_length=2000,
+            placeholders=["username"],
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.AUTO_REJECT_STEAM_PRIVATE,
+            name="Auto-reject: Steam profile private",
+            description="Automatically reject when the Steam profile is private",
+            option_type=ConfigOptionType.BOOLEAN,
+            default=True,
+            group="Steam Profile",
+        ),
+        ConfigOption(
+            key=ConfigKey.REJECT_STEAM_PRIVATE,
+            name="Rejection: Steam profile private",
+            description="Reason when the Steam profile is private",
+            option_type=ConfigOptionType.STRING,
+            default="Steam profile is private",
+            max_length=200,
+            group="Steam Profile",
         ),
     ],
 )

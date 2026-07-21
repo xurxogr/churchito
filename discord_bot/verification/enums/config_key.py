@@ -72,6 +72,7 @@ class ConfigKey(StrEnum):
     REJECT_TIME_DIFF = "reject_time_diff"
     REJECT_WRONG_SHARD = "reject_wrong_shard"
     REJECT_WRONG_FACTION = "reject_wrong_faction"
+    REJECT_STEAM_PRIVATE = "reject_steam_private"
 
     # Rejection selector
     REJECTION_SELECT_MESSAGE = "rejection_select_message"
@@ -107,6 +108,15 @@ class ConfigKey(StrEnum):
     AUTO_REJECT_TIME_DIFF = "auto_reject_time_diff"
     AUTO_REJECT_WRONG_SHARD = "auto_reject_wrong_shard"
     AUTO_REJECT_WRONG_FACTION = "auto_reject_wrong_faction"
+    AUTO_REJECT_STEAM_PRIVATE = "auto_reject_steam_private"
+
+    # Steam profile requirement (per verification type)
+    STEAM_PROFILE_REQUIRED_REGULAR = "steam_profile_required_regular"
+    STEAM_PROFILE_REQUIRED_ALLY = "steam_profile_required_ally"
+    STEAM_PROFILE_REQUEST_MESSAGE = "steam_profile_request_message"
+    SCREENSHOTS_RECEIVED_AWAITING_STEAM_MESSAGE = "screenshots_received_awaiting_steam_message"
+    STEAM_URL_RECEIVED_MESSAGE = "steam_url_received_message"
+    INVALID_STEAM_URL_MESSAGE = "invalid_steam_url_message"
 
     # Pending verifications tracker
     TRACKER_TITLE = "tracker_title"

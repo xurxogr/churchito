@@ -150,6 +150,7 @@ class TestVerificationService:
         await service.update_screenshots(
             request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
+        await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
 
         # Should not find because it already has screenshots (PENDING_REVIEW)
         pending = await service.get_any_pending_by_user(456)
@@ -245,6 +246,7 @@ class TestVerificationService:
         await service.update_screenshots(
             request_id=request2.id, url1="url1", url2="url2", guild_name="Test Guild"
         )
+        await service.mark_pending_review(request_id=request2.id, guild_name="Test Guild")
 
         # Create request pending screenshots
         await service.create_request(
@@ -318,8 +320,9 @@ class TestVerificationService:
         assert updated is not None
         assert updated.screenshot_1_url == "http://example.com/1.png"
         assert updated.screenshot_2_url == "http://example.com/2.png"
-        assert updated.status == VerificationStatus.PENDING_REVIEW
-        assert updated.screenshots_submitted_at is not None
+        # Status stays PENDING_SCREENSHOTS - mark_pending_review handles the transition
+        assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+        assert updated.screenshots_submitted_at is None
 
     async def test_update_screenshots_not_found(self, test_session: AsyncSession) -> None:
         """Test updating screenshots for non-existent request."""
@@ -327,6 +330,60 @@ class TestVerificationService:
         result = await service.update_screenshots(
             request_id=99999, url1="url1", url2="url2", guild_name="Test Guild"
         )
+        assert result is None
+
+    async def test_set_steam_profile_url(self, test_session: AsyncSession) -> None:
+        """Test saving the Steam profile URL."""
+        service = VerificationService(test_session)
+
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            guild_name="Test Guild",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        updated = await service.set_steam_profile_url(
+            request_id=request.id,
+            url="https://steamcommunity.com/id/someuser",
+            guild_name="Test Guild",
+        )
+
+        assert updated is not None
+        assert updated.steam_profile_url == "https://steamcommunity.com/id/someuser"
+        assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+
+    async def test_set_steam_profile_url_not_found(self, test_session: AsyncSession) -> None:
+        """Test setting Steam profile URL for non-existent request."""
+        service = VerificationService(test_session)
+        result = await service.set_steam_profile_url(
+            request_id=99999, url="https://steamcommunity.com/id/someuser", guild_name="Test Guild"
+        )
+        assert result is None
+
+    async def test_mark_pending_review(self, test_session: AsyncSession) -> None:
+        """Test transitioning a request to pending review."""
+        service = VerificationService(test_session)
+
+        request = await service.create_request(
+            guild_id=123,
+            user_id=456,
+            username="TestUser",
+            guild_name="Test Guild",
+            verification_type=VerificationType.REGULAR,
+        )
+
+        updated = await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
+
+        assert updated is not None
+        assert updated.status == VerificationStatus.PENDING_REVIEW
+        assert updated.screenshots_submitted_at is not None
+
+    async def test_mark_pending_review_not_found(self, test_session: AsyncSession) -> None:
+        """Test marking non-existent request as pending review."""
+        service = VerificationService(test_session)
+        result = await service.mark_pending_review(request_id=99999, guild_name="Test Guild")
         assert result is None
 
     async def test_set_mod_message_id(self, test_session: AsyncSession) -> None:

@@ -10,6 +10,7 @@ from discord_bot.verification.auto_processor import (
     get_auto_rejectable_failures,
     get_rejection_message,
     is_auto_reject_enabled,
+    is_steam_profile_required,
     names_match,
     process_verification,
 )
@@ -617,6 +618,20 @@ class TestIsAutoRejectEnabled:
 
         assert is_auto_reject_enabled(config=config, reason=RejectType.INVALID_SCREENSHOTS) is False
 
+    def test_can_disable_steam_private(self) -> None:
+        """Test disabling auto-reject for a private Steam profile."""
+        config: dict[str, Any] = {
+            ConfigKey.AUTO_REJECT_STEAM_PRIVATE: False,
+        }
+
+        assert is_auto_reject_enabled(config=config, reason=RejectType.STEAM_PRIVATE) is False
+
+    def test_steam_private_enabled_by_default(self) -> None:
+        """Test that Steam private auto-reject is enabled by default."""
+        config: dict[str, Any] = {}
+
+        assert is_auto_reject_enabled(config=config, reason=RejectType.STEAM_PRIVATE) is True
+
     def test_multiple_disabled(self) -> None:
         """Test disabling multiple auto-reject reasons."""
         config: dict[str, Any] = {
@@ -632,6 +647,60 @@ class TestIsAutoRejectEnabled:
         assert is_auto_reject_enabled(config=config, reason=RejectType.HAS_REGIMENT) is True
         assert is_auto_reject_enabled(config=config, reason=RejectType.WRONG_FACTION) is True
         assert is_auto_reject_enabled(config=config, reason=RejectType.TIME_DIFF) is True
+
+
+class TestGetRejectionMessageSteamPrivate:
+    """Tests for get_rejection_message with RejectType.STEAM_PRIVATE."""
+
+    def test_default_message(self) -> None:
+        """Test default message when not configured."""
+        config: dict[str, Any] = {}
+        message = get_rejection_message(config=config, reason=RejectType.STEAM_PRIVATE)
+        assert message == "Steam profile is private"
+
+    def test_configured_message(self) -> None:
+        """Test configured message overrides default."""
+        config: dict[str, Any] = {
+            ConfigKey.REJECT_STEAM_PRIVATE: "Your Steam profile must be public",
+        }
+        message = get_rejection_message(config=config, reason=RejectType.STEAM_PRIVATE)
+        assert message == "Your Steam profile must be public"
+
+
+class TestIsSteamProfileRequired:
+    """Tests for is_steam_profile_required."""
+
+    def test_regular_required(self) -> None:
+        """Test Regular verification requires Steam profile when configured."""
+        config: dict[str, Any] = {ConfigKey.STEAM_PROFILE_REQUIRED_REGULAR: True}
+        assert (
+            is_steam_profile_required(config=config, verification_type=VerificationType.REGULAR)
+            is True
+        )
+
+    def test_regular_not_required_by_default(self) -> None:
+        """Test Regular verification does not require Steam profile by default."""
+        config: dict[str, Any] = {}
+        assert (
+            is_steam_profile_required(config=config, verification_type=VerificationType.REGULAR)
+            is False
+        )
+
+    def test_ally_required(self) -> None:
+        """Test Ally verification requires Steam profile when configured."""
+        config: dict[str, Any] = {ConfigKey.STEAM_PROFILE_REQUIRED_ALLY: True}
+        assert (
+            is_steam_profile_required(config=config, verification_type=VerificationType.ALLY)
+            is True
+        )
+
+    def test_independent_per_type(self) -> None:
+        """Test Regular and Ally toggles are independent."""
+        config: dict[str, Any] = {ConfigKey.STEAM_PROFILE_REQUIRED_REGULAR: True}
+        assert (
+            is_steam_profile_required(config=config, verification_type=VerificationType.ALLY)
+            is False
+        )
 
 
 class TestGetAutoRejectableFailures:
