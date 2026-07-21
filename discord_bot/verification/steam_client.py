@@ -23,6 +23,26 @@ _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 3
 
 
+def get_steam_profile_display_id(url: str) -> str | None:
+    """Extract the vanity name or SteamID64 from a Steam profile URL for display.
+
+    Args:
+        url (str): Steam profile URL.
+
+    Returns:
+        str | None: The vanity name or SteamID64 (without the "id/" or "profiles/"
+            prefix), or None if the URL isn't a valid Steam profile URL.
+    """
+    if not url:
+        return None
+
+    match = STEAM_PROFILE_URL_PATTERN.match(url)
+    if not match:
+        return None
+
+    return match.group(1).split("/", 1)[1]
+
+
 def is_valid_steam_profile_url(url: str) -> bool:
     """Verify that a URL is a valid Steam community profile URL.
 

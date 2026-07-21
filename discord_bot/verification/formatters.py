@@ -13,6 +13,7 @@ from discord_bot.common.services.embed_builder import (
     build_embeds,
 )
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
+from discord_bot.verification.steam_client import get_steam_profile_display_id
 
 # Default embed config for moderation
 DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
@@ -242,6 +243,10 @@ def create_mod_embeds(
     type_display = get_verification_type_display(verification_type=verification_type, config=config)
 
     # Create context with all placeholders
+    steam_profile_url = extra_placeholders.get("steam_profile_url") or ""
+    steam_display_id = get_steam_profile_display_id(steam_profile_url)
+    steam_profile_link = f"[{steam_display_id}]({steam_profile_url})" if steam_display_id else ""
+
     extra_data: dict[str, Any] = {
         "username": username or "",
         "user_mention": user_mention or "",
@@ -251,6 +256,7 @@ def create_mod_embeds(
         "created_at": created_at or "",
         "created_at_relative": created_at_relative or "",
         **{k: v or "" for k, v in extra_placeholders.items()},
+        "steam_profile_link": steam_profile_link,
     }
 
     context = PlaceholderContext(

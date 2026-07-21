@@ -7,6 +7,7 @@ import pytest
 
 from discord_bot.verification.steam_client import (
     check_steam_profile_private,
+    get_steam_profile_display_id,
     is_valid_steam_profile_url,
 )
 
@@ -60,6 +61,33 @@ class TestIsValidSteamProfileUrl:
     def test_other_path(self) -> None:
         """Test unrelated paths are rejected."""
         assert is_valid_steam_profile_url("https://steamcommunity.com/groups/somegroup") is False
+
+
+class TestGetSteamProfileDisplayId:
+    """Tests for get_steam_profile_display_id."""
+
+    def test_vanity_url(self) -> None:
+        """Test vanity /id/ URL returns the vanity name."""
+        assert get_steam_profile_display_id("https://steamcommunity.com/id/someuser") == "someuser"
+
+    def test_vanity_url_trailing_slash(self) -> None:
+        """Test vanity /id/ URL with trailing slash returns the vanity name."""
+        assert get_steam_profile_display_id("https://steamcommunity.com/id/someuser/") == "someuser"
+
+    def test_profiles_url(self) -> None:
+        """Test /profiles/<id64> URL returns the SteamID64."""
+        assert (
+            get_steam_profile_display_id("https://steamcommunity.com/profiles/76561198000000000")
+            == "76561198000000000"
+        )
+
+    def test_empty_url(self) -> None:
+        """Test empty URL returns None."""
+        assert get_steam_profile_display_id("") is None
+
+    def test_invalid_url(self) -> None:
+        """Test invalid/off-domain URL returns None."""
+        assert get_steam_profile_display_id("https://evil.com/id/someuser") is None
 
 
 class TestCheckSteamProfilePrivate:

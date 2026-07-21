@@ -2474,7 +2474,7 @@ class TestOnMessageSteamProfile:
                 "sections": [
                     {
                         "type": "text",
-                        "content": "Steam: {steam_profile_url} ({steam_status})",
+                        "content": "Steam: {steam_profile_link} ({steam_status})",
                     }
                 ],
             },
@@ -2508,7 +2508,10 @@ class TestOnMessageSteamProfile:
         edit_kwargs = mock_mod_message.edit.call_args.kwargs
         main_embed = edit_kwargs["embeds"][0]
         field_values = [field.value or "" for field in main_embed.fields]
-        assert any("https://steamcommunity.com/id/testuser123" in value for value in field_values)
+        assert any(
+            "[testuser123](https://steamcommunity.com/id/testuser123)" in value
+            for value in field_values
+        )
         assert any("✅" in value for value in field_values)
 
 
