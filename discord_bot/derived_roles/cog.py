@@ -1,0 +1,467 @@
+"""Derived roles cog for automatic role dependencies."""
+
+import asyncio
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
+import discord
+from discord.ext import commands, tasks
+
+from discord_bot.bot import DiscordBot
+from discord_bot.common.services.config_schema_service import get_config_schema_service
+from discord_bot.common.services.config_service import ConfigService
+from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
+from discord_bot.derived_roles.engine import compute_role_changes
+
+logger = logging.getLogger(__name__)
+
+ROLE_CHANGE_REASON = "Derived roles"
+
+
+class DerivedRolesCog(commands.Cog):
+    """Cog that keeps role dependencies in sync.
+
+    Applies state-based rules (grants, requires, forbids) whenever a
+    member's roles change and through a periodic reconciliation sweep.
+    """
+
+    def __init__(self, bot: DiscordBot) -> None:
+        """Initialize the derived roles cog.
+
+        Args:
+            bot (DiscordBot): Bot instance
+        """
+        self.bot = bot
+        self._last_sync: dict[int, datetime] = {}
+        self._sync_started = False
+        # Per-member locks to avoid concurrent rule application
+        self._member_locks: dict[int, asyncio.Lock] = {}
+        # Guilds currently in permission-error state (notify on state change only)
+        self._error_state: dict[int, bool] = {}
+
+    def get_locked_options(self) -> dict[str, dict[str, Any]]:
+        """Get options locked by deployment configuration.
+
+        Returns:
+            dict[str, dict[str, Any]]: Map of key -> {locked, reason}
+        """
+        return {}
+
+    async def cog_load(self) -> None:
+        """Start tasks when loading the cog."""
+        if not self._sync_started:
+            self.sync_loop.start()
+            self._sync_started = True
+
+    async def cog_unload(self) -> None:
+        """Stop tasks when unloading the cog."""
+        if self._sync_started:
+            self.sync_loop.cancel()
+            self._sync_started = False
+
+    async def _is_cog_enabled(self, guild_id: int) -> bool:
+        """Check if the cog is enabled for a guild.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            bool: True if the cog is enabled
+        """
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+            return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
+
+    async def _get_config(self, guild_id: int) -> dict[str, Any]:
+        """Get all cog configuration for a guild.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            dict[str, Any]: Cog configuration
+        """
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+            return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+
+    async def _get_member_lock(self, member_id: int) -> asyncio.Lock:
+        """Get or create a lock for a member.
+
+        Args:
+            member_id (int): Discord member ID
+
+        Returns:
+            asyncio.Lock: Lock for this member
+        """
+        if member_id not in self._member_locks:
+            self._member_locks[member_id] = asyncio.Lock()
+        return self._member_locks[member_id]
+
+    # ===== EVENT HANDLERS =====
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        """Handle member updates to detect role changes.
+
+        Args:
+            before (discord.Member): Previous member state
+            after (discord.Member): Current member state
+        """
+        if before.roles == after.roles:
+            return
+
+        if after.bot:
+            return
+
+        if not await self._is_cog_enabled(after.guild.id):
+            return
+
+        config = await self._get_config(after.guild.id)
+        await self._apply_rules(member=after, config=config)
+
+    # ===== RULE APPLICATION =====
+
+    async def _apply_rules(self, member: discord.Member, config: dict[str, Any]) -> bool:
+        """Apply derived role rules to a member.
+
+        Args:
+            member (discord.Member): Member to process
+            config (dict[str, Any]): Cog configuration
+
+        Returns:
+            bool: True if any role was changed
+        """
+        rules = config.get(ConfigKey.RULES) or []
+        if not rules:
+            return False
+
+        guild = member.guild
+        lock = await self._get_member_lock(member.id)
+        async with lock:
+            member_role_ids = {r.id for r in member.roles}
+            to_add, to_remove = compute_role_changes(member_role_ids=member_role_ids, rules=rules)
+
+            if not to_add and not to_remove:
+                return False
+
+            add_roles = self._resolve_roles(guild=guild, role_ids=to_add)
+            remove_roles = self._resolve_roles(guild=guild, role_ids=to_remove)
+
+            if not add_roles and not remove_roles:
+                return False
+
+            try:
+                # Remove first: removal wins semantics, and faction switches
+                # should drop the old roles before granting new ones
+                if remove_roles:
+                    await member.remove_roles(*remove_roles, reason=ROLE_CHANGE_REASON)
+                if add_roles:
+                    await member.add_roles(*add_roles, reason=ROLE_CHANGE_REASON)
+            except discord.Forbidden:
+                await self._notify_error(guild=guild, config=config, member=member)
+                return False
+            except discord.HTTPException as e:
+                logger.error(
+                    f"[{guild.name}] Error applying derived roles to '{member.display_name}': {e}"
+                )
+                return False
+
+            logger.info(
+                f"[{guild.name}] Derived roles for '{member.display_name}': "
+                f"added {[r.name for r in add_roles]}, removed {[r.name for r in remove_roles]}"
+            )
+            await self._notify_recovered(guild=guild, config=config)
+            await self._notify_applied(
+                guild=guild,
+                config=config,
+                member=member,
+                added=add_roles,
+                removed=remove_roles,
+            )
+            return True
+
+    def _resolve_roles(self, guild: discord.Guild, role_ids: set[int]) -> list[discord.Role]:
+        """Resolve role IDs to role objects, logging missing ones.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            role_ids (set[int]): Role IDs to resolve
+
+        Returns:
+            list[discord.Role]: Resolved roles
+        """
+        roles: list[discord.Role] = []
+        for role_id in role_ids:
+            role = guild.get_role(role_id)
+            if role:
+                roles.append(role)
+            else:
+                logger.warning(f"[{guild.name}] Derived roles: role {role_id} not found")
+        return roles
+
+    # ===== AUDIT NOTIFICATIONS =====
+
+    async def _notify_applied(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        member: discord.Member,
+        added: list[discord.Role],
+        removed: list[discord.Role],
+    ) -> None:
+        """Send audit notification for an applied rule change.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            config (dict[str, Any]): Cog configuration
+            member (discord.Member): Affected member
+            added (list[discord.Role]): Roles added
+            removed (list[discord.Role]): Roles removed
+        """
+        if not config.get(ConfigKey.AUDIT_APPLIED):
+            return
+
+        added_text = ", ".join(role.mention for role in added) or "—"
+        removed_text = ", ".join(role.mention for role in removed) or "—"
+        await self._send_audit(
+            guild=guild,
+            config=config,
+            template_key=ConfigKey.AUDIT_APPLIED_MSG,
+            user_name=member.display_name,
+            user_mention=member.mention,
+            added_roles=added_text,
+            removed_roles=removed_text,
+        )
+
+    async def _notify_error(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        member: discord.Member,
+    ) -> None:
+        """Handle a permission failure, notifying only on state change.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            config (dict[str, Any]): Cog configuration
+            member (discord.Member): Member whose roles could not be modified
+        """
+        logger.warning(
+            f"[{guild.name}] Cannot modify derived roles for '{member.display_name}' "
+            f"(missing permissions or role hierarchy)"
+        )
+
+        was_in_error = self._error_state.get(guild.id, False)
+        self._error_state[guild.id] = True
+        if was_in_error:
+            return
+
+        if not config.get(ConfigKey.AUDIT_ERROR):
+            return
+
+        await self._send_audit(
+            guild=guild,
+            config=config,
+            template_key=ConfigKey.AUDIT_ERROR_MSG,
+            user_name=member.display_name,
+            user_mention=member.mention,
+        )
+
+    async def _notify_recovered(self, guild: discord.Guild, config: dict[str, Any]) -> None:
+        """Notify recovery after a previous error state.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            config (dict[str, Any]): Cog configuration
+        """
+        if not self._error_state.get(guild.id, False):
+            return
+
+        self._error_state[guild.id] = False
+        logger.info(f"[{guild.name}] Derived roles: role management recovered")
+
+        if not config.get(ConfigKey.AUDIT_ERROR):
+            return
+
+        await self._send_audit(
+            guild=guild,
+            config=config,
+            template_key=ConfigKey.AUDIT_RECOVERED_MSG,
+        )
+
+    async def _send_audit(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        template_key: str,
+        **placeholders: str,
+    ) -> None:
+        """Format and send a message to the audit channel if configured.
+
+        Args:
+            guild (discord.Guild): Discord guild
+            config (dict[str, Any]): Cog configuration
+            template_key (str): Config key of the message template
+            **placeholders (str): Values to replace in the template
+        """
+        channel_id = config.get(ConfigKey.AUDIT_CHANNEL)
+        if not channel_id:
+            return
+
+        template = config.get(template_key)
+        if not template:
+            return
+
+        try:
+            message = template.format(**placeholders)
+        except (KeyError, ValueError, IndexError) as e:
+            logger.warning(f"[{guild.name}] Error formatting audit message: {e}")
+            return
+
+        channel = guild.get_channel(int(channel_id))
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        try:
+            await channel.send(message)
+        except discord.Forbidden:
+            logger.warning(f"[{guild.name}] Cannot send to derived roles audit channel")
+        except discord.HTTPException as e:
+            logger.error(f"[{guild.name}] Error sending audit message: {e}")
+
+    # ===== RECONCILIATION =====
+
+    @tasks.loop(minutes=1)
+    async def sync_loop(self) -> None:
+        """Periodic reconciliation loop.
+
+        Each guild has its own configured interval. This loop runs every
+        minute and checks if each guild is ready to sync.
+        """
+        await self._run_sync()
+
+    @sync_loop.before_loop
+    async def before_sync(self) -> None:
+        """Wait for the bot to be ready before starting sync."""
+        await self.bot.wait_until_ready()
+        # Execute immediately on startup to repair state missed while offline
+        await self._run_sync(force_all=True)
+
+    async def _run_sync(self, force_all: bool = False) -> None:
+        """Run reconciliation on guilds that are ready.
+
+        Args:
+            force_all (bool): If True, execute for all guilds ignoring intervals
+        """
+        now = datetime.now(UTC)
+
+        for guild in self.bot.guilds:
+            try:
+                if not await self._is_cog_enabled(guild.id):
+                    continue
+
+                config = await self._get_config(guild.id)
+                interval = config.get(ConfigKey.SYNC_INTERVAL)
+                interval = interval if interval is not None else 60
+
+                if interval == 0:
+                    continue
+
+                if not force_all:
+                    last_sync = self._last_sync.get(guild.id)
+                    if last_sync:
+                        seconds_since_last = (now - last_sync).total_seconds()
+                        if seconds_since_last < interval * 60:
+                            continue
+
+                await self._sync_guild(guild=guild, config=config)
+                self._last_sync[guild.id] = now
+
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error in derived roles sync: {e}")
+
+    async def _sync_guild(self, guild: discord.Guild, config: dict[str, Any]) -> None:
+        """Reconcile all members of a guild against the rules.
+
+        Args:
+            guild (discord.Guild): Guild to reconcile
+            config (dict[str, Any]): Cog configuration
+        """
+        rules = config.get(ConfigKey.RULES) or []
+        if not rules:
+            return
+
+        corrected = 0
+        for member in guild.members:
+            if member.bot:
+                continue
+
+            try:
+                if await self._apply_rules(member=member, config=config):
+                    corrected += 1
+            except Exception as e:
+                logger.error(
+                    "Error applying derived roles to '%s' in '%s': %s",
+                    member.display_name,
+                    guild.name,
+                    e,
+                )
+
+        if corrected > 0:
+            logger.info(f"[{guild.name}] Derived roles sync: {corrected} member(s) corrected")
+            if config.get(ConfigKey.AUDIT_RECONCILIATION):
+                await self._send_audit(
+                    guild=guild,
+                    config=config,
+                    template_key=ConfigKey.AUDIT_RECONCILIATION_MSG,
+                    count=str(corrected),
+                )
+
+    # ===== CONFIG CHANGE CALLBACKS =====
+
+    async def on_cog_toggled(self, guild: discord.Guild, enabled: bool) -> None:
+        """Handle when the cog is enabled or disabled.
+
+        Args:
+            guild (discord.Guild): Guild where the state changed
+            enabled (bool): True if enabled, False if disabled
+        """
+        if enabled:
+            logger.info(f"[{guild.name}] Derived roles enabled, reconciling members")
+            config = await self._get_config(guild.id)
+            await self._sync_guild(guild=guild, config=config)
+        else:
+            logger.info(f"[{guild.name}] Derived roles disabled")
+
+    async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
+        """Callback when the cog configuration changes.
+
+        Args:
+            guild (discord.Guild): Guild where config changed
+            keys (list[str]): List of configuration keys that changed
+        """
+        if ConfigKey.RULES in set(keys):
+            logger.info(f"[{guild.name}] Derived roles rules changed, reconciling members")
+            config = await self._get_config(guild.id)
+            await self._sync_guild(guild=guild, config=config)
+
+
+async def setup(bot: DiscordBot) -> None:
+    """Load the derived roles cog.
+
+    Args:
+        bot (DiscordBot): Bot instance
+    """
+    get_config_schema_service().register_schema(DERIVED_ROLES_CONFIG_SCHEMA)
+    await bot.add_cog(DerivedRolesCog(bot))
+
+
+async def teardown(bot: DiscordBot) -> None:
+    """Unload the derived roles cog.
+
+    Args:
+        bot (DiscordBot): Bot instance
+    """
+    get_config_schema_service().unregister_schema(COG_NAME)

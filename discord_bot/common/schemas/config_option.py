@@ -43,6 +43,14 @@ class ConfigOption(BaseModel):
         default=None,
         description="Column definition for TABLE (key, name, type, required, etc.)",
     )
+    custom_validator: Any = Field(
+        default=None,
+        exclude=True,
+        description=(
+            "Optional callable (value) -> str | None for semantic validation "
+            "beyond type checks; returns an error message or None"
+        ),
+    )
 
     def validate_value(self, value: Any) -> tuple[bool, str | None]:
         """Validate a value against this option's constraints.
@@ -108,5 +116,10 @@ class ConfigOption(BaseModel):
                                     False,
                                     f"'{self.name}' row {i + 1}: '{col['name']}' is required",
                                 )
+
+        if self.custom_validator is not None and value is not None:
+            error = self.custom_validator(value)
+            if error:
+                return False, error
 
         return True, None

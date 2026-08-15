@@ -182,6 +182,74 @@
     }
   },
   "cogs": {
+    "derived_roles": {
+      "display_name": "Roles Derivados",
+      "description": "Dependencias automáticas de roles: concede, requiere o prohíbe roles en función de otros roles",
+      "groups": {
+        "Rules": "Reglas",
+        "General": "General",
+        "Audit": "Auditoría",
+        "Audit Messages": "Mensajes de Auditoría"
+      },
+      "options": {
+        "rules": {
+          "name": "Reglas",
+          "description": "Reglas basadas en estado que se evalúan en cada cambio de roles y en la sincronización periódica.\n- **Concede**: los miembros con el rol disparador reciben automáticamente el rol objetivo.\n- **Requiere**: los miembros pierden el rol objetivo si no tienen el rol disparador.\n- **Prohíbe**: los miembros con el rol disparador pierden automáticamente el rol objetivo.\nLas reglas se encadenan (el efecto de una regla puede activar otra). Los conjuntos de reglas contradictorios o circulares se rechazan al guardar. Si dos reglas entran en conflicto en tiempo de ejecución, gana la eliminación."
+        },
+        "sync_interval": {
+          "name": "Intervalo de reconciliación (minutos)",
+          "description": "Barrido periódico que vuelve a aplicar todas las reglas a todos los miembros, reparando cualquier estado perdido mientras el bot estaba desconectado (0 para desactivar)"
+        },
+        "audit_channel": {
+          "name": "Canal de auditoría",
+          "description": "Canal para las notificaciones de auditoría (aplicación de reglas, errores)"
+        },
+        "audit_applied": {
+          "name": "Notificar al aplicar reglas",
+          "description": "Enviar una notificación cuando las reglas cambian los roles de un miembro"
+        },
+        "audit_error": {
+          "name": "Notificar errores",
+          "description": "Enviar una notificación cuando no se pueden modificar roles (faltan permisos o jerarquía de roles). Notifica una vez por estado de fallo y otra al recuperarse, no en cada reintento"
+        },
+        "audit_reconciliation": {
+          "name": "Notificar correcciones de la reconciliación",
+          "description": "Enviar un resumen cuando el barrido periódico corrige miembros"
+        },
+        "audit_applied_msg": {
+          "name": "Mensaje de regla aplicada",
+          "description": "Mensaje de auditoría cuando las reglas cambian los roles de un miembro",
+          "default": "**Roles derivados:** {user_mention} — añadidos: {added_roles} | quitados: {removed_roles}"
+        },
+        "audit_error_msg": {
+          "name": "Mensaje de error",
+          "description": "Mensaje de auditoría cuando no se pueden modificar roles",
+          "default": "⚠️ **Roles derivados:** no se pueden modificar los roles de {user_name}. Comprueba que el rol del bot esté por encima de los roles gestionados."
+        },
+        "audit_recovered_msg": {
+          "name": "Mensaje de recuperación",
+          "description": "Mensaje de auditoría cuando la gestión de roles vuelve a funcionar tras un error",
+          "default": "✅ **Roles derivados:** la gestión de roles se ha recuperado."
+        },
+        "audit_reconciliation_msg": {
+          "name": "Mensaje de reconciliación",
+          "description": "Resumen de auditoría cuando el barrido periódico corrige miembros",
+          "default": "🔄 **Roles derivados:** la reconciliación ha corregido {count} miembro(s)."
+        }
+      },
+      "columns": {
+        "trigger_role": "Rol disparador",
+        "rule_type": "Regla",
+        "target_role": "Rol objetivo"
+      },
+      "choices": {
+        "rule_type": {
+          "Grants (target auto-added)": "Concede (objetivo añadido automáticamente)",
+          "Requires (target removed without trigger)": "Requiere (objetivo quitado sin el disparador)",
+          "Forbids (target auto-removed)": "Prohíbe (objetivo quitado automáticamente)"
+        }
+      }
+    },
     "bot": {
       "display_name": "Bot",
       "description": "Configuración general del bot y permisos de administración",

@@ -541,6 +541,69 @@ class TestSchemaTranslatorTranslateColumns:
         assert result[0]["required"] is True
         assert result[0]["width"] == 100
 
+    def test_translate_columns_choice_labels_spanish(self) -> None:
+        """Test that choice labels inside table columns are translated."""
+        translator = SchemaTranslator()
+
+        columns = [
+            {
+                "key": "button_color",
+                "name": "Color",
+                "type": "choice",
+                "choices": [["Blue", "blue"], ["Red", "red"]],
+            }
+        ]
+
+        result = translator._translate_columns(
+            cog_name="purge",
+            columns=columns,
+            lang="es",
+        )
+
+        assert result[0]["choices"] == [["Azul", "blue"], ["Rojo", "red"]]
+
+    def test_translate_columns_choice_labels_untranslated_use_original(self) -> None:
+        """Test that untranslated column choice labels fall back to the original."""
+        translator = SchemaTranslator()
+
+        columns = [
+            {
+                "key": "button_color",
+                "name": "Color",
+                "type": "choice",
+                "choices": [["Unknown Label", "value"]],
+            }
+        ]
+
+        result = translator._translate_columns(
+            cog_name="purge",
+            columns=columns,
+            lang="es",
+        )
+
+        assert result[0]["choices"] == [["Unknown Label", "value"]]
+
+    def test_translate_columns_choices_do_not_mutate_input(self) -> None:
+        """Test that translating column choices does not mutate the input columns."""
+        translator = SchemaTranslator()
+
+        columns = [
+            {
+                "key": "button_color",
+                "name": "Color",
+                "type": "choice",
+                "choices": [["Blue", "blue"]],
+            }
+        ]
+
+        translator._translate_columns(
+            cog_name="purge",
+            columns=columns,
+            lang="es",
+        )
+
+        assert columns[0]["choices"] == [["Blue", "blue"]]
+
     def test_translate_columns_empty_list(self) -> None:
         """Test translation of empty columns list."""
         translator = SchemaTranslator()

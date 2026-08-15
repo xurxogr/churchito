@@ -150,13 +150,7 @@ class SchemaTranslator:
         """
         # Try to get choice translations from cog
         cog_translations = self._i18n.get_cog_translations(cog_name, lang)
-        choices_trans_nested = cog_translations.get("choices", {})
-
-        # Flatten nested choices dict (e.g. {"faction": {"A": "A"}} -> {"A": "A"})
-        choices_trans: dict[str, str] = {}
-        for category_translations in choices_trans_nested.values():
-            if isinstance(category_translations, dict):
-                choices_trans.update(category_translations)
+        choices_trans = self._flatten_choice_translations(cog_translations)
 
         # For specific option, check if there are option-specific translations
         option_trans = self._i18n.get_option_translation(cog_name, option_key, lang)
@@ -200,6 +194,7 @@ class SchemaTranslator:
         """
         cog_translations = self._i18n.get_cog_translations(cog_name, lang)
         columns_trans = cog_translations.get("columns", {})
+        choices_trans = self._flatten_choice_translations(cog_translations)
 
         translated_columns: list[dict[str, Any]] = []
         for col in columns:
@@ -208,9 +203,30 @@ class SchemaTranslator:
             # Translate the 'name' field
             if col_key in columns_trans:
                 translated_col["name"] = columns_trans[col_key]
+            # Translate choice labels for choice-type columns
+            if col.get("choices"):
+                translated_col["choices"] = [
+                    [choices_trans.get(label, label), value] for label, value in col["choices"]
+                ]
             translated_columns.append(translated_col)
 
         return translated_columns
+
+    def _flatten_choice_translations(self, cog_translations: dict[str, Any]) -> dict[str, str]:
+        """Flatten a cog's nested choice translations into a label -> translation map.
+
+        Args:
+            cog_translations (dict[str, Any]): All translations for a cog
+
+        Returns:
+            dict[str, str]: Flattened choice label translations
+        """
+        # e.g. {"faction": {"A": "A"}} -> {"A": "A"}
+        choices_trans: dict[str, str] = {}
+        for category_translations in cog_translations.get("choices", {}).values():
+            if isinstance(category_translations, dict):
+                choices_trans.update(category_translations)
+        return choices_trans
 
     def get_translated_default(
         self,

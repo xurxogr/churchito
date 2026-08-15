@@ -182,6 +182,74 @@
     }
   },
   "cogs": {
+    "derived_roles": {
+      "display_name": "Derived Roles",
+      "description": "Automatic role dependencies: grant, require, or forbid roles based on other roles",
+      "groups": {
+        "Rules": "Rules",
+        "General": "General",
+        "Audit": "Audit",
+        "Audit Messages": "Audit Messages"
+      },
+      "options": {
+        "rules": {
+          "name": "Rules",
+          "description": "State-based rules evaluated on every role change and on periodic sync.\n- **Grants**: members with the trigger role automatically get the target role.\n- **Requires**: members lose the target role if they lack the trigger role.\n- **Forbids**: members with the trigger role automatically lose the target role.\nRules cascade (one rule's effect can trigger another). Contradictory or circular rule sets are rejected on save. If two rules conflict at runtime, removal wins."
+        },
+        "sync_interval": {
+          "name": "Reconciliation interval (minutes)",
+          "description": "Periodic sweep that re-applies all rules to all members, repairing any state missed while the bot was offline (0 to disable)"
+        },
+        "audit_channel": {
+          "name": "Audit channel",
+          "description": "Channel for audit notifications (rule applications, errors)"
+        },
+        "audit_applied": {
+          "name": "Notify on rule applied",
+          "description": "Send notification when rules change a member's roles"
+        },
+        "audit_error": {
+          "name": "Notify on errors",
+          "description": "Send notification when roles cannot be modified (missing permissions or role hierarchy). Notifies once per failure state and once on recovery, not on every retry"
+        },
+        "audit_reconciliation": {
+          "name": "Notify on reconciliation fixes",
+          "description": "Send a summary when the periodic sweep corrects members"
+        },
+        "audit_applied_msg": {
+          "name": "Rule applied message",
+          "description": "Audit message when rules change a member's roles",
+          "default": "**Derived roles:** {user_mention} — added: {added_roles} | removed: {removed_roles}"
+        },
+        "audit_error_msg": {
+          "name": "Error message",
+          "description": "Audit message when roles cannot be modified",
+          "default": "⚠️ **Derived roles:** cannot modify roles for {user_name}. Check that the bot's role is above the managed roles."
+        },
+        "audit_recovered_msg": {
+          "name": "Recovery message",
+          "description": "Audit message when role management works again after an error",
+          "default": "✅ **Derived roles:** role management recovered."
+        },
+        "audit_reconciliation_msg": {
+          "name": "Reconciliation message",
+          "description": "Audit summary when the periodic sweep corrects members",
+          "default": "🔄 **Derived roles:** reconciliation corrected {count} member(s)."
+        }
+      },
+      "columns": {
+        "trigger_role": "Trigger role",
+        "rule_type": "Rule",
+        "target_role": "Target role"
+      },
+      "choices": {
+        "rule_type": {
+          "Grants (target auto-added)": "Grants (target auto-added)",
+          "Requires (target removed without trigger)": "Requires (target removed without trigger)",
+          "Forbids (target auto-removed)": "Forbids (target auto-removed)"
+        }
+      }
+    },
     "bot": {
       "display_name": "Bot",
       "description": "General bot settings and admin permissions",
