@@ -1295,8 +1295,9 @@ function addTableRow(optionKey) {
     columns.forEach(col => {
         const td = document.createElement('td');
         if (col.type === 'role') {
-            // Get roles already used in this column
-            const usedRoleIds = getUsedRoleIds(optionKey, col.key);
+            // Get roles already used in this column, unless the column
+            // allows the same role in multiple rows (e.g. derived role rules)
+            const usedRoleIds = col.allow_duplicates ? new Set() : getUsedRoleIds(optionKey, col.key);
             // Filter out already used roles
             const availableRoles = roles.filter(r => !usedRoleIds.has(r.id));
 

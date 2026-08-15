@@ -36,13 +36,12 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
             key=ConfigKey.RULES,
             name="Rules",
             description=(
-                "State-based rules evaluated on every role change and on periodic sync.\n"
-                "- **Grants**: members with the trigger role automatically get the target role.\n"
-                "- **Requires**: members lose the target role if they lack the trigger role.\n"
-                "- **Forbids**: members with the trigger role automatically lose the target role.\n"
-                "Rules cascade (one rule's effect can trigger another). Contradictory or "
-                "circular rule sets are rejected on save. If two rules conflict at runtime, "
-                "removal wins."
+                "Rules evaluated on every role change and on periodic sync. "
+                "Grants: the trigger role auto-adds the target role. "
+                "Requires: the target role is removed if the trigger role is missing. "
+                "Forbids: the trigger role auto-removes the target role. "
+                "Rules cascade, contradictory or circular sets are rejected on save, "
+                "and on conflict removal wins."
             ),
             option_type=ConfigOptionType.TABLE,
             default=[],
@@ -52,6 +51,7 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
                     "name": "Trigger role",
                     "type": "role",
                     "required": True,
+                    "allow_duplicates": True,
                 },
                 {
                     "key": "rule_type",
@@ -69,6 +69,7 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
                     "name": "Target role",
                     "type": "role",
                     "required": True,
+                    "allow_duplicates": True,
                 },
             ],
             custom_validator=validate_rules,

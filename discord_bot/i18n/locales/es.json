@@ -194,7 +194,7 @@
       "options": {
         "rules": {
           "name": "Reglas",
-          "description": "Reglas basadas en estado que se evalúan en cada cambio de roles y en la sincronización periódica.\n- **Concede**: los miembros con el rol disparador reciben automáticamente el rol objetivo.\n- **Requiere**: los miembros pierden el rol objetivo si no tienen el rol disparador.\n- **Prohíbe**: los miembros con el rol disparador pierden automáticamente el rol objetivo.\nLas reglas se encadenan (el efecto de una regla puede activar otra). Los conjuntos de reglas contradictorios o circulares se rechazan al guardar. Si dos reglas entran en conflicto en tiempo de ejecución, gana la eliminación."
+          "description": "Reglas que se evalúan en cada cambio de roles y en la sincronización periódica. Concede: el rol disparador añade automáticamente el rol objetivo. Requiere: el rol objetivo se quita si falta el rol disparador. Prohíbe: el rol disparador quita automáticamente el rol objetivo. Las reglas se encadenan, los conjuntos contradictorios o circulares se rechazan al guardar y, en caso de conflicto, gana la eliminación."
         },
         "sync_interval": {
           "name": "Intervalo de reconciliación (minutos)",
