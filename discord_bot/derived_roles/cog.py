@@ -253,8 +253,8 @@ class DerivedRolesCog(commands.Cog):
 
         added_text = ", ".join(role.mention for role in added) or "—"
         removed_text = ", ".join(role.mention for role in removed) or "—"
-        trigger_parts = [f"➕{role.mention}" for role in trigger_gained] + [
-            f"➖{role.mention}" for role in trigger_lost
+        trigger_parts = [f"+{role.mention}" for role in trigger_gained] + [
+            f"-{role.mention}" for role in trigger_lost
         ]
         trigger_text = ", ".join(trigger_parts) or "—"
         await self._send_audit(

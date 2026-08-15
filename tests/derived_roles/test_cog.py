@@ -331,7 +331,7 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"➕<@&{COLLIE}>" in message
+        assert f"+<@&{COLLIE}>" in message
         assert f"<@&{LOGI_COLLIE}>" in message
 
     async def test_applied_message_includes_lost_trigger(
@@ -350,7 +350,7 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"➖<@&{COLLIE}>" in message
+        assert f"-<@&{COLLIE}>" in message
         assert f"<@&{LOGI_COLLIE}>" in message
 
     async def test_sync_applied_message_has_no_trigger(
@@ -369,7 +369,7 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"➕<@&{COLLIE}>" not in message
+        assert f"+<@&{COLLIE}>" not in message
         assert "—" in message
 
     async def test_audit_message_never_pings(
