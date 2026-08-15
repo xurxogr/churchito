@@ -126,5 +126,14 @@ class TestSchemaTranslation:
         labels = [label for label, _value in rule_type_col["choices"]]
         values = [value for _label, value in rule_type_col["choices"]]
 
+        schema_rules = next(
+            option
+            for option in DERIVED_ROLES_CONFIG_SCHEMA.options
+            if option.key == ConfigKey.RULES
+        )
+        schema_col = next(col for col in schema_rules.columns or [] if col["key"] == "rule_type")
+        english_labels = [label for label, _value in schema_col["choices"]]
+
         assert values == ["implies", "requires", "incompatible"]
-        assert "Grants (target auto-added)" not in labels
+        for english_label in english_labels:
+            assert english_label not in labels

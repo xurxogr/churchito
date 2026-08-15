@@ -194,7 +194,7 @@
       "options": {
         "rules": {
           "name": "Reglas",
-          "description": "Reglas que se evalúan en cada cambio de roles y en la sincronización periódica. Concede: el rol disparador añade automáticamente el rol objetivo. Requiere: el rol objetivo se quita si falta el rol disparador. Prohíbe: el rol disparador quita automáticamente el rol objetivo. Las reglas se encadenan, los conjuntos contradictorios o circulares se rechazan al guardar y, en caso de conflicto, gana la eliminación."
+          "description": "Reglas que se evalúan en cada cambio de roles y en la sincronización periódica, y se leen siempre de izquierda a derecha. Concede: con el rol disparador, se añade el rol objetivo. Es requisito para: sin el rol disparador, se quita el rol objetivo. Prohíbe: con el rol disparador, se quita el rol objetivo. Las reglas se encadenan, los conjuntos contradictorios o circulares se rechazan al guardar y, en caso de conflicto, gana la eliminación."
         },
         "sync_interval": {
           "name": "Intervalo de reconciliación (minutos)",
@@ -244,9 +244,9 @@
       },
       "choices": {
         "rule_type": {
-          "Grants (target auto-added)": "Concede (objetivo añadido automáticamente)",
-          "Requires (target removed without trigger)": "Requiere (objetivo quitado sin el disparador)",
-          "Forbids (target auto-removed)": "Prohíbe (objetivo quitado automáticamente)"
+          "Grants (with trigger, target is added)": "Concede (con el disparador, se añade el objetivo)",
+          "Is required for (without trigger, target is removed)": "Es requisito para (sin el disparador, se quita el objetivo)",
+          "Forbids (with trigger, target is removed)": "Prohíbe (con el disparador, se quita el objetivo)"
         }
       }
     },

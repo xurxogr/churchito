@@ -36,10 +36,10 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
             key=ConfigKey.RULES,
             name="Rules",
             description=(
-                "Rules evaluated on every role change and on periodic sync. "
-                "Grants: the trigger role auto-adds the target role. "
-                "Requires: the target role is removed if the trigger role is missing. "
-                "Forbids: the trigger role auto-removes the target role. "
+                "Rules evaluated on every role change and on periodic sync, always read "
+                "left to right. Grants: with the trigger role, the target role is added. "
+                "Is required for: without the trigger role, the target role is removed. "
+                "Forbids: with the trigger role, the target role is removed. "
                 "Rules cascade, contradictory or circular sets are rejected on save, "
                 "and on conflict removal wins."
             ),
@@ -59,9 +59,9 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
                     "type": "choice",
                     "required": True,
                     "choices": [
-                        ["Grants (target auto-added)", "implies"],
-                        ["Requires (target removed without trigger)", "requires"],
-                        ["Forbids (target auto-removed)", "incompatible"],
+                        ["Grants (with trigger, target is added)", "implies"],
+                        ["Is required for (without trigger, target is removed)", "requires"],
+                        ["Forbids (with trigger, target is removed)", "incompatible"],
                     ],
                 },
                 {
