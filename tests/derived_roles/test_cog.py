@@ -372,6 +372,26 @@ class TestAppliedAudit:
         assert f"➕<@&{COLLIE}>" not in message
         assert "—" in message
 
+    async def test_audit_message_never_pings(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Audit messages are sent with all mentions suppressed to avoid pings."""
+        channel = await self._setup(test_database, mock_guild, [IMPLIES_RULE])
+
+        before = make_member(mock_guild, [])
+        after = make_member(mock_guild, [COLLIE])
+
+        await derived_roles_cog.on_member_update(before, after)
+
+        channel.send.assert_called_once()
+        allowed = channel.send.call_args.kwargs["allowed_mentions"]
+        assert allowed.roles is False
+        assert allowed.users is False
+        assert allowed.everyone is False
+
     async def test_log_states_trigger_action(
         self,
         derived_roles_cog: DerivedRolesCog,

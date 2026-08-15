@@ -358,7 +358,7 @@ class DerivedRolesCog(commands.Cog):
             return
 
         try:
-            await channel.send(message)
+            await channel.send(message, allowed_mentions=discord.AllowedMentions.none())
         except discord.Forbidden:
             logger.warning(f"[{guild.name}] Cannot send to derived roles audit channel")
         except discord.HTTPException as e:
