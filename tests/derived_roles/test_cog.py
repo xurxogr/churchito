@@ -287,6 +287,91 @@ class TestErrorState:
         assert len(recovery_calls) == 1
 
 
+class TestAppliedAudit:
+    """Tests for the applied-rules audit message and its trigger placeholder."""
+
+    async def _setup(
+        self,
+        test_database: DatabaseService,
+        mock_guild: MagicMock,
+        rules: list[dict[str, Any]],
+    ) -> MagicMock:
+        """Enable cog, rules, audit channel and applied notifications."""
+        await enable_cog_for_guild(test_database, GUILD_ID)
+        await set_rules(test_database, GUILD_ID, rules)
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=GUILD_ID, cog_name=COG_NAME, key=ConfigKey.AUDIT_CHANNEL, value=999
+            )
+            await config_service.set_value(
+                guild_id=GUILD_ID, cog_name=COG_NAME, key=ConfigKey.AUDIT_APPLIED, value=True
+            )
+            await session.commit()
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.send = AsyncMock()
+        mock_guild.get_channel = MagicMock(return_value=channel)
+        return channel
+
+    async def test_applied_message_includes_gained_trigger(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """The audit message shows which gained role triggered the changes."""
+        channel = await self._setup(test_database, mock_guild, [IMPLIES_RULE])
+
+        before = make_member(mock_guild, [])
+        after = make_member(mock_guild, [COLLIE])
+
+        await derived_roles_cog.on_member_update(before, after)
+
+        channel.send.assert_called_once()
+        message = channel.send.call_args.args[0]
+        assert f"+<@&{COLLIE}>" in message
+        assert f"<@&{LOGI_COLLIE}>" in message
+
+    async def test_applied_message_includes_lost_trigger(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """The audit message shows which lost role triggered the removals."""
+        channel = await self._setup(test_database, mock_guild, [REQUIRES_RULE])
+
+        before = make_member(mock_guild, [COLLIE, LOGI_COLLIE])
+        after = make_member(mock_guild, [LOGI_COLLIE])
+
+        await derived_roles_cog.on_member_update(before, after)
+
+        channel.send.assert_called_once()
+        message = channel.send.call_args.args[0]
+        assert f"-<@&{COLLIE}>" in message
+        assert f"<@&{LOGI_COLLIE}>" in message
+
+    async def test_sync_applied_message_has_no_trigger(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Sweep-driven corrections have no triggering event to report."""
+        channel = await self._setup(test_database, mock_guild, [IMPLIES_RULE])
+
+        config = await derived_roles_cog._get_config(GUILD_ID)
+        member = make_member(mock_guild, [COLLIE])
+
+        assert await derived_roles_cog._apply_rules(member=member, config=config)
+
+        channel.send.assert_called_once()
+        message = channel.send.call_args.args[0]
+        assert f"+<@&{COLLIE}>" not in message
+        assert "—" in message
+
+
 class TestReconciliation:
     """Tests for the periodic reconciliation sweep."""
 

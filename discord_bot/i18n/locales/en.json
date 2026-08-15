@@ -219,7 +219,7 @@
         "audit_applied_msg": {
           "name": "Rule applied message",
           "description": "Audit message when rules change a member's roles",
-          "default": "**Derived roles:** {user_mention} — added: {added_roles} | removed: {removed_roles}"
+          "default": "**Derived roles:** {user_mention} — trigger: {trigger_changes} | added: {added_roles} | removed: {removed_roles}"
         },
         "audit_error_msg": {
           "name": "Error message",

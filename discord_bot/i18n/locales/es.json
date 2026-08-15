@@ -219,7 +219,7 @@
         "audit_applied_msg": {
           "name": "Mensaje de regla aplicada",
           "description": "Mensaje de auditoría cuando las reglas cambian los roles de un miembro",
-          "default": "**Roles derivados:** {user_mention} — añadidos: {added_roles} | quitados: {removed_roles}"
+          "default": "**Roles derivados:** {user_mention} — origen: {trigger_changes} | añadidos: {added_roles} | quitados: {removed_roles}"
         },
         "audit_error_msg": {
           "name": "Mensaje de error",

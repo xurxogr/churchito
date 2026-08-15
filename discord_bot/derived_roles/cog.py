@@ -118,17 +118,37 @@ class DerivedRolesCog(commands.Cog):
         if not await self._is_cog_enabled(after.guild.id):
             return
 
+        before_ids = {role.id for role in before.roles}
+        after_ids = {role.id for role in after.roles}
+        trigger_gained = [role for role in after.roles if role.id not in before_ids]
+        trigger_lost = [role for role in before.roles if role.id not in after_ids]
+
         config = await self._get_config(after.guild.id)
-        await self._apply_rules(member=after, config=config)
+        await self._apply_rules(
+            member=after,
+            config=config,
+            trigger_gained=trigger_gained,
+            trigger_lost=trigger_lost,
+        )
 
     # ===== RULE APPLICATION =====
 
-    async def _apply_rules(self, member: discord.Member, config: dict[str, Any]) -> bool:
+    async def _apply_rules(
+        self,
+        member: discord.Member,
+        config: dict[str, Any],
+        trigger_gained: list[discord.Role] | None = None,
+        trigger_lost: list[discord.Role] | None = None,
+    ) -> bool:
         """Apply derived role rules to a member.
 
         Args:
             member (discord.Member): Member to process
             config (dict[str, Any]): Cog configuration
+            trigger_gained (list[discord.Role] | None): Roles gained in the event
+                that triggered this evaluation, None for reconciliation sweeps
+            trigger_lost (list[discord.Role] | None): Roles lost in the event
+                that triggered this evaluation, None for reconciliation sweeps
 
         Returns:
             bool: True if any role was changed
@@ -179,6 +199,8 @@ class DerivedRolesCog(commands.Cog):
                 member=member,
                 added=add_roles,
                 removed=remove_roles,
+                trigger_gained=trigger_gained or [],
+                trigger_lost=trigger_lost or [],
             )
             return True
 
@@ -210,6 +232,8 @@ class DerivedRolesCog(commands.Cog):
         member: discord.Member,
         added: list[discord.Role],
         removed: list[discord.Role],
+        trigger_gained: list[discord.Role],
+        trigger_lost: list[discord.Role],
     ) -> None:
         """Send audit notification for an applied rule change.
 
@@ -219,12 +243,18 @@ class DerivedRolesCog(commands.Cog):
             member (discord.Member): Affected member
             added (list[discord.Role]): Roles added
             removed (list[discord.Role]): Roles removed
+            trigger_gained (list[discord.Role]): Roles gained in the triggering event
+            trigger_lost (list[discord.Role]): Roles lost in the triggering event
         """
         if not config.get(ConfigKey.AUDIT_APPLIED):
             return
 
         added_text = ", ".join(role.mention for role in added) or "—"
         removed_text = ", ".join(role.mention for role in removed) or "—"
+        trigger_parts = [f"+{role.mention}" for role in trigger_gained] + [
+            f"-{role.mention}" for role in trigger_lost
+        ]
+        trigger_text = ", ".join(trigger_parts) or "—"
         await self._send_audit(
             guild=guild,
             config=config,
@@ -233,6 +263,7 @@ class DerivedRolesCog(commands.Cog):
             user_mention=member.mention,
             added_roles=added_text,
             removed_roles=removed_text,
+            trigger_changes=trigger_text,
         )
 
     async def _notify_error(

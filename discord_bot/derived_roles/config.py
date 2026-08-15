@@ -133,8 +133,8 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
             description="Audit message when rules change a member's roles",
             option_type=ConfigOptionType.TEXTAREA,
             default=(
-                "**Derived roles:** {user_mention} — added: {added_roles} | "
-                "removed: {removed_roles}"
+                "**Derived roles:** {user_mention} — trigger: {trigger_changes} | "
+                "added: {added_roles} | removed: {removed_roles}"
             ),
             max_length=500,
             placeholders=[
@@ -142,6 +142,7 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
                 "user_mention",
                 "added_roles",
                 "removed_roles",
+                "trigger_changes",
             ],
             group="Audit Messages",
         ),
