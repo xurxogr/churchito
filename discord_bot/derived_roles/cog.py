@@ -190,6 +190,8 @@ class DerivedRolesCog(commands.Cog):
 
             logger.info(
                 f"[{guild.name}] Derived roles for '{member.display_name}': "
+                f"trigger gained {[r.name for r in trigger_gained or []]}, "
+                f"lost {[r.name for r in trigger_lost or []]}; "
                 f"added {[r.name for r in add_roles]}, removed {[r.name for r in remove_roles]}"
             )
             await self._notify_recovered(guild=guild, config=config)
@@ -251,8 +253,8 @@ class DerivedRolesCog(commands.Cog):
 
         added_text = ", ".join(role.mention for role in added) or "—"
         removed_text = ", ".join(role.mention for role in removed) or "—"
-        trigger_parts = [f"+{role.mention}" for role in trigger_gained] + [
-            f"-{role.mention}" for role in trigger_lost
+        trigger_parts = [f"➕{role.mention}" for role in trigger_gained] + [
+            f"➖{role.mention}" for role in trigger_lost
         ]
         trigger_text = ", ".join(trigger_parts) or "—"
         await self._send_audit(

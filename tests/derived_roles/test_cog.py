@@ -1,5 +1,6 @@
 """Tests for DerivedRolesCog."""
 
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -330,7 +331,7 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"+<@&{COLLIE}>" in message
+        assert f"➕<@&{COLLIE}>" in message
         assert f"<@&{LOGI_COLLIE}>" in message
 
     async def test_applied_message_includes_lost_trigger(
@@ -349,7 +350,7 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"-<@&{COLLIE}>" in message
+        assert f"➖<@&{COLLIE}>" in message
         assert f"<@&{LOGI_COLLIE}>" in message
 
     async def test_sync_applied_message_has_no_trigger(
@@ -368,8 +369,27 @@ class TestAppliedAudit:
 
         channel.send.assert_called_once()
         message = channel.send.call_args.args[0]
-        assert f"+<@&{COLLIE}>" not in message
+        assert f"➕<@&{COLLIE}>" not in message
         assert "—" in message
+
+    async def test_log_states_trigger_action(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """The log line states whether the trigger role was gained or lost."""
+        await self._setup(test_database, mock_guild, [REQUIRES_RULE])
+
+        before = make_member(mock_guild, [COLLIE, LOGI_COLLIE])
+        after = make_member(mock_guild, [LOGI_COLLIE])
+
+        with caplog.at_level(logging.INFO):
+            await derived_roles_cog.on_member_update(before, after)
+
+        assert "trigger gained [], lost ['Collie']" in caplog.text
+        assert "removed ['Logi Collie']" in caplog.text
 
 
 class TestReconciliation:
