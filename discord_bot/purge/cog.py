@@ -402,7 +402,10 @@ class PurgeCog(commands.Cog):
             except asyncio.CancelledError:
                 pass  # Task was cancelled, a new one will run
             finally:
-                self._pending_syncs.pop(guild.id, None)
+                # Only drop our own entry: a cancelled task must not pop
+                # the replacement task that superseded it
+                if self._pending_syncs.get(guild.id) is asyncio.current_task():
+                    del self._pending_syncs[guild.id]
 
         self._pending_syncs[guild.id] = asyncio.create_task(_delayed_sync())
 
@@ -1317,6 +1320,9 @@ class PurgeCog(commands.Cog):
     async def cog_unload(self) -> None:
         """Clean up resources when unloading the cog."""
         self.expiration_check_loop.cancel()
+        for pending_sync in self._pending_syncs.values():
+            pending_sync.cancel()
+        self._pending_syncs.clear()
 
     def _schedule_message_deletion(
         self, channel_id: int, message_id: int, retention_minutes: int

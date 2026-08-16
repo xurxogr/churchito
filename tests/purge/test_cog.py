@@ -1,5 +1,6 @@
 """Tests for PurgeCog."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6312,6 +6313,44 @@ class TestSendLog:
             public_id="test1",
             message="Test message",
         )
+
+
+class TestPendingSyncLifecycle:
+    """Tests for the debounced sync task lifecycle."""
+
+    async def test_cog_unload_cancels_pending_syncs(self, purge_cog: PurgeCog) -> None:
+        """Test that unloading the cog cancels queued sync tasks."""
+        pending_sync = MagicMock()
+        purge_cog._pending_syncs[123] = pending_sync
+
+        await purge_cog.cog_unload()
+
+        pending_sync.cancel.assert_called_once()
+        assert len(purge_cog._pending_syncs) == 0
+
+    async def test_replaced_sync_task_keeps_new_entry(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock
+    ) -> None:
+        """Test that a superseded sync task does not drop its replacement."""
+        purge_cog._sync_debounce_delay = 0.05
+        with (
+            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock),
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock),
+        ):
+            await purge_cog._debounced_register_and_sync(mock_guild)
+            # Let the first task start and enter its debounce sleep
+            await asyncio.sleep(0)
+            await purge_cog._debounced_register_and_sync(mock_guild)
+            second_task = purge_cog._pending_syncs[mock_guild.id]
+
+            # Let the first (cancelled) task run its cleanup
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+            assert purge_cog._pending_syncs.get(mock_guild.id) is second_task
+
+            await second_task
+            assert mock_guild.id not in purge_cog._pending_syncs
 
 
 class TestOnGuildRemove:
