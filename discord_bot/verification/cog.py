@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Coroutine
 from datetime import UTC, datetime
 from typing import Any
 
@@ -61,6 +62,9 @@ class VerificationCog(commands.Cog):
         self._health_check_started = False
         # Timers for screenshot timeout: request_id -> Task
         self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
+        # Strong references to fire-and-forget tasks: the event loop only
+        # keeps weak references, so untracked tasks can be GC'd before running
+        self._background_tasks: set[asyncio.Task[None]] = set()
         # User locks to prevent race conditions on verification start
         self._user_locks = KeyedLocks()
 
@@ -83,6 +87,19 @@ class VerificationCog(commands.Cog):
         if not self._health_check_started:
             self.health_check_loop.start()
             self._health_check_started = True
+
+    def _spawn_background_task(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Run a coroutine as a tracked fire-and-forget task.
+
+        Keeps a strong reference until the task finishes so the garbage
+        collector cannot destroy it mid-flight.
+
+        Args:
+            coro (Coroutine[Any, Any, None]): Coroutine to run.
+        """
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def _restore_pending_verifications(self) -> None:
         """Restore screenshot timers for pending verifications.
@@ -119,7 +136,7 @@ class VerificationCog(commands.Cog):
 
                 if remaining_minutes <= 0:
                     # Time already passed, reject immediately
-                    asyncio.create_task(
+                    self._spawn_background_task(
                         self._auto_reject_by_timeout(
                             request_id=request.id,
                             guild_id=request.guild_id,
@@ -154,6 +171,12 @@ class VerificationCog(commands.Cog):
             if not task.done():
                 task.cancel()
         self._screenshot_timers.clear()
+
+        # Cancel tracked fire-and-forget tasks
+        for background_task in list(self._background_tasks):
+            if not background_task.done():
+                background_task.cancel()
+        self._background_tasks.clear()
 
         # Release the shared verification API client and its connection pool
         await close_client()

@@ -1,6 +1,7 @@
 """Tests for VerificationCog."""
 
-from datetime import UTC, datetime
+import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -4456,6 +4457,19 @@ class TestCogLifecycle:
             await cog.cog_unload()
 
         mock_close.assert_awaited_once()
+
+    async def test_cog_unload_cancels_background_tasks(self, mock_discord_bot: MagicMock) -> None:
+        """Test that cog_unload cancels tracked background tasks."""
+        cog = VerificationCog(mock_discord_bot)
+        task = MagicMock()
+        task.done.return_value = False
+        cog._background_tasks.add(task)
+
+        with patch("discord_bot.verification.cog.close_client", new_callable=AsyncMock):
+            await cog.cog_unload()
+
+        task.cancel.assert_called_once()
+        assert len(cog._background_tasks) == 0
 
 
 class TestHealthCheckTaskMethods:
@@ -10217,6 +10231,61 @@ class TestRestorePendingVerificationsWithTimer:
                 guild_id=123,
                 user_id=456,
             )
+
+    async def test_restore_expired_request_tracks_background_task(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that the auto-reject task keeps a strong reference until done.
+
+        Fire-and-forget tasks are only weakly referenced by the event loop,
+        so without tracking, the GC could destroy them before they run.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Modify created_at to be 1 hour ago
+            request.created_at = datetime.now(UTC) - timedelta(hours=1)
+            await session.commit()
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        release = asyncio.Event()
+
+        async def blocking_reject(**kwargs: Any) -> None:
+            await release.wait()
+
+        with (
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 5},
+            ),
+            patch.object(
+                verification_cog,
+                "_auto_reject_by_timeout",
+                blocking_reject,
+            ),
+        ):
+            await verification_cog._restore_pending_verifications()
+
+            # A strong reference must be held while the task runs
+            assert len(verification_cog._background_tasks) == 1
+
+            release.set()
+            await asyncio.gather(*verification_cog._background_tasks)
+            # Let the done callback run
+            await asyncio.sleep(0)
+
+        # The reference is dropped once the task finishes
+        assert len(verification_cog._background_tasks) == 0
 
 
 class TestOnGuildRemove:
