@@ -69,11 +69,14 @@ class DiscordBot(commands.Bot):
         intents.emojis_and_stickers = True  # Required for custom emoji access
 
         # Initialize bot
+        # max_messages=None disables the internal message cache: the bot only
+        # consumes raw events and on_message, so the cache is never read
         super().__init__(
             command_prefix=settings.bot.command_prefix,
             description=settings.bot.description,
             intents=intents,
             owner_id=settings.bot.owner_id,
+            max_messages=None,
         )
 
     async def setup_hook(self) -> None:

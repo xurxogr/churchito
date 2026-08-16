@@ -55,6 +55,21 @@ def test_bot_initialization(test_settings: AppSettings, test_database: DatabaseS
         assert bot.event_bus is not None
 
 
+def test_bot_disables_message_cache(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Test that the internal message cache is disabled.
+
+    Args:
+        test_settings (AppSettings): Test application settings
+        test_database (DatabaseService): Test database service
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None) as mock_init:
+        DiscordBot(test_settings, test_database)
+
+        assert mock_init.call_args.kwargs["max_messages"] is None
+
+
 async def test_bot_on_ready(test_bot: DiscordBot) -> None:
     """Test the bot's on_ready method.
 
