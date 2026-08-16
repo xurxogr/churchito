@@ -318,6 +318,43 @@ class TestCreateModEmbeds:
         assert embeds[0].thumbnail.url is not None
         assert "cdn.discordapp.com" in embeds[0].thumbnail.url
 
+    def test_user_avatar_url_fallback_without_member(self) -> None:
+        """Test that {user_avatar_url} resolves when the member left the guild."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Avatar: {user_avatar_url}"}],
+            },
+        }
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            user_id=12345,
+            member=None,
+        )
+        all_text = " ".join(field.value or "" for field in embeds[0].fields)
+        assert "{user_avatar_url}" not in all_text
+        assert f"https://cdn.discordapp.com/embed/avatars/{12345 % 5}.png" in all_text
+
+    def test_user_avatar_url_uses_member_avatar(self) -> None:
+        """Test that {user_avatar_url} uses the member's avatar when available."""
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_avatar.url = "https://cdn.discordapp.com/avatars/123/abc.png"
+
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": "Avatar: {user_avatar_url}"}],
+            },
+        }
+        embeds = create_mod_embeds(
+            verification_type=VerificationType.REGULAR,
+            config=config,
+            user_id=12345,
+            member=mock_member,
+        )
+        all_text = " ".join(field.value or "" for field in embeds[0].fields)
+        assert "{user_avatar_url}" not in all_text
+        assert "https://cdn.discordapp.com/avatars/123/abc.png" in all_text
+
     def test_custom_color_regular(self) -> None:
         """Test custom color for regular verification."""
         config: dict[str, Any] = {
@@ -991,7 +1028,7 @@ class TestCreateModEmbedsInvalidSections:
             {"type": "text", "content": "Valid section"},
         ]
         # Inject invalid section for test
-        additional_sections.insert(0, "not a dict")  # type: ignore[arg-type]
+        additional_sections.insert(0, "not a dict")
 
         embeds = create_mod_embeds(
             verification_type=VerificationType.REGULAR,

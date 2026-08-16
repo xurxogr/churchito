@@ -247,10 +247,20 @@ def create_mod_embeds(
     steam_display_id = get_steam_profile_display_id(steam_profile_url)
     steam_profile_link = f"[{steam_display_id}]({steam_profile_url})" if steam_display_id else ""
 
+    # Avatar fallback: PlaceholderContext only resolves user_avatar_url when the
+    # member is still in the guild, so provide one here for departed users too
+    if member:
+        user_avatar_url = str(member.display_avatar.url)
+    elif user_id:
+        user_avatar_url = f"https://cdn.discordapp.com/embed/avatars/{user_id % 5}.png"
+    else:
+        user_avatar_url = ""
+
     extra_data: dict[str, Any] = {
         "username": username or "",
         "user_mention": user_mention or "",
         "user_display_name": user_display_name or username or "",
+        "user_avatar_url": user_avatar_url,
         "verification_type": type_display,
         "status": status or "",
         "created_at": created_at or "",
