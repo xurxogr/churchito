@@ -10,7 +10,6 @@ from sqlalchemy import select
 from discord_bot.common.core.settings.database import DatabaseSettings
 from discord_bot.common.models.guild import Guild
 from discord_bot.common.services import DatabaseService
-from discord_bot.common.services.database import get_database_service
 
 
 async def test_database_initialization(test_database: DatabaseService) -> None:
@@ -115,19 +114,11 @@ def test_database_get_session_not_initialized() -> None:
     assert "Database session maker not initialized" in str(exc_info.value)
 
 
-def test_get_database_service() -> None:
-    """Test the get_database_service function.
-
-    Note: This test accesses the wrapped function to avoid lru_cache.
-    """
+def test_database_service_construction() -> None:
+    """Test direct DatabaseService construction, as done in __main__."""
     settings = DatabaseSettings(url="sqlite+aiosqlite:///:memory:")
 
-    # Access the wrapped function to avoid cache
-    if hasattr(get_database_service, "__wrapped__"):
-        service = get_database_service.__wrapped__(settings)
-    else:
-        # If __wrapped__ doesn't exist, call directly (cache won't be tested)
-        service = DatabaseService(settings)
+    service = DatabaseService(settings)
 
     assert isinstance(service, DatabaseService)
     assert service.settings == settings

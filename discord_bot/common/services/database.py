@@ -4,7 +4,6 @@ import logging
 import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import event, text
@@ -199,16 +198,3 @@ class DatabaseService:
             except Exception:
                 await session.rollback()
                 raise
-
-
-@lru_cache
-def get_database_service(settings: DatabaseSettings) -> DatabaseService:
-    """Get the database service singleton.
-
-    Args:
-        settings (DatabaseSettings): Database configuration
-
-    Returns:
-        DatabaseService: Database service instance
-    """
-    return DatabaseService(settings)
