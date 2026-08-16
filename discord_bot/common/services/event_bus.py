@@ -32,10 +32,10 @@ class EventBus:
         for handler in handlers:
             try:
                 handler(data)
-            except Exception:
+            except Exception as e:
                 # Don't let handler failures interrupt event emission
                 logger.error(
-                    f"Error in event handler {handler.__name__} for event '{{event_type}}': {{e}}",
+                    f"Error in event handler {handler.__name__} for event '{event_type}': {e}",
                     exc_info=True,
                 )
 
