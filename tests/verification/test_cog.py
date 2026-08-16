@@ -9008,6 +9008,86 @@ class TestRebuildSingleEmbed:
         assert result is True
         mock_message.edit.assert_called_once()
 
+    async def test_preserves_extra_content_after_ready_for_approval_status(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Test that extra content after the formatted ready-for-approval line survives."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.mention = "<@&999>"
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        # The embed contains the FORMATTED status ({roles} already substituted)
+        mock_embed = MagicMock()
+        mock_embed.description = "User: Test\n✅ Ready for approval by <@&999>\n**OCR:** PlayerName"
+        mock_embed.image = MagicMock()
+        mock_embed.image.url = None
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [mock_embed]
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.mod_message_id = 789
+        mock_request.username = "TestUser"
+        mock_request.user_id = 456
+        mock_request.guild_id = 123
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.status = VerificationStatus.PENDING_REVIEW
+        mock_request.created_at = datetime.now(UTC)
+        mock_request.player_info = None
+        mock_request.steam_profile_url = None
+
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "description": "User: {username}\n{status}",
+                "sections": [],
+            },
+            ConfigKey.MOD_EMBED_ALLY: {
+                "description": "User: {username}\n{status}",
+                "sections": [],
+            },
+            ConfigKey.STATUS_PENDING_REVIEW: "⏳ Pending review",
+            ConfigKey.STATUS_READY_FOR_APPROVAL: "✅ Ready for approval by {roles}",
+            ConfigKey.MOD_ROLES: [999],
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Accept",
+            ConfigKey.REJECT_BUTTON_TEXT: "Reject",
+        }
+
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(verification_cog.bot.database, "session", return_value=mock_session),
+            patch("discord_bot.verification.cog.VerificationService") as mock_service_class,
+        ):
+            mock_service = MagicMock()
+            mock_service.get_user_history = AsyncMock(return_value=[])
+            mock_service_class.return_value = mock_service
+
+            result = await verification_cog._rebuild_single_embed(
+                guild=mock_guild,
+                channel=mock_channel,
+                request=mock_request,
+                config=config,
+            )
+
+        assert result is True
+        edited_embeds = mock_message.edit.call_args[1]["embeds"]
+        all_text = " ".join(embed.description or "" for embed in edited_embeds)
+        assert "**OCR:** PlayerName" in all_text
+
     async def test_check_status_placeholders_replaced(
         self, verification_cog: VerificationCog
     ) -> None:

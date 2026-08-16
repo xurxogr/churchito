@@ -718,11 +718,13 @@ class VerificationCog(commands.Cog):
         if mod_message.embeds:
             current_content = mod_message.embeds[0].description or ""
 
-            # Find configured status lines (only pending statuses)
+            # Find configured status lines (only pending statuses). The ready-for-approval
+            # status must be formatted: the embed contains it with {roles} substituted,
+            # so the raw template would never match
             status_texts = [
                 config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "",
                 config.get(ConfigKey.STATUS_PENDING_REVIEW) or "",
-                config.get(ConfigKey.STATUS_READY_FOR_APPROVAL) or "",
+                get_ready_for_approval_status(config=config, guild=guild),
             ]
             status_texts = [s for s in status_texts if s]  # Filter empty
 
