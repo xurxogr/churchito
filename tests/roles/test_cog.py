@@ -1463,6 +1463,274 @@ class TestHandleRefresh:
         mock_interaction.response.send_message.assert_not_called()
 
 
+class TestPanelEditedAudit:
+    """Tests for the panel-edited audit notification."""
+
+    AUDIT_CHANNEL_ID = 999
+
+    async def _setup_config(
+        self,
+        test_database: DatabaseService,
+        guild_id: int,
+        manage_role_id: int,
+        audit_enabled: bool = True,
+    ) -> None:
+        """Enable the cog and configure permission + audit channel."""
+        await enable_cog_for_guild(test_database, guild_id)
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.MANAGE_ROLES,
+                value=[manage_role_id],
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.AUDIT_CHANNEL,
+                value=self.AUDIT_CHANNEL_ID,
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.AUDIT_PANEL_EDITED,
+                value=audit_enabled,
+            )
+            await session.commit()
+
+    def _setup_audit_channel(self, mock_guild: MagicMock) -> MagicMock:
+        """Make the guild return an audit channel mock for AUDIT_CHANNEL_ID."""
+        audit_channel = MagicMock(spec=discord.TextChannel)
+        audit_channel.send = AsyncMock()
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            if channel_id == self.AUDIT_CHANNEL_ID:
+                return audit_channel
+            return None
+
+        mock_guild.get_channel.side_effect = get_channel
+        return audit_channel
+
+    async def test_add_role_sends_edited_audit(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that adding a role mapping sends the panel-edited audit message."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await self._setup_config(test_database, mock_guild.id, mock_role.id)
+        audit_channel = self._setup_audit_channel(mock_guild)
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await roles_cog._handle_add_role(mock_interaction, "TestPanel", "👍", mock_role, None)
+
+        audit_channel.send.assert_called_once()
+        sent = audit_channel.send.call_args[0][0]
+        assert "TestPanel" in sent
+        assert mock_member.mention in sent
+        assert "{" not in sent
+
+    async def test_add_role_no_audit_when_disabled(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that no audit message is sent when the toggle is disabled."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await self._setup_config(test_database, mock_guild.id, mock_role.id, audit_enabled=False)
+        audit_channel = self._setup_audit_channel(mock_guild)
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await roles_cog._handle_add_role(mock_interaction, "TestPanel", "👍", mock_role, None)
+
+        audit_channel.send.assert_not_called()
+
+    async def test_remove_role_sends_edited_audit(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that removing a role mapping sends the panel-edited audit message."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await self._setup_config(test_database, mock_guild.id, mock_role.id)
+        audit_channel = self._setup_audit_channel(mock_guild)
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await service.add_mapping(
+                panel_id=panel.id,
+                emoji="👍",
+                emoji_id=None,
+                role_id=mock_role.id,
+                display_name=None,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await roles_cog._handle_remove_role(mock_interaction, "TestPanel", "👍")
+
+        audit_channel.send.assert_called_once()
+        sent = audit_channel.send.call_args[0][0]
+        assert "TestPanel" in sent
+        assert mock_member.mention in sent
+
+    async def test_refresh_sends_edited_audit(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that refreshing a posted panel sends the panel-edited audit message."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await self._setup_config(test_database, mock_guild.id, mock_role.id)
+        audit_channel = self._setup_audit_channel(mock_guild)
+
+        panel_channel = MagicMock(spec=discord.TextChannel)
+        panel_channel.mention = "<#456>"
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.edit = AsyncMock()
+        mock_message.clear_reactions = AsyncMock()
+        panel_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            if channel_id == self.AUDIT_CHANNEL_ID:
+                return audit_channel
+            if channel_id == 456:
+                return panel_channel
+            return None
+
+        mock_guild.get_channel.side_effect = get_channel
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await service.set_message_id(
+                panel_id=panel.id,
+                message_id=555,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await roles_cog._handle_refresh(mock_interaction, "TestPanel")
+
+        audit_channel.send.assert_called_once()
+        sent = audit_channel.send.call_args[0][0]
+        assert "TestPanel" in sent
+        assert mock_member.mention in sent
+
+    async def test_refresh_no_audit_when_message_missing(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failed refresh does not send the audit message."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await self._setup_config(test_database, mock_guild.id, mock_role.id)
+        audit_channel = self._setup_audit_channel(mock_guild)
+
+        panel_channel = MagicMock(spec=discord.TextChannel)
+        panel_channel.fetch_message = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "not found")
+        )
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            if channel_id == self.AUDIT_CHANNEL_ID:
+                return audit_channel
+            if channel_id == 456:
+                return panel_channel
+            return None
+
+        mock_guild.get_channel.side_effect = get_channel
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await service.set_message_id(
+                panel_id=panel.id,
+                message_id=555,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await roles_cog._handle_refresh(mock_interaction, "TestPanel")
+
+        audit_channel.send.assert_not_called()
+
+
 class TestHandleDelete:
     """Tests for _handle_delete command handler."""
 

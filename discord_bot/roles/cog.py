@@ -804,6 +804,33 @@ class RolesCog(commands.Cog):
         except Exception as e:
             logger.error(f"[{guild.name}] Error sending audit message: {e}")
 
+    async def _send_panel_edited_audit(
+        self,
+        guild: discord.Guild,
+        config: dict[str, Any],
+        panel: ReactionPanel,
+        member: discord.Member,
+    ) -> None:
+        """Send the panel-edited audit notification if configured.
+
+        Args:
+            guild: Discord guild
+            config: Cog configuration values
+            panel: Panel that was edited
+            member: Member who edited the panel
+        """
+        if not config.get(ConfigKey.AUDIT_PANEL_EDITED):
+            return
+        audit_channel_id = config.get(ConfigKey.AUDIT_CHANNEL)
+        if not audit_channel_id:
+            return
+        template = config.get(ConfigKey.AUDIT_PANEL_EDITED_MSG)
+        if not template:
+            return
+        data = build_panel_placeholder_data(panel=panel, guild=guild, user=member)
+        msg = format_message(template, **data)
+        await self._send_audit_message(guild, audit_channel_id, msg)
+
     # ===== CONFIG CHANGE CALLBACKS =====
 
     async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
@@ -1073,6 +1100,10 @@ class RolesCog(commands.Cog):
             ephemeral=True,
         )
 
+        await self._send_panel_edited_audit(
+            guild=interaction.guild, config=config, panel=panel, member=member
+        )
+
     async def _handle_remove_role(
         self,
         interaction: discord.Interaction,
@@ -1138,6 +1169,10 @@ class RolesCog(commands.Cog):
         await interaction.response.send_message(
             f"Removed mapping for {emoji}",
             ephemeral=True,
+        )
+
+        await self._send_panel_edited_audit(
+            guild=interaction.guild, config=config, panel=panel, member=member
         )
 
     async def _handle_post(
@@ -1326,6 +1361,10 @@ class RolesCog(commands.Cog):
                 await interaction.followup.send(
                     f"Panel **{panel_name}** refreshed!",
                     ephemeral=True,
+                )
+
+                await self._send_panel_edited_audit(
+                    guild=interaction.guild, config=config, panel=panel, member=member
                 )
 
             except discord.NotFound:
