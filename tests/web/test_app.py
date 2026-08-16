@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from discord_bot.common.core import AppSettings
@@ -37,13 +38,14 @@ class TestCreateApp:
         assert app is not None
         assert app.state.bot is None
 
-    def test_generates_secret_key_if_not_set(
+    def test_generates_secret_key_if_not_set_in_development(
         self,
         test_app_settings: AppSettings,
         mock_db_service: MagicMock,
     ) -> None:
-        """Test that it generates secret_key if not configured."""
+        """Test that it generates secret_key if not configured and https_only is off."""
         test_app_settings.web.secret_key = ""
+        test_app_settings.web.https_only = False
 
         with patch("discord_bot.web.app.logger") as mock_logger:
             app = create_app(test_app_settings, mock_db_service)
@@ -56,6 +58,18 @@ class TestCreateApp:
                 if "WEB__SECRET_KEY" in str(call)
             ]
             assert len(warning_calls) > 0
+
+    def test_refuses_to_start_without_secret_key_in_production(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Test that https_only deployments fail fast when secret_key is missing."""
+        test_app_settings.web.secret_key = ""
+        test_app_settings.web.https_only = True
+
+        with pytest.raises(ValueError, match="WEB__SECRET_KEY"):
+            create_app(test_app_settings, mock_db_service)
 
     def test_includes_routers(
         self,

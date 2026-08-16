@@ -104,6 +104,25 @@ class TestWebSettings:
 
         assert str(invalid_id) in str(exc_info.value)
 
+    def test_enabled_https_only_requires_secret_key(self) -> None:
+        """Test that a production (https_only) dashboard must configure secret_key."""
+        with pytest.raises(ValueError) as exc_info:
+            WebSettings(enabled=True, https_only=True, secret_key="")
+
+        assert "secret_key" in str(exc_info.value)
+
+    def test_enabled_without_https_only_allows_empty_secret_key(self) -> None:
+        """Test that local development (https_only=False) may omit secret_key."""
+        settings = WebSettings(enabled=True, https_only=False, secret_key="")
+
+        assert settings.secret_key == ""
+
+    def test_disabled_allows_empty_secret_key(self) -> None:
+        """Test that secret_key is not required when the dashboard is disabled."""
+        settings = WebSettings(enabled=False, https_only=True, secret_key="")
+
+        assert settings.secret_key == ""
+
     def test_min_discord_snowflake_constant(self) -> None:
         """Test that the MIN_DISCORD_SNOWFLAKE constant is reasonable."""
         # Must be at least 17 digits (Discord started in 2015)

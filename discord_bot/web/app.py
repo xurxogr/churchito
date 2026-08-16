@@ -46,6 +46,9 @@ def create_app(
 
     Returns:
         FastAPI: Configured application
+
+    Raises:
+        ValueError: If https_only is enabled and no secret_key is configured
     """
     app = FastAPI(
         title="Bot Dashboard",
@@ -56,6 +59,11 @@ def create_app(
 
     secret_key = settings.web.secret_key
     if not secret_key:
+        if settings.web.https_only:
+            raise ValueError(
+                "WEB__SECRET_KEY is required when WEB__HTTPS_ONLY is enabled: an ephemeral "
+                "per-process key would invalidate sessions across workers and restarts"
+            )
         secret_key = secrets.token_urlsafe(32)
         logger.warning(
             "WEB__SECRET_KEY not configured, using auto-generated key. "

@@ -56,8 +56,13 @@ class TestCSRFMiddleware:
         """Test that _is_exempt returns True for exempt routes."""
         from discord_bot.web.middleware.csrf import _is_exempt
 
-        assert _is_exempt("/auth/callback") is True
         assert _is_exempt("/health") is True
+
+    def test_oauth_callback_is_not_exempt(self) -> None:
+        """Test that /auth/callback is not CSRF-exempt (it is a GET-only route)."""
+        from discord_bot.web.middleware.csrf import _is_exempt
+
+        assert _is_exempt("/auth/callback") is False
 
     def test_is_exempt_returns_false_for_normal_paths(self) -> None:
         """Test that _is_exempt returns False for normal routes."""
@@ -91,8 +96,8 @@ class TestCSRFMiddlewareIntegration:
         async def submit() -> dict[str, str]:
             return {"status": "ok"}
 
-        @app.post("/auth/callback")
-        async def oauth_callback() -> dict[str, str]:
+        @app.post("/health")
+        async def health() -> dict[str, str]:
             return {"status": "ok"}
 
         return TestClient(app)
@@ -134,7 +139,7 @@ class TestCSRFMiddlewareIntegration:
 
     def test_exempt_path_passes_without_token(self, app_with_csrf: TestClient) -> None:
         """Test that exempt routes pass without CSRF."""
-        response = app_with_csrf.post("/auth/callback")
+        response = app_with_csrf.post("/health")
         assert response.status_code == 200
 
     def test_post_with_form_token_passes(self, app_with_csrf: TestClient) -> None:

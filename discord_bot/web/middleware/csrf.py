@@ -11,13 +11,9 @@ CSRF_TOKEN_KEY = "csrf_token"  # noqa: S105 - Key name, not a secret
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_FORM_FIELD = "csrf_token"
 
-# Routes exempt from CSRF verification
-EXEMPT_PATHS = frozenset(
-    {
-        "/auth/callback",  # OAuth callback needs to allow POST without CSRF
-        "/health",
-    }
-)
+# Routes exempt from CSRF verification. The OAuth callback is GET-only and
+# protected by the OAuth state parameter, so it does not need an exemption.
+EXEMPT_PATHS = frozenset({"/health"})
 
 # Methods that require CSRF verification
 UNSAFE_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})

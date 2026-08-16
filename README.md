@@ -70,7 +70,7 @@ See [docs/config/config.example.json](docs/config/config.example.json) for a com
 | `WEB__ENABLED` | Enable web dashboard | `false` |
 | `WEB__HOST` | Web server host | `0.0.0.0` |
 | `WEB__PORT` | Web server port | `8000` |
-| `WEB__SECRET_KEY` | Session secret key | (required if web) |
+| `WEB__SECRET_KEY` | Session secret key | (required if web with `HTTPS_ONLY`; auto-generated per process otherwise) |
 | `WEB__CLIENT_ID` | Discord OAuth2 Client ID | (required if web) |
 | `WEB__CLIENT_SECRET` | Discord OAuth2 Client Secret | (required if web) |
 | `WEB__REDIRECT_URI` | OAuth2 callback URI | `http://localhost:8000/auth/callback` |
