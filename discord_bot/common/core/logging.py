@@ -24,6 +24,7 @@ def setup_logging(settings: LoggingSettings) -> None:
                 TimedRotatingFileHandler(
                     filename=log_path,
                     when="midnight",
+                    backupCount=settings.log_retention_days,
                     encoding="utf-8",
                 )
             ]

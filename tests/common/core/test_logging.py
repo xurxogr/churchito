@@ -107,6 +107,43 @@ def test_setup_logging_with_rotate_logs() -> None:
         assert "Test message for rotation" in content
 
 
+def test_setup_logging_rotation_default_retention() -> None:
+    """Test that rotation keeps a bounded number of backups by default."""
+    with TemporaryDirectory() as tmpdir:
+        log_file = Path(tmpdir) / "test.log"
+
+        settings = LoggingSettings(
+            log_level="INFO",
+            log_file=str(log_file),
+            rotate_logs=True,
+        )
+
+        setup_logging(settings)
+
+        logger = logging.getLogger()
+        file_handler = next(h for h in logger.handlers if isinstance(h, TimedRotatingFileHandler))
+        assert file_handler.backupCount == 30
+
+
+def test_setup_logging_rotation_custom_retention() -> None:
+    """Test that the configured retention is applied to the handler."""
+    with TemporaryDirectory() as tmpdir:
+        log_file = Path(tmpdir) / "test.log"
+
+        settings = LoggingSettings(
+            log_level="INFO",
+            log_file=str(log_file),
+            rotate_logs=True,
+            log_retention_days=7,
+        )
+
+        setup_logging(settings)
+
+        logger = logging.getLogger()
+        file_handler = next(h for h in logger.handlers if isinstance(h, TimedRotatingFileHandler))
+        assert file_handler.backupCount == 7
+
+
 def test_setup_logging_without_rotate_logs() -> None:
     """Test log options with file but without rotation enabled."""
     with TemporaryDirectory() as tmpdir:
