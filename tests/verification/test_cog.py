@@ -8971,6 +8971,7 @@ class TestRebuildSingleEmbed:
         mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
         mock_request.created_at = datetime.now(UTC)
         mock_request.player_info = None
+        mock_request.steam_profile_url = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
@@ -9006,6 +9007,91 @@ class TestRebuildSingleEmbed:
 
         assert result is True
         mock_message.edit.assert_called_once()
+
+    async def test_check_status_placeholders_replaced(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Test that *_status and steam placeholders never leak literally on rebuild."""
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.mention = "<@456>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+
+        mock_embed = MagicMock()
+        mock_embed.description = "User: Test\n⏳ Status: Waiting"
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.embeds = [mock_embed]
+        mock_message.edit = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.mod_message_id = 789
+        mock_request.username = "TestUser"
+        mock_request.user_id = 456
+        mock_request.guild_id = 123
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.created_at = datetime.now(UTC)
+        mock_request.player_info = None
+        mock_request.steam_profile_url = None
+
+        status_template = (
+            "Faction: {faction_status} Shard: {shard_status} "
+            "Regiment: {regiment_status} Name: {name_status} "
+            "Time: {time_status} Steam: {steam_status} URL: {steam_profile_url}"
+        )
+        config: dict[str, Any] = {
+            ConfigKey.MOD_EMBED_REGULAR: {
+                "sections": [{"type": "text", "content": status_template}]
+            },
+            ConfigKey.MOD_EMBED_ALLY: {"sections": [{"type": "text", "content": status_template}]},
+            ConfigKey.STATUS_AWAITING_SCREENSHOTS: "⏳ Awaiting screenshots",
+            ConfigKey.ACCEPT_BUTTON_TEXT: "Accept",
+            ConfigKey.REJECT_BUTTON_TEXT: "Reject",
+        }
+
+        mock_session = MagicMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(verification_cog.bot.database, "session", return_value=mock_session),
+            patch("discord_bot.verification.cog.VerificationService") as mock_service_class,
+        ):
+            mock_service = MagicMock()
+            mock_service.get_user_history = AsyncMock(return_value=[])
+            mock_service_class.return_value = mock_service
+
+            result = await verification_cog._rebuild_single_embed(
+                guild=mock_guild,
+                channel=mock_channel,
+                request=mock_request,
+                config=config,
+            )
+
+        assert result is True
+        edited_embeds = mock_message.edit.call_args[1]["embeds"]
+        all_text = " ".join(
+            (embed.description or "")
+            + " ".join(f"{field.name} {field.value}" for field in embed.fields)
+            for embed in edited_embeds
+        )
+        for token in (
+            "{faction_status}",
+            "{shard_status}",
+            "{regiment_status}",
+            "{name_status}",
+            "{time_status}",
+            "{steam_status}",
+            "{steam_profile_url}",
+        ):
+            assert token not in all_text
 
     async def test_preserves_screenshot_embeds(self, verification_cog: VerificationCog) -> None:
         """Test that preserves screenshot embeds."""
@@ -9046,6 +9132,7 @@ class TestRebuildSingleEmbed:
         mock_request.status = VerificationStatus.PENDING_REVIEW
         mock_request.created_at = datetime.now(UTC)
         mock_request.player_info = None
+        mock_request.steam_profile_url = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {
@@ -9110,6 +9197,7 @@ class TestRebuildSingleEmbed:
         mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
         mock_request.created_at = datetime.now(UTC)
         mock_request.player_info = None
+        mock_request.steam_profile_url = None
 
         config: dict[str, Any] = {
             ConfigKey.MOD_EMBED_REGULAR: {

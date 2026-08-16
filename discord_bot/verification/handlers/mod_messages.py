@@ -59,6 +59,26 @@ STATUS_FAILED = "❌"
 STATUS_DISABLED = "⏸️"
 
 
+def build_initial_check_statuses() -> dict[str, str]:
+    """Build check status placeholders for a request whose checks have not run yet.
+
+    Used when creating or rebuilding the moderation embed without an API
+    response: every check shows the disabled/not-run indicator so the
+    *_status placeholders never leak literally into the embed.
+
+    Returns:
+        dict[str, str]: All status placeholders set to the disabled indicator.
+    """
+    return {
+        "faction_status": STATUS_DISABLED,
+        "shard_status": STATUS_DISABLED,
+        "regiment_status": STATUS_DISABLED,
+        "name_status": STATUS_DISABLED,
+        "time_status": STATUS_DISABLED,
+        "steam_status": STATUS_DISABLED,
+    }
+
+
 def _build_check_statuses(
     config: dict[str, Any],
     failures: set[RejectType],

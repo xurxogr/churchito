@@ -10,6 +10,7 @@ import pytest
 from discord_bot.common.utils import is_valid_discord_cdn_url
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers import (
+    build_initial_check_statuses,
     update_mod_message_cancelled,
     update_mod_message_for_manual_review,
     update_tracker_message,
@@ -21,6 +22,23 @@ from discord_bot.verification.handlers.utils import (
     get_api_error_message,
 )
 from discord_bot.verification.models import VerificationRequest
+
+
+class TestBuildInitialCheckStatuses:
+    """Tests for build_initial_check_statuses."""
+
+    def test_covers_all_status_placeholders_with_disabled_indicator(self) -> None:
+        """Test that every *_status placeholder gets the disabled indicator."""
+        statuses = build_initial_check_statuses()
+
+        assert statuses == {
+            "faction_status": "⏸️",
+            "shard_status": "⏸️",
+            "regiment_status": "⏸️",
+            "name_status": "⏸️",
+            "time_status": "⏸️",
+            "steam_status": "⏸️",
+        }
 
 
 class TestCalculateExpiresTimestamp:

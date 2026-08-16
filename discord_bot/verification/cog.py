@@ -22,6 +22,7 @@ from discord_bot.verification.formatters import (
     get_verification_type_display,
 )
 from discord_bot.verification.handlers import (
+    build_initial_check_statuses,
     get_ready_for_approval_status,
     handle_accept,
     handle_dm_screenshots,
@@ -788,6 +789,8 @@ class VerificationCog(commands.Cog):
             additional_sections=additional_sections,
             sections_context=sections_context,
             api_status="",
+            steam_profile_url=request.steam_profile_url or "",
+            **build_initial_check_statuses(),
         )
 
         # Keep screenshot embeds (identified by having an image)

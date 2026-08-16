@@ -23,6 +23,7 @@ from discord_bot.verification.formatters import (
     get_verification_type_display,
 )
 from discord_bot.verification.handlers.mod_messages import (
+    build_initial_check_statuses,
     update_mod_message_for_manual_review,
     update_mod_message_for_review,
     update_mod_message_status,
@@ -290,8 +291,11 @@ async def _handle_verification_start_locked(
             created_at_relative=created_at_relative,
             guild=guild,
             member=member,
+            additional_sections=None,
+            sections_context=None,
             api_status="",
             steam_profile_url="",
+            **build_initial_check_statuses(),
         )
 
         mod_message = await mod_channel.send(embeds=mod_embeds)

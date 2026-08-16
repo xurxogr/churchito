@@ -18,6 +18,7 @@ from discord_bot.verification.handlers.flow import (
     validate_mod_action,
 )
 from discord_bot.verification.handlers.mod_messages import (
+    build_initial_check_statuses,
     update_mod_message_cancelled,
     update_mod_message_for_manual_review,
     update_mod_message_for_review,
@@ -37,6 +38,7 @@ __all__ = [
     "show_rejection_select",
     "validate_mod_action",
     # mod_messages
+    "build_initial_check_statuses",
     "update_mod_message_cancelled",
     "update_mod_message_for_manual_review",
     "update_mod_message_for_review",
