@@ -288,6 +288,27 @@ class TestErrorState:
         assert len(recovery_calls) == 1
 
 
+class TestMemberLocks:
+    """Tests for the per-member lock pool."""
+
+    async def test_lock_evicted_after_apply(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the per-member lock entry is removed after applying rules."""
+        await enable_cog_for_guild(test_database, GUILD_ID)
+        await set_rules(test_database, GUILD_ID, [IMPLIES_RULE])
+
+        config = await derived_roles_cog._get_config(GUILD_ID)
+        member = make_member(mock_guild, [COLLIE])
+
+        assert await derived_roles_cog._apply_rules(member=member, config=config)
+
+        assert len(derived_roles_cog._member_locks) == 0
+
+
 class TestSendAudit:
     """Tests for _send_audit template tolerance."""
 

@@ -1,6 +1,5 @@
 """Derived roles cog for automatic role dependencies."""
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -11,6 +10,7 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.common.utils import KeyedLocks
 from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
 from discord_bot.derived_roles.engine import compute_role_changes
 from discord_bot.derived_roles.formatters import format_message
@@ -37,7 +37,7 @@ class DerivedRolesCog(commands.Cog):
         self._last_sync: dict[int, datetime] = {}
         self._sync_started = False
         # Per-member locks to avoid concurrent rule application
-        self._member_locks: dict[int, asyncio.Lock] = {}
+        self._member_locks = KeyedLocks()
         # Guilds currently in permission-error state (notify on state change only)
         self._error_state: dict[int, bool] = {}
 
@@ -86,19 +86,6 @@ class DerivedRolesCog(commands.Cog):
         async with self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
-
-    async def _get_member_lock(self, member_id: int) -> asyncio.Lock:
-        """Get or create a lock for a member.
-
-        Args:
-            member_id (int): Discord member ID
-
-        Returns:
-            asyncio.Lock: Lock for this member
-        """
-        if member_id not in self._member_locks:
-            self._member_locks[member_id] = asyncio.Lock()
-        return self._member_locks[member_id]
 
     # ===== EVENT HANDLERS =====
 
@@ -159,8 +146,7 @@ class DerivedRolesCog(commands.Cog):
             return False
 
         guild = member.guild
-        lock = await self._get_member_lock(member.id)
-        async with lock:
+        async with self._member_locks.acquire(member.id):
             member_role_ids = {r.id for r in member.roles}
             to_add, to_remove = compute_role_changes(member_role_ids=member_role_ids, rules=rules)
 
