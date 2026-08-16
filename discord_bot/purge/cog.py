@@ -538,7 +538,8 @@ class PurgeCog(commands.Cog):
                 "Purge **{purge_type}** created by **{user}** - "
                 "Execution: {scheduled_for} ({hours}h)",
             )
-            log_message = log_template.format(
+            log_message = format_message(
+                template=log_template,
                 user=user.display_name,
                 purge_type=display_name,
                 hours=str(hours),
@@ -707,7 +708,8 @@ class PurgeCog(commands.Cog):
                 ConfigKey.LOG_AUTHORIZED,
                 "**{user}** authorized ({auth_count}/{required})",
             )
-            log_message = log_template.format(
+            log_message = format_message(
+                template=log_template,
                 user=user.display_name,
                 auth_count=str(authorized_count),
                 required=str(required),
@@ -848,7 +850,7 @@ class PurgeCog(commands.Cog):
                     ConfigKey.LOG_CANCELLED,
                     "Cancelled by **{user}**",
                 )
-                log_message = log_template.format(user=user.display_name)
+                log_message = format_message(template=log_template, user=user.display_name)
                 await self._send_log(
                     guild=guild,
                     config=config,

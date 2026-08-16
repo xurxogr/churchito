@@ -907,6 +907,151 @@ class TestHandleCancel:
         assert "No permissions" in str(call_args)
 
 
+class TestLogTemplateTolerance:
+    """Tests that log templates tolerate unknown placeholders and stray braces."""
+
+    LOG_CHANNEL_ID = 999
+
+    def _setup_log_channel(self, mock_guild: MagicMock) -> MagicMock:
+        """Make the guild return a log channel mock for LOG_CHANNEL_ID."""
+        log_channel = MagicMock(spec=discord.TextChannel)
+        log_channel.send = AsyncMock()
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            if channel_id == self.LOG_CHANNEL_ID:
+                return log_channel
+            return None
+
+        mock_guild.get_channel = MagicMock(side_effect=get_channel)
+        return log_channel
+
+    async def test_created_log_tolerates_unknown_placeholder(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a LOG_CREATED template with a stray placeholder does not crash."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+        log_channel = self._setup_log_channel(mock_interaction.guild)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.LOG_CHANNEL, self.LOG_CHANNEL_ID
+            )
+            await config_service.set_value(
+                guild_id,
+                COG_NAME,
+                ConfigKey.LOG_CREATED,
+                "Purge created by {user} {oops}",
+            )
+            await session.commit()
+
+        await purge_cog._handle_purge(mock_interaction, 3, PurgeType.GLOBAL)
+
+        log_channel.send.assert_called_once()
+        sent = log_channel.send.call_args[0][0]
+        assert mock_member.display_name in sent
+        assert "{oops}" in sent
+
+    async def test_authorized_log_tolerates_unknown_placeholder(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a LOG_AUTHORIZED template with a stray placeholder does not crash."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+        log_channel = self._setup_log_channel(mock_interaction.guild)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.LOG_CHANNEL, self.LOG_CHANNEL_ID
+            )
+            await config_service.set_value(
+                guild_id,
+                COG_NAME,
+                ConfigKey.LOG_AUTHORIZED,
+                "{user} authorized ({auth_count}/{required}) {oops}",
+            )
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            public_id = record.public_id
+
+        await purge_cog._handle_authorize(mock_interaction, public_id)
+
+        log_channel.send.assert_called_once()
+        sent = log_channel.send.call_args[0][0]
+        assert mock_member.display_name in sent
+        assert "{oops}" in sent
+
+    async def test_cancelled_log_tolerates_unknown_placeholder(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a LOG_CANCELLED template with a stray placeholder does not crash."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+        log_channel = self._setup_log_channel(mock_interaction.guild)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            # Test mode allows a single cancellation vote (min is 2 otherwise)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.LOG_CHANNEL, self.LOG_CHANNEL_ID
+            )
+            await config_service.set_value(
+                guild_id,
+                COG_NAME,
+                ConfigKey.LOG_CANCELLED,
+                "Cancelled by {user} {oops}",
+            )
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=123,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            public_id = record.public_id
+
+        await purge_cog._handle_cancel(mock_interaction, public_id)
+
+        log_channel.send.assert_called_once()
+        sent = log_channel.send.call_args[0][0]
+        assert mock_member.display_name in sent
+        assert "{oops}" in sent
+
+
 class TestHandleConfirm:
     """Tests for _handle_confirm."""
 
