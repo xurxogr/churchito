@@ -7,6 +7,10 @@ from discord_bot.verification.enums import AutoProcessMode, ConfigKey, NameMatch
 
 COG_NAME = "verification"
 
+# Deadline applied when SCREENSHOT_TIMEOUT_MINUTES is 0: without it, abandoned
+# verifications would stay PENDING_SCREENSHOTS in the database forever
+SCREENSHOT_FALLBACK_TIMEOUT_MINUTES = 1440
+
 VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
     cog_name=COG_NAME,
     display_name="Verification",
@@ -50,7 +54,7 @@ VERIFICATION_CONFIG_SCHEMA = CogConfigSchema(
             name="Screenshot timeout (minutes)",
             description=(
                 "Minutes the user has to send screenshots before the request is "
-                "automatically rejected. 0 to disable."
+                "automatically rejected. 0 applies the default limit of 24 hours."
             ),
             option_type=ConfigOptionType.INTEGER,
             default=0,

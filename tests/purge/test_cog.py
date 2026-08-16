@@ -5644,6 +5644,64 @@ class TestHandleCancelToCancelPending:
             assert updated.status == PurgeStatus.CANCEL_PENDING
             assert len(updated.cancelled_by) == 2
 
+    async def test_tracks_scheduled_for_deadline_without_timeout(
+        self,
+        purge_cog: PurgeCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that timeout=0 uses scheduled_for as the CANCEL_PENDING deadline.
+
+        Without a tracked deadline the record would stay CANCEL_PENDING in the
+        database forever and the purge would never execute.
+        """
+        guild_id = 999888666
+        scheduled_for = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_guild.get_member = MagicMock(return_value=None)
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_interaction.response = MagicMock()
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup = MagicMock()
+        mock_interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REACTION_TIMEOUT, 0)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+            )
+            await purge_service.update_status(record.id, PurgeStatus.AUTHORIZED)
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_cancel(mock_interaction, public_id)
+
+        # The deadline must be tracked using the scheduled execution time
+        assert guild_id in purge_cog._cancel_pending_purges
+        tracked_id, expires_at = purge_cog._cancel_pending_purges[guild_id]
+        assert tracked_id == purge_id
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        assert expires_at == scheduled_for
+
 
 class TestCheckCancelPendingExpired:
     """Tests for _check_cancel_pending_expired."""
@@ -5703,6 +5761,65 @@ class TestCheckCancelPendingExpired:
             assert updated is not None
             assert updated.status == PurgeStatus.AUTHORIZED
             assert updated.cancelled_by == []
+
+    async def test_revert_readds_purge_to_execution_tracking(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that a reverted purge is tracked again for execution.
+
+        After a restart, CANCEL_PENDING purges are only tracked in
+        _cancel_pending_purges; without re-adding them to _authorized_purges
+        on revert, they would never execute.
+        """
+        guild_id = mock_guild.id
+        mock_discord_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_message.edit = AsyncMock()
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        scheduled_for = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+            )
+            record.mod_message_id = 12345
+            record.mod_channel_id = 67890
+            await purge_service.update_status(record.id, PurgeStatus.CANCEL_PENDING)
+            await purge_service.add_cancellation(record.id, 111)
+            await session.commit()
+            purge_id = record.id
+
+        purge_cog._authorized_purges.clear()
+        purge_cog._cancel_pending_purges[guild_id] = (
+            purge_id,
+            datetime.now(UTC) - timedelta(minutes=1),
+        )
+
+        await purge_cog._check_cancel_pending_expired()
+
+        # The purge must be tracked for execution again
+        assert guild_id in purge_cog._authorized_purges
+        tracked_id, tracked_scheduled_for = purge_cog._authorized_purges[guild_id]
+        assert tracked_id == purge_id
+        if tracked_scheduled_for.tzinfo is None:
+            tracked_scheduled_for = tracked_scheduled_for.replace(tzinfo=UTC)
+        assert tracked_scheduled_for == scheduled_for
 
     async def test_does_not_revert_non_expired(
         self,
@@ -5780,6 +5897,46 @@ class TestRestoreCancelPendingPurges:
         assert restored_id == purge_id
         # The expiration should be in the future (10 minute timeout)
         assert expires_at > datetime.now(UTC)
+
+    async def test_restores_cancel_pending_without_timeout(
+        self,
+        purge_cog: PurgeCog,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that timeout=0 restores CANCEL_PENDING with scheduled_for deadline.
+
+        Skipping these records on restore would leave them parked in
+        CANCEL_PENDING in the database forever.
+        """
+        guild_id = 111222444
+        scheduled_for = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id, COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REACTION_TIMEOUT, 0)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+            )
+            await purge_service.update_status(record.id, PurgeStatus.CANCEL_PENDING)
+            await session.commit()
+            purge_id = record.id
+
+        await purge_cog._restore_active_purges()
+
+        # Restored with the scheduled execution time as the deadline
+        assert guild_id in purge_cog._cancel_pending_purges
+        restored_id, expires_at = purge_cog._cancel_pending_purges[guild_id]
+        assert restored_id == purge_id
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        assert expires_at == scheduled_for
 
 
 class TestModAuthorizationViewCancelPending:

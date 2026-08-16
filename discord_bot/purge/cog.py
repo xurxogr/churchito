@@ -832,8 +832,10 @@ class PurgeCog(commands.Cog):
 
                 # Calculate expiration for CANCEL_PENDING
                 timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
-                if timeout_minutes > 0:
-                    cancel_expires_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
+                cancel_expires_at = self._get_cancel_pending_deadline(
+                    timeout_minutes=timeout_minutes, scheduled_for=record.scheduled_for
+                )
+                if cancel_expires_at:
                     self._cancel_pending_purges[guild.id] = (record.id, cancel_expires_at)
 
                 logger.info(f"[{guild.name}] Purge {record.id} in CANCEL_PENDING status")
@@ -1302,8 +1304,10 @@ class PurgeCog(commands.Cog):
                     # Use fresh timeout from config when restoring
                     config = await self._get_config(record.guild_id)
                     timeout_minutes = config.get(ConfigKey.MOD_REACTION_TIMEOUT, 1)
-                    if timeout_minutes > 0:
-                        cancel_expires_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
+                    cancel_expires_at = self._get_cancel_pending_deadline(
+                        timeout_minutes=timeout_minutes, scheduled_for=record.scheduled_for
+                    )
+                    if cancel_expires_at:
                         self._cancel_pending_purges[record.guild_id] = (
                             record.id,
                             cancel_expires_at,
@@ -1414,6 +1418,31 @@ class PurgeCog(commands.Cog):
             except Exception as e:
                 logger.error(f"[{guild_name}] Error expiring purge {purge_id}: {e}")
 
+    @staticmethod
+    def _get_cancel_pending_deadline(
+        *, timeout_minutes: int, scheduled_for: datetime | None
+    ) -> datetime | None:
+        """Get the deadline for a CANCEL_PENDING purge.
+
+        With a positive timeout the deadline is now + timeout. Without a
+        timeout the scheduled execution time is used, so the record cannot
+        stay parked in CANCEL_PENDING in the database forever.
+
+        Args:
+            timeout_minutes (int): Configured MOD_REACTION_TIMEOUT minutes.
+            scheduled_for (datetime | None): Scheduled execution time.
+
+        Returns:
+            datetime | None: Deadline in UTC, or None if there is none.
+        """
+        if timeout_minutes > 0:
+            return datetime.now(UTC) + timedelta(minutes=timeout_minutes)
+        if scheduled_for is None:
+            return None
+        if scheduled_for.tzinfo is None:
+            return scheduled_for.replace(tzinfo=UTC)
+        return scheduled_for
+
     async def _check_cancel_pending_expired(self) -> None:
         """Check and revert CANCEL_PENDING purges that have expired to AUTHORIZED."""
         now = datetime.now(UTC)
@@ -1444,6 +1473,15 @@ class PurgeCog(commands.Cog):
                     record = await purge_service.update_status(
                         purge_id=purge_id, status=PurgeStatus.AUTHORIZED
                     )
+
+                    # Track for execution again: after a restart the purge is
+                    # only in _cancel_pending_purges, so without this re-add
+                    # it would never execute
+                    if record and record.scheduled_for:
+                        scheduled_for = record.scheduled_for
+                        if scheduled_for.tzinfo is None:
+                            scheduled_for = scheduled_for.replace(tzinfo=UTC)
+                        self._authorized_purges[guild_id] = (purge_id, scheduled_for)
 
                     if record and guild:
                         config = await self._get_config(guild_id)

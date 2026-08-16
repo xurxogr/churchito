@@ -12,6 +12,7 @@ from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import has_any_role, is_valid_discord_cdn_url
 from discord_bot.verification.api_client import call_verification_api
 from discord_bot.verification.auto_processor import is_steam_profile_required
+from discord_bot.verification.config import SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 from discord_bot.verification.enums import (
     ConfigKey,
     VerificationStatus,
@@ -221,6 +222,10 @@ async def _handle_verification_start_locked(
         )
 
         timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
+        if timeout_minutes <= 0:
+            # Without a deadline, an abandoned verification would stay
+            # pending in the database forever
+            timeout_minutes = SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
         expires_relative = calculate_expires_timestamp(
             created_at=request.created_at, timeout_minutes=timeout_minutes
         )
@@ -265,13 +270,12 @@ async def _handle_verification_start_locked(
 
         cog._pending_dm_verifications[user.id] = (guild.id, request.id)
 
-        if timeout_minutes > 0:
-            cog.start_screenshot_timer(
-                request_id=request.id,
-                guild_id=guild.id,
-                user_id=user.id,
-                timeout_minutes=timeout_minutes,
-            )
+        cog.start_screenshot_timer(
+            request_id=request.id,
+            guild_id=guild.id,
+            user_id=user.id,
+            timeout_minutes=timeout_minutes,
+        )
 
         status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")

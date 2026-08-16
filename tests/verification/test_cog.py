@@ -13,6 +13,7 @@ from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.common.utils import delete_message, has_any_role
 from discord_bot.verification.cog import VerificationCog
+from discord_bot.verification.config import SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.service import VerificationService
 
@@ -3792,6 +3793,63 @@ class TestHandleVerificationStartHappyPath:
             pending = await service.get_pending_by_user(123, 456)
             assert pending is not None
             assert pending.status == VerificationStatus.PENDING_SCREENSHOTS
+
+    async def test_starts_fallback_timer_without_timeout(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that timeout=0 still starts a fallback screenshot timer.
+
+        Without a deadline, an abandoned verification would stay pending in
+        the database forever.
+        """
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 456
+        mock_user.name = "NewUser"
+        mock_user.mention = "<@456>"
+        mock_user.send = AsyncMock()
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "already_pending_message": "Pending",
+            "dm_instructions_message": "Instructions for {username}",
+            "mod_notification_channel": 888,
+            "mod_message_template": "New verification from {username}",
+            "verification_type_regular_display": "Normal",
+            "verification_type_ally_display": "Ally",
+            "screenshot_timeout_minutes": 0,
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "start_screenshot_timer") as mock_timer,
+        ):
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        mock_timer.assert_called_once()
+        assert mock_timer.call_args.kwargs["timeout_minutes"] == SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 
 
 class TestRoleOperations:
@@ -10300,10 +10358,14 @@ class TestRestorePendingVerificationsWithTimer:
         for task in verification_cog._screenshot_timers.values():
             task.cancel()
 
-    async def test_restore_no_timer_if_not_configured(
+    async def test_restore_starts_fallback_timer_if_not_configured(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
-        """Test that does not create timer if timeout is 0."""
+        """Test that timeout=0 restores a fallback timer.
+
+        Without a deadline, abandoned requests would stay pending in the
+        database forever.
+        """
         # Create pending request
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -10328,8 +10390,59 @@ class TestRestorePendingVerificationsWithTimer:
         ):
             await verification_cog._restore_pending_verifications()
 
-        # Verify that no timer was created
-        assert len(verification_cog._screenshot_timers) == 0
+        # Verify that the fallback timer was created
+        assert len(verification_cog._screenshot_timers) == 1
+
+        # Clean up timers
+        for task in verification_cog._screenshot_timers.values():
+            task.cancel()
+
+    async def test_restore_auto_rejects_if_fallback_expired(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that timeout=0 auto-rejects requests older than the fallback."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            # Older than the 24h fallback
+            request.created_at = datetime.now(UTC) - timedelta(
+                minutes=SCREENSHOT_FALLBACK_TIMEOUT_MINUTES + 60
+            )
+            await session.commit()
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        with (
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 0},
+            ),
+            patch.object(
+                verification_cog,
+                "_auto_reject_by_timeout",
+                new_callable=AsyncMock,
+            ) as mock_reject,
+        ):
+            await verification_cog._restore_pending_verifications()
+
+            # Wait for the created task to execute
+            await asyncio.sleep(0.1)
+
+            mock_reject.assert_called_once_with(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
 
     async def test_restore_auto_rejects_if_time_expired(
         self, verification_cog: VerificationCog, test_database: DatabaseService

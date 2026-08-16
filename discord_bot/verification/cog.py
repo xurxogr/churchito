@@ -15,7 +15,11 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import KeyedLocks, delete_message
 from discord_bot.verification.api_client import close_client
-from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
+from discord_bot.verification.config import (
+    COG_NAME,
+    SCREENSHOT_FALLBACK_TIMEOUT_MINUTES,
+    VERIFICATION_CONFIG_SCHEMA,
+)
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
     build_mod_embed_sections,
@@ -133,7 +137,9 @@ class VerificationCog(commands.Cog):
                 timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
 
                 if timeout_minutes <= 0:
-                    continue
+                    # Without a deadline, abandoned requests would stay
+                    # pending in the database forever
+                    timeout_minutes = SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 
                 # Calculate remaining time
                 created_at = request.created_at
