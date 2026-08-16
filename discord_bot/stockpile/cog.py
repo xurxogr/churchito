@@ -340,6 +340,15 @@ class StockpileCog(commands.Cog):
         if guild.id in self._registered_commands:
             await self._sync_guild_commands(guild)
 
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Drop guild commands and cached state when the bot leaves a guild.
+
+        Args:
+            guild (discord.Guild): Guild the bot left.
+        """
+        await self._unregister_guild_commands(guild)
+
     # ===== CONFIG CHANGE CALLBACKS =====
 
     async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:

@@ -90,6 +90,16 @@ class DerivedRolesCog(commands.Cog):
     # ===== EVENT HANDLERS =====
 
     @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Drop cached per-guild state when the bot leaves a guild.
+
+        Args:
+            guild (discord.Guild): Guild the bot left.
+        """
+        self._last_sync.pop(guild.id, None)
+        self._error_state.pop(guild.id, None)
+
+    @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         """Handle member updates to detect role changes.
 

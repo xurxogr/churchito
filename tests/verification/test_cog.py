@@ -10204,3 +10204,22 @@ class TestRestorePendingVerificationsWithTimer:
                 guild_id=123,
                 user_id=456,
             )
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(self, verification_cog: VerificationCog) -> None:
+        """Test that cached per-guild state is dropped on removal."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 123
+        guild.name = "Test Guild"
+        verification_cog._last_health_check[guild.id] = datetime.now(UTC)
+        verification_cog._pending_dm_verifications[456] = (guild.id, 1)
+        verification_cog._pending_dm_verifications[789] = (999, 2)
+
+        await verification_cog.on_guild_remove(guild)
+
+        assert guild.id not in verification_cog._last_health_check
+        assert 456 not in verification_cog._pending_dm_verifications
+        assert verification_cog._pending_dm_verifications[789] == (999, 2)

@@ -6312,3 +6312,27 @@ class TestSendLog:
             public_id="test1",
             message="Test message",
         )
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(self, purge_cog: PurgeCog, mock_guild: MagicMock) -> None:
+        """Test that guild commands and cached state are dropped on removal."""
+        now = datetime.now(UTC)
+        purge_cog._registered_commands[mock_guild.id] = {"war": "purge"}
+        pending_sync = MagicMock()
+        purge_cog._pending_syncs[mock_guild.id] = pending_sync
+        purge_cog._active_purges[mock_guild.id] = (1, None)
+        purge_cog._authorized_purges[mock_guild.id] = (1, now)
+        purge_cog._cancel_pending_purges[mock_guild.id] = (1, now)
+
+        await purge_cog.on_guild_remove(mock_guild)
+
+        assert mock_guild.id not in purge_cog._registered_commands
+        purge_cog.bot.tree.remove_command.assert_called_once_with("purge", guild=mock_guild)
+        assert mock_guild.id not in purge_cog._pending_syncs
+        pending_sync.cancel.assert_called_once()
+        assert mock_guild.id not in purge_cog._active_purges
+        assert mock_guild.id not in purge_cog._authorized_purges
+        assert mock_guild.id not in purge_cog._cancel_pending_purges

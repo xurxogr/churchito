@@ -1259,6 +1259,20 @@ class VerificationCog(commands.Cog):
             logger.exception(f"[{after.guild.name}] Error in on_member_update: {e}")
 
     @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Drop cached per-guild state when the bot leaves a guild.
+
+        Args:
+            guild (discord.Guild): Guild the bot left.
+        """
+        self._last_health_check.pop(guild.id, None)
+        self._pending_dm_verifications = {
+            user_id: pending
+            for user_id, pending in self._pending_dm_verifications.items()
+            if pending[0] != guild.id
+        }
+
+    @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction) -> None:
         """Handle moderation button interactions with dynamic IDs.
 

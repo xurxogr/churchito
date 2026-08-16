@@ -3748,3 +3748,20 @@ class TestOnConfigChangedPinnedMessage:
         # Channel change affects both commands and pinned message
         mock_register.assert_called_once()
         mock_update.assert_called_once_with(mock_guild)
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(
+        self, stockpile_cog: StockpileCog, mock_guild: MagicMock
+    ) -> None:
+        """Test that guild commands and cached state are dropped on removal."""
+        stockpile_cog._registered_commands[mock_guild.id] = {"add": "stockpile-add"}
+
+        await stockpile_cog.on_guild_remove(mock_guild)
+
+        assert mock_guild.id not in stockpile_cog._registered_commands
+        stockpile_cog.bot.tree.remove_command.assert_called_once_with(
+            "stockpile-add", guild=mock_guild
+        )

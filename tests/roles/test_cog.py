@@ -5779,3 +5779,16 @@ class TestHandleDeleteNoPermission:
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
         assert call_args[1]["ephemeral"] is True
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(self, roles_cog: RolesCog, mock_guild: MagicMock) -> None:
+        """Test that guild commands and cached state are dropped on removal."""
+        roles_cog._registered_commands[mock_guild.id] = {"prefix": "roles"}
+
+        await roles_cog.on_guild_remove(mock_guild)
+
+        assert mock_guild.id not in roles_cog._registered_commands
+        roles_cog.bot.tree.remove_command.assert_called_once_with("roles", guild=mock_guild)

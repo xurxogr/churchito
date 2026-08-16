@@ -1,6 +1,7 @@
 """Tests for DerivedRolesCog."""
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -575,3 +576,19 @@ class TestConfigValidation:
             )
 
         assert success, error
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """Test that cached per-guild state is dropped on removal."""
+        derived_roles_cog._last_sync[mock_guild.id] = datetime.now(UTC)
+        derived_roles_cog._error_state[mock_guild.id] = True
+
+        await derived_roles_cog.on_guild_remove(mock_guild)
+
+        assert mock_guild.id not in derived_roles_cog._last_sync
+        assert mock_guild.id not in derived_roles_cog._error_state

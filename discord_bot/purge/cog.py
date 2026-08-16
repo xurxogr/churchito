@@ -1510,6 +1510,21 @@ class PurgeCog(commands.Cog):
             await self._sync_guild_commands(guild)
 
     @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Drop guild commands and cached state when the bot leaves a guild.
+
+        Args:
+            guild (discord.Guild): Guild the bot left.
+        """
+        await self._unregister_guild_commands(guild)
+        pending_sync = self._pending_syncs.pop(guild.id, None)
+        if pending_sync:
+            pending_sync.cancel()
+        self._active_purges.pop(guild.id, None)
+        self._authorized_purges.pop(guild.id, None)
+        self._cancel_pending_purges.pop(guild.id, None)
+
+    @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction) -> None:
         """Handle button interactions with dynamic IDs.
 

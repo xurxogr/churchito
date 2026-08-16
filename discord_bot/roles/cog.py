@@ -272,6 +272,15 @@ class RolesCog(commands.Cog):
             await self._sync_guild_commands(guild)
 
     @commands.Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
+        """Drop guild commands and cached state when the bot leaves a guild.
+
+        Args:
+            guild (discord.Guild): Guild the bot left.
+        """
+        await self._unregister_guild_commands(guild)
+
+    @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         """Handle reaction add events.
 

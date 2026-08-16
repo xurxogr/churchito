@@ -1,5 +1,6 @@
 """Tests for AutonameCog."""
 
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1077,3 +1078,18 @@ class TestSetupAndTeardown:
         # Then teardown
         await teardown(mock_discord_bot)
         assert get_config_schema_service().get_schema("autoname") is None
+
+
+class TestOnGuildRemove:
+    """Tests for on_guild_remove cleanup."""
+
+    async def test_clears_guild_state(self, autoname_cog: AutonameCog) -> None:
+        """Test that cached per-guild state is dropped on removal."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 987654321
+        guild.name = "Test Guild"
+        autoname_cog._last_sync[guild.id] = datetime.now(UTC)
+
+        await autoname_cog.on_guild_remove(guild)
+
+        assert guild.id not in autoname_cog._last_sync
