@@ -1,8 +1,12 @@
 """Tests for the content size limit middleware."""
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
+from starlette.responses import Response
 from starlette.testclient import TestClient
 
 from discord_bot.web.middleware.content_size import (
@@ -84,6 +88,64 @@ class TestContentSizeLimitMiddleware:
         # TestClient always adds Content-Length, but we verify the behavior
         response = app_with_small_limit.post("/submit", content=b"data")
         assert response.status_code == 200
+
+    def test_chunked_small_body_passes(self, app_with_small_limit: TestClient) -> None:
+        """Test that a chunked body under the limit passes."""
+
+        def chunks() -> Iterator[bytes]:
+            yield b"x" * 512
+
+        response = app_with_small_limit.post("/submit", content=chunks())
+        assert response.status_code == 200
+
+    def test_chunked_large_body_rejected(self, app_with_small_limit: TestClient) -> None:
+        """Test that a chunked body over the limit is rejected without Content-Length."""
+
+        def chunks() -> Iterator[bytes]:
+            yield b"x" * 1024
+            yield b"x" * 1024
+
+        response = app_with_small_limit.post("/submit", content=chunks())
+        assert "content-length" not in response.request.headers
+        assert response.status_code == 413
+        assert "too large" in response.text.lower()
+
+    def test_chunked_large_body_rejected_when_middleware_reads_body(self) -> None:
+        """Test rejection when a downstream middleware (not the route) reads the body."""
+        app = FastAPI()
+
+        class BodyReadingMiddleware(BaseHTTPMiddleware):
+            async def dispatch(
+                self,
+                request: Request,
+                call_next: RequestResponseEndpoint,
+            ) -> Response:
+                await request.body()
+                return await call_next(request)
+
+        @app.post("/submit")
+        async def submit(request: Request) -> dict[str, str]:
+            return {"status": "ok"}
+
+        app.add_middleware(BodyReadingMiddleware)
+        app.add_middleware(ContentSizeLimitMiddleware, max_body_size=1024)
+        client = TestClient(app)
+
+        def chunks() -> Iterator[bytes]:
+            yield b"x" * 2048
+
+        response = client.post("/submit", content=chunks())
+        assert response.status_code == 413
+
+    def test_streamed_body_counts_across_chunks(self, app_with_small_limit: TestClient) -> None:
+        """Test that the limit applies to the cumulative body, not per chunk."""
+
+        def chunks() -> Iterator[bytes]:
+            for _ in range(5):
+                yield b"x" * 300  # 1500 bytes total, each chunk under 1KB
+
+        response = app_with_small_limit.post("/submit", content=chunks())
+        assert response.status_code == 413
 
     def test_invalid_content_length_passes(self, app_with_small_limit: TestClient) -> None:
         """Test that invalid Content-Length does not cause error."""
