@@ -1,6 +1,5 @@
 """Reaction roles cog for self-assignable roles."""
 
-import asyncio
 import logging
 from typing import Any
 
@@ -11,6 +10,7 @@ from discord.ext import commands
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.common.utils import KeyedLocks
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
 from discord_bot.roles.formatters import (
@@ -40,7 +40,7 @@ class RolesCog(commands.Cog):
         # Track registered commands per guild: {guild_id: {"prefix": name, ...}}
         self._registered_commands: dict[int, dict[str, str]] = {}
         # User locks to prevent race conditions
-        self._user_locks: dict[int, asyncio.Lock] = {}
+        self._user_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -49,19 +49,6 @@ class RolesCog(commands.Cog):
             dict[str, dict[str, Any]]: Map of key -> {locked, reason}
         """
         return {}
-
-    async def _get_user_lock(self, user_id: int) -> asyncio.Lock:
-        """Get or create a lock for a user to prevent race conditions.
-
-        Args:
-            user_id: Discord user ID
-
-        Returns:
-            asyncio.Lock: Lock for this user
-        """
-        if user_id not in self._user_locks:
-            self._user_locks[user_id] = asyncio.Lock()
-        return self._user_locks[user_id]
 
     # ===== DYNAMIC COMMAND REGISTRATION =====
 
@@ -337,8 +324,7 @@ class RolesCog(commands.Cog):
             return
 
         # Acquire user lock to prevent race conditions
-        lock = await self._get_user_lock(payload.user_id)
-        async with lock:
+        async with self._user_locks.acquire(payload.user_id):
             await self._process_reaction(payload, guild, is_add)
 
     async def _process_reaction(

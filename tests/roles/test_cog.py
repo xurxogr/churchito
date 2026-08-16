@@ -938,49 +938,36 @@ class TestRequiredRolesCheck:
 
 
 class TestUserLockManager:
-    """Tests for user lock manager."""
+    """Tests for the per-user lock pool."""
 
-    async def test_lock_is_acquired_per_user(self, roles_cog: RolesCog) -> None:
-        """Test that locks are acquired per user."""
-        lock1 = await roles_cog._get_user_lock(123)
-        lock2 = await roles_cog._get_user_lock(456)
-        lock3 = await roles_cog._get_user_lock(123)
+    async def test_lock_evicted_after_reaction(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the per-user lock entry is removed after handling a reaction."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+        mock_guild.get_member.return_value = mock_member
 
-        # Different users get different locks
-        assert lock1 is not lock2
-        # Same user gets same lock
-        assert lock1 is lock3
+        await enable_cog_for_guild(test_database, mock_guild.id)
 
-    async def test_lock_prevents_concurrent_access(self, roles_cog: RolesCog) -> None:
-        """Test that lock prevents concurrent access for same user."""
-        import asyncio
+        payload = MagicMock(spec=discord.RawReactionActionEvent)
+        payload.guild_id = mock_guild.id
+        payload.channel_id = 456
+        payload.message_id = 99999  # Not a panel
+        payload.user_id = mock_member.id
+        emoji = MagicMock(spec=discord.PartialEmoji)
+        emoji.name = "👍"
+        emoji.id = None
+        emoji.is_custom_emoji.return_value = False
+        payload.emoji = emoji
 
-        lock = await roles_cog._get_user_lock(123)
+        await roles_cog.on_raw_reaction_add(payload)
 
-        # Acquire the lock
-        await lock.acquire()
-
-        # Try to acquire again (should block)
-        acquired = False
-
-        async def try_acquire() -> None:
-            nonlocal acquired
-            async with lock:
-                acquired = True
-
-        # Start the task but don't wait
-        task = asyncio.create_task(try_acquire())
-        await asyncio.sleep(0.01)
-
-        # Should not be acquired yet
-        assert not acquired
-
-        # Release the lock
-        lock.release()
-        await task
-
-        # Now it should be acquired
-        assert acquired
+        assert len(roles_cog._user_locks) == 0
 
 
 # ===== COMMAND HANDLER TESTS =====
