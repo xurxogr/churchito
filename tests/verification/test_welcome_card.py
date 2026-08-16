@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 from unittest.mock import AsyncMock, MagicMock
 
@@ -339,8 +340,40 @@ class TestSanitizeName:
         assert len(result) <= welcome_card.MAX_NAME_LENGTH
 
 
+class TestLoadFont:
+    """Tests for _load_font caching."""
+
+    def test_same_size_returns_cached_font(self) -> None:
+        """Test that repeated loads of the same size reuse one font object."""
+        assert welcome_card._load_font(20) is welcome_card._load_font(20)
+
+
 class TestRenderWelcomeCard:
     """Tests for render_welcome_card."""
+
+    def test_does_not_mutate_global_pixel_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that rendering leaves Pillow's global pixel limit untouched."""
+        sentinel = 123_456_789
+        monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", sentinel)
+
+        welcome_card.render_welcome_card(
+            template_bytes=_make_template(),
+            name="Xurxogr",
+            box=(100, 150, 500, 250),
+        )
+
+        assert Image.MAX_IMAGE_PIXELS == sentinel
+
+    def test_oversized_template_raises_value_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that a template above the pixel limit raises ValueError."""
+        monkeypatch.setattr(welcome_card, "MAX_IMAGE_PIXELS", 1000)
+
+        with pytest.raises(ValueError):
+            welcome_card.render_welcome_card(
+                template_bytes=_make_template(),
+                name="Xurxogr",
+                box=(100, 150, 500, 250),
+            )
 
     def test_returns_png_preserving_dimensions(self) -> None:
         """Test that the output is a PNG with the template's dimensions."""
@@ -575,6 +608,34 @@ class TestPostWelcomeCard:
         _, kwargs = channel.send.call_args
         assert kwargs["content"] == "Welcome <@456> to Test Guild!"
         assert "file" in kwargs
+
+    @pytest.mark.asyncio
+    async def test_render_runs_under_semaphore(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that rendering happens while the concurrency semaphore is held."""
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.send = AsyncMock()
+        guild = self._guild_with_channel(channel)
+        monkeypatch.setattr(
+            welcome_card, "fetch_template", AsyncMock(return_value=_make_template())
+        )
+        monkeypatch.setattr(welcome_card, "_RENDER_SEMAPHORE", asyncio.Semaphore(1))
+
+        held: list[bool] = []
+
+        def fake_render(**kwargs: object) -> bytes:
+            held.append(welcome_card._RENDER_SEMAPHORE.locked())
+            return _make_template()
+
+        monkeypatch.setattr(welcome_card, "render_welcome_card", fake_render)
+
+        await welcome_card.post_welcome_card(
+            guild=guild,
+            config=_valid_config(),
+            request=_regular_request("X"),
+            member=MagicMock(),
+        )
+
+        assert held == [True]
 
     @pytest.mark.asyncio
     async def test_posts_without_a_verification_request(

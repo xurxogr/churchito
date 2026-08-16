@@ -12,6 +12,7 @@ import asyncio
 import io
 import logging
 import re
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -46,6 +47,10 @@ OUTPUT_FILENAME = "welcome.png"
 _FONT_NAME = "DejaVuSans.ttf"
 
 _CONTROL_CHARS = re.compile(r"\s+")
+
+# Bound concurrent Pillow renders: each one holds a full RGBA copy of the
+# template in memory, so a burst of role completions must not stack them
+_RENDER_SEMAPHORE = asyncio.Semaphore(2)
 
 
 def resolve_card_name(
@@ -240,8 +245,9 @@ def parse_color(value: str | None) -> tuple[int, int, int]:
         return DEFAULT_COLOR
 
 
+@lru_cache(maxsize=64)
 def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Load the rendering font at the requested size.
+    """Load the rendering font at the requested size, caching per size.
 
     Args:
         size (int): Font size in points.
@@ -312,35 +318,40 @@ def render_welcome_card(
     Raises:
         ValueError: If the template exceeds the pixel safety limit.
     """
-    Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     with Image.open(io.BytesIO(template_bytes)) as source:
+        # Explicit pixel check instead of mutating Pillow's global
+        # Image.MAX_IMAGE_PIXELS, which would affect the whole process
+        total_pixels = source.width * source.height
+        if total_pixels > MAX_IMAGE_PIXELS:
+            raise ValueError(f"Template has {total_pixels} pixels (limit {MAX_IMAGE_PIXELS})")
         image = source.convert("RGBA")
 
-    draw = ImageDraw.Draw(image)
-    x1, y1, x2, y2 = box
-    box_width = x2 - x1
-    box_height = y2 - y1
+    with image:
+        draw = ImageDraw.Draw(image)
+        x1, y1, x2, y2 = box
+        box_width = x2 - x1
+        box_height = y2 - y1
 
-    font = _fit_font(
-        draw=draw,
-        text=name,
-        box_width=box_width,
-        box_height=box_height,
-        max_font_size=max_font_size,
-    )
+        font = _fit_font(
+            draw=draw,
+            text=name,
+            box_width=box_width,
+            box_height=box_height,
+            max_font_size=max_font_size,
+        )
 
-    # Center the text within the box using its measured bounding box.
-    left, top, right, bottom = draw.textbbox((0, 0), name or " ", font=font)
-    text_width = right - left
-    text_height = bottom - top
-    pos_x = x1 + (box_width - text_width) / 2 - left
-    pos_y = y1 + (box_height - text_height) / 2 - top
-    if name:
-        draw.text((pos_x, pos_y), name, font=font, fill=color)
+        # Center the text within the box using its measured bounding box.
+        left, top, right, bottom = draw.textbbox((0, 0), name or " ", font=font)
+        text_width = right - left
+        text_height = bottom - top
+        pos_x = x1 + (box_width - text_width) / 2 - left
+        pos_y = y1 + (box_height - text_height) / 2 - top
+        if name:
+            draw.text((pos_x, pos_y), name, font=font, fill=color)
 
-    output = io.BytesIO()
-    image.save(output, format="PNG")
-    return output.getvalue()
+        output = io.BytesIO()
+        image.save(output, format="PNG")
+        return output.getvalue()
 
 
 async def fetch_template(
@@ -422,15 +433,17 @@ async def post_welcome_card(
         color = parse_color(config.get(ConfigKey.WELCOME_CARD_FONT_COLOR))
         max_font_size = config.get(ConfigKey.WELCOME_CARD_MAX_FONT_SIZE) or DEFAULT_MAX_FONT_SIZE
 
-        # Pillow is synchronous and CPU-bound; keep the event loop responsive.
-        image_bytes = await asyncio.to_thread(
-            render_welcome_card,
-            template_bytes=template_bytes,
-            name=name,
-            box=box,
-            color=color,
-            max_font_size=max_font_size,
-        )
+        # Pillow is synchronous and CPU-bound; keep the event loop responsive
+        # while bounding how many renders can hold images in memory at once.
+        async with _RENDER_SEMAPHORE:
+            image_bytes = await asyncio.to_thread(
+                render_welcome_card,
+                template_bytes=template_bytes,
+                name=name,
+                box=box,
+                color=color,
+                max_font_size=max_font_size,
+            )
 
         content = build_card_message(
             template=config.get(ConfigKey.WELCOME_CARD_MESSAGE),
