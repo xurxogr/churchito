@@ -288,6 +288,64 @@ class TestErrorState:
         assert len(recovery_calls) == 1
 
 
+class TestSendAudit:
+    """Tests for _send_audit template tolerance."""
+
+    def _make_channel(self, mock_guild: MagicMock) -> MagicMock:
+        """Make the guild return an audit channel mock."""
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.send = AsyncMock()
+        mock_guild.get_channel = MagicMock(return_value=channel)
+        return channel
+
+    async def test_tolerates_unknown_placeholder(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A template with an unknown placeholder still sends the message."""
+        channel = self._make_channel(mock_guild)
+        config = {
+            ConfigKey.AUDIT_CHANNEL: 999,
+            ConfigKey.AUDIT_ERROR_MSG: "Error for {user_name} {oops}",
+        }
+
+        await derived_roles_cog._send_audit(
+            guild=mock_guild,
+            config=config,
+            template_key=ConfigKey.AUDIT_ERROR_MSG,
+            user_name="TestUser",
+        )
+
+        channel.send.assert_called_once()
+        sent = channel.send.call_args[0][0]
+        assert "TestUser" in sent
+        assert "{oops}" in sent
+
+    async def test_tolerates_stray_brace(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A template with a stray brace still sends the message."""
+        channel = self._make_channel(mock_guild)
+        config = {
+            ConfigKey.AUDIT_CHANNEL: 999,
+            ConfigKey.AUDIT_ERROR_MSG: "Error for {user_name} :{",
+        }
+
+        await derived_roles_cog._send_audit(
+            guild=mock_guild,
+            config=config,
+            template_key=ConfigKey.AUDIT_ERROR_MSG,
+            user_name="TestUser",
+        )
+
+        channel.send.assert_called_once()
+        sent = channel.send.call_args[0][0]
+        assert sent == "Error for TestUser :{"
+
+
 class TestAppliedAudit:
     """Tests for the applied-rules audit message and its trigger placeholder."""
 

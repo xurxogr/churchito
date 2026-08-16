@@ -13,6 +13,7 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
 from discord_bot.derived_roles.engine import compute_role_changes
+from discord_bot.derived_roles.formatters import format_message
 
 logger = logging.getLogger(__name__)
 
@@ -347,11 +348,7 @@ class DerivedRolesCog(commands.Cog):
         if not template:
             return
 
-        try:
-            message = template.format(**placeholders)
-        except (KeyError, ValueError, IndexError) as e:
-            logger.warning(f"[{guild.name}] Error formatting audit message: {e}")
-            return
+        message = format_message(template=template, **placeholders)
 
         channel = guild.get_channel(int(channel_id))
         if not isinstance(channel, discord.TextChannel):
