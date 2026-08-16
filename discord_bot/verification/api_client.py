@@ -10,6 +10,35 @@ from discord_bot.verification.models import VerificationAPIResponse, Verificatio
 
 logger = logging.getLogger(__name__)
 
+# Screenshots above this size are rejected before reaching the OCR API
+MAX_IMAGE_BYTES = 25 * 1024 * 1024
+
+# Bound concurrent verifications: each one buffers two screenshots plus the
+# multipart body, so a burst must not stack them all in memory at once
+_API_SEMAPHORE = asyncio.Semaphore(2)
+
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Return the shared HTTP client, creating it on first use.
+
+    Returns:
+        httpx.AsyncClient: Shared client with a reusable connection pool.
+    """
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient()
+    return _client
+
+
+async def close_client() -> None:
+    """Close the shared HTTP client, if one was created."""
+    global _client
+    if _client is not None and not _client.is_closed:
+        await _client.aclose()
+    _client = None
+
 
 async def call_verification_api(
     url: str,
@@ -37,12 +66,14 @@ async def call_verification_api(
         headers["X-API-Key"] = api_key
 
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        async with _API_SEMAPHORE:
+            client = _get_client()
+
             # Download images from Discord CDN in parallel
             t0 = time.perf_counter()
             resp1, resp2 = await asyncio.gather(
-                client.get(image1_url),
-                client.get(image2_url),
+                client.get(image1_url, timeout=timeout_seconds),
+                client.get(image2_url, timeout=timeout_seconds),
             )
             t1 = time.perf_counter()
             logger.debug(f"[{guild_name}] Images downloaded in {t1 - t0:.2f}s")
@@ -54,6 +85,12 @@ async def call_verification_api(
                     error_message="Failed to download image 1",
                 )
             image1_data = resp1.content
+            if len(image1_data) > MAX_IMAGE_BYTES:
+                return VerificationAPIResult(
+                    success=False,
+                    status_code=0,
+                    error_message=f"Image 1 too large ({len(image1_data)} bytes)",
+                )
 
             if resp2.status_code != 200:
                 return VerificationAPIResult(
@@ -62,6 +99,12 @@ async def call_verification_api(
                     error_message="Failed to download image 2",
                 )
             image2_data = resp2.content
+            if len(image2_data) > MAX_IMAGE_BYTES:
+                return VerificationAPIResult(
+                    success=False,
+                    status_code=0,
+                    error_message=f"Image 2 too large ({len(image2_data)} bytes)",
+                )
 
             logger.debug(
                 f"[{guild_name}] Image sizes: "
@@ -80,6 +123,7 @@ async def call_verification_api(
                 url,
                 files=files,
                 headers=headers,
+                timeout=timeout_seconds,
             )
             t3 = time.perf_counter()
             logger.debug(f"[{guild_name}] OCR API call took {t3 - t2:.2f}s")

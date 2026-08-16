@@ -1,10 +1,12 @@
 """Tests for discord_bot/verification/api_client.py."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
+from discord_bot.verification import api_client
 from discord_bot.verification.api_client import call_verification_api
 from discord_bot.verification.models import VerificationAPIResponse
 
@@ -100,6 +102,115 @@ class TestVerificationAPIResponse:
 
 class TestCallVerificationApi:
     """Tests for call_verification_api."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_shared_client(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Start each test without a cached shared client."""
+        monkeypatch.setattr(api_client, "_client", None, raising=False)
+
+    @pytest.mark.asyncio
+    async def test_oversized_image_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that an image above the size cap fails without calling the API."""
+        monkeypatch.setattr(api_client, "MAX_IMAGE_BYTES", 10)
+        mock_img_response = MagicMock()
+        mock_img_response.status_code = 200
+        mock_img_response.content = b"x" * 11
+
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_img_response)
+        mock_client.post = AsyncMock()
+
+        with patch(
+            "discord_bot.verification.api_client.httpx.AsyncClient", return_value=mock_client
+        ):
+            result = await call_verification_api(
+                url="https://api.example.com/verify",
+                api_key=None,
+                image1_url="https://cdn.discordapp.com/1.png",
+                image2_url="https://cdn.discordapp.com/2.png",
+            )
+
+        assert result.success is False
+        assert result.error_message is not None
+        assert "too large" in result.error_message.lower()
+        mock_client.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_call_runs_under_semaphore(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that downloads and the API call happen while the semaphore is held."""
+        monkeypatch.setattr(api_client, "_API_SEMAPHORE", asyncio.Semaphore(1))
+        held: list[bool] = []
+
+        mock_img_response = MagicMock()
+        mock_img_response.status_code = 200
+        mock_img_response.content = b"img"
+
+        async def fake_get(url: str, **kwargs: object) -> MagicMock:
+            held.append(api_client._API_SEMAPHORE.locked())
+            return mock_img_response
+
+        mock_api_response = MagicMock()
+        mock_api_response.status_code = 200
+        mock_api_response.json.return_value = {"name": "X"}
+
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=fake_get)
+        mock_client.post = AsyncMock(return_value=mock_api_response)
+
+        with patch(
+            "discord_bot.verification.api_client.httpx.AsyncClient", return_value=mock_client
+        ):
+            result = await call_verification_api(
+                url="https://api.example.com/verify",
+                api_key=None,
+                image1_url="https://cdn.discordapp.com/1.png",
+                image2_url="https://cdn.discordapp.com/2.png",
+            )
+
+        assert result.success is True
+        assert held == [True, True]
+
+    @pytest.mark.asyncio
+    async def test_client_reused_across_calls(self) -> None:
+        """Test that consecutive calls share one httpx client."""
+        mock_img_response = MagicMock()
+        mock_img_response.status_code = 200
+        mock_img_response.content = b"img"
+
+        mock_api_response = MagicMock()
+        mock_api_response.status_code = 200
+        mock_api_response.json.return_value = {"name": "X"}
+
+        mock_client = MagicMock()
+        mock_client.is_closed = False
+        mock_client.get = AsyncMock(return_value=mock_img_response)
+        mock_client.post = AsyncMock(return_value=mock_api_response)
+
+        with patch(
+            "discord_bot.verification.api_client.httpx.AsyncClient", return_value=mock_client
+        ) as constructor:
+            for _ in range(2):
+                await call_verification_api(
+                    url="https://api.example.com/verify",
+                    api_key=None,
+                    image1_url="https://cdn.discordapp.com/1.png",
+                    image2_url="https://cdn.discordapp.com/2.png",
+                )
+
+        assert constructor.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_close_client_closes_shared_client(self) -> None:
+        """Test that close_client closes and clears the shared client."""
+        mock_client = MagicMock()
+        mock_client.is_closed = False
+        mock_client.aclose = AsyncMock()
+        api_client._client = mock_client
+
+        await api_client.close_client()
+
+        mock_client.aclose.assert_awaited_once()
+        assert api_client._client is None
 
     @pytest.mark.asyncio
     async def test_success(self) -> None:

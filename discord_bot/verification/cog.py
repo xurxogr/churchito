@@ -12,6 +12,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import KeyedLocks, delete_message
+from discord_bot.verification.api_client import close_client
 from discord_bot.verification.config import COG_NAME, VERIFICATION_CONFIG_SCHEMA
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.formatters import (
@@ -153,6 +154,9 @@ class VerificationCog(commands.Cog):
             if not task.done():
                 task.cancel()
         self._screenshot_timers.clear()
+
+        # Release the shared verification API client and its connection pool
+        await close_client()
 
     def start_screenshot_timer(
         self,

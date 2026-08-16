@@ -4446,6 +4446,17 @@ class TestCogLifecycle:
         cog.health_check_loop.cancel.assert_called_once()
         assert cog._health_check_started is False
 
+    async def test_cog_unload_closes_api_client(self, mock_discord_bot: MagicMock) -> None:
+        """Test that cog_unload closes the shared verification API client."""
+        cog = VerificationCog(mock_discord_bot)
+
+        with patch(
+            "discord_bot.verification.cog.close_client", new_callable=AsyncMock
+        ) as mock_close:
+            await cog.cog_unload()
+
+        mock_close.assert_awaited_once()
+
 
 class TestHealthCheckTaskMethods:
     """Tests for health check task loop methods."""
