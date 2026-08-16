@@ -1519,6 +1519,41 @@ class PurgeCog(commands.Cog):
                 await self._execute_purge(guild_id=guild_id, purge_id=purge_id)
             except Exception as e:
                 logger.error(f"[{guild_name}] Error executing purge {purge_id}: {e}")
+                await self._mark_purge_failed(guild_id=guild_id, purge_id=purge_id)
+
+    async def _mark_purge_failed(self, *, guild_id: int, purge_id: int) -> None:
+        """Mark a purge as FAILED after an execution error.
+
+        Leaving it AUTHORIZED would create a zombie row that nothing tracks
+        in memory and that is reloaded on every boot.
+
+        Args:
+            guild_id (int): Guild ID.
+            purge_id (int): Purge ID.
+        """
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else str(guild_id)
+
+        try:
+            async with self.bot.database.session() as session:
+                purge_service = PurgeService(session)
+                record = await purge_service.update_status(
+                    purge_id=purge_id, status=PurgeStatus.FAILED
+                )
+
+                if record and guild:
+                    config = await self._get_config(guild_id)
+                    await self._update_mod_message(
+                        guild=guild,
+                        record=record,
+                        config=config,
+                        remove_view=True,
+                    )
+                    self._maybe_schedule_mod_message_deletion(record=record, config=config)
+
+                await session.commit()
+        except Exception as e:
+            logger.error(f"[{guild_name}] Error marking purge {purge_id} as failed: {e}")
 
     async def _execute_purge(self, guild_id: int, purge_id: int) -> None:
         """Execute a purge.

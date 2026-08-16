@@ -1517,6 +1517,61 @@ class TestCheckReadyPurges:
         # Verify that it was removed from tracking
         assert guild_id not in purge_cog._authorized_purges
 
+    async def test_marks_purge_failed_when_execution_raises(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that an execution error marks the purge as FAILED.
+
+        Leaving it AUTHORIZED would create a zombie row that nothing tracks
+        and that is reloaded on every boot.
+        """
+        guild_id = 123
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = guild_id
+        mock_guild.name = "Test"
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_discord_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={
+                    "affected_roles": [],
+                    "test_mode": False,
+                },
+                scheduled_for=datetime.now(UTC) - timedelta(minutes=5),
+            )
+            await purge_service.update_status(record.id, PurgeStatus.AUTHORIZED)
+            await session.commit()
+            purge_id = record.id
+
+        purge_cog._authorized_purges[guild_id] = (
+            purge_id,
+            datetime.now(UTC) - timedelta(minutes=5),
+        )
+
+        with patch.object(
+            purge_cog,
+            "_execute_purge",
+            new_callable=AsyncMock,
+            side_effect=Exception("boom"),
+        ):
+            await purge_cog._check_ready_purges()
+
+        # The record must not stay AUTHORIZED in the database
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            updated = await purge_service.get_purge(purge_id)
+            assert updated is not None
+            assert updated.status == PurgeStatus.FAILED
+
 
 class TestExecutePurge:
     """Tests for _execute_purge."""
