@@ -22,6 +22,7 @@ from discord_bot.web.routers.panels import (
     list_panels,
     post_panel,
     router,
+    unpost_panel,
     update_panel,
 )
 
@@ -1182,6 +1183,48 @@ class TestDeletePanelDirectCall:
             mock_channel.fetch_message.assert_called_once_with(789)
             mock_message.delete.assert_called_once()
 
+    async def test_notifies_roles_cog_after_delete(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that deleting a panel invalidates the RolesCog panel cache."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_guild = MagicMock()
+        mock_guild.name = "Test Guild"
+        mock_guild.text_channels = []
+        mock_guild.roles = []
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = mock_guild
+        roles_cog = MagicMock()
+        mock_request.app.state.bot.get_cog.return_value = roles_cog
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.guild_id = 123
+        mock_panel.message_id = None
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.delete = AsyncMock()
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await delete_panel(
+                request=mock_request,
+                guild_id=123,
+                panel_id=1,
+                user=test_user,
+                session=mock_session,
+            )
+
+        mock_request.app.state.bot.get_cog.assert_called_with("RolesCog")
+        roles_cog.invalidate_panel_cache.assert_called_once_with(123)
+
     async def test_raises_404_when_not_found(
         self,
         mock_request: MagicMock,
@@ -1299,6 +1342,58 @@ class TestPostPanelDirectCall:
             mock_channel.send.assert_called_once()
             mock_message.add_reaction.assert_called()
             mock_service.set_message_id.assert_called_once()
+            mock_request.app.state.bot.get_cog.assert_called_with("RolesCog")
+            mock_request.app.state.bot.get_cog.return_value.invalidate_panel_cache.assert_called_once_with(
+                123
+            )
+
+    async def test_unpost_notifies_roles_cog(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that unposting a panel clears its message and invalidates the cog cache."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_guild = MagicMock()
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel.return_value = None
+        mock_guild.text_channels = []
+        mock_guild.roles = []
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = mock_guild
+        roles_cog = MagicMock()
+        mock_request.app.state.bot.get_cog.return_value = roles_cog
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "TestPanel"
+        mock_panel.guild_id = 123
+        mock_panel.channel_id = 456
+        mock_panel.message_id = 789
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.set_message_id = AsyncMock()
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await unpost_panel(
+                request=mock_request,
+                guild_id=123,
+                panel_id=1,
+                user=test_user,
+                session=mock_session,
+            )
+
+            mock_service.set_message_id.assert_called_once_with(
+                panel_id=1, message_id=None, guild_name="Test Guild"
+            )
+
+        roles_cog.invalidate_panel_cache.assert_called_once_with(123)
 
     async def test_raises_400_when_guild_not_found(
         self,

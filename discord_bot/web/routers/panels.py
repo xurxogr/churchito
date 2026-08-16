@@ -113,6 +113,25 @@ def _panel_to_dict(panel: ReactionPanel, guild: Any) -> dict[str, Any]:
     }
 
 
+def _notify_panels_changed(request: Request, guild_id: int) -> None:
+    """Tell the RolesCog that a guild's posted panels changed.
+
+    The cog caches panel message locations for the reaction hot path; without
+    this it would not recognize a panel posted from the dashboard until the
+    cache TTL expires.
+
+    Args:
+        request: FastAPI request
+        guild_id: Guild whose panels changed
+    """
+    bot = request.app.state.bot
+    if not bot:
+        return
+    cog = bot.get_cog("RolesCog")
+    if cog:
+        cog.invalidate_panel_cache(guild_id)
+
+
 def _get_guild_data(
     request: Request, guild_id: int
 ) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -506,6 +525,7 @@ async def delete_panel(
 
     await service.delete(panel_id=panel_id, guild_name=guild_name)
     await session.commit()
+    _notify_panels_changed(request=request, guild_id=guild_id)
 
     # Return updated list
     return await list_panels(request=request, guild_id=guild_id, user=user, session=session)
@@ -583,6 +603,7 @@ async def post_panel(
             panel_id=panel.id, message_id=message.id, guild_name=guild_name
         )
         await session.commit()
+        _notify_panels_changed(request=request, guild_id=guild_id)
 
     except discord.Forbidden:
         raise HTTPException(status_code=400, detail="Cannot send message to channel") from None
@@ -638,6 +659,7 @@ async def unpost_panel(
     # Clear the message ID
     await service.set_message_id(panel_id=panel.id, message_id=None, guild_name=guild_name)
     await session.commit()
+    _notify_panels_changed(request=request, guild_id=guild_id)
 
     logger.info(f"[{guild_name}] Panel {panel.name} unposted via web dashboard")
 

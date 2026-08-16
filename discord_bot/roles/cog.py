@@ -10,7 +10,7 @@ from discord.ext import commands
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks
+from discord_bot.common.utils import KeyedLocks, TTLCache
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
 from discord_bot.roles.formatters import (
@@ -25,6 +25,12 @@ from discord_bot.roles.models import PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 
 logger = logging.getLogger(__name__)
+
+# Reactions fire for every message in a guild, so the enabled flag and the set of
+# posted panel messages are cached per guild. Both are invalidated explicitly on
+# toggle / panel changes; the TTL only bounds staleness if a notification is missed.
+_ENABLED_CACHE_TTL_SECONDS = 60.0
+_PANEL_MESSAGES_CACHE_TTL_SECONDS = 300.0
 
 
 class RolesCog(commands.Cog):
@@ -41,6 +47,22 @@ class RolesCog(commands.Cog):
         self._registered_commands: dict[int, dict[str, str]] = {}
         # User locks to prevent race conditions
         self._user_locks = KeyedLocks()
+        # Per-guild caches for the reaction hot path
+        self._enabled_cache: TTLCache[int, bool] = TTLCache(ttl_seconds=_ENABLED_CACHE_TTL_SECONDS)
+        self._panel_messages_cache: TTLCache[int, frozenset[tuple[int, int]]] = TTLCache(
+            ttl_seconds=_PANEL_MESSAGES_CACHE_TTL_SECONDS
+        )
+
+    def invalidate_panel_cache(self, guild_id: int) -> None:
+        """Drop the cached set of posted panel messages for a guild.
+
+        Call after a panel is posted, unposted or deleted (from bot commands or
+        the web dashboard) so reactions on it are recognized immediately.
+
+        Args:
+            guild_id (int): Guild whose panels changed
+        """
+        self._panel_messages_cache.invalidate(guild_id)
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -279,6 +301,8 @@ class RolesCog(commands.Cog):
             guild (discord.Guild): Guild the bot left.
         """
         await self._unregister_guild_commands(guild)
+        self._enabled_cache.invalidate(guild.id)
+        self._panel_messages_cache.invalidate(guild.id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -328,13 +352,60 @@ class RolesCog(commands.Cog):
         if not guild:
             return
 
-        # Check if cog is enabled
-        if not await self._is_cog_enabled(guild.id):
+        # Check if cog is enabled (cached: this runs for every reaction in the guild)
+        if not await self._is_cog_enabled_cached(guild.id):
+            return
+
+        # Skip messages that are not posted panels without touching the database
+        panel_messages = await self._get_panel_messages_cached(guild.id)
+        if (payload.channel_id, payload.message_id) not in panel_messages:
             return
 
         # Acquire user lock to prevent race conditions
         async with self._user_locks.acquire(payload.user_id):
             await self._process_reaction(payload, guild, is_add)
+
+    async def _is_cog_enabled_cached(self, guild_id: int) -> bool:
+        """Check if the cog is enabled for a guild, cached per guild.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            bool: True if enabled
+        """
+        return await self._enabled_cache.get_or_load(
+            key=guild_id, loader=lambda: self._is_cog_enabled(guild_id)
+        )
+
+    async def _get_panel_messages_cached(self, guild_id: int) -> frozenset[tuple[int, int]]:
+        """Get the (channel_id, message_id) pairs of posted panels, cached per guild.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            frozenset[tuple[int, int]]: Locations of posted panel messages
+        """
+        return await self._panel_messages_cache.get_or_load(
+            key=guild_id, loader=lambda: self._load_panel_messages(guild_id)
+        )
+
+    async def _load_panel_messages(self, guild_id: int) -> frozenset[tuple[int, int]]:
+        """Load the locations of all posted panels for a guild from the database.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            frozenset[tuple[int, int]]: (channel_id, message_id) of posted panels
+        """
+        async with self.bot.database.session() as session:
+            service = ReactionRolesService(session)
+            panels = await service.get_all_for_guild(guild_id)
+        return frozenset(
+            (panel.channel_id, panel.message_id) for panel in panels if panel.message_id
+        )
 
     async def _process_reaction(
         self,
@@ -850,6 +921,7 @@ class RolesCog(commands.Cog):
             guild: Guild where state changed
             enabled: True if enabled, False if disabled
         """
+        self._enabled_cache.invalidate(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Roles cog enabled, registering commands...")
             await self._register_guild_commands(guild)
@@ -1259,6 +1331,7 @@ class RolesCog(commands.Cog):
                     panel_id=panel.id, message_id=message.id, guild_name=interaction.guild.name
                 )
                 await session.commit()
+                self.invalidate_panel_cache(interaction.guild.id)
 
                 await interaction.followup.send(
                     f"Panel **{panel_name}** posted to {channel.mention}!",
@@ -1426,6 +1499,7 @@ class RolesCog(commands.Cog):
 
             await service.delete(panel_id=panel.id, guild_name=interaction.guild.name)
             await session.commit()
+            self.invalidate_panel_cache(interaction.guild.id)
 
         await interaction.response.send_message(
             f"Panel **{panel_name}** deleted.",

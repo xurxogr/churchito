@@ -970,6 +970,164 @@ class TestUserLockManager:
         assert len(roles_cog._user_locks) == 0
 
 
+class TestReactionCaching:
+    """Tests for the per-guild enabled/panel caches used on the reaction hot path."""
+
+    def _payload(self, guild_id: int, message_id: int, user_id: int) -> MagicMock:
+        payload = MagicMock(spec=discord.RawReactionActionEvent)
+        payload.guild_id = guild_id
+        payload.channel_id = 456
+        payload.message_id = message_id
+        payload.user_id = user_id
+        emoji = MagicMock(spec=discord.PartialEmoji)
+        emoji.name = "👍"
+        emoji.id = None
+        emoji.is_custom_emoji.return_value = False
+        payload.emoji = emoji
+        return payload
+
+    async def _post_panel(
+        self, test_database: DatabaseService, guild_id: int, role_id: int, message_id: int
+    ) -> None:
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=guild_id,
+                channel_id=456,
+                name="CachedPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+                role_mappings=[{"emoji": "👍", "role_id": role_id}],
+            )
+            await service.set_message_id(
+                panel_id=panel.id, message_id=message_id, guild_name="Test Guild"
+            )
+            await session.commit()
+
+    async def test_non_panel_reactions_hit_database_once_per_guild(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that repeated reactions on non-panel messages do not open DB sessions."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+        mock_guild.get_member.return_value = mock_member
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_factory:
+            await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 1, mock_member.id))
+            warm_up_sessions = session_factory.call_count
+
+            await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 2, mock_member.id))
+            await roles_cog.on_raw_reaction_remove(self._payload(mock_guild.id, 3, mock_member.id))
+
+        assert warm_up_sessions >= 1
+        assert session_factory.call_count == warm_up_sessions
+        mock_member.add_roles.assert_not_called()
+
+    async def test_disabled_guild_reactions_do_not_query_panels(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a disabled guild is cached and later reactions skip the DB entirely."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_factory:
+            await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 1, mock_member.id))
+            first = session_factory.call_count
+            await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 2, mock_member.id))
+
+        assert first == 1
+        assert session_factory.call_count == 1
+
+    async def test_invalidate_panel_cache_makes_new_panel_visible(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a panel posted after the cache warmed up is seen once invalidated."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+        mock_guild.get_member.return_value = mock_member
+        mock_guild.get_role.return_value = mock_role
+        mock_member.roles = []
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        # Warm the panel cache with a non-panel reaction
+        await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 1, mock_member.id))
+
+        await self._post_panel(test_database, mock_guild.id, mock_role.id, message_id=999)
+        roles_cog.invalidate_panel_cache(mock_guild.id)
+
+        await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 999, mock_member.id))
+
+        mock_member.add_roles.assert_called_once()
+
+    async def test_on_cog_toggled_invalidates_enabled_cache(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that enabling the cog after a cached 'disabled' takes effect immediately."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+        mock_guild.get_member.return_value = mock_member
+        mock_guild.get_role.return_value = mock_role
+        mock_member.roles = []
+        await self._post_panel(test_database, mock_guild.id, mock_role.id, message_id=999)
+
+        # Cog disabled: reaction ignored and 'disabled' cached
+        await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 999, mock_member.id))
+        mock_member.add_roles.assert_not_called()
+
+        await enable_cog_for_guild(test_database, mock_guild.id)
+        with (
+            patch.object(roles_cog, "_register_guild_commands", new=AsyncMock()),
+            patch.object(roles_cog, "_sync_guild_commands", new=AsyncMock()),
+        ):
+            await roles_cog.on_cog_toggled(mock_guild, enabled=True)
+
+        await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 999, mock_member.id))
+        mock_member.add_roles.assert_called_once()
+
+    async def test_on_guild_remove_drops_cached_state(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that leaving a guild drops its cache entries."""
+        roles_cog.bot.get_guild = MagicMock(return_value=mock_guild)
+        roles_cog.bot.user.id = 999888777
+        mock_guild.get_member.return_value = mock_member
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        await roles_cog.on_raw_reaction_add(self._payload(mock_guild.id, 1, mock_member.id))
+        assert len(roles_cog._enabled_cache) == 1
+        assert len(roles_cog._panel_messages_cache) == 1
+
+        with patch.object(roles_cog, "_unregister_guild_commands", new=AsyncMock()):
+            await roles_cog.on_guild_remove(mock_guild)
+
+        assert len(roles_cog._enabled_cache) == 0
+        assert len(roles_cog._panel_messages_cache) == 0
+
+
 # ===== COMMAND HANDLER TESTS =====
 
 
