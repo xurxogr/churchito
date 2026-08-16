@@ -1024,11 +1024,14 @@ class TestRestorePendingVerifications:
         # Restore
         await verification_cog._restore_pending_verifications()
 
-        # Verify that were restored
-        assert 456 in verification_cog._pending_dm_verifications
-        assert 789 in verification_cog._pending_dm_verifications
-        assert verification_cog._pending_dm_verifications[456] == (111, request1_id)
-        assert verification_cog._pending_dm_verifications[789] == (222, request2_id)
+        # Restore must not preload every pending request into memory: entries
+        # are loaded lazily on demand, so guilds with screenshot timeout
+        # disabled do not accumulate entries on every boot
+        assert len(verification_cog._pending_dm_verifications) == 0
+
+        # Lazy lookup still resolves both requests from the database
+        assert await verification_cog._get_pending_verification(456) == (111, request1_id)
+        assert await verification_cog._get_pending_verification(789) == (222, request2_id)
 
     async def test_restore_ignores_pending_review(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -10115,8 +10118,7 @@ class TestRestorePendingVerificationsWithTimer:
             await verification_cog._restore_pending_verifications()
 
         # Verify that the timer was created
-        assert 456 in verification_cog._pending_dm_verifications
-        # The timer should exist (or have executed if time already passed)
+        assert len(verification_cog._screenshot_timers) == 1
 
         # Clean up timers
         for task in verification_cog._screenshot_timers.values():

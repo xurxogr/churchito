@@ -449,7 +449,7 @@ async def handle_dm_screenshots(
             await session.commit()
             return
 
-        del cog._pending_dm_verifications[message.author.id]
+        cog._pending_dm_verifications.pop(message.author.id, None)
 
         cog.cancel_screenshot_timer(request_id)
 

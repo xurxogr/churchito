@@ -84,7 +84,12 @@ class VerificationCog(commands.Cog):
             self._health_check_started = True
 
     async def _restore_pending_verifications(self) -> None:
-        """Restore pending verifications from the database."""
+        """Restore screenshot timers for pending verifications.
+
+        Pending requests are not preloaded into memory: lookups fall back to
+        the database on demand (see _get_pending_verification), so guilds with
+        the screenshot timeout disabled do not accumulate entries on every boot.
+        """
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
             config_service = ConfigService(session=session)
@@ -94,11 +99,6 @@ class VerificationCog(commands.Cog):
             timers_restored = 0
 
             for request in pending_requests:
-                self._pending_dm_verifications[request.user_id] = (
-                    request.guild_id,
-                    request.id,
-                )
-
                 # Restore timer if configured
                 config = await config_service.get_all_config(
                     guild_id=request.guild_id,
