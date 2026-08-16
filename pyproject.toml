@@ -92,7 +92,7 @@ disallow_incomplete_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["discord.*", "nanoid", "nanoid.*"]
+module = ["discord.*", "nanoid"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

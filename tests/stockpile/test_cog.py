@@ -1956,7 +1956,7 @@ class TestRegisterGuildCommands:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert mock_guild.id not in stockpile_cog._registered_commands
-        stockpile_cog.bot.tree.add_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_not_called()
 
     async def test_unregisters_commands_when_cog_disabled(
         self,
@@ -1980,7 +1980,7 @@ class TestRegisterGuildCommands:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert guild_id not in stockpile_cog._registered_commands
-        stockpile_cog.bot.tree.remove_command.assert_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.remove_command.assert_called()
 
     async def test_does_not_register_without_command_channel(
         self,
@@ -2000,7 +2000,7 @@ class TestRegisterGuildCommands:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert guild_id not in stockpile_cog._registered_commands
-        stockpile_cog.bot.tree.add_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_not_called()
 
     async def test_registers_commands_with_channel_configured(
         self,
@@ -2025,7 +2025,7 @@ class TestRegisterGuildCommands:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert guild_id in stockpile_cog._registered_commands
-        assert stockpile_cog.bot.tree.add_command.call_count == 4  # type: ignore[attr-defined]
+        assert stockpile_cog.bot.tree.add_command.call_count == 4
 
 
 class TestRegisterCommand:
@@ -2042,8 +2042,8 @@ class TestRegisterCommand:
         await stockpile_cog._register_command(mock_guild, "add", "stockpile_add", "Add stockpile")
 
         # Should not add or remove since name is same
-        stockpile_cog.bot.tree.add_command.assert_not_called()  # type: ignore[attr-defined]
-        stockpile_cog.bot.tree.remove_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_not_called()
+        stockpile_cog.bot.tree.remove_command.assert_not_called()
 
     async def test_removes_old_command_before_registering_new(
         self,
@@ -2055,10 +2055,8 @@ class TestRegisterCommand:
 
         await stockpile_cog._register_command(mock_guild, "add", "new_add_name", "Add stockpile")
 
-        stockpile_cog.bot.tree.remove_command.assert_called_with(  # type: ignore[attr-defined]
-            "old_add_name", guild=mock_guild
-        )
-        stockpile_cog.bot.tree.add_command.assert_called_once()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.remove_command.assert_called_with("old_add_name", guild=mock_guild)
+        stockpile_cog.bot.tree.add_command.assert_called_once()
 
     async def test_registers_show_command(
         self,
@@ -2072,7 +2070,7 @@ class TestRegisterCommand:
             mock_guild, "show", "stockpile_show", "Show stockpiles"
         )
 
-        stockpile_cog.bot.tree.add_command.assert_called_once()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_called_once()
         assert stockpile_cog._registered_commands[mock_guild.id]["show"] == "stockpile_show"
 
     async def test_registers_delete_command(
@@ -2087,7 +2085,7 @@ class TestRegisterCommand:
             mock_guild, "delete", "stockpile_delete", "Delete stockpile"
         )
 
-        stockpile_cog.bot.tree.add_command.assert_called_once()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_called_once()
         assert stockpile_cog._registered_commands[mock_guild.id]["delete"] == "stockpile_delete"
 
     async def test_ignores_unknown_command_key(
@@ -2102,7 +2100,7 @@ class TestRegisterCommand:
             mock_guild, "unknown", "some_name", "Some description"
         )
 
-        stockpile_cog.bot.tree.add_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_not_called()
 
 
 class TestUnregisterGuildCommands:
@@ -2122,7 +2120,7 @@ class TestUnregisterGuildCommands:
 
         await stockpile_cog._unregister_guild_commands(mock_guild)
 
-        assert stockpile_cog.bot.tree.remove_command.call_count == 3  # type: ignore[attr-defined]
+        assert stockpile_cog.bot.tree.remove_command.call_count == 3
         assert mock_guild.id not in stockpile_cog._registered_commands
 
     async def test_handles_empty_registered_commands(
@@ -2134,7 +2132,7 @@ class TestUnregisterGuildCommands:
         # No commands registered for this guild
         await stockpile_cog._unregister_guild_commands(mock_guild)
 
-        stockpile_cog.bot.tree.remove_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.remove_command.assert_not_called()
 
 
 class TestSyncGuildCommands:
@@ -2148,9 +2146,7 @@ class TestSyncGuildCommands:
         """Test successful command sync."""
         await stockpile_cog._sync_guild_commands(mock_guild)
 
-        stockpile_cog.bot.tree.sync.assert_called_once_with(  # type: ignore[attr-defined]
-            guild=mock_guild
-        )
+        stockpile_cog.bot.tree.sync.assert_called_once_with(guild=mock_guild)
 
     async def test_handles_sync_error(
         self,
@@ -2158,9 +2154,7 @@ class TestSyncGuildCommands:
         mock_guild: MagicMock,
     ) -> None:
         """Test that sync errors are handled gracefully."""
-        stockpile_cog.bot.tree.sync = AsyncMock(  # type: ignore[method-assign]
-            side_effect=Exception("Sync failed")
-        )
+        stockpile_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Sync failed"))
 
         # Should not raise
         await stockpile_cog._sync_guild_commands(mock_guild)
@@ -2180,7 +2174,7 @@ class TestOnReady:
     ) -> None:
         """Test that on_ready registers commands for all guilds."""
         guild_id = mock_guild.id
-        stockpile_cog.bot.guilds = [mock_guild]  # type: ignore[misc]
+        stockpile_cog.bot.guilds = [mock_guild]
 
         async with test_database.session() as session:
             config_service = ConfigService(session)
@@ -2203,7 +2197,7 @@ class TestOnReady:
         mock_guild: MagicMock,
     ) -> None:
         """Test that registration errors don't stop the process."""
-        stockpile_cog.bot.guilds = [mock_guild]  # type: ignore[misc]
+        stockpile_cog.bot.guilds = [mock_guild]
 
         # Mock _register_guild_commands to raise an exception
         with patch.object(
@@ -2285,7 +2279,7 @@ class TestOnConfigChanged:
         await stockpile_cog.on_config_changed(mock_guild, [ConfigKey.ADD_SUCCESS_TEXT])
 
         # Should not have called tree methods for re-registration
-        stockpile_cog.bot.tree.add_command.assert_not_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.add_command.assert_not_called()
 
 
 class TestOnCogToggled:
@@ -2330,7 +2324,7 @@ class TestOnCogToggled:
         await stockpile_cog.on_cog_toggled(mock_guild, enabled=False)
 
         assert guild_id not in stockpile_cog._registered_commands
-        stockpile_cog.bot.tree.sync.assert_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.sync.assert_called()
 
 
 # ===== CHANNEL CHECK TESTS =====
@@ -3164,7 +3158,7 @@ class TestRegisterGuildCommandsNoChannelWithExisting:
         await stockpile_cog._register_guild_commands(mock_guild)
 
         assert guild_id not in stockpile_cog._registered_commands
-        stockpile_cog.bot.tree.remove_command.assert_called()  # type: ignore[attr-defined]
+        stockpile_cog.bot.tree.remove_command.assert_called()
 
 
 class TestSendDeleteNotificationChannelNotFound:

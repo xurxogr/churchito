@@ -381,7 +381,7 @@ class TestFormatPinnedMessage:
 
         item_tpl = "**{name}**: `{code}` - {hex}/{city} - {roles} - {creator} - {created_at}"
         result = format_pinned_message(
-            stockpiles=stockpiles,  # type: ignore[arg-type]
+            stockpiles=stockpiles,
             header_template="**{hex} - {city}** ({count})",
             item_template=item_tpl,
             guild=guild,
