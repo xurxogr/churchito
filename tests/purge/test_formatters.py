@@ -279,6 +279,30 @@ class TestGetModMessageContent:
         assert "Log line 1" in result
         assert "Log line 2" in result
 
+    def test_logs_truncated_to_discord_limit(
+        self,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Test that excess log lines are trimmed to fit Discord's content limit."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Base message",
+            ConfigKey.MOD_STATUS_PENDING: "Pending",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+        logs = [f"[{i:03d}] " + "x" * 80 for i in range(100)]
+
+        result = get_mod_message_content(
+            guild=mock_guild,
+            record=mock_purge_record,
+            config=config,
+            execution_logs=logs,
+        )
+
+        assert len(result) <= 2000
+        assert "[099]" in result
+        assert "[000]" not in result
+
     def test_without_execution_logs(
         self,
         mock_guild: MagicMock,

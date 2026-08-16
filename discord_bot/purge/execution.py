@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
+from collections.abc import MutableSequence
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -17,6 +19,19 @@ if TYPE_CHECKING:
     from discord_bot.purge.cog import PurgeCog
 
 logger = logging.getLogger(__name__)
+
+# Bound the in-memory execution log: the mod message can only ever show the
+# newest lines, so older ones are dropped as new ones arrive
+EXECUTION_LOG_MAX_LINES = 50
+
+
+def make_execution_log() -> deque[str]:
+    """Create the bounded container for purge execution log lines.
+
+    Returns:
+        deque[str]: Deque keeping only the newest EXECUTION_LOG_MAX_LINES lines.
+    """
+    return deque(maxlen=EXECUTION_LOG_MAX_LINES)
 
 
 async def _apply_cleaning_to_member(
@@ -149,8 +164,9 @@ async def execute_purge(
         promoted_not_in_group = 0
         processed_users: set[int] = set()
 
-        # Execution logs (will be added to mod message)
-        execution_logs: list[str] = []
+        # Execution logs (will be added to mod message), bounded to the
+        # newest lines so large guilds cannot grow it without limit
+        execution_logs = make_execution_log()
 
         # Add simulation indicator once at the start
         if test_mode:
@@ -360,7 +376,7 @@ async def _execute_cleaning_phase(
     roles_to_add: list[int],
     confirmed_users: set[int],
     audit_level: int,
-    execution_logs: list[str],
+    execution_logs: MutableSequence[str],
 ) -> tuple[int, set[int]]:
     """Execute cleaning phase for non-confirmed users.
 
@@ -376,7 +392,7 @@ async def _execute_cleaning_phase(
         roles_to_add (list[int]): Role IDs to add.
         confirmed_users (set[int]): Confirmed user IDs.
         audit_level (int): Audit level.
-        execution_logs (list[str]): Execution logs list.
+        execution_logs (MutableSequence[str]): Execution log lines.
 
     Returns:
         tuple[int, set[int]]: (cleaned_count, processed_users)
@@ -450,7 +466,7 @@ async def _execute_global_cleaning_phase(
     roles_to_add: list[int],
     confirmed_users: set[int],
     audit_level: int,
-    execution_logs: list[str],
+    execution_logs: MutableSequence[str],
 ) -> tuple[int, set[int]]:
     """Execute global cleaning phase for non-confirmed users.
 
@@ -468,7 +484,7 @@ async def _execute_global_cleaning_phase(
         roles_to_add (list[int]): Role IDs to add.
         confirmed_users (set[int]): Confirmed user IDs.
         audit_level (int): Audit level.
-        execution_logs (list[str]): Execution logs list.
+        execution_logs (MutableSequence[str]): Execution log lines.
 
     Returns:
         tuple[int, set[int]]: (cleaned_count, processed_users)
@@ -554,7 +570,7 @@ async def _execute_promotion_phase(
     confirmed_users: set[int],
     processed_users: set[int],
     audit_level: int,
-    execution_logs: list[str],
+    execution_logs: MutableSequence[str],
 ) -> tuple[int, int, set[int]]:
     """Execute promotions phase.
 
@@ -571,7 +587,7 @@ async def _execute_promotion_phase(
         confirmed_users (set[int]): Confirmed user IDs.
         processed_users (set[int]): Already processed user IDs.
         audit_level (int): Audit level.
-        execution_logs (list[str]): Execution logs list.
+        execution_logs (MutableSequence[str]): Execution log lines.
 
     Returns:
         tuple[int, int, set[int]]: (promoted_in_group, promoted_not_in_group, promoted_users)
@@ -743,7 +759,7 @@ async def _execute_global_removal_phase(
     config: dict[str, Any],
     global_roles_to_remove: list[int],
     audit_level: int,
-    execution_logs: list[str],
+    execution_logs: MutableSequence[str],
 ) -> int:
     """Execute global role removal phase.
 
@@ -757,7 +773,7 @@ async def _execute_global_removal_phase(
         config (dict[str, Any]): Cog configuration.
         global_roles_to_remove (list[int]): Role IDs to remove globally.
         audit_level (int): Audit level.
-        execution_logs (list[str]): Execution logs list.
+        execution_logs (MutableSequence[str]): Execution log lines.
 
     Returns:
         int: Number of users whose roles were removed.

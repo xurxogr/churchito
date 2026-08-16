@@ -12,13 +12,30 @@ from discord_bot.common.services.database import DatabaseService
 from discord_bot.purge.cog import PurgeCog
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.execution import (
+    EXECUTION_LOG_MAX_LINES,
     _execute_cleaning_phase,
     _execute_global_cleaning_phase,
     _execute_global_removal_phase,
     _execute_promotion_phase,
     execute_purge,
+    make_execution_log,
 )
 from discord_bot.purge.service import PurgeService
+
+
+class TestMakeExecutionLog:
+    """Tests for make_execution_log."""
+
+    def test_bounded_and_drops_oldest(self) -> None:
+        """Test that the log keeps only the newest lines."""
+        log = make_execution_log()
+
+        for i in range(EXECUTION_LOG_MAX_LINES + 10):
+            log.append(f"line {i}")
+
+        assert len(log) == EXECUTION_LOG_MAX_LINES
+        assert log[0] == "line 10"
+        assert log[-1] == f"line {EXECUTION_LOG_MAX_LINES + 9}"
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 """Formatting functions for the purge cog."""
 
+from collections.abc import Sequence
 from typing import Any
 
 import discord
@@ -7,6 +8,43 @@ import discord
 from discord_bot.purge.config import BUTTON_STYLES
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.models import PurgeRecord
+
+# Discord rejects message content longer than this
+_MAX_CONTENT_LENGTH = 2000
+_LOGS_HEADER = "\n\n**Logs:**\n"
+_TRUNCATION_MARKER = "…"
+
+
+def _fit_log_lines(*, lines: Sequence[str], available: int) -> str:
+    """Join the newest log lines that fit in the available space.
+
+    Older lines are dropped first; a truncation marker is prepended
+    when any line had to be dropped.
+
+    Args:
+        lines (Sequence[str]): Log lines, oldest first.
+        available (int): Maximum length of the joined text.
+
+    Returns:
+        str: Joined log text, empty if nothing fits.
+    """
+    if available <= 0:
+        return ""
+
+    kept: list[str] = []
+    used = 0
+    for line in reversed(lines):
+        extra = len(line) if not kept else len(line) + 1
+        if used + extra > available:
+            break
+        kept.append(line)
+        used += extra
+
+    if not kept:
+        return ""
+    if len(kept) < len(lines) and used + len(_TRUNCATION_MARKER) + 1 <= available:
+        kept.append(_TRUNCATION_MARKER)
+    return "\n".join(reversed(kept))
 
 
 def format_message(template: str | None = None, **kwargs: str | None) -> str:
@@ -89,7 +127,7 @@ def get_mod_message_content(
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
-    execution_logs: list[str] | None = None,
+    execution_logs: Sequence[str] | None = None,
 ) -> str:
     """Generate moderation message content.
 
@@ -97,7 +135,8 @@ def get_mod_message_content(
         guild (discord.Guild): Guild.
         record (PurgeRecord): Purge record.
         config (dict[str, Any]): Configuration.
-        execution_logs (list[str] | None): Execution logs to append.
+        execution_logs (Sequence[str] | None): Execution logs to append,
+            trimmed to fit Discord's content length limit.
 
     Returns:
         str: Message content.
@@ -140,9 +179,11 @@ def get_mod_message_content(
         dia=execution_date,
     )
 
-    # Append execution logs if provided
+    # Append execution logs if provided, keeping the newest lines that fit
     if execution_logs:
-        logs_text = "\n".join(execution_logs)
-        content = f"{content}\n\n**Logs:**\n{logs_text}"
+        available = _MAX_CONTENT_LENGTH - len(content) - len(_LOGS_HEADER)
+        logs_text = _fit_log_lines(lines=execution_logs, available=available)
+        if logs_text:
+            content = f"{content}{_LOGS_HEADER}{logs_text}"
 
     return content

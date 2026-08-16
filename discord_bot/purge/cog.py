@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -1109,7 +1110,7 @@ class PurgeCog(commands.Cog):
         record: PurgeRecord,
         config: dict[str, Any],
         remove_view: bool = False,
-        execution_logs: list[str] | None = None,
+        execution_logs: Sequence[str] | None = None,
     ) -> None:
         """Update the moderation message.
 
@@ -1118,7 +1119,7 @@ class PurgeCog(commands.Cog):
             record (PurgeRecord): Purge record.
             config (dict[str, Any]): Configuration.
             remove_view (bool): If True, removes the buttons.
-            execution_logs (list[str] | None): Execution logs to add.
+            execution_logs (Sequence[str] | None): Execution logs to add.
         """
         if not record.mod_message_id or not record.mod_channel_id:
             return
