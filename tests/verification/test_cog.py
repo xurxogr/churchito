@@ -9705,6 +9705,34 @@ class TestScreenshotTimer:
         # Limpiar
         second_task.cancel()
 
+    async def test_replaced_timer_keeps_new_entry(self, verification_cog: VerificationCog) -> None:
+        """Test that a cancelled timer does not pop its replacement's entry."""
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=5,
+        )
+        # Let the first timer enter its sleep so its cleanup runs on cancel
+        await asyncio.sleep(0)
+
+        verification_cog.start_screenshot_timer(
+            request_id=123,
+            guild_id=456,
+            user_id=789,
+            timeout_minutes=10,
+        )
+        second_task = verification_cog._screenshot_timers[123]
+
+        # Let the cancelled first timer run its except/finally blocks
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        assert verification_cog._screenshot_timers.get(123) is second_task
+
+        # Limpiar
+        second_task.cancel()
+
     async def test_cancel_screenshot_timer_returns_true(
         self, verification_cog: VerificationCog
     ) -> None:
@@ -10065,21 +10093,25 @@ class TestScreenshotTimerTask:
 
     async def test_timer_task_handles_exception(self, verification_cog: VerificationCog) -> None:
         """Test that timer handles exceptions correctly."""
-        verification_cog._screenshot_timers[123] = MagicMock()
-
         with patch.object(
             verification_cog,
             "_auto_reject_by_timeout",
             new_callable=AsyncMock,
             side_effect=Exception("Test error"),
         ):
-            # Should not throw exception
-            await verification_cog._screenshot_timer_task(
-                request_id=123,
-                guild_id=456,
-                user_id=789,
-                timeout_minutes=0,
+            # Run as a real task registered in the dict, like start_screenshot_timer does
+            task = asyncio.create_task(
+                verification_cog._screenshot_timer_task(
+                    request_id=123,
+                    guild_id=456,
+                    user_id=789,
+                    timeout_minutes=0,
+                )
             )
+            verification_cog._screenshot_timers[123] = task
+
+            # Should not throw exception
+            await task
 
         # Should clean up timer from dict
         assert 123 not in verification_cog._screenshot_timers
@@ -10087,8 +10119,6 @@ class TestScreenshotTimerTask:
     async def test_timer_task_cleans_up_on_cancel(self, verification_cog: VerificationCog) -> None:
         """Test that timer cleans up when cancelled."""
         import asyncio
-
-        verification_cog._screenshot_timers[123] = MagicMock()
 
         task = asyncio.create_task(
             verification_cog._screenshot_timer_task(
@@ -10098,6 +10128,8 @@ class TestScreenshotTimerTask:
                 timeout_minutes=999,  # Very long
             )
         )
+        # Register the real task, like start_screenshot_timer does
+        verification_cog._screenshot_timers[123] = task
 
         await asyncio.sleep(0)
         task.cancel()

@@ -256,7 +256,10 @@ class VerificationCog(commands.Cog):
         except Exception as e:
             logger.error(f"[{guild_name}] Error in screenshot timer for request {request_id}: {e}")
         finally:
-            self._screenshot_timers.pop(request_id, None)
+            # Only drop our own entry: a cancelled timer must not pop
+            # the replacement timer that superseded it
+            if self._screenshot_timers.get(request_id) is asyncio.current_task():
+                del self._screenshot_timers[request_id]
 
     async def _auto_reject_by_timeout(
         self,
