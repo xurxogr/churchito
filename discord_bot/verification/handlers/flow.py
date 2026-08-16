@@ -737,6 +737,12 @@ async def show_rejection_select(
                     reason = reason.replace("{shard}", expected_shard)
                 else:
                     continue
+            elif key == ConfigKey.REJECT_WRONG_FACTION:
+                expected_faction = config.get(ConfigKey.VERIFICATION_FACTION) or ""
+                if expected_faction:
+                    reason = reason.replace("{faction}", expected_faction)
+                else:
+                    continue
             reasons.append(reason)
 
     select_message = (

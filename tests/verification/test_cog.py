@@ -653,6 +653,113 @@ class TestShowRejectionSelect:
             # Should work without error (reason is omitted)
             interaction.response.send_message.assert_called_once()
 
+    async def test_faction_placeholder_replaced(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that placeholder {faction} is replaced in REJECT_WRONG_FACTION."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await session.commit()
+            public_id = request.public_id
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+
+        mock_user = MagicMock(spec=discord.Member)
+        mock_user.roles = [mock_role]
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        config_values: dict[str, Any] = {
+            "mod_roles": [999],
+            "reject_wrong_faction": "Wrong faction, must be {faction}",
+            "verification_faction": "colonial",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.show_rejection_select(
+                interaction=interaction, public_id=public_id
+            )
+
+            interaction.response.send_message.assert_called_once()
+            call_kwargs = interaction.response.send_message.call_args[1]
+            view = call_kwargs["view"]
+            option_labels = [option.label for option in view.children[0].options]
+            assert "Wrong faction, must be colonial" in option_labels
+            assert not any("{faction}" in label for label in option_labels)
+
+    async def test_faction_placeholder_skipped_when_no_faction_configured(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that REJECT_WRONG_FACTION is omitted if no faction configured."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await session.commit()
+            public_id = request.public_id
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+
+        mock_user = MagicMock(spec=discord.Member)
+        mock_user.roles = [mock_role]
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+
+        config_values: dict[str, Any] = {
+            "mod_roles": [999],
+            "reject_wrong_faction": "Wrong faction, must be {faction}",
+            # No verification_faction configured
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.show_rejection_select(
+                interaction=interaction, public_id=public_id
+            )
+
+            interaction.response.send_message.assert_called_once()
+            call_kwargs = interaction.response.send_message.call_args[1]
+            view = call_kwargs["view"]
+            option_labels = [option.label for option in view.children[0].options]
+            assert not any("faction" in label.lower() for label in option_labels)
+
     async def test_not_mod(self, verification_cog: VerificationCog) -> None:
         """Test that user without mod role cannot see the selector."""
         # Mock user without mod role
