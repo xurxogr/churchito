@@ -1,7 +1,9 @@
 """Tests for StockpileService."""
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from discord_bot.stockpile.models import Stockpile
 from discord_bot.stockpile.service import StockpileService
 
 
@@ -381,6 +383,44 @@ class TestStockpileService:
 
         names = await service.get_distinct_stockpile_names(guild_id=123, user_role_ids=[111])
         assert names == ["Stock1"]
+
+    async def test_name_autocomplete_does_not_hydrate_entities(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Test that autocomplete queries fetch names without loading ORM entities."""
+        service = StockpileService(test_session)
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock1",
+            code="111111",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        test_session.expunge_all()
+
+        loaded: list[object] = []
+
+        def track_load(target: object, context: object) -> None:
+            loaded.append(target)
+
+        event.listen(Stockpile, "load", track_load)
+        try:
+            at_location = await service.get_stockpile_names_at_location(
+                guild_id=123,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                user_role_ids=[111],
+            )
+            distinct = await service.get_distinct_stockpile_names(guild_id=123, user_role_ids=[111])
+        finally:
+            event.remove(Stockpile, "load", track_load)
+
+        assert at_location == ["Stock1"]
+        assert distinct == ["Stock1"]
+        assert loaded == []
 
     async def test_update_code(self, test_session: AsyncSession) -> None:
         """Test updating a stockpile's access code."""

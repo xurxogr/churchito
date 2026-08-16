@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from discord_bot.stockpile.models import Stockpile
+from discord_bot.stockpile.models import Stockpile, roles_can_view
 
 logger = logging.getLogger(__name__)
 
@@ -237,8 +237,23 @@ class StockpileService:
         Returns:
             list[str]: List of stockpile names
         """
-        stockpiles = await self.get_accessible_stockpiles(guild_id, user_role_ids, hex_key, city)
-        return [s.name for s in stockpiles]
+        # Autocomplete only needs names: fetch just the columns involved
+        # instead of hydrating full ORM entities
+        query = (
+            select(Stockpile.name, Stockpile.view_roles)
+            .where(
+                Stockpile.guild_id == guild_id,
+                Stockpile.hex_key == hex_key,
+                Stockpile.city == city,
+            )
+            .order_by(Stockpile.name)
+        )
+        result = await self._session.execute(query)
+        return [
+            name
+            for name, view_roles in result.all()
+            if roles_can_view(view_roles=view_roles, user_role_ids=user_role_ids)
+        ]
 
     async def get_distinct_stockpile_names(
         self,
@@ -257,8 +272,17 @@ class StockpileService:
         Returns:
             list[str]: Sorted list of distinct stockpile names
         """
-        stockpiles = await self.get_accessible_stockpiles(guild_id, user_role_ids)
-        return sorted({s.name for s in stockpiles})
+        # Autocomplete only needs names: fetch just the columns involved
+        # instead of hydrating full ORM entities
+        query = select(Stockpile.name, Stockpile.view_roles).where(Stockpile.guild_id == guild_id)
+        result = await self._session.execute(query)
+        return sorted(
+            {
+                name
+                for name, view_roles in result.all()
+                if roles_can_view(view_roles=view_roles, user_role_ids=user_role_ids)
+            }
+        )
 
     async def update_code(
         self,

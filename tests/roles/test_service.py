@@ -1,8 +1,9 @@
 """Tests for ReactionRolesService."""
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from discord_bot.roles.models import PanelType
+from discord_bot.roles.models import PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 
 
@@ -235,6 +236,35 @@ class TestReactionRolesService:
         assert len(names) == 2
         assert "ColorRoles" in names
         assert "GameRoles" in names
+
+    async def test_get_panel_names_does_not_hydrate_entities(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Test that the autocomplete query fetches names without loading ORM entities."""
+        service = ReactionRolesService(test_session)
+        await service.create_panel(
+            guild_id=123,
+            channel_id=456,
+            name="ColorRoles",
+            panel_type=PanelType.TOGGLE,
+            created_by=789,
+            guild_name="Test Guild",
+        )
+        test_session.expunge_all()
+
+        loaded: list[object] = []
+
+        def track_load(target: object, context: object) -> None:
+            loaded.append(target)
+
+        event.listen(ReactionPanel, "load", track_load)
+        try:
+            names = await service.get_panel_names(guild_id=123)
+        finally:
+            event.remove(ReactionPanel, "load", track_load)
+
+        assert names == ["ColorRoles"]
+        assert loaded == []
 
     async def test_get_by_name(self, test_session: AsyncSession) -> None:
         """Test getting panel by name."""

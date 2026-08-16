@@ -14,6 +14,21 @@ def _generate_public_id() -> str:
     return str(generate(size=21))
 
 
+def roles_can_view(*, view_roles: list[int], user_role_ids: list[int]) -> bool:
+    """Check if a user's roles grant visibility for a stockpile.
+
+    Args:
+        view_roles (list[int]): Role IDs allowed to view; empty means public.
+        user_role_ids (list[int]): Role IDs the user has.
+
+    Returns:
+        bool: True if the user has at least one view role
+    """
+    if not view_roles:
+        return True
+    return bool(set(user_role_ids) & set(view_roles))
+
+
 class Stockpile(Base):
     """Model for stockpiles.
 
@@ -62,6 +77,4 @@ class Stockpile(Base):
         Returns:
             bool: True if user has at least one view role
         """
-        if not self.view_roles:
-            return True
-        return bool(set(user_role_ids) & set(self.view_roles))
+        return roles_can_view(view_roles=self.view_roles, user_role_ids=user_role_ids)

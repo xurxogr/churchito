@@ -160,8 +160,14 @@ class ReactionRolesService:
         Returns:
             list[str]: List of panel names
         """
-        panels = await self.get_all_for_guild(guild_id)
-        return [p.name for p in panels]
+        # Autocomplete only needs names: fetch just the column
+        # instead of hydrating full ORM entities
+        result = await self._session.execute(
+            select(ReactionPanel.name)
+            .where(ReactionPanel.guild_id == guild_id)
+            .order_by(ReactionPanel.name)
+        )
+        return list(result.scalars().all())
 
     async def get_by_name(self, guild_id: int, name: str) -> ReactionPanel | None:
         """Get a panel by name within a guild.
