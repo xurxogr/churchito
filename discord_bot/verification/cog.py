@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from collections.abc import Coroutine
 from datetime import UTC, datetime
 from typing import Any
@@ -46,6 +47,10 @@ from discord_bot.verification.views import ModReviewView, VerificationPanelView
 
 logger = logging.getLogger(__name__)
 
+# Safety-net expiry for the per-guild welcome card gate cache; the cache is
+# also invalidated explicitly on config changes, cog toggles and guild removal
+_WELCOME_GATE_TTL_SECONDS = 60.0
+
 
 class VerificationCog(commands.Cog):
     """Cog for the user verification system."""
@@ -65,6 +70,9 @@ class VerificationCog(commands.Cog):
         # Strong references to fire-and-forget tasks: the event loop only
         # keeps weak references, so untracked tasks can be GC'd before running
         self._background_tasks: set[asyncio.Task[None]] = set()
+        # Welcome card gate per guild: (expiry, required role IDs or None if
+        # inactive), so on_member_update doesn't hit the DB on every role change
+        self._welcome_gate_cache: dict[int, tuple[float, list[int] | None]] = {}
         # User locks to prevent race conditions on verification start
         self._user_locks = KeyedLocks()
 
@@ -383,6 +391,37 @@ class VerificationCog(commands.Cog):
             config_service = ConfigService(session=session)
             return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
 
+    async def _get_welcome_card_gate(self, guild_id: int) -> list[int] | None:
+        """Get the required role IDs for the welcome card, or None if inactive.
+
+        Cached per guild with a short TTL: on_member_update fires for every
+        role change of every member, so this avoids opening database sessions
+        per event. The cache is invalidated on config changes, cog toggles
+        and guild removal.
+
+        Args:
+            guild_id (int): Guild ID
+
+        Returns:
+            list[int] | None: Required role IDs, or None if the cog or the
+                welcome card is disabled.
+        """
+        now = time.monotonic()
+        cached = self._welcome_gate_cache.get(guild_id)
+        if cached is not None and cached[0] > now:
+            return cached[1]
+
+        gate: list[int] | None = None
+        async with self.bot.database.session() as session:
+            config_service = ConfigService(session=session)
+            if await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME):
+                config = await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+                if config.get(ConfigKey.WELCOME_CARD_ENABLED):
+                    gate = list(config.get(ConfigKey.WELCOME_CARD_REQUIRED_ROLES) or [])
+
+        self._welcome_gate_cache[guild_id] = (now + _WELCOME_GATE_TTL_SECONDS, gate)
+        return gate
+
     # Configuration keys that require updating the panel
     _PANEL_UPDATE_KEYS = frozenset(
         {
@@ -421,6 +460,7 @@ class VerificationCog(commands.Cog):
             guild (discord.Guild): Guild where configuration changed
             keys (list[str]): List of configuration keys that changed
         """
+        self._welcome_gate_cache.pop(guild.id, None)
         keys_set = set(keys)
 
         # Check if any panel key changed
@@ -442,6 +482,7 @@ class VerificationCog(commands.Cog):
             guild (discord.Guild): Guild where state changed
             enabled (bool): True if enabled, False if disabled
         """
+        self._welcome_gate_cache.pop(guild.id, None)
         if enabled:
             logger.info(f"[{guild.name}] Cog enabled, creating panel")
             await self._check_verification_message(guild=guild, recreate=True)
@@ -1264,25 +1305,23 @@ class VerificationCog(commands.Cog):
             return
 
         try:
-            if not await self._is_cog_enabled(after.guild.id):
+            required_role_ids = await self._get_welcome_card_gate(after.guild.id)
+            if required_role_ids is None:
                 return
 
-            async with self.bot.database.session() as session:
-                config_service = ConfigService(session=session)
-                config = await config_service.get_all_config(
-                    guild_id=after.guild.id, cog_name=COG_NAME
-                )
-
-            if not config.get(ConfigKey.WELCOME_CARD_ENABLED):
-                return
-
-            required_role_ids = config.get(ConfigKey.WELCOME_CARD_REQUIRED_ROLES) or []
             if not should_trigger_welcome_card(
                 before_role_ids=before_role_ids,
                 after_role_ids=after_role_ids,
                 required_role_ids=required_role_ids,
             ):
                 return
+
+            # Fetch the full config fresh only when actually posting the card
+            async with self.bot.database.session() as session:
+                config_service = ConfigService(session=session)
+                config = await config_service.get_all_config(
+                    guild_id=after.guild.id, cog_name=COG_NAME
+                )
 
             await post_welcome_card(guild=after.guild, config=config, member=after)
         except Exception as e:
@@ -1296,6 +1335,7 @@ class VerificationCog(commands.Cog):
             guild (discord.Guild): Guild the bot left.
         """
         self._last_health_check.pop(guild.id, None)
+        self._welcome_gate_cache.pop(guild.id, None)
         self._pending_dm_verifications = {
             user_id: pending
             for user_id, pending in self._pending_dm_verifications.items()

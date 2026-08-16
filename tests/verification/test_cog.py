@@ -4472,6 +4472,125 @@ class TestCogLifecycle:
         assert len(cog._background_tasks) == 0
 
 
+class TestWelcomeCardGateCache:
+    """Tests for the TTL-cached welcome card gate used by on_member_update."""
+
+    def _make_member_pair(self) -> tuple[MagicMock, MagicMock]:
+        """Create a before/after member pair with a role change that never triggers."""
+        before = MagicMock(spec=discord.Member)
+        after = MagicMock(spec=discord.Member)
+        role_before = MagicMock()
+        role_before.id = 1
+        role_after = MagicMock()
+        role_after.id = 2
+        before.roles = [role_before]
+        after.roles = [role_after]
+        after.guild = MagicMock()
+        after.guild.id = 123
+        after.guild.name = "Test Guild"
+        return before, after
+
+    async def test_member_update_reuses_cached_gate(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Test that consecutive role updates hit the database only once."""
+        before, after = self._make_member_pair()
+
+        with (
+            patch.object(
+                ConfigService,
+                "is_cog_enabled",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_enabled,
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={
+                    ConfigKey.WELCOME_CARD_ENABLED: True,
+                    ConfigKey.WELCOME_CARD_REQUIRED_ROLES: [111],
+                },
+            ),
+        ):
+            await verification_cog.on_member_update(before, after)
+            await verification_cog.on_member_update(before, after)
+
+        assert mock_enabled.await_count == 1
+
+    async def test_gate_cache_expires_after_ttl(self, verification_cog: VerificationCog) -> None:
+        """Test that an expired cache entry is refreshed from the database."""
+        before, after = self._make_member_pair()
+
+        with (
+            patch.object(
+                ConfigService,
+                "is_cog_enabled",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_enabled,
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={
+                    ConfigKey.WELCOME_CARD_ENABLED: True,
+                    ConfigKey.WELCOME_CARD_REQUIRED_ROLES: [111],
+                },
+            ),
+        ):
+            await verification_cog.on_member_update(before, after)
+
+            # Force the entry to be expired
+            expires_at, gate = verification_cog._welcome_gate_cache[123]
+            verification_cog._welcome_gate_cache[123] = (expires_at - 10_000, gate)
+
+            await verification_cog.on_member_update(before, after)
+
+        assert mock_enabled.await_count == 2
+
+    async def test_config_change_invalidates_gate_cache(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Test that a dashboard config change drops the cached gate."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 123
+        guild.name = "Test Guild"
+        verification_cog._welcome_gate_cache[123] = (float("inf"), [111])
+
+        await verification_cog.on_config_changed(guild, ["welcome_card_enabled"])
+
+        assert 123 not in verification_cog._welcome_gate_cache
+
+    async def test_cog_toggle_invalidates_gate_cache(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Test that enabling/disabling the cog drops the cached gate."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 123
+        guild.name = "Test Guild"
+        verification_cog._welcome_gate_cache[123] = (float("inf"), [111])
+
+        with patch.object(
+            verification_cog,
+            "_check_verification_message",
+            new_callable=AsyncMock,
+        ):
+            await verification_cog.on_cog_toggled(guild, enabled=True)
+
+        assert 123 not in verification_cog._welcome_gate_cache
+
+    async def test_guild_remove_clears_gate_cache(self, verification_cog: VerificationCog) -> None:
+        """Test that leaving a guild drops its cached gate."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 123
+        verification_cog._welcome_gate_cache[123] = (float("inf"), [111])
+
+        await verification_cog.on_guild_remove(guild)
+
+        assert 123 not in verification_cog._welcome_gate_cache
+
+
 class TestHealthCheckTaskMethods:
     """Tests for health check task loop methods."""
 
