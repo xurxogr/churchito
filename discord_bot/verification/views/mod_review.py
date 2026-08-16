@@ -67,3 +67,8 @@ class ModReviewView(discord.ui.View):
 
         self.add_item(AcceptButton(public_id=public_id, label=accept_label))
         self.add_item(RejectButton(public_id=public_id, label=reject_label))
+
+        # Display-only view: interactions are handled by on_interaction, so
+        # stop it immediately to keep Message.edit from registering it in the
+        # view store, where timeout=None views would accumulate forever
+        self.stop()

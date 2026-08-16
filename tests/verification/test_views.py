@@ -153,6 +153,17 @@ class TestModReviewView:
     # Buttons do not have their own callbacks.
     # Interactions are handled by the cog's on_interaction.
 
+    async def test_view_is_finished_on_creation(self) -> None:
+        """Test that the view never registers in the view store.
+
+        The view is display-only (buttons are handled by on_interaction), so it
+        must be finished at creation time: Message.edit only stores views that
+        are not finished, and stored timeout=None views would leak forever.
+        """
+        view = ModReviewView(public_id="test123")
+
+        assert view.is_finished()
+
 
 class TestRejectionReasonView:
     """Tests for RejectionReasonView."""
