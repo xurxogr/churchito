@@ -75,6 +75,44 @@ async def require_auth(
     return user
 
 
+def is_bot_owner(request: Request, user: dict[str, Any]) -> bool:
+    """Check whether the user is one of the configured bot owners.
+
+    Args:
+        request (Request): FastAPI request
+        user (dict[str, Any]): Authenticated user
+
+    Returns:
+        bool: True if the user's ID is in settings.web.owner_ids
+    """
+    user_id = int(user.get("id", 0))
+    return user_id in request.app.state.settings.web.owner_ids
+
+
+def require_bot_owner(request: Request, user: dict[str, Any]) -> dict[str, Any]:
+    """Require the user to be a bot owner.
+
+    Use for actions whose effect is global to the bot process (not scoped to a
+    single guild), which guild-level admins must not be able to trigger.
+
+    Args:
+        request (Request): FastAPI request
+        user (dict[str, Any]): Authenticated user
+
+    Returns:
+        dict[str, Any]: User data
+
+    Raises:
+        HTTPException: If the user is not a bot owner
+    """
+    if not is_bot_owner(request=request, user=user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only bot owners can perform this action",
+        )
+    return user
+
+
 async def require_guild_access(
     request: Request,
     guild_id: int,
@@ -102,8 +140,7 @@ async def require_guild_access(
     user_id = int(user.get("id", 0))
 
     # 1. Check if user is bot owner (from config)
-    owner_ids = request.app.state.settings.web.owner_ids
-    if user_id in owner_ids:
+    if is_bot_owner(request=request, user=user):
         return user
 
     # 2. Check if bot is in the guild

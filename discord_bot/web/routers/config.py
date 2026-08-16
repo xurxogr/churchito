@@ -15,7 +15,13 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.embed_builder import COLOR_TAGS, GLOBAL_PLACEHOLDERS
 from discord_bot.i18n import get_i18n_service
-from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
+from discord_bot.web.dependencies import (
+    DbSession,
+    RequireAuth,
+    is_bot_owner,
+    require_bot_owner,
+    require_guild_access,
+)
 from discord_bot.web.middleware import get_csrf_token
 
 logger = logging.getLogger(__name__)
@@ -517,6 +523,7 @@ async def _render_cog_settings(
             },
             "options": options_data,
             "enabled": is_enabled,
+            "can_reload": is_bot_owner(request=request, user=user) if user else False,
             "channels": channels,
             "roles": roles,
             "ConfigOptionType": ConfigOptionType,
@@ -796,6 +803,9 @@ async def reload_cog(
 ) -> HTMLResponse:
     """Reload a cog (extension reload).
 
+    Reloading an extension affects every guild served by this bot process,
+    so it is restricted to bot owners even though the route is guild-scoped.
+
     Args:
         request (Request): FastAPI request
         guild_id (int): Guild ID
@@ -805,7 +815,12 @@ async def reload_cog(
 
     Returns:
         HTMLResponse: Updated partial
+
+    Raises:
+        HTTPException: 403 if the user is not a bot owner, 404 if the cog does not exist
     """
+    require_bot_owner(request=request, user=user)
+
     # Validate cog exists before any operation
     schema_service = get_config_schema_service()
     if not schema_service.get_schema(cog_name):

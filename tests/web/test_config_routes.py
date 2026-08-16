@@ -572,6 +572,59 @@ class TestReloadCog:
             assert "error" in context
             assert "Error reloading" in context["error"]
 
+    async def test_reload_cog_requires_bot_owner(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_session: AsyncSession,
+    ) -> None:
+        """Test that a guild admin who is not a bot owner cannot reload cogs."""
+        mock_bot = MagicMock()
+        mock_bot.reload_extension = AsyncMock()
+        mock_config_request.app.state.bot = mock_bot
+        non_owner = {"id": "999999999999999999", "username": "guildadmin", "avatar": None}
+
+        with patch(
+            "discord_bot.web.routers.config.get_config_schema_service",
+            return_value=mock_schema_service,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await reload_cog(
+                    mock_config_request, 111222333, "test_cog", non_owner, test_session
+                )
+
+        assert exc_info.value.status_code == 403
+        mock_bot.reload_extension.assert_not_called()
+
+    async def test_reload_button_only_for_bot_owner(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Test that the rendered settings expose can_reload only to bot owners."""
+        non_owner = {"id": "999999999999999999", "username": "guildadmin", "avatar": None}
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.get_all_config = AsyncMock(return_value={})
+            mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
+            mock_config_service_class.return_value = mock_config_service
+            templates = mock_config_request.app.state.templates
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", test_user, test_session)
+            assert templates.TemplateResponse.call_args.kwargs["context"]["can_reload"] is True
+
+            await cog_settings(mock_config_request, 111222333, "test_cog", non_owner, test_session)
+            assert templates.TemplateResponse.call_args.kwargs["context"]["can_reload"] is False
+
 
 class TestCogSettingsDisplayValues:
     """Tests for display_value of CHANNEL_LIST and ROLE_LIST."""

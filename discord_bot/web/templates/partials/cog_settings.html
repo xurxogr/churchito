@@ -36,6 +36,7 @@
                 </label>
             </form>
 
+            {% if can_reload %}
             <button
                 class="btn btn-secondary"
                 hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reload"
@@ -44,6 +45,7 @@
             >
                 {{ _('ui.buttons.reload', lang) }}
             </button>
+            {% endif %}
         </div>
         {% endif %}
     </div>
