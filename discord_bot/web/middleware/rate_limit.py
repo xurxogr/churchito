@@ -69,19 +69,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._last_cleanup = time.time()
 
     def _get_client_ip(self, request: Request) -> str:
-        """Get client IP considering proxies."""
-        # X-Forwarded-For may contain multiple IPs
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            # Take the first IP (original client)
-            return forwarded.split(",")[0].strip()
+        """Get client IP.
 
-        # X-Real-IP is another common option
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-
-        # Fallback to direct client
+        Deliberately does NOT read X-Forwarded-For/X-Real-IP:
+        ProxyHeadersMiddleware already rewrites request.client from those
+        headers for trusted proxies only. Parsing the raw headers here would
+        let any client forge a new IP per request, bypassing the limit and
+        growing the per-IP state dict without bound.
+        """
         if request.client:
             return request.client.host
 

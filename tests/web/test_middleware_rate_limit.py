@@ -56,27 +56,25 @@ class TestRateLimitState:
 class TestRateLimitMiddleware:
     """Tests for RateLimitMiddleware."""
 
-    def test_get_client_ip_from_forwarded_for(self) -> None:
-        """Test getting IP from X-Forwarded-For."""
+    def test_get_client_ip_ignores_forwarded_headers(self) -> None:
+        """Test that spoofable forwarded headers are ignored.
+
+        ProxyHeadersMiddleware already resolves request.client from
+        X-Forwarded-For for trusted proxies; parsing the raw headers here
+        would let any client mint unlimited rate-limit state entries.
+        """
         middleware = RateLimitMiddleware(MagicMock())
         request = MagicMock(spec=Request)
-        request.headers = {"x-forwarded-for": "192.168.1.1, 10.0.0.1"}
-        request.client = None
+        request.headers = {
+            "x-forwarded-for": "1.2.3.4",
+            "x-real-ip": "5.6.7.8",
+        }
+        request.client = MagicMock()
+        request.client.host = "192.168.1.3"
 
         ip = middleware._get_client_ip(request)
 
-        assert ip == "192.168.1.1"
-
-    def test_get_client_ip_from_real_ip(self) -> None:
-        """Test getting IP from X-Real-IP."""
-        middleware = RateLimitMiddleware(MagicMock())
-        request = MagicMock(spec=Request)
-        request.headers = {"x-real-ip": "192.168.1.2"}
-        request.client = None
-
-        ip = middleware._get_client_ip(request)
-
-        assert ip == "192.168.1.2"
+        assert ip == "192.168.1.3"
 
     def test_get_client_ip_from_client(self) -> None:
         """Test getting IP from client."""
@@ -225,3 +223,20 @@ class TestRateLimitMiddlewareIntegration:
         for _ in range(50):
             response = app_with_rate_limit.get("/unprotected")
             assert response.status_code == 200
+
+    def test_spoofed_forwarded_header_cannot_bypass_limit(
+        self, app_with_rate_limit: TestClient
+    ) -> None:
+        """Test that spoofing X-Forwarded-For neither bypasses the limit nor mints state.
+
+        Each request uses a distinct forged IP; all must still count
+        against the real client, so the 11th request is rejected.
+        """
+        for i in range(10):
+            response = app_with_rate_limit.get(
+                "/auth/login", headers={"X-Forwarded-For": f"10.0.0.{i}"}
+            )
+            assert response.status_code == 200
+
+        response = app_with_rate_limit.get("/auth/login", headers={"X-Forwarded-For": "10.0.0.99"})
+        assert response.status_code == 429
