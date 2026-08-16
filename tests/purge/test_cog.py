@@ -1517,6 +1517,61 @@ class TestSendUserMessage:
 
             mock_channel.send.assert_called_once()
 
+    async def test_date_placeholders_replaced(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that {date}, {relative_date} and {day} are replaced in the message."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 123
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 999
+        mock_channel.send = AsyncMock(return_value=mock_message)
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        config: dict[str, Any] = {
+            ConfigKey.USER_CHANNEL: 123,
+            ConfigKey.WAR_MESSAGE_TEMPLATE: (
+                "Date: {date} | Relative: {relative_date} | Day: {day}"
+            ),
+            ConfigKey.USER_BUTTON_COLOR: "green",
+            ConfigKey.USER_BUTTON_TEXT: "Confirm",
+            ConfigKey.WAR_AFFECTED_ROLES: [],
+            ConfigKey.USER_REACTION_ROLE: None,
+        }
+
+        scheduled_for = datetime.now(UTC) + timedelta(days=3)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=mock_guild.id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+            )
+            await session.flush()
+
+            await purge_cog._send_user_message(
+                guild=mock_guild,
+                record=record,
+                config=config,
+                session=session,
+            )
+
+            mock_channel.send.assert_called_once()
+            content = mock_channel.send.call_args[1]["content"]
+            unix_ts = int(record.scheduled_for.timestamp())
+            assert f"Date: <t:{unix_ts}:f> (<t:{unix_ts}:R>)" in content
+            assert f"Relative: <t:{unix_ts}:R>" in content
+            expected_day = record.scheduled_for.strftime("%Y-%m-%d %H:%M UTC")
+            assert f"Day: {expected_day}" in content
+            for token in ("{date}", "{relative_date}", "{day}"):
+                assert token not in content
+
 
 class TestOnGuildJoin:
     """Tests for on_guild_join."""

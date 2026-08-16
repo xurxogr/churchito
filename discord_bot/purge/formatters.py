@@ -135,6 +135,8 @@ def get_mod_message_content(
         required_reactions=str(required),
         authorized_by=authorized_by,
         cancellations=cancellations,
+        date=execution_date,
+        # Maintain compatibility with old placeholders
         dia=execution_date,
     )
 

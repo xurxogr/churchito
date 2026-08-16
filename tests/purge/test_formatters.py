@@ -220,6 +220,41 @@ class TestGetModMessageContent:
 
         assert "Authorized" in result
 
+    def test_date_placeholder_replaced(
+        self,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Test that placeholder {date} shows the scheduled execution date."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Execution date: {date}",
+            ConfigKey.MOD_STATUS_PENDING: "Pending",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purge_record, config=config)
+
+        expected_date = mock_purge_record.scheduled_for.strftime("%Y-%m-%d %H:%M UTC")
+        assert f"Execution date: {expected_date}" == result
+        assert "{date}" not in result
+
+    def test_legacy_dia_placeholder_replaced(
+        self,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Test that legacy placeholder {dia} still shows the execution date."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "Execution date: {dia}",
+            ConfigKey.MOD_STATUS_PENDING: "Pending",
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purge_record, config=config)
+
+        expected_date = mock_purge_record.scheduled_for.strftime("%Y-%m-%d %H:%M UTC")
+        assert f"Execution date: {expected_date}" == result
+
     def test_with_execution_logs(
         self,
         mock_guild: MagicMock,

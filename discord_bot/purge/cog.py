@@ -1203,10 +1203,13 @@ class PurgeCog(commands.Cog):
         content = format_message(
             template=template,
             roles=roles_text,
-            fecha=f"{discord_timestamp} ({discord_timestamp_relative})",
-            fecha_relativa=discord_timestamp_relative,
+            date=f"{discord_timestamp} ({discord_timestamp_relative})",
+            relative_date=discord_timestamp_relative,
+            day=f"{scheduled_date} {scheduled_time}",
             reaction_role=reaction_role_text,
             # Maintain compatibility with old placeholders
+            fecha=f"{discord_timestamp} ({discord_timestamp_relative})",
+            fecha_relativa=discord_timestamp_relative,
             dia=f"{scheduled_date} {scheduled_time}",
             reaction_rol=reaction_role_text,
         )
