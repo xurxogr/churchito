@@ -146,8 +146,7 @@ async def handle_verification_start(
     await interaction.response.defer(ephemeral=True)
 
     # Acquire user lock to prevent race conditions from rapid clicks
-    lock = await cog.get_user_lock(user.id)
-    async with lock:
+    async with cog._user_locks.acquire(user.id):
         await _handle_verification_start_locked(cog, interaction, guild, user, verification_type)
 
 

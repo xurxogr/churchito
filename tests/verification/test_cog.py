@@ -235,6 +235,54 @@ class TestHandleVerificationStart:
             call_args = interaction.followup.send.call_args
             assert "pending" in call_args[0][0].lower()
 
+    async def test_user_lock_evicted_after_flow(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that the per-user lock entry is removed after the flow finishes."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.guild.name = "Test Guild"
+        interaction.user = MagicMock(spec=discord.User)
+        interaction.user.id = 456
+        interaction.user.name = "TestUser"
+        interaction.user.display_name = "TestUser"
+        interaction.user.mention = "<@456>"
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "_get_mod_channel", return_value=mock_mod_channel),
+        ):
+            mock_config.return_value = {
+                "already_pending_message": "You already have a pending request.",
+                "verification_type_regular_display": "Normal",
+            }
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        assert len(verification_cog._user_locks) == 0
+
     async def test_pending_in_other_server(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:

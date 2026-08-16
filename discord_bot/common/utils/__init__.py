@@ -16,10 +16,12 @@ from discord_bot.common.utils.game_data import (
     is_valid_hex,
     load_hex_cities,
 )
+from discord_bot.common.utils.keyed_locks import KeyedLocks
 
 __all__ = [
     "DISCORD_CDN_DOMAINS",
     "EMBED_SECTIONS_COLUMNS",
+    "KeyedLocks",
     "delete_message",
     "get_embed_sections_columns",
     "get_hex_display_name",
