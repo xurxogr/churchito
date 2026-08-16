@@ -85,6 +85,17 @@ class TestModAuthorizationView:
         cancel_btn = next(c for c in view.children if isinstance(c, CancelButton))
         assert cancel_btn.style == discord.ButtonStyle.danger
 
+    async def test_view_is_finished_on_creation(self) -> None:
+        """Test that the view never registers in the view store.
+
+        The view is display-only (buttons are handled by on_interaction), so it
+        must be finished at creation time: send/edit only store views that are
+        not finished, and stored timeout=None views would leak forever.
+        """
+        view = ModAuthorizationView(public_id="test123", status=PurgeStatus.PENDING)
+
+        assert view.is_finished()
+
 
 class TestUserConfirmationView:
     """Tests for UserConfirmationView."""
@@ -122,3 +133,14 @@ class TestUserConfirmationView:
 
         button = next(c for c in view.children if isinstance(c, ConfirmButton))
         assert button.custom_id == "purge:confirm:test789"
+
+    async def test_view_is_finished_on_creation(self) -> None:
+        """Test that the view never registers in the view store.
+
+        The view is display-only (buttons are handled by on_interaction), so it
+        must be finished at creation time: send/edit only store views that are
+        not finished, and stored timeout=None views would leak forever.
+        """
+        view = UserConfirmationView(public_id="test123")
+
+        assert view.is_finished()

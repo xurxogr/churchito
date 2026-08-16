@@ -88,3 +88,8 @@ class ModAuthorizationView(discord.ui.View):
             )
         elif status in (PurgeStatus.AUTHORIZED, PurgeStatus.CANCEL_PENDING):
             self.add_item(CancelButton(public_id=public_id, label=cancel_label))
+
+        # Display-only view: interactions are handled by on_interaction, so
+        # stop it immediately to keep send/edit from registering it in the
+        # view store, where timeout=None views would accumulate forever
+        self.stop()

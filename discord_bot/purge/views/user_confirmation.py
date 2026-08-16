@@ -54,3 +54,8 @@ class UserConfirmationView(discord.ui.View):
         super().__init__(timeout=None)
 
         self.add_item(ConfirmButton(public_id=public_id, label=confirm_label, style=button_style))
+
+        # Display-only view: interactions are handled by on_interaction, so
+        # stop it immediately to keep send/edit from registering it in the
+        # view store, where timeout=None views would accumulate forever
+        self.stop()
