@@ -608,8 +608,10 @@ class PurgeCog(commands.Cog):
                     guild=guild, record=record, config=config, session=session
                 )
             else:
-                # Register in memory for expiration control
-                self._active_purges[guild.id] = (record.id, expires_at)
+                # Register in memory for expiration control; without a
+                # timeout, the scheduled execution time is the deadline so
+                # the purge cannot stay PENDING forever
+                self._active_purges[guild.id] = (record.id, expires_at or scheduled_for)
 
             await session.commit()
 
@@ -1283,10 +1285,15 @@ class PurgeCog(commands.Cog):
             async with self.bot.database.session() as session:
                 purge_service = PurgeService(session)
 
-                # Restore pending authorization purges
+                # Restore pending authorization purges; without a stored
+                # deadline the scheduled execution time is used, so the row
+                # cannot stay PENDING forever
                 pending_purges = await purge_service.get_pending_purges()
                 for record in pending_purges:
-                    self._active_purges[record.guild_id] = (record.id, record.expires_at)
+                    self._active_purges[record.guild_id] = (
+                        record.id,
+                        record.expires_at or record.scheduled_for,
+                    )
                     logger.info(f"Pending purge {record.id} restored for guild {record.guild_id}")
 
                 # Restore authorized purges pending execution

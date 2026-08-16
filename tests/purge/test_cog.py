@@ -1852,6 +1852,72 @@ class TestRestoreActivePurges:
 
         assert guild_id in purge_cog._active_purges
 
+    async def test_restores_pending_without_timeout_uses_scheduled_for(
+        self, purge_cog: PurgeCog, test_database: DatabaseService
+    ) -> None:
+        """Test that PENDING without expires_at is tracked with scheduled_for.
+
+        Entries with a None deadline are skipped forever by the expiry
+        sweeper, leaving the row PENDING in the database and blocking new
+        purges for the guild.
+        """
+        guild_id = 124
+        scheduled_for = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+                expires_at=None,
+            )
+            await session.commit()
+            purge_id = record.id
+
+        await purge_cog._restore_active_purges()
+
+        assert guild_id in purge_cog._active_purges
+        tracked_id, expires_at = purge_cog._active_purges[guild_id]
+        assert tracked_id == purge_id
+        assert expires_at is not None
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        assert expires_at == scheduled_for
+
+    async def test_expires_restored_pending_purge_without_timeout(
+        self, purge_cog: PurgeCog, test_database: DatabaseService
+    ) -> None:
+        """Test that an old PENDING purge without timeout expires after restore."""
+        guild_id = 125
+        scheduled_for = (datetime.now(UTC) - timedelta(hours=1)).replace(microsecond=0)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=456,
+                config_snapshot={},
+                scheduled_for=scheduled_for,
+                expires_at=None,
+            )
+            await session.commit()
+            purge_id = record.id
+
+        await purge_cog._restore_active_purges()
+        await purge_cog._check_expired_purges()
+
+        # The zombie row must be expired and dropped from tracking
+        assert guild_id not in purge_cog._active_purges
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            updated = await purge_service.get_purge(purge_id)
+            assert updated is not None
+            assert updated.status == PurgeStatus.EXPIRED
+
     async def test_restores_authorized_purges(
         self, purge_cog: PurgeCog, test_database: DatabaseService
     ) -> None:
