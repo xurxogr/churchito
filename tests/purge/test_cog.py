@@ -2943,8 +2943,7 @@ class TestExecutePurgeFullExecution:
         member1.name = "Member1"
         member1.display_name = "Member1"
         member1.roles = [from_role, mock_guild.default_role]
-        member1.remove_roles = AsyncMock()
-        member1.add_roles = AsyncMock()
+        member1.edit = AsyncMock()
 
         from_role.members = [member1]
 
@@ -2983,8 +2982,8 @@ class TestExecutePurgeFullExecution:
 
         await purge_cog._execute_purge(guild_id, purge_id)
 
-        # Verify promotion
-        member1.add_roles.assert_called()
+        # Verify promotion: from_role swapped for to_role in a single edit
+        member1.edit.assert_awaited_once_with(roles=[to_role])
 
 
 class TestSendUserMessageExtended:
@@ -4105,8 +4104,7 @@ class TestExecutePurgeWithRolesToRemoveAndAdd:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [affected_role, remove_role, mock_guild.default_role]
-        member.remove_roles = AsyncMock()
-        member.add_roles = AsyncMock()
+        member.edit = AsyncMock()
 
         affected_role.members = [member]
 
@@ -4145,9 +4143,8 @@ class TestExecutePurgeWithRolesToRemoveAndAdd:
 
         await purge_cog._execute_purge(guild_id, purge_id)
 
-        # Verify that roles were removed and added
-        member.remove_roles.assert_called()
-        member.add_roles.assert_called()
+        # Verify that the removal and addition happened in a single edit
+        member.edit.assert_awaited_once_with(roles=[affected_role, add_role])
 
 
 class TestExecutePurgeRoleForbidden:
@@ -4586,8 +4583,7 @@ class TestExecutePurgePromotionNotInAffected:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [from_role, mock_guild.default_role]
-        member.add_roles = AsyncMock()
-        member.remove_roles = AsyncMock()
+        member.edit = AsyncMock()
 
         from_role.members = [member]
 
@@ -4627,11 +4623,8 @@ class TestExecutePurgePromotionNotInAffected:
 
         await purge_cog._execute_purge(guild_id, purge_id)
 
-        # Should be promoted but NOT have from_role removed (not in affected)
-        member.add_roles.assert_called_with(to_role)
-        # remove_roles should NOT have been called with from_role
-        for call in member.remove_roles.call_args_list:
-            assert from_role not in call.args
+        # Should be promoted but keep from_role (not in affected)
+        member.edit.assert_awaited_once_with(roles=[from_role, to_role])
 
 
 class TestExecutePurgeRemoveReactionRoleForbidden:
@@ -4740,8 +4733,7 @@ class TestExecutePurgePromotionForbidden:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [from_role, mock_guild.default_role]
-        member.add_roles = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
-        member.remove_roles = AsyncMock()
+        member.edit = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
 
         from_role.members = [member]
 
@@ -5272,8 +5264,7 @@ class TestExecutePurgePromotionMemberAlreadyPromoted:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [from_role1, from_role2, mock_guild.default_role]
-        member.add_roles = AsyncMock()
-        member.remove_roles = AsyncMock()
+        member.edit = AsyncMock()
 
         from_role1.members = [member]
         from_role2.members = [member]
@@ -5320,7 +5311,7 @@ class TestExecutePurgePromotionMemberAlreadyPromoted:
         await purge_cog._execute_purge(guild_id, purge_id)
 
         # Should only be promoted once
-        assert member.add_roles.call_count == 1
+        member.edit.assert_awaited_once_with(roles=[from_role2, to_role1])
 
 
 class TestDefaultPromotionAlreadyProcessed:
@@ -5359,7 +5350,7 @@ class TestDefaultPromotionAlreadyProcessed:
         member.display_name = "Member"
         member.roles = [from_role, mock_guild.default_role]
         member.add_roles = AsyncMock()
-        member.remove_roles = AsyncMock()
+        member.edit = AsyncMock()
 
         from_role.members = [member]
 
@@ -5400,9 +5391,8 @@ class TestDefaultPromotionAlreadyProcessed:
         await purge_cog._execute_purge(guild_id, purge_id)
 
         # Should have been promoted to to_role, NOT default_role
-        # add_roles should be called once with to_role
-        assert member.add_roles.call_count == 1
-        member.add_roles.assert_called_with(to_role)
+        member.edit.assert_awaited_once_with(roles=[to_role])
+        member.add_roles.assert_not_called()
 
 
 class TestExecutePurgeRemoveRolesForbidden:
@@ -5436,8 +5426,7 @@ class TestExecutePurgeRemoveRolesForbidden:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [affected_role, remove_role, mock_guild.default_role]
-        member.remove_roles = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
-        member.add_roles = AsyncMock()
+        member.edit = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
 
         affected_role.members = [member]
 
@@ -5507,8 +5496,7 @@ class TestExecutePurgeAddRolesForbidden:
         member.name = "Member"
         member.display_name = "Member"
         member.roles = [affected_role, mock_guild.default_role]
-        member.edit = AsyncMock()
-        member.add_roles = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
+        member.edit = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
 
         affected_role.members = [member]
 

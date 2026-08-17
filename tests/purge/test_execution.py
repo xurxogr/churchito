@@ -17,6 +17,7 @@ from discord_bot.purge.cog import PurgeCog
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.execution import (
     EXECUTION_LOG_MAX_LINES,
+    _apply_cleaning_to_member,
     _execute_cleaning_phase,
     _execute_global_cleaning_phase,
     _execute_global_removal_phase,
@@ -348,8 +349,7 @@ class TestExecutePromotionPhase:
         member.id = 444555666  # In confirmed_users
         member.display_name = "Confirmed User"
         member.roles = [from_role]
-        member.remove_roles = AsyncMock()
-        member.add_roles = AsyncMock()
+        member.edit = AsyncMock()
 
         from_role.members = [member]
 
@@ -397,7 +397,7 @@ class TestExecutePromotionPhase:
             assert promoted_in == 1
             assert promoted_out == 0
             assert member.id in promoted_users
-            member.add_roles.assert_called_once_with(to_role)
+            member.edit.assert_awaited_once_with(roles=[to_role])
 
     async def test_skips_unconfirmed_members(
         self,
@@ -811,7 +811,7 @@ class TestExecuteGlobalCleaningPhase:
 
         assert cleaned_count == 1
         assert mock_member.id in processed_users
-        mock_member.remove_roles.assert_called()
+        mock_member.edit.assert_awaited_once_with(roles=[])
 
     async def test_skips_confirmed_members(
         self,
@@ -1088,7 +1088,7 @@ class TestExecuteGlobalCleaningPhase:
             )
 
         assert cleaned_count == 1
-        mock_member.add_roles.assert_called()
+        mock_member.edit.assert_awaited_once_with(roles=[mock_role_to_add])
 
     async def test_handles_forbidden_on_remove(
         self,
@@ -1106,7 +1106,7 @@ class TestExecuteGlobalCleaningPhase:
         mock_member.display_name = "TestUser"
         mock_member.bot = False
         mock_member.roles = [mock_role]
-        mock_member.remove_roles = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
+        mock_member.edit = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
 
         mock_guild.members = [mock_member]
         mock_guild.default_role = MagicMock()
@@ -1919,9 +1919,9 @@ def _make_global_member(guild: MagicMock, member_id: int) -> MagicMock:
     member.bot = False
     member.name = f"user{member_id}"
     member.display_name = f"user{member_id}"
-    member.roles = [guild.default_role]
-    member.remove_roles = AsyncMock()
-    member.add_roles = AsyncMock()
+    some_role = MagicMock(spec=discord.Role)
+    some_role.id = 1000 + member_id
+    member.roles = [guild.default_role, some_role]  # a global purge strips this role
     member.edit = AsyncMock()
     return member
 
@@ -2014,3 +2014,193 @@ class TestExecutePurgeSessions:
             record = await PurgeService(session).get_purge(purge_id)
         assert record is not None
         assert record.status == PurgeStatus.AUTHORIZED  # the cog marks it FAILED afterwards
+
+
+def _role(role_id: int, name: str) -> MagicMock:
+    role = MagicMock(spec=discord.Role)
+    role.id = role_id
+    role.name = name
+    return role
+
+
+def _member_with_roles(guild: MagicMock, member_id: int, roles: list[MagicMock]) -> MagicMock:
+    member = MagicMock(spec=discord.Member)
+    member.id = member_id
+    member.bot = False
+    member.name = f"user{member_id}"
+    member.display_name = f"user{member_id}"
+    member.roles = [guild.default_role, *roles]
+    member.edit = AsyncMock()
+    member.remove_roles = AsyncMock()
+    member.add_roles = AsyncMock()
+    return member
+
+
+class TestSingleEditRoleChanges:
+    """Role changes per member go through one member.edit call and tolerate API errors."""
+
+    async def test_cleaning_removes_and_adds_in_one_edit(self, mock_guild: MagicMock) -> None:
+        """Roles to remove and to add are applied atomically, keeping unrelated roles."""
+        role_a, role_b, role_c = _role(1, "A"), _role(2, "B"), _role(3, "C")
+        mock_guild.get_role = MagicMock(side_effect={1: role_a, 2: role_b, 3: role_c}.get)
+        member = _member_with_roles(mock_guild, 10, [role_a, role_b])
+        mock_guild.get_member = MagicMock(return_value=member)
+        sink = MagicMock()
+        sink.add_user_result = AsyncMock()
+
+        _, roles_before, _ = await _apply_cleaning_to_member(
+            guild=mock_guild,
+            member=member,
+            roles_to_remove=[1],
+            roles_to_add=[3],
+            purge_service=sink,
+            purge_id=99,
+        )
+
+        member.edit.assert_awaited_once_with(roles=[role_b, role_c])
+        member.remove_roles.assert_not_called()
+        member.add_roles.assert_not_called()
+        assert roles_before == [1, 2]
+        sink.add_user_result.assert_awaited_once()
+
+    async def test_cleaning_skips_edit_when_nothing_changes(self, mock_guild: MagicMock) -> None:
+        """No API call when the member already has the target role set."""
+        role_a = _role(1, "A")
+        mock_guild.get_role = MagicMock(side_effect={1: role_a}.get)
+        member = _member_with_roles(mock_guild, 10, [role_a])
+        mock_guild.get_member = MagicMock(return_value=member)
+        sink = MagicMock()
+        sink.add_user_result = AsyncMock()
+
+        await _apply_cleaning_to_member(
+            guild=mock_guild,
+            member=member,
+            roles_to_remove=[42],
+            roles_to_add=[1],
+            purge_service=sink,
+            purge_id=99,
+        )
+
+        member.edit.assert_not_awaited()
+        sink.add_user_result.assert_awaited_once()
+
+    async def test_cleaning_survives_http_error(self, mock_guild: MagicMock) -> None:
+        """A non-permission API error on one member does not abort the purge."""
+        role_a = _role(1, "A")
+        mock_guild.get_role = MagicMock(side_effect={1: role_a}.get)
+        member = _member_with_roles(mock_guild, 10, [role_a])
+        member.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom"))
+        mock_guild.get_member = MagicMock(return_value=member)
+        sink = MagicMock()
+        sink.add_user_result = AsyncMock()
+
+        await _apply_cleaning_to_member(
+            guild=mock_guild,
+            member=member,
+            roles_to_remove=[1],
+            roles_to_add=[],
+            purge_service=sink,
+            purge_id=99,
+        )
+
+        sink.add_user_result.assert_awaited_once()
+
+    async def test_promotion_swaps_roles_in_one_edit(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Promoting out of an affected role removes it and adds the target in a single edit."""
+        from_role, to_role, other = _role(100, "From"), _role(200, "To"), _role(300, "Other")
+        mock_guild.get_role = MagicMock(side_effect={100: from_role, 200: to_role}.get)
+        member = _member_with_roles(mock_guild, 444555666, [from_role, other])
+        from_role.members = [member]
+        mock_guild.get_member = MagicMock(return_value=member)
+        sink = MagicMock()
+        sink.add_user_result = AsyncMock()
+
+        promoted_in, promoted_out, _ = await _execute_promotion_phase(
+            cog=purge_cog,
+            guild=mock_guild,
+            record=mock_purge_record,
+            config={ConfigKey.AUDIT_LEVEL: 0},
+            purge_service=sink,
+            purge_id=99,
+            affected_roles=[100],
+            promotions=[{"from_role": 100, "to_role": 200}],
+            default_promotion=None,
+            confirmed_users={444555666},
+            processed_users=set(),
+            audit_level=0,
+            execution_logs=[],
+        )
+
+        assert (promoted_in, promoted_out) == (1, 0)
+        member.edit.assert_awaited_once_with(roles=[other, to_role])
+        member.remove_roles.assert_not_called()
+        member.add_roles.assert_not_called()
+
+    async def test_promotion_survives_http_error(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """A non-permission API error while promoting one member does not abort the phase."""
+        from_role, to_role = _role(100, "From"), _role(200, "To")
+        mock_guild.get_role = MagicMock(side_effect={100: from_role, 200: to_role}.get)
+        member = _member_with_roles(mock_guild, 444555666, [from_role])
+        member.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom"))
+        from_role.members = [member]
+        mock_guild.get_member = MagicMock(return_value=member)
+        sink = MagicMock()
+        sink.add_user_result = AsyncMock()
+
+        promoted_in, _, _ = await _execute_promotion_phase(
+            cog=purge_cog,
+            guild=mock_guild,
+            record=mock_purge_record,
+            config={ConfigKey.AUDIT_LEVEL: 0},
+            purge_service=sink,
+            purge_id=99,
+            affected_roles=[100],
+            promotions=[{"from_role": 100, "to_role": 200}],
+            default_promotion=None,
+            confirmed_users={444555666},
+            processed_users=set(),
+            audit_level=0,
+            execution_logs=[],
+        )
+
+        assert promoted_in == 1
+        sink.add_user_result.assert_awaited_once()
+
+    async def test_global_removal_survives_http_error(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """A non-permission API error on one member does not abort global removal."""
+        global_role = _role(600, "Global")
+        mock_guild.get_role = MagicMock(side_effect={600: global_role}.get)
+        failing = _member_with_roles(mock_guild, 1, [global_role])
+        failing.remove_roles = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=500), "boom")
+        )
+        fine = _member_with_roles(mock_guild, 2, [global_role])
+        mock_guild.members = [failing, fine]
+
+        removed = await _execute_global_removal_phase(
+            cog=purge_cog,
+            guild=mock_guild,
+            record=mock_purge_record,
+            config={ConfigKey.AUDIT_LEVEL: 0},
+            global_roles_to_remove=[600],
+            audit_level=0,
+            execution_logs=[],
+        )
+
+        assert removed == 1
+        fine.remove_roles.assert_awaited_once_with(global_role)

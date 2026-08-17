@@ -35,6 +35,83 @@ def make_execution_log() -> deque[str]:
     return deque(maxlen=EXECUTION_LOG_MAX_LINES)
 
 
+def _member_role_ids(guild: discord.Guild, member: discord.Member) -> list[int]:
+    """Return the member's role IDs, excluding @everyone.
+
+    Args:
+        guild (discord.Guild): Discord guild.
+        member (discord.Member): Member to inspect.
+
+    Returns:
+        list[int]: Role IDs in the order Discord reports them.
+    """
+    return [r.id for r in member.roles if r != guild.default_role]
+
+
+def _replacement_roles(
+    guild: discord.Guild,
+    member: discord.Member,
+    remove_ids: set[int] | None,
+    add_ids: list[int],
+) -> list[discord.Role]:
+    """Compute the full role list a member should end up with.
+
+    Args:
+        guild (discord.Guild): Discord guild.
+        member (discord.Member): Member whose roles are being changed.
+        remove_ids (set[int] | None): Role IDs to drop; ``None`` drops every role.
+        add_ids (list[int]): Role IDs to add (unknown IDs are ignored).
+
+    Returns:
+        list[discord.Role]: Kept roles followed by newly added ones.
+    """
+    if remove_ids is None:
+        kept: list[discord.Role] = []
+    else:
+        kept = [r for r in member.roles if r != guild.default_role and r.id not in remove_ids]
+
+    for rid in add_ids:
+        role = guild.get_role(rid)
+        if role and role not in kept:
+            kept.append(role)
+    return kept
+
+
+async def _set_member_roles(
+    guild: discord.Guild,
+    member: discord.Member,
+    roles: list[discord.Role],
+    what: str,
+) -> bool:
+    """Replace a member's roles with a single API call, tolerating failures.
+
+    Discord's ``add_roles``/``remove_roles`` each issue their own request, so
+    a remove-then-add sequence costs two rate-limited calls per member and can
+    leave the member half-changed if the second one fails. One ``edit`` applies
+    the whole change atomically. The call is skipped when nothing would change.
+
+    Args:
+        guild (discord.Guild): Discord guild.
+        member (discord.Member): Member to update.
+        roles (list[discord.Role]): Complete role list to apply (without @everyone).
+        what (str): Short description of the action for log messages.
+
+    Returns:
+        bool: True if the roles were applied (or already matched), False on API error.
+    """
+    if {r.id for r in roles} == set(_member_role_ids(guild=guild, member=member)):
+        return True
+    try:
+        await member.edit(roles=roles)
+    except discord.Forbidden:
+        logger.warning(f"[{guild.name}] Could not {what} for {member.name}: missing permissions")
+        return False
+    except discord.HTTPException as e:
+        logger.warning(f"[{guild.name}] Could not {what} for {member.name}: {e}")
+        return False
+    return True
+
+
 async def _apply_cleaning_to_member(
     guild: discord.Guild,
     member: discord.Member,
@@ -48,7 +125,7 @@ async def _apply_cleaning_to_member(
     Args:
         guild (discord.Guild): Discord guild.
         member (discord.Member): Member to clean.
-        roles_to_remove (list[int]): Role IDs to remove.
+        roles_to_remove (list[int]): Role IDs to remove; empty removes every role.
         roles_to_add (list[int]): Role IDs to add.
         purge_service (UserResultSink): Where to record the per-user result.
         purge_id (int): Purge ID.
@@ -56,43 +133,21 @@ async def _apply_cleaning_to_member(
     Returns:
         tuple[discord.Member, list[int], list[int]]: Member, roles before, roles after
     """
-    roles_before = [r.id for r in member.roles if r != guild.default_role]
+    roles_before = _member_role_ids(guild=guild, member=member)
 
-    # Remove roles
-    if roles_to_remove:
-        roles_to_rm: list[discord.Role] = [
-            rm_role
-            for rid in roles_to_remove
-            if (rm_role := guild.get_role(rid)) and rm_role in member.roles
-        ]
-        if roles_to_rm:
-            try:
-                await member.remove_roles(*roles_to_rm)
-            except discord.Forbidden:
-                logger.warning(f"[{guild.name}] Could not remove roles from {member.name}")
-    else:
-        # Remove all roles
-        try:
-            await member.edit(roles=[])
-        except discord.Forbidden:
-            logger.warning(f"[{guild.name}] Could not remove roles from {member.name}")
-
-    # Add purge roles
-    if roles_to_add:
-        roles_to_give: list[discord.Role] = [
-            add_role for rid in roles_to_add if (add_role := guild.get_role(rid))
-        ]
-        if roles_to_give:
-            try:
-                await member.add_roles(*roles_to_give)
-            except discord.Forbidden:
-                logger.warning(f"[{guild.name}] Could not add roles to {member.name}")
+    target_roles = _replacement_roles(
+        guild=guild,
+        member=member,
+        remove_ids=set(roles_to_remove) if roles_to_remove else None,
+        add_ids=roles_to_add,
+    )
+    await _set_member_roles(guild=guild, member=member, roles=target_roles, what="clean roles")
 
     # Refresh member
     refreshed = guild.get_member(member.id)
     if refreshed:
         member = refreshed
-    roles_after = [r.id for r in member.roles if r != guild.default_role]
+    roles_after = _member_role_ids(guild=guild, member=member)
 
     # Save result
     await purge_service.add_user_result(
@@ -323,6 +378,11 @@ async def execute_purge(
                             logger.warning(
                                 f"[{guild.name}] Could not remove reaction role "
                                 f"from {reaction_member.name}"
+                            )
+                        except discord.HTTPException as e:
+                            logger.warning(
+                                f"[{guild.name}] Could not remove reaction role "
+                                f"from {reaction_member.name}: {e}"
                             )
     finally:
         # Keep whatever was already applied even if a phase raised; the cog
@@ -672,22 +732,23 @@ async def _execute_promotion_phase(
             if member.id in promoted_users:
                 continue
 
-            roles_before = [r.id for r in member.roles if r != guild.default_role]
+            roles_before = _member_role_ids(guild=guild, member=member)
             in_affected = from_role_id in affected_roles
 
-            try:
-                # If from_role is in affected_roles, remove it
-                if in_affected:
-                    await member.remove_roles(from_role)
-                await member.add_roles(to_role)
-            except discord.Forbidden:
-                logger.warning(f"[{guild.name}] Could not promote {member.name}")
+            # If from_role is in affected_roles, swap it for to_role; otherwise just add
+            target_roles = _replacement_roles(
+                guild=guild,
+                member=member,
+                remove_ids={from_role_id} if in_affected else set(),
+                add_ids=[to_role_id],
+            )
+            await _set_member_roles(guild=guild, member=member, roles=target_roles, what="promote")
 
             # Refresh member and get roles_after
             refreshed = guild.get_member(member.id)
             if refreshed:
                 member = refreshed
-            roles_after = [r.id for r in member.roles if r != guild.default_role]
+            roles_after = _member_role_ids(guild=guild, member=member)
 
             # Store result
             await purge_service.add_user_result(
@@ -742,7 +803,7 @@ async def _execute_promotion_phase(
                 if not default_member:
                     continue
 
-                roles_before = [r.id for r in default_member.roles if r != guild.default_role]
+                roles_before = _member_role_ids(guild=guild, member=default_member)
 
                 try:
                     await default_member.add_roles(default_role)
@@ -751,12 +812,17 @@ async def _execute_promotion_phase(
                         f"[{guild.name}] Could not apply role to non-affected user: "
                         f"{default_member.name}"
                     )
+                except discord.HTTPException as e:
+                    logger.warning(
+                        f"[{guild.name}] Could not apply role to non-affected user "
+                        f"{default_member.name}: {e}"
+                    )
 
                 # Refresh member and get roles_after
                 refreshed = guild.get_member(default_member.id)
                 if refreshed:
                     default_member = refreshed
-                roles_after = [r.id for r in default_member.roles if r != guild.default_role]
+                roles_after = _member_role_ids(guild=guild, member=default_member)
 
                 # Store result
                 await purge_service.add_user_result(
@@ -869,6 +935,8 @@ async def _execute_global_removal_phase(
 
         except discord.Forbidden:
             logger.warning(f"[{guild.name}] Could not remove global roles from {member.name}")
+        except discord.HTTPException as e:
+            logger.warning(f"[{guild.name}] Could not remove global roles from {member.name}: {e}")
 
     # Update moderation message after global removal
     if audit_level >= 1:
