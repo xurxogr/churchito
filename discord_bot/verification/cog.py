@@ -48,6 +48,7 @@ from discord_bot.verification.handlers.welcome_card import (
 )
 from discord_bot.verification.panel import check_verification_message, get_mod_channel
 from discord_bot.verification.service import VerificationService
+from discord_bot.verification.steam_client import close_client as close_steam_client
 from discord_bot.verification.views import ModReviewView, VerificationPanelView
 
 logger = logging.getLogger(__name__)
@@ -204,8 +205,9 @@ class VerificationCog(commands.Cog):
                 background_task.cancel()
         self._background_tasks.clear()
 
-        # Release the shared HTTP clients (verification API, welcome card templates)
+        # Release the shared HTTP clients (verification API, Steam, welcome card templates)
         await close_client()
+        await close_steam_client()
         await close_template_client()
 
     def start_screenshot_timer(

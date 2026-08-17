@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from discord_bot.verification import steam_client
 from discord_bot.verification.steam_client import (
     check_steam_profile_private,
     get_steam_profile_display_id,
@@ -286,3 +287,58 @@ class TestCheckSteamProfilePrivate:
         assert result.success is False
         assert result.error_message is not None
         assert "Unexpected error" in result.error_message
+
+
+class TestSharedClient:
+    """The Steam client reuses one httpx client across calls."""
+
+    @pytest.fixture(autouse=True)
+    async def _fresh_client(self) -> None:
+        """Start and end each test without a cached shared client."""
+        await steam_client.close_client()
+        yield
+        await steam_client.close_client()
+
+    @pytest.mark.asyncio
+    async def test_consecutive_checks_share_one_client(self) -> None:
+        """Two profile checks build the httpx client once and pass the timeout per request."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<profile><privacyState>public</privacyState></profile>"
+        mock_response.url = MagicMock()
+        mock_response.url.host = "steamcommunity.com"
+
+        mock_client = MagicMock()
+        mock_client.is_closed = False
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.aclose = AsyncMock()
+
+        with patch(
+            "discord_bot.verification.steam_client.httpx.AsyncClient", return_value=mock_client
+        ) as constructor:
+            for _ in range(2):
+                result = await check_steam_profile_private(
+                    url="https://steamcommunity.com/id/someuser", timeout_seconds=7
+                )
+                assert result.success is True
+
+        assert constructor.call_count == 1
+        assert constructor.call_args.kwargs["follow_redirects"] is False
+        assert mock_client.get.await_count == 2
+        assert mock_client.get.await_args.kwargs["timeout"] == 7
+
+    @pytest.mark.asyncio
+    async def test_close_client_releases_shared_client(self) -> None:
+        """close_client closes the pool so cog unload does not leak connections."""
+        mock_client = MagicMock()
+        mock_client.is_closed = False
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("down"))
+        mock_client.aclose = AsyncMock()
+
+        with patch(
+            "discord_bot.verification.steam_client.httpx.AsyncClient", return_value=mock_client
+        ):
+            await check_steam_profile_private(url="https://steamcommunity.com/id/someuser")
+            await steam_client.close_client()
+
+        mock_client.aclose.assert_awaited_once()

@@ -106,7 +106,7 @@ class TestCallVerificationApi:
     @pytest.fixture(autouse=True)
     def _reset_shared_client(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Start each test without a cached shared client."""
-        monkeypatch.setattr(api_client, "_client", None, raising=False)
+        monkeypatch.setattr(api_client._shared_client, "_client", None)
 
     @pytest.mark.asyncio
     async def test_oversized_image_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,12 +205,12 @@ class TestCallVerificationApi:
         mock_client = MagicMock()
         mock_client.is_closed = False
         mock_client.aclose = AsyncMock()
-        api_client._client = mock_client
+        api_client._shared_client._client = mock_client
 
         await api_client.close_client()
 
         mock_client.aclose.assert_awaited_once()
-        assert api_client._client is None
+        assert not api_client._shared_client.is_open
 
     @pytest.mark.asyncio
     async def test_success(self) -> None:

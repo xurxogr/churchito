@@ -17,12 +17,14 @@ from discord_bot.common.utils.game_data import (
     load_hex_cities,
 )
 from discord_bot.common.utils.keyed_locks import KeyedLocks
+from discord_bot.common.utils.shared_http_client import SharedAsyncClient
 from discord_bot.common.utils.ttl_cache import TTLCache
 
 __all__ = [
     "DISCORD_CDN_DOMAINS",
     "EMBED_SECTIONS_COLUMNS",
     "KeyedLocks",
+    "SharedAsyncClient",
     "TTLCache",
     "delete_message",
     "get_embed_sections_columns",

@@ -6,6 +6,7 @@ import time
 
 import httpx
 
+from discord_bot.common.utils.shared_http_client import SharedAsyncClient
 from discord_bot.verification.models import VerificationAPIResponse, VerificationAPIResult
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ MAX_IMAGE_BYTES = 25 * 1024 * 1024
 # multipart body, so a burst must not stack them all in memory at once
 _API_SEMAPHORE = asyncio.Semaphore(2)
 
-_client: httpx.AsyncClient | None = None
+_shared_client = SharedAsyncClient()
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -26,18 +27,12 @@ def _get_client() -> httpx.AsyncClient:
     Returns:
         httpx.AsyncClient: Shared client with a reusable connection pool.
     """
-    global _client
-    if _client is None or _client.is_closed:
-        _client = httpx.AsyncClient()
-    return _client
+    return _shared_client.client()
 
 
 async def close_client() -> None:
     """Close the shared HTTP client, if one was created."""
-    global _client
-    if _client is not None and not _client.is_closed:
-        await _client.aclose()
-    _client = None
+    await _shared_client.aclose()
 
 
 async def call_verification_api(

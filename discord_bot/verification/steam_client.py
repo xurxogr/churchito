@@ -5,9 +5,14 @@ import re
 
 import httpx
 
+from discord_bot.common.utils.shared_http_client import SharedAsyncClient
 from discord_bot.verification.models import SteamProfileCheckResult
 
 logger = logging.getLogger(__name__)
+
+# Redirects are followed by hand below so each hop can be checked against the
+# allowed domain; the timeout is per request (configurable by the caller)
+_shared_client = SharedAsyncClient(follow_redirects=False)
 
 # Valid domain for Steam profile URLs
 STEAM_PROFILE_DOMAIN = "steamcommunity.com"
@@ -21,6 +26,11 @@ _PRIVACY_STATE_PATTERN = re.compile(r"<privacyState>(.*?)</privacyState>")
 
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 3
+
+
+async def close_client() -> None:
+    """Close the shared Steam HTTP client, if one was created."""
+    await _shared_client.aclose()
 
 
 def get_steam_profile_display_id(url: str) -> str | None:
@@ -82,51 +92,51 @@ async def check_steam_profile_private(
     current_url = f"{url.rstrip('/')}/?xml=1"
 
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False) as client:
-            for _ in range(_MAX_REDIRECTS + 1):
-                response = await client.get(current_url)
+        client = _shared_client.client()
+        for _ in range(_MAX_REDIRECTS + 1):
+            response = await client.get(current_url, timeout=timeout_seconds)
 
-                if response.status_code not in _REDIRECT_STATUS_CODES:
-                    break
+            if response.status_code not in _REDIRECT_STATUS_CODES:
+                break
 
-                location = response.headers.get("location")
-                if not location:
-                    break
+            location = response.headers.get("location")
+            if not location:
+                break
 
-                next_url = httpx.URL(location, base=response.url)
-                if next_url.scheme != "https" or next_url.host != STEAM_PROFILE_DOMAIN:
-                    return SteamProfileCheckResult(
-                        success=False,
-                        error_message="Redirected outside of the allowed domain",
-                    )
-                current_url = str(next_url)
-            else:
-                return SteamProfileCheckResult(
-                    success=False,
-                    error_message="Too many redirects",
-                )
-
-            if response.url.host != STEAM_PROFILE_DOMAIN:
+            next_url = httpx.URL(location, base=response.url)
+            if next_url.scheme != "https" or next_url.host != STEAM_PROFILE_DOMAIN:
                 return SteamProfileCheckResult(
                     success=False,
                     error_message="Redirected outside of the allowed domain",
                 )
+            current_url = str(next_url)
+        else:
+            return SteamProfileCheckResult(
+                success=False,
+                error_message="Too many redirects",
+            )
 
-            if response.status_code != 200:
-                return SteamProfileCheckResult(
-                    success=False,
-                    error_message=f"Failed to fetch Steam profile (HTTP {response.status_code})",
-                )
+        if response.url.host != STEAM_PROFILE_DOMAIN:
+            return SteamProfileCheckResult(
+                success=False,
+                error_message="Redirected outside of the allowed domain",
+            )
 
-            match = _PRIVACY_STATE_PATTERN.search(response.text)
-            if not match:
-                return SteamProfileCheckResult(
-                    success=False,
-                    error_message="Could not determine profile privacy state",
-                )
+        if response.status_code != 200:
+            return SteamProfileCheckResult(
+                success=False,
+                error_message=f"Failed to fetch Steam profile (HTTP {response.status_code})",
+            )
 
-            is_private = match.group(1).strip().lower() != "public"
-            return SteamProfileCheckResult(success=True, is_private=is_private)
+        match = _PRIVACY_STATE_PATTERN.search(response.text)
+        if not match:
+            return SteamProfileCheckResult(
+                success=False,
+                error_message="Could not determine profile privacy state",
+            )
+
+        is_private = match.group(1).strip().lower() != "public"
+        return SteamProfileCheckResult(success=True, is_private=is_private)
 
     except httpx.HTTPError as e:
         logger.error(f"[{guild_name}] Error checking Steam profile: {e}")

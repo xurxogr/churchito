@@ -1,7 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -20,6 +20,29 @@ from discord_bot.common.core.settings.database import DatabaseSettings
 from discord_bot.common.core.settings.logging import LoggingSettings
 from discord_bot.common.models.base import Base
 from discord_bot.common.services import DatabaseService
+from discord_bot.verification import api_client, steam_client
+from discord_bot.verification.handlers import welcome_card
+
+_SHARED_HTTP_CLIENTS = (
+    api_client._shared_client,
+    steam_client._shared_client,
+    welcome_card._template_client,
+)
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_http_clients() -> Generator[None, None, None]:
+    """Drop module-level HTTP clients so they never leak across tests.
+
+    A client (real or mocked) created under one test's event loop must not
+    survive into another test, where closing it would fail or await a mock.
+
+    Yields:
+        None: Runs the test, then resets the shared holders.
+    """
+    yield
+    for shared in _SHARED_HTTP_CLIENTS:
+        shared._client = None
 
 
 @pytest.fixture

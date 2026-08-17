@@ -19,6 +19,7 @@ import discord
 import httpx
 from PIL import Image, ImageDraw, ImageFont
 
+from discord_bot.common.utils.shared_http_client import SharedAsyncClient
 from discord_bot.common.utils.ttl_cache import TTLCache
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.formatters import format_message
@@ -35,7 +36,7 @@ TEMPLATE_CACHE_TTL_SECONDS = 600.0
 TEMPLATE_FETCH_TIMEOUT_SECONDS = 10.0
 
 _template_cache: TTLCache[str, bytes | None] = TTLCache(ttl_seconds=TEMPLATE_CACHE_TTL_SECONDS)
-_template_client: httpx.AsyncClient | None = None
+_template_client = SharedAsyncClient(timeout=TEMPLATE_FETCH_TIMEOUT_SECONDS, follow_redirects=True)
 
 # Name source choices (stored in config as plain strings)
 NAME_SOURCE_IN_GAME = "in_game"
@@ -370,20 +371,12 @@ def get_template_client() -> httpx.AsyncClient:
     Returns:
         httpx.AsyncClient: Shared client with a reusable connection pool.
     """
-    global _template_client
-    if _template_client is None or _template_client.is_closed:
-        _template_client = httpx.AsyncClient(
-            timeout=TEMPLATE_FETCH_TIMEOUT_SECONDS, follow_redirects=True
-        )
-    return _template_client
+    return _template_client.client()
 
 
 async def close_template_client() -> None:
     """Close the shared template HTTP client, if one was created."""
-    global _template_client
-    if _template_client is not None and not _template_client.is_closed:
-        await _template_client.aclose()
-    _template_client = None
+    await _template_client.aclose()
 
 
 def clear_template_cache() -> None:

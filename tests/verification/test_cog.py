@@ -4516,6 +4516,17 @@ class TestCogLifecycle:
 
         mock_close.assert_awaited_once()
 
+    async def test_cog_unload_closes_steam_client(self, mock_discord_bot: MagicMock) -> None:
+        """Test that cog_unload closes the shared Steam HTTP client."""
+        cog = VerificationCog(mock_discord_bot)
+
+        with patch(
+            "discord_bot.verification.cog.close_steam_client", new_callable=AsyncMock
+        ) as mock_close:
+            await cog.cog_unload()
+
+        mock_close.assert_awaited_once()
+
     async def test_cog_unload_closes_template_client(self, mock_discord_bot: MagicMock) -> None:
         """Test that cog_unload closes the shared welcome card HTTP client."""
         cog = VerificationCog(mock_discord_bot)
