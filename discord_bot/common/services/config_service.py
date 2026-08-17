@@ -81,30 +81,64 @@ class ConfigService:
         Returns:
             tuple[bool, str | None]: (success, error_message)
         """
-        option = self._schema_service.get_option(cog_name, key)
-        if option:
-            is_valid, error_msg = option.validate_value(value)
-            if not is_valid:
-                return False, error_msg
+        saved, errors = await self.set_values(
+            guild_id=guild_id, cog_name=cog_name, values={key: value}
+        )
+        return key in saved, errors.get(key)
+
+    async def set_values(
+        self, guild_id: int, cog_name: str, values: dict[str, Any]
+    ) -> tuple[list[str], dict[str, str]]:
+        """Set several configuration values of one cog in a single flush.
+
+        Every value is validated against the schema first; invalid ones are
+        reported per key and do not prevent the valid ones from being saved.
+        Existing rows are loaded with one query and updated in place, new
+        keys are inserted, and everything is flushed together.
+
+        Args:
+            guild_id (int): Guild ID
+            cog_name (str): Cog name
+            values (dict[str, Any]): Option key -> value to set
+
+        Returns:
+            tuple[list[str], dict[str, str]]: (saved keys in input order, error message per key)
+        """
+        valid: dict[str, Any] = {}
+        errors: dict[str, str] = {}
+        for key, value in values.items():
+            option = self._schema_service.get_option(cog_name, key)
+            if option:
+                is_valid, error_msg = option.validate_value(value)
+                if not is_valid:
+                    errors[key] = error_msg or "Invalid value"
+                    continue
+            valid[key] = value
+
+        if not valid:
+            return [], errors
 
         result = await self._session.execute(
             select(GuildConfig).where(
                 GuildConfig.guild_id == guild_id,
                 GuildConfig.cog_name == cog_name,
-                GuildConfig.key == key,
+                GuildConfig.key.in_(valid),
             )
         )
-        config = result.scalar_one_or_none()
+        existing = {row.key: row for row in result.scalars()}
 
-        if config:
-            config.value = value
-        else:
-            config = GuildConfig(guild_id=guild_id, cog_name=cog_name, key=key, value=value)
-            self._session.add(config)
+        for key, value in valid.items():
+            config = existing.get(key)
+            if config:
+                config.value = value
+            else:
+                self._session.add(
+                    GuildConfig(guild_id=guild_id, cog_name=cog_name, key=key, value=value)
+                )
+            logger.debug(f"Configuration updated: {cog_name}.{key} = {value}")
 
         await self._session.flush()
-        logger.debug(f"Configuration updated: {cog_name}.{key} = {value}")
-        return True, None
+        return list(valid), errors
 
     async def get_all_config(self, guild_id: int, cog_name: str) -> dict[str, Any]:
         """Get all configuration for a cog in a guild.

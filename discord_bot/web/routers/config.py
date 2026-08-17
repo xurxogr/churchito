@@ -742,8 +742,9 @@ async def update_options_batch(
 
     saved_keys: list[str] = []
     errors: list[str] = []
+    values_to_save: dict[str, Any] = {}
 
-    # Save all options to DB first
+    # Convert and check every option first, then save them in one go
     for key, value in options_to_save.items():
         option = schema_service.get_option(cog_name, key)
         if not option:
@@ -761,14 +762,13 @@ async def update_options_batch(
                 errors.append(permission_error)
                 continue
 
-        success, validation_error = await config_service.set_value(
-            guild_id=guild_id, cog_name=cog_name, key=key, value=converted_value
-        )
+        values_to_save[key] = converted_value
 
-        if success:
-            saved_keys.append(key)
-        else:
-            errors.append(f"{key}: {validation_error}")
+    if values_to_save:
+        saved_keys, validation_errors = await config_service.set_values(
+            guild_id=guild_id, cog_name=cog_name, values=values_to_save
+        )
+        errors.extend(f"{key}: {message}" for key, message in validation_errors.items())
 
     # Commit all changes at once
     await session.commit()

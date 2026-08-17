@@ -1,5 +1,7 @@
 """Tests for ConfigService."""
 
+from unittest.mock import patch
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,6 +134,61 @@ class TestConfigService:
         )
         assert success is True
         assert error is None
+
+    async def test_set_values_saves_all_keys_with_one_lookup(
+        self, test_session: AsyncSession, schema_service: ConfigSchemaService
+    ) -> None:
+        """set_values loads existing rows once and inserts/updates every key."""
+        config_service = ConfigService(test_session, schema_service)
+        await config_service.set_value(123, "test_cog", "string_option", "old")
+
+        with patch.object(test_session, "execute", wraps=test_session.execute) as spy:
+            saved, errors = await config_service.set_values(
+                guild_id=123,
+                cog_name="test_cog",
+                values={"string_option": "new", "int_option": 7, "required_option": "x"},
+            )
+
+        assert saved == ["string_option", "int_option", "required_option"]
+        assert errors == {}
+        assert spy.call_count == 1
+        config = await config_service.get_all_config(123, "test_cog")
+        assert config["string_option"] == "new"
+        assert config["int_option"] == 7
+        assert config["required_option"] == "x"
+
+    async def test_set_values_reports_invalid_keys_and_saves_the_rest(
+        self, test_session: AsyncSession, schema_service: ConfigSchemaService
+    ) -> None:
+        """An invalid value is reported per key without blocking the valid ones."""
+        config_service = ConfigService(test_session, schema_service)
+
+        saved, errors = await config_service.set_values(
+            guild_id=123,
+            cog_name="test_cog",
+            values={"int_option": 150, "string_option": "ok"},
+        )
+
+        assert saved == ["string_option"]
+        assert set(errors) == {"int_option"}
+        assert "cannot exceed" in errors["int_option"]
+        assert await config_service.get_value(123, "test_cog", "int_option") == 42
+        assert await config_service.get_value(123, "test_cog", "string_option") == "ok"
+
+    async def test_set_values_with_nothing_valid_touches_no_rows(
+        self, test_session: AsyncSession, schema_service: ConfigSchemaService
+    ) -> None:
+        """When every value fails validation no query is issued."""
+        config_service = ConfigService(test_session, schema_service)
+
+        with patch.object(test_session, "execute", wraps=test_session.execute) as spy:
+            saved, errors = await config_service.set_values(
+                guild_id=123, cog_name="test_cog", values={"int_option": -1}
+            )
+
+        assert saved == []
+        assert set(errors) == {"int_option"}
+        spy.assert_not_called()
 
     async def test_get_all_config(
         self, test_session: AsyncSession, schema_service: ConfigSchemaService

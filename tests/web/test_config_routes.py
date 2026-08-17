@@ -1460,7 +1460,7 @@ class TestUpdateOptionsBatch:
             ),
         ):
             mock_config_service = MagicMock()
-            mock_config_service.set_value = AsyncMock(return_value=(True, None))
+            mock_config_service.set_values = AsyncMock(return_value=([], {}))
             mock_config_service.get_all_config = AsyncMock(return_value={})
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service
@@ -1473,8 +1473,8 @@ class TestUpdateOptionsBatch:
                 test_session,
             )
 
-            # set_value should not be called since options is empty
-            mock_config_service.set_value.assert_not_called()
+            # set_values should not be called since options is empty
+            mock_config_service.set_values.assert_not_called()
 
     async def test_invalid_json_raises_400(
         self,
@@ -1620,7 +1620,7 @@ class TestUpdateOptionsBatch:
             ),
         ):
             mock_config_service = MagicMock()
-            mock_config_service.set_value = AsyncMock(return_value=(True, None))
+            mock_config_service.set_values = AsyncMock(return_value=(["string_option"], {}))
             mock_config_service.get_all_config = AsyncMock(return_value={})
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service
@@ -1633,8 +1633,10 @@ class TestUpdateOptionsBatch:
                 test_session,
             )
 
-            # set_value should be called once
-            mock_config_service.set_value.assert_called_once()
+            # All options are saved with a single set_values call
+            mock_config_service.set_values.assert_awaited_once_with(
+                guild_id=111222333, cog_name="test_cog", values={"string_option": "new_value"}
+            )
 
             # Notify should be called once with the key
             mock_notify.assert_called_once()
@@ -1665,7 +1667,9 @@ class TestUpdateOptionsBatch:
             ) as mock_render,
         ):
             mock_config_service = MagicMock()
-            mock_config_service.set_value = AsyncMock(return_value=(False, "Validation failed"))
+            mock_config_service.set_values = AsyncMock(
+                return_value=([], {"string_option": "Validation failed"})
+            )
             mock_config_service.get_all_config = AsyncMock(return_value={})
             mock_config_service.is_cog_enabled = AsyncMock(return_value=True)
             mock_config_service_class.return_value = mock_config_service

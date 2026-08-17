@@ -118,7 +118,7 @@ class GuildConfig(Base):
 
 **Purpose:** Key-value config storage (guild-specific settings per cog)
 **Composite PK:** (guild_id, cog_name, key)
-**Access:** `ConfigService.get_value()` / `set_value()`
+**Access:** `ConfigService.get_value()` / `set_value()` / `set_values()` (batch: one lookup + one flush)
 
 **Example rows:**
 ```
