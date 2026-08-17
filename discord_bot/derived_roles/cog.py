@@ -10,7 +10,7 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
-from discord_bot.common.utils import KeyedLocks
+from discord_bot.common.utils import GuildScheduler, KeyedLocks
 from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
 from discord_bot.derived_roles.engine import compute_role_changes
 from discord_bot.derived_roles.formatters import format_message
@@ -34,7 +34,8 @@ class DerivedRolesCog(commands.Cog):
             bot (DiscordBot): Bot instance
         """
         self.bot = bot
-        self._last_sync: dict[int, datetime] = {}
+        # Per-guild next-due times, so idle minute ticks read no configuration
+        self._schedule = GuildScheduler()
         self._sync_started = False
         # Per-member locks to avoid concurrent rule application
         self._member_locks = KeyedLocks()
@@ -95,7 +96,7 @@ class DerivedRolesCog(commands.Cog):
         Args:
             guild (discord.Guild): Guild the bot left.
         """
-        self._last_sync.pop(guild.id, None)
+        self._schedule.reset(guild.id)
         self._error_state.pop(guild.id, None)
         self._config_cache.invalidate(guild.id)
 
@@ -385,7 +386,11 @@ class DerivedRolesCog(commands.Cog):
 
         for guild in self.bot.guilds:
             try:
+                if not force_all and not self._schedule.is_due(guild_id=guild.id, now=now):
+                    continue
+
                 if not await self._is_cog_enabled(guild.id):
+                    self._schedule.defer(guild_id=guild.id, now=now)
                     continue
 
                 config = await self._get_config(guild.id)
@@ -393,17 +398,11 @@ class DerivedRolesCog(commands.Cog):
                 interval = interval if interval is not None else 60
 
                 if interval == 0:
+                    self._schedule.defer(guild_id=guild.id, now=now)
                     continue
 
-                if not force_all:
-                    last_sync = self._last_sync.get(guild.id)
-                    if last_sync:
-                        seconds_since_last = (now - last_sync).total_seconds()
-                        if seconds_since_last < interval * 60:
-                            continue
-
                 await self._sync_guild(guild=guild, config=config)
-                self._last_sync[guild.id] = now
+                self._schedule.mark_run(guild_id=guild.id, now=now, interval_minutes=interval)
 
             except Exception as e:
                 logger.error(f"[{guild.name}] Error in derived roles sync: {e}")
@@ -455,6 +454,7 @@ class DerivedRolesCog(commands.Cog):
             enabled (bool): True if enabled, False if disabled
         """
         self._config_cache.invalidate(guild.id)
+        self._schedule.reset(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Derived roles enabled, reconciling members")
             config = await self._get_config(guild.id)
@@ -470,6 +470,7 @@ class DerivedRolesCog(commands.Cog):
             keys (list[str]): List of configuration keys that changed
         """
         self._config_cache.invalidate(guild.id)
+        self._schedule.reset(guild.id)
         if ConfigKey.RULES in set(keys):
             logger.info(f"[{guild.name}] Derived roles rules changed, reconciling members")
             config = await self._get_config(guild.id)

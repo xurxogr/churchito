@@ -3021,8 +3021,6 @@ class TestHealthCheck:
         self, verification_cog: VerificationCog
     ) -> None:
         """Test that healthcheck respects the interval per guild."""
-        from datetime import UTC, datetime, timedelta
-
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 111
 
@@ -3039,7 +3037,9 @@ class TestHealthCheck:
             mock_interval.return_value = 30  # 30 minutes
 
             # Simulate verified 10 minutes ago
-            verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=10)
+            verification_cog._schedule.mark_run(
+                guild_id=111, now=datetime.now(UTC) - timedelta(minutes=10), interval_minutes=30
+            )
 
             await verification_cog._run_health_check()
 
@@ -3047,19 +3047,19 @@ class TestHealthCheck:
             assert mock_check.call_count == 0
 
             # Simulate verified 35 minutes ago
-            verification_cog._last_health_check[111] = datetime.now(UTC) - timedelta(minutes=35)
+            verification_cog._schedule.mark_run(
+                guild_id=111, now=datetime.now(UTC) - timedelta(minutes=35), interval_minutes=30
+            )
 
             await verification_cog._run_health_check()
 
             # Now it should verify
             assert mock_check.call_count == 1
 
-    async def test_run_health_check_updates_last_check(
+    async def test_run_health_check_updates_schedule(
         self, verification_cog: VerificationCog
     ) -> None:
-        """Test that healthcheck updates the timestamp when verifying."""
-        from datetime import datetime
-
+        """Test that healthcheck schedules the next run after verifying."""
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 111
 
@@ -3073,14 +3073,94 @@ class TestHealthCheck:
         ):
             mock_interval.return_value = 30
 
-            # Without previous timestamp
-            assert 111 not in verification_cog._last_health_check
+            # Without previous schedule
+            assert verification_cog._schedule.next_due(111) is None
 
             await verification_cog._run_health_check(force_all=True)
 
-            # Should now have timestamp
-            assert 111 in verification_cog._last_health_check
-            assert isinstance(verification_cog._last_health_check[111], datetime)
+            # Should now be scheduled ~30 minutes ahead
+            next_due = verification_cog._schedule.next_due(111)
+            assert next_due is not None
+            assert next_due > datetime.now(UTC) + timedelta(minutes=29)
+
+    async def test_run_health_check_idle_tick_reads_no_config(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """Ticks before a guild is due do not read its configuration."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 111
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            mock_interval.return_value = 30
+
+            await verification_cog._run_health_check()
+            await verification_cog._run_health_check()
+
+        mock_check.assert_awaited_once_with(guild=mock_guild)
+        mock_interval.assert_awaited_once()
+
+    async def test_run_health_check_defers_disabled_guilds(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """A guild with health check disabled is not re-read every tick."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 111
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(
+                verification_cog, "_check_verification_message", new_callable=AsyncMock
+            ) as mock_check,
+        ):
+            mock_interval.return_value = 0
+
+            await verification_cog._run_health_check()
+            await verification_cog._run_health_check()
+
+        mock_check.assert_not_awaited()
+        mock_interval.assert_awaited_once()
+        assert verification_cog._schedule.next_due(111) is not None
+
+    async def test_config_callbacks_reset_health_check_schedule(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """on_config_changed and on_cog_toggled make the guild due on the next tick."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 111
+        mock_guild.name = "Test"
+
+        object.__setattr__(verification_cog.bot, "guilds", [mock_guild])
+
+        with (
+            patch.object(
+                verification_cog, "_get_health_check_interval", new_callable=AsyncMock
+            ) as mock_interval,
+            patch.object(verification_cog, "_check_verification_message", new_callable=AsyncMock),
+        ):
+            mock_interval.return_value = 30
+
+            await verification_cog._run_health_check()
+            await verification_cog.on_config_changed(
+                guild=mock_guild, keys=[ConfigKey.HEALTH_CHECK_INTERVAL]
+            )
+            await verification_cog._run_health_check()
+            await verification_cog.on_cog_toggled(guild=mock_guild, enabled=True)
+            await verification_cog._run_health_check()
+
+        assert mock_interval.await_count == 3
 
     async def test_get_health_check_interval_returns_configured_value(
         self, verification_cog: VerificationCog, test_database: DatabaseService
@@ -10680,12 +10760,14 @@ class TestOnGuildRemove:
         guild = MagicMock(spec=discord.Guild)
         guild.id = 123
         guild.name = "Test Guild"
-        verification_cog._last_health_check[guild.id] = datetime.now(UTC)
+        verification_cog._schedule.mark_run(
+            guild_id=guild.id, now=datetime.now(UTC), interval_minutes=30
+        )
         verification_cog._pending_dm_verifications[456] = (guild.id, 1)
         verification_cog._pending_dm_verifications[789] = (999, 2)
 
         await verification_cog.on_guild_remove(guild)
 
-        assert guild.id not in verification_cog._last_health_check
+        assert verification_cog._schedule.next_due(guild.id) is None
         assert 456 not in verification_cog._pending_dm_verifications
         assert verification_cog._pending_dm_verifications[789] == (999, 2)

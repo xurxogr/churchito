@@ -585,13 +585,130 @@ class TestOnGuildRemove:
         self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
     ) -> None:
         """Test that cached per-guild state is dropped on removal."""
-        derived_roles_cog._last_sync[mock_guild.id] = datetime.now(UTC)
+        derived_roles_cog._schedule.mark_run(
+            guild_id=mock_guild.id, now=datetime.now(UTC), interval_minutes=30
+        )
         derived_roles_cog._error_state[mock_guild.id] = True
 
         await derived_roles_cog.on_guild_remove(mock_guild)
 
-        assert mock_guild.id not in derived_roles_cog._last_sync
+        assert derived_roles_cog._schedule.next_due(mock_guild.id) is None
         assert mock_guild.id not in derived_roles_cog._error_state
+
+
+class TestRunSyncSchedule:
+    """Tests for the per-guild schedule of the reconciliation loop."""
+
+    async def test_syncs_when_due_and_skips_idle_ticks(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """The first tick syncs; ticks before the interval elapses read no config."""
+        derived_roles_cog.bot.guilds = [mock_guild]
+        config = {ConfigKey.SYNC_INTERVAL: 30, ConfigKey.RULES: []}
+
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ) as mock_enabled,
+            patch.object(
+                derived_roles_cog, "_get_config", new_callable=AsyncMock, return_value=config
+            ),
+            patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await derived_roles_cog._run_sync()
+            await derived_roles_cog._run_sync()
+
+        mock_sync.assert_awaited_once_with(guild=mock_guild, config=config)
+        mock_enabled.assert_awaited_once()
+
+    async def test_disabled_guild_is_deferred(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """A disabled guild is not re-read on every tick."""
+        derived_roles_cog.bot.guilds = [mock_guild]
+
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=False
+            ) as mock_enabled,
+            patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await derived_roles_cog._run_sync()
+            await derived_roles_cog._run_sync()
+
+        mock_sync.assert_not_awaited()
+        mock_enabled.assert_awaited_once()
+
+    async def test_zero_interval_is_deferred(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """A guild with sync interval 0 never syncs and is not re-read every tick."""
+        derived_roles_cog.bot.guilds = [mock_guild]
+
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ) as mock_enabled,
+            patch.object(
+                derived_roles_cog,
+                "_get_config",
+                new_callable=AsyncMock,
+                return_value={ConfigKey.SYNC_INTERVAL: 0},
+            ),
+            patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await derived_roles_cog._run_sync()
+            await derived_roles_cog._run_sync()
+
+        mock_sync.assert_not_awaited()
+        mock_enabled.assert_awaited_once()
+
+    async def test_force_all_ignores_schedule(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """force_all syncs even when the guild is not due yet."""
+        derived_roles_cog.bot.guilds = [mock_guild]
+        derived_roles_cog._schedule.mark_run(
+            guild_id=mock_guild.id, now=datetime.now(UTC), interval_minutes=60
+        )
+        config = {ConfigKey.SYNC_INTERVAL: 60}
+
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                derived_roles_cog, "_get_config", new_callable=AsyncMock, return_value=config
+            ),
+            patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await derived_roles_cog._run_sync(force_all=True)
+
+        mock_sync.assert_awaited_once_with(guild=mock_guild, config=config)
+
+    async def test_config_callbacks_reset_schedule(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """on_config_changed and on_cog_toggled make the guild due on the next tick."""
+        derived_roles_cog.bot.guilds = [mock_guild]
+        config = {ConfigKey.SYNC_INTERVAL: 60, ConfigKey.RULES: []}
+
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ) as mock_enabled,
+            patch.object(
+                derived_roles_cog, "_get_config", new_callable=AsyncMock, return_value=config
+            ),
+            patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock),
+        ):
+            await derived_roles_cog._run_sync()
+            await derived_roles_cog.on_config_changed(guild=mock_guild, keys=["sync_interval"])
+            await derived_roles_cog._run_sync()
+            await derived_roles_cog.on_cog_toggled(guild=mock_guild, enabled=False)
+            await derived_roles_cog._run_sync()
+
+        assert mock_enabled.await_count == 3
 
 
 class TestConfigCaching:

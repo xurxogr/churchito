@@ -980,11 +980,77 @@ class TestRunSyncIntervalCheck:
             await session.commit()
 
         # Simulate that it synced 10 minutes ago
-        autoname_cog._last_sync[mock_guild.id] = datetime.now(UTC) - timedelta(minutes=10)
+        autoname_cog._schedule.mark_run(
+            guild_id=mock_guild.id,
+            now=datetime.now(UTC) - timedelta(minutes=10),
+            interval_minutes=30,
+        )
 
         with patch.object(autoname_cog, "_sync_guild") as mock_sync:
             await autoname_cog._run_sync()
             mock_sync.assert_not_called()
+
+    async def test_idle_tick_reads_no_config(self, autoname_cog: AutonameCog) -> None:
+        """A tick before the guild is due does not read configuration at all."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test"
+        cast(MagicMock, autoname_cog.bot).guilds = [mock_guild]
+
+        with (
+            patch.object(
+                autoname_cog, "_get_sync_interval", new_callable=AsyncMock, return_value=30
+            ) as mock_interval,
+            patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await autoname_cog._run_sync()
+            await autoname_cog._run_sync()
+
+        mock_sync.assert_awaited_once_with(mock_guild)
+        mock_interval.assert_awaited_once()
+
+    async def test_disabled_guild_is_not_rechecked_every_tick(
+        self, autoname_cog: AutonameCog
+    ) -> None:
+        """A guild with sync disabled is deferred instead of re-read every minute."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test"
+        cast(MagicMock, autoname_cog.bot).guilds = [mock_guild]
+
+        with (
+            patch.object(
+                autoname_cog, "_get_sync_interval", new_callable=AsyncMock, return_value=0
+            ) as mock_interval,
+            patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync,
+        ):
+            await autoname_cog._run_sync()
+            await autoname_cog._run_sync()
+
+        mock_sync.assert_not_awaited()
+        mock_interval.assert_awaited_once()
+        assert autoname_cog._schedule.next_due(mock_guild.id) is not None
+
+    async def test_config_change_makes_guild_due_again(self, autoname_cog: AutonameCog) -> None:
+        """Config callbacks reset the schedule so a new interval applies on the next tick."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test"
+        cast(MagicMock, autoname_cog.bot).guilds = [mock_guild]
+
+        with (
+            patch.object(
+                autoname_cog, "_get_sync_interval", new_callable=AsyncMock, return_value=30
+            ) as mock_interval,
+            patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock),
+        ):
+            await autoname_cog._run_sync()
+            await autoname_cog.on_config_changed(guild=mock_guild, keys=[ConfigKey.SYNC_INTERVAL])
+            await autoname_cog._run_sync()
+            await autoname_cog.on_cog_toggled(guild=mock_guild, enabled=False)
+            await autoname_cog._run_sync()
+
+        assert mock_interval.await_count == 3
 
     async def test_handles_exception_in_guild_sync(
         self, autoname_cog: AutonameCog, test_database: DatabaseService
@@ -1088,11 +1154,13 @@ class TestOnGuildRemove:
         guild = MagicMock(spec=discord.Guild)
         guild.id = 987654321
         guild.name = "Test Guild"
-        autoname_cog._last_sync[guild.id] = datetime.now(UTC)
+        autoname_cog._schedule.mark_run(
+            guild_id=guild.id, now=datetime.now(UTC), interval_minutes=30
+        )
 
         await autoname_cog.on_guild_remove(guild)
 
-        assert guild.id not in autoname_cog._last_sync
+        assert autoname_cog._schedule.next_due(guild.id) is None
 
 
 class TestConfigCaching:

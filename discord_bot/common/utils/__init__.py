@@ -16,6 +16,7 @@ from discord_bot.common.utils.game_data import (
     is_valid_hex,
     load_hex_cities,
 )
+from discord_bot.common.utils.guild_scheduler import GuildScheduler
 from discord_bot.common.utils.keyed_locks import KeyedLocks
 from discord_bot.common.utils.shared_http_client import SharedAsyncClient
 from discord_bot.common.utils.ttl_cache import TTLCache
@@ -23,6 +24,7 @@ from discord_bot.common.utils.ttl_cache import TTLCache
 __all__ = [
     "DISCORD_CDN_DOMAINS",
     "EMBED_SECTIONS_COLUMNS",
+    "GuildScheduler",
     "KeyedLocks",
     "SharedAsyncClient",
     "TTLCache",

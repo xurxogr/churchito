@@ -543,6 +543,13 @@ async def health_check_loop(self):
     """Periodic validation of cog state."""
 ```
 
+Loops with a per-guild configurable interval (verification health check,
+autoname/derived roles sync) keep a `GuildScheduler`
+(`discord_bot/common/utils/guild_scheduler.py`): each tick only reads the
+configuration of guilds that are due, and `on_config_changed` /
+`on_cog_toggled` call `reset(guild_id)` so a new interval applies on the
+next tick.
+
 ---
 
 ## Cog Registration & Schema

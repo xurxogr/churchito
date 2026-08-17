@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks, TTLCache, delete_message
+from discord_bot.common.utils import GuildScheduler, KeyedLocks, TTLCache, delete_message
 from discord_bot.verification.api_client import close_client
 from discord_bot.verification.config import (
     COG_NAME,
@@ -76,7 +76,8 @@ class VerificationCog(commands.Cog):
         """
         self.bot = bot
         self._pending_dm_verifications: dict[int, tuple[int, int]] = {}
-        self._last_health_check: dict[int, datetime] = {}
+        # Per-guild next-due times, so idle minute ticks read no configuration
+        self._schedule = GuildScheduler()
         self._health_check_started = False
         # Timers for screenshot timeout: request_id -> Task
         self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
@@ -482,6 +483,7 @@ class VerificationCog(commands.Cog):
             keys (list[str]): List of configuration keys that changed
         """
         self._welcome_gate_cache.pop(guild.id, None)
+        self._schedule.reset(guild.id)
         keys_set = set(keys)
 
         # Check if any panel key changed
@@ -504,6 +506,7 @@ class VerificationCog(commands.Cog):
             enabled (bool): True if enabled, False if disabled
         """
         self._welcome_gate_cache.pop(guild.id, None)
+        self._schedule.reset(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Cog enabled, creating panel")
             await self._check_verification_message(guild=guild, recreate=True)
@@ -907,24 +910,17 @@ class VerificationCog(commands.Cog):
 
         for guild in self.bot.guilds:
             try:
-                # Get configured interval for this guild
-                interval = await self._get_health_check_interval(guild.id)
-
-                # If interval is 0, health check disabled for this guild
-                if interval == 0:
+                if not force_all and not self._schedule.is_due(guild_id=guild.id, now=now):
                     continue
 
-                # Check if it's time to execute (unless forced)
-                if not force_all:
-                    last_check = self._last_health_check.get(guild.id)
-                    if last_check:
-                        seconds_since_last = (now - last_check).total_seconds()
-                        if seconds_since_last < interval * 60:
-                            continue  # Not time yet
+                # Interval 0 means the health check is disabled for this guild
+                interval = await self._get_health_check_interval(guild.id)
+                if interval == 0:
+                    self._schedule.defer(guild_id=guild.id, now=now)
+                    continue
 
-                # Execute health check and record timestamp
                 await self._check_verification_message(guild=guild)
-                self._last_health_check[guild.id] = now
+                self._schedule.mark_run(guild_id=guild.id, now=now, interval_minutes=interval)
 
             except Exception as e:
                 logger.error(f"[{guild.name}] Error in health check: {e}")
@@ -1367,7 +1363,7 @@ class VerificationCog(commands.Cog):
         Args:
             guild (discord.Guild): Guild the bot left.
         """
-        self._last_health_check.pop(guild.id, None)
+        self._schedule.reset(guild.id)
         self._welcome_gate_cache.pop(guild.id, None)
         self._pending_dm_verifications = {
             user_id: pending

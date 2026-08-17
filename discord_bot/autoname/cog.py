@@ -12,6 +12,7 @@ from discord_bot.autoname.service import compute_nickname
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
+from discord_bot.common.utils import GuildScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class AutonameCog(commands.Cog):
             bot (DiscordBot): Bot instance
         """
         self.bot = bot
-        self._last_sync: dict[int, datetime] = {}
+        # Per-guild next-due times, so idle minute ticks read no configuration
+        self._schedule = GuildScheduler()
         self._sync_started = False
         # Per-guild enabled flag + config, so member updates and full syncs
         # do not open a database session per event / per member
@@ -218,7 +220,7 @@ class AutonameCog(commands.Cog):
         Args:
             guild (discord.Guild): Guild the bot left.
         """
-        self._last_sync.pop(guild.id, None)
+        self._schedule.reset(guild.id)
         self._config_cache.invalidate(guild.id)
 
     @commands.Cog.listener()
@@ -265,20 +267,16 @@ class AutonameCog(commands.Cog):
 
         for guild in self.bot.guilds:
             try:
-                interval = await self._get_sync_interval(guild.id)
-
-                if interval == 0:
+                if not force_all and not self._schedule.is_due(guild_id=guild.id, now=now):
                     continue
 
-                if not force_all:
-                    last_sync = self._last_sync.get(guild.id)
-                    if last_sync:
-                        seconds_since_last = (now - last_sync).total_seconds()
-                        if seconds_since_last < interval * 60:
-                            continue
+                interval = await self._get_sync_interval(guild.id)
+                if interval == 0:
+                    self._schedule.defer(guild_id=guild.id, now=now)
+                    continue
 
                 await self._sync_guild(guild)
-                self._last_sync[guild.id] = now
+                self._schedule.mark_run(guild_id=guild.id, now=now, interval_minutes=interval)
 
             except Exception as e:
                 logger.error(f"[{guild.name}] Error in sync: {e}")
@@ -326,6 +324,7 @@ class AutonameCog(commands.Cog):
             enabled (bool): True if enabled, False if disabled
         """
         self._config_cache.invalidate(guild.id)
+        self._schedule.reset(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Autoname enabled, syncing nicknames")
             await self._sync_guild(guild)
@@ -340,6 +339,7 @@ class AutonameCog(commands.Cog):
             keys (list[str]): List of configuration keys that changed
         """
         self._config_cache.invalidate(guild.id)
+        self._schedule.reset(guild.id)
         # Re-sync if role, prefix, format or required role configuration changes
         resync_keys = {
             ConfigKey.ROLE_TAGS,
