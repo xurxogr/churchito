@@ -14,15 +14,21 @@ class TTLCache[K, V]:
 
     ``None`` is a valid cached value: a miss is tracked by key absence, not by
     the stored value.
+
+    Keys that come from an unbounded population (e.g. arbitrary user IDs)
+    should set ``max_entries``: when the cache is full, expired entries are
+    pruned and, if it is still full, the entry closest to expiry is evicted.
     """
 
-    def __init__(self, ttl_seconds: float) -> None:
+    def __init__(self, ttl_seconds: float, max_entries: int | None = None) -> None:
         """Initialize an empty cache.
 
         Args:
             ttl_seconds (float): How long a value stays fresh after being loaded.
+            max_entries (int | None): Upper bound on stored keys; ``None`` is unbounded.
         """
         self._ttl_seconds = ttl_seconds
+        self._max_entries = max_entries
         self._entries: dict[K, tuple[float, V]] = {}
 
     def __len__(self) -> int:
@@ -32,6 +38,30 @@ class TTLCache[K, V]:
             int: Number of stored entries.
         """
         return len(self._entries)
+
+    def get(self, key: K, default: V | None = None) -> V | None:
+        """Return the fresh value for a key, or ``default`` if absent or expired.
+
+        Args:
+            key (K): Cache key.
+            default (V | None): Value returned on a miss.
+
+        Returns:
+            V | None: Cached value or the default.
+        """
+        entry = self._entries.get(key)
+        if entry is not None and entry[0] > time.monotonic():
+            return entry[1]
+        return default
+
+    def set(self, key: K, value: V) -> None:
+        """Store a value for a key, starting a fresh TTL.
+
+        Args:
+            key (K): Cache key.
+            value (V): Value to store.
+        """
+        self._store(key=key, value=value, now=time.monotonic())
 
     async def get_or_load(self, key: K, loader: Callable[[], Awaitable[V]]) -> V:
         """Return the cached value for a key, loading and storing it if stale or absent.
@@ -52,7 +82,7 @@ class TTLCache[K, V]:
             return entry[1]
 
         value = await loader()
-        self._entries[key] = (now + self._ttl_seconds, value)
+        self._store(key=key, value=value, now=now)
         return value
 
     def invalidate(self, key: K) -> None:
@@ -66,3 +96,33 @@ class TTLCache[K, V]:
     def clear(self) -> None:
         """Drop every cached entry."""
         self._entries.clear()
+
+    def _store(self, key: K, value: V, now: float) -> None:
+        """Store an entry, making room first if the cache is bounded and full.
+
+        Args:
+            key (K): Cache key.
+            value (V): Value to store.
+            now (float): Current monotonic time.
+        """
+        if (
+            self._max_entries is not None
+            and key not in self._entries
+            and len(self._entries) >= self._max_entries
+        ):
+            self._make_room(now=now)
+        self._entries[key] = (now + self._ttl_seconds, value)
+
+    def _make_room(self, now: float) -> None:
+        """Prune expired entries; if none expired, evict the entry closest to expiry.
+
+        Args:
+            now (float): Current monotonic time.
+        """
+        expired = [k for k, (expires_at, _) in self._entries.items() if expires_at <= now]
+        for k in expired:
+            del self._entries[k]
+        if expired or not self._entries:
+            return
+        oldest = min(self._entries, key=lambda k: self._entries[k][0])
+        del self._entries[oldest]

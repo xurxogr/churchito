@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks, delete_message
+from discord_bot.common.utils import KeyedLocks, TTLCache, delete_message
 from discord_bot.verification.api_client import close_client
 from discord_bot.verification.config import (
     COG_NAME,
@@ -56,6 +56,13 @@ logger = logging.getLogger(__name__)
 # also invalidated explicitly on config changes, cog toggles and guild removal
 _WELCOME_GATE_TTL_SECONDS = 60.0
 
+# A DM from a user without a pending verification costs a database lookup, a
+# scan of every shared guild (one session each) and a reply. Remember the
+# negative answer per user for a short while: repeated DMs are dropped from
+# memory and the user is not re-told until this expires
+_NO_PENDING_DM_TTL_SECONDS = 30.0
+_NO_PENDING_DM_MAX_USERS = 1000
+
 
 class VerificationCog(commands.Cog):
     """Cog for the user verification system."""
@@ -78,6 +85,10 @@ class VerificationCog(commands.Cog):
         # Welcome card gate per guild: (expiry, required role IDs or None if
         # inactive), so on_member_update doesn't hit the DB on every role change
         self._welcome_gate_cache: dict[int, tuple[float, list[int] | None]] = {}
+        # Users recently told they have no pending verification (see on_message)
+        self._no_pending_dm_cache: TTLCache[int, bool] = TTLCache(
+            ttl_seconds=_NO_PENDING_DM_TTL_SECONDS, max_entries=_NO_PENDING_DM_MAX_USERS
+        )
         # User locks to prevent race conditions on verification start
         self._user_locks = KeyedLocks()
 
@@ -1152,6 +1163,10 @@ class VerificationCog(commands.Cog):
         if user_id in self._pending_dm_verifications:
             return self._pending_dm_verifications[user_id]
 
+        # Recently confirmed there is nothing pending: skip the database
+        if self._no_pending_dm_cache.get(user_id):
+            return None
+
         # Search in database (in case bot restarted)
         async with self.bot.database.session() as session:
             service = VerificationService(session=session)
@@ -1167,9 +1182,17 @@ class VerificationCog(commands.Cog):
     async def _respond_no_pending_verification(self, message: discord.Message) -> None:
         """Respond when user sends a DM without active verification.
 
+        Answered at most once per user per _NO_PENDING_DM_TTL_SECONDS: further
+        DMs in that window are ignored without touching the database or Discord.
+
         Args:
             message (discord.Message): Received message
         """
+        user_id = message.author.id
+        if self._no_pending_dm_cache.get(user_id):
+            return
+        self._no_pending_dm_cache.set(key=user_id, value=True)
+
         # Find a common server to get configuration
         guild_id = None
         for guild in self.bot.guilds:

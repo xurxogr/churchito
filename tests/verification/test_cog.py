@@ -8575,6 +8575,104 @@ class TestGetPendingVerification:
         result = await verification_cog._get_pending_verification(user_id=99999)
         assert result is None
 
+    async def test_negative_answer_is_cached_after_reply(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Once a user was told there is nothing pending, the DB is not queried again."""
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 99999
+        message.reply = AsyncMock()
+        verification_cog.bot.guilds = []
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_spy:
+            await verification_cog.on_message(message)
+            first_lookups = session_spy.call_count
+            assert await verification_cog._get_pending_verification(user_id=99999) is None
+
+        assert first_lookups == 1
+        assert session_spy.call_count == first_lookups
+
+    async def test_memory_entry_wins_over_negative_cache(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A verification started after a negative answer is found immediately."""
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 99999
+        message.reply = AsyncMock()
+        verification_cog.bot.guilds = []
+        await verification_cog.on_message(message)
+
+        verification_cog._pending_dm_verifications[99999] = (123, 7)
+
+        assert await verification_cog._get_pending_verification(user_id=99999) == (123, 7)
+
+
+class TestNoPendingReplyCooldown:
+    """Repeated DMs from a user without a pending verification are answered once."""
+
+    @staticmethod
+    def _dm(user_id: int) -> MagicMock:
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = user_id
+        message.reply = AsyncMock()
+        return message
+
+    async def test_second_dm_within_cooldown_gets_no_reply_and_no_guild_scan(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """The second DM is dropped without scanning guilds or replying."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_member = MagicMock(return_value=MagicMock())
+        verification_cog.bot.guilds = [mock_guild]
+        first, second = self._dm(999), self._dm(999)
+
+        with patch.object(
+            verification_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=False
+        ) as mock_enabled:
+            await verification_cog.on_message(first)
+            await verification_cog.on_message(second)
+
+        first.reply.assert_awaited_once()
+        second.reply.assert_not_awaited()
+        mock_enabled.assert_awaited_once()
+
+    async def test_reply_resumes_after_cooldown(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """After the cooldown expires the user is answered again."""
+        verification_cog.bot.guilds = []
+        first, second = self._dm(999), self._dm(999)
+
+        await verification_cog.on_message(first)
+        verification_cog._no_pending_dm_cache.clear()
+        await verification_cog.on_message(second)
+
+        first.reply.assert_awaited_once()
+        second.reply.assert_awaited_once()
+
+    async def test_cooldown_is_per_user(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """One user's cooldown does not silence another user."""
+        verification_cog.bot.guilds = []
+        first, other = self._dm(999), self._dm(1000)
+
+        await verification_cog.on_message(first)
+        await verification_cog.on_message(other)
+
+        first.reply.assert_awaited_once()
+        other.reply.assert_awaited_once()
+
 
 class TestHandleReviewRevertFails:
     """Tests for handle_review when revert fails."""
