@@ -1,11 +1,15 @@
 """Tests for discord_bot/purge/execution.py."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.database import DatabaseService
@@ -20,6 +24,7 @@ from discord_bot.purge.execution import (
     execute_purge,
     make_execution_log,
 )
+from discord_bot.purge.models import PurgeUserResult
 from discord_bot.purge.service import PurgeService
 
 
@@ -1887,3 +1892,125 @@ class TestGlobalRemovalEdgeCases:
 
         # Count should be 0 because remove_roles failed
         assert count == 0
+
+
+class _SessionTracker:
+    """Wrap DatabaseService.session to count how many sessions are open at any time."""
+
+    def __init__(self, database: DatabaseService) -> None:
+        self._real = database.session
+        self.open = 0
+        self.total = 0
+
+    @asynccontextmanager
+    async def __call__(self) -> AsyncIterator[AsyncSession]:
+        self.open += 1
+        self.total += 1
+        try:
+            async with self._real() as session:
+                yield session
+        finally:
+            self.open -= 1
+
+
+def _make_global_member(guild: MagicMock, member_id: int) -> MagicMock:
+    member = MagicMock(spec=discord.Member)
+    member.id = member_id
+    member.bot = False
+    member.name = f"user{member_id}"
+    member.display_name = f"user{member_id}"
+    member.roles = [guild.default_role]
+    member.remove_roles = AsyncMock()
+    member.add_roles = AsyncMock()
+    member.edit = AsyncMock()
+    return member
+
+
+async def _create_authorized_global_purge(db: DatabaseService, guild_id: int) -> int:
+    async with db.session() as session:
+        purge_service = PurgeService(session)
+        record = await purge_service.create_purge(
+            guild_id=guild_id,
+            purge_type=PurgeType.GLOBAL,
+            initiated_by=123,
+            config_snapshot={"excluded_roles": [], "roles_to_remove": [], "roles_to_add": []},
+            scheduled_for=datetime.now(UTC) - timedelta(hours=1),
+        )
+        await purge_service.update_status(record.id, PurgeStatus.AUTHORIZED)
+        await session.commit()
+        return record.id
+
+
+async def _stored_user_results(db: DatabaseService, purge_id: int) -> list[PurgeUserResult]:
+    async with db.session() as session:
+        result = await session.execute(
+            select(PurgeUserResult).where(PurgeUserResult.purge_id == purge_id)
+        )
+        return list(result.scalars().all())
+
+
+class TestExecutePurgeSessions:
+    """execute_purge must not keep a database session open while editing members."""
+
+    async def test_no_session_open_while_members_are_edited(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Member edits happen between short sessions, and results are persisted at the end."""
+        members = [_make_global_member(mock_guild, mid) for mid in (1, 2, 3)]
+        mock_guild.members = members
+        mock_guild.get_member = MagicMock(side_effect=lambda mid: members[mid - 1])
+        purge_id = await _create_authorized_global_purge(test_database, mock_guild.id)
+
+        tracker = _SessionTracker(test_database)
+        open_during_edits: list[int] = []
+        for member in members:
+            member.edit = AsyncMock(side_effect=lambda **_: open_during_edits.append(tracker.open))
+
+        with (
+            patch.object(test_database, "session", tracker),
+            patch.object(purge_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock),
+            patch.object(purge_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+        ):
+            mock_config.return_value = {ConfigKey.AUDIT_LEVEL: 1}
+            await execute_purge(cog=purge_cog, guild_id=mock_guild.id, purge_id=purge_id)
+
+        assert open_during_edits == [0, 0, 0]
+        assert {r.user_id for r in await _stored_user_results(test_database, purge_id)} == {1, 2, 3}
+        async with test_database.session() as session:
+            record = await PurgeService(session).get_purge(purge_id)
+        assert record is not None
+        assert record.status == PurgeStatus.EXECUTED
+        assert record.execution_result is not None
+        assert record.execution_result["cleaned_count"] == 3
+
+    async def test_results_written_before_failure_survive(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """A crash mid-purge keeps the results of members already processed."""
+        members = [_make_global_member(mock_guild, mid) for mid in (1, 2, 3)]
+        mock_guild.members = members
+        mock_guild.get_member = MagicMock(side_effect=lambda mid: members[mid - 1])
+        members[2].edit = AsyncMock(side_effect=RuntimeError("boom"))
+        purge_id = await _create_authorized_global_purge(test_database, mock_guild.id)
+
+        with (
+            patch.object(purge_cog.bot, "get_guild", return_value=mock_guild),
+            patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock),
+            patch.object(purge_cog, "_get_config", new_callable=AsyncMock) as mock_config,
+            pytest.raises(RuntimeError),
+        ):
+            mock_config.return_value = {ConfigKey.AUDIT_LEVEL: 1}
+            await execute_purge(cog=purge_cog, guild_id=mock_guild.id, purge_id=purge_id)
+
+        assert {r.user_id for r in await _stored_user_results(test_database, purge_id)} == {1, 2}
+        async with test_database.session() as session:
+            record = await PurgeService(session).get_purge(purge_id)
+        assert record is not None
+        assert record.status == PurgeStatus.AUTHORIZED  # the cog marks it FAILED afterwards

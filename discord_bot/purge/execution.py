@@ -13,6 +13,7 @@ from discord_bot.common.utils import delete_message
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.formatters import format_message
 from discord_bot.purge.models import PurgeRecord
+from discord_bot.purge.results import PurgeResultBuffer, UserResultSink
 from discord_bot.purge.service import PurgeService
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ async def _apply_cleaning_to_member(
     member: discord.Member,
     roles_to_remove: list[int],
     roles_to_add: list[int],
-    purge_service: PurgeService,
+    purge_service: UserResultSink,
     purge_id: int,
 ) -> tuple[discord.Member, list[int], list[int]]:
     """Apply role cleaning to a member.
@@ -49,7 +50,7 @@ async def _apply_cleaning_to_member(
         member (discord.Member): Member to clean.
         roles_to_remove (list[int]): Role IDs to remove.
         roles_to_add (list[int]): Role IDs to add.
-        purge_service (PurgeService): Purge service.
+        purge_service (UserResultSink): Where to record the per-user result.
         purge_id (int): Purge ID.
 
     Returns:
@@ -105,12 +106,56 @@ async def _apply_cleaning_to_member(
     return member, roles_before, roles_after
 
 
+async def _load_authorized_record(cog: PurgeCog, purge_id: int) -> PurgeRecord | None:
+    """Load a purge record in a short session, only if it is authorized.
+
+    Args:
+        cog (PurgeCog): Cog instance.
+        purge_id (int): Purge ID.
+
+    Returns:
+        PurgeRecord | None: The detached record, or None if missing / not authorized.
+    """
+    async with cog.bot.database.session() as session:
+        record = await PurgeService(session).get_purge(purge_id)
+    if not record or record.status != PurgeStatus.AUTHORIZED:
+        return None
+    return record
+
+
+async def _finalize_purge_record(
+    cog: PurgeCog, purge_id: int, execution_result: dict[str, Any]
+) -> PurgeRecord | None:
+    """Mark the purge as executed and commit, in its own short session.
+
+    Args:
+        cog (PurgeCog): Cog instance.
+        purge_id (int): Purge ID.
+        execution_result (dict[str, Any]): Summary counters to store.
+
+    Returns:
+        PurgeRecord | None: Updated record, or None if it disappeared.
+    """
+    async with cog.bot.database.session() as session:
+        record = await PurgeService(session).update_status(
+            purge_id=purge_id,
+            status=PurgeStatus.EXECUTED,
+            execution_result=execution_result,
+        )
+        await session.commit()
+    return record
+
+
 async def execute_purge(
     cog: PurgeCog,
     guild_id: int,
     purge_id: int,
 ) -> None:
     """Execute a purge.
+
+    Database access is split into short sessions (load, batched per-user
+    results, finalize) so no transaction stays open while the potentially
+    long, rate-limited Discord role edits run.
 
     Args:
         cog (PurgeCog): Cog instance.
@@ -122,71 +167,70 @@ async def execute_purge(
         logger.error(f"[Guild ID: {guild_id}] Guild not found to execute purge {purge_id}")
         return
 
-    async with cog.bot.database.session() as session:
-        purge_service = PurgeService(session)
-        record = await purge_service.get_purge(purge_id)
+    record = await _load_authorized_record(cog=cog, purge_id=purge_id)
+    if not record:
+        logger.warning(f"[{guild.name}] Purge (ID: {purge_id}) is not in authorized status")
+        return
 
-        if not record or record.status != PurgeStatus.AUTHORIZED:
-            logger.warning(f"[{guild.name}] Purge (ID: {purge_id}) is not in authorized status")
-            return
+    config = await cog._get_config(guild_id)
+    test_mode = record.config_snapshot.get("test_mode", False)
+    audit_level = config.get(ConfigKey.AUDIT_LEVEL, 1)
 
-        config = await cog._get_config(guild_id)
-        test_mode = record.config_snapshot.get("test_mode", False)
-        audit_level = config.get(ConfigKey.AUDIT_LEVEL, 1)
+    logger.info(f"[{guild.name}] {'[TEST MODE] ' if test_mode else ''}Executing purge {purge_id}")
 
-        logger.info(
-            f"[{guild.name}] {'[TEST MODE] ' if test_mode else ''}Executing purge {purge_id}"
+    # Detect purge type
+    purge_type = PurgeType(record.purge_type)
+
+    # Config from snapshot (common)
+    roles_to_remove = record.config_snapshot.get("roles_to_remove", [])
+    roles_to_add = record.config_snapshot.get("roles_to_add", [])
+    confirmed_users = set(record.confirmed_by)
+
+    # Type-specific config
+    if purge_type == PurgeType.GLOBAL:
+        excluded_roles: list[int] = record.config_snapshot.get("excluded_roles", [])
+        affected_roles: list[int] = []
+        promotions: list[dict[str, int]] = []
+        default_promotion = None
+    else:
+        excluded_roles = []
+        affected_roles = record.config_snapshot.get("affected_roles", [])
+        promotions = record.config_snapshot.get("promotions", [])
+        default_promotion = record.config_snapshot.get("default_promotion")
+
+    # Stats
+    cleaned_count = 0
+    promoted_in_group = 0
+    promoted_not_in_group = 0
+    processed_users: set[int] = set()
+
+    # Per-user results are buffered and written in short sessions
+    results = PurgeResultBuffer(database=cog.bot.database, purge_id=purge_id)
+
+    # Execution logs (will be added to mod message), bounded to the
+    # newest lines so large guilds cannot grow it without limit
+    execution_logs = make_execution_log()
+
+    # Add simulation indicator once at the start
+    if test_mode:
+        simulation_msg = config.get(ConfigKey.EXEC_MSG_SIMULATION, "🧪 **[TEST MODE]**")
+        execution_logs.append(simulation_msg)
+
+    # === LOG INIT MESSAGE (level 1) ===
+    if audit_level >= 1:
+        msg = config.get(ConfigKey.EXEC_MSG_INIT, "🔥 **Starting purge...**")
+        execution_logs.append(msg)
+
+        # Send start log to logs channel
+        await cog._send_log(
+            guild=guild,
+            config=config,
+            public_id=record.public_id,
+            message=msg,
+            audit_level_required=1,
         )
 
-        # Detect purge type
-        purge_type = PurgeType(record.purge_type)
-
-        # Config from snapshot (common)
-        roles_to_remove = record.config_snapshot.get("roles_to_remove", [])
-        roles_to_add = record.config_snapshot.get("roles_to_add", [])
-        confirmed_users = set(record.confirmed_by)
-
-        # Type-specific config
-        if purge_type == PurgeType.GLOBAL:
-            excluded_roles: list[int] = record.config_snapshot.get("excluded_roles", [])
-            affected_roles: list[int] = []
-            promotions: list[dict[str, int]] = []
-            default_promotion = None
-        else:
-            excluded_roles = []
-            affected_roles = record.config_snapshot.get("affected_roles", [])
-            promotions = record.config_snapshot.get("promotions", [])
-            default_promotion = record.config_snapshot.get("default_promotion")
-
-        # Stats
-        cleaned_count = 0
-        promoted_in_group = 0
-        promoted_not_in_group = 0
-        processed_users: set[int] = set()
-
-        # Execution logs (will be added to mod message), bounded to the
-        # newest lines so large guilds cannot grow it without limit
-        execution_logs = make_execution_log()
-
-        # Add simulation indicator once at the start
-        if test_mode:
-            simulation_msg = config.get(ConfigKey.EXEC_MSG_SIMULATION, "🧪 **[TEST MODE]**")
-            execution_logs.append(simulation_msg)
-
-        # === LOG INIT MESSAGE (level 1) ===
-        if audit_level >= 1:
-            msg = config.get(ConfigKey.EXEC_MSG_INIT, "🔥 **Starting purge...**")
-            execution_logs.append(msg)
-
-            # Send start log to logs channel
-            await cog._send_log(
-                guild=guild,
-                config=config,
-                public_id=record.public_id,
-                message=msg,
-                audit_level_required=1,
-            )
-
+    try:
         # === PHASE 1: CLEAN NON-CONFIRMED USERS ===
         if purge_type == PurgeType.GLOBAL:
             # Global purge: affects everyone except excluded roles
@@ -195,7 +239,7 @@ async def execute_purge(
                 guild=guild,
                 record=record,
                 config=config,
-                purge_service=purge_service,
+                purge_service=results,
                 purge_id=purge_id,
                 excluded_roles=excluded_roles,
                 roles_to_remove=roles_to_remove,
@@ -211,7 +255,7 @@ async def execute_purge(
                 guild=guild,
                 record=record,
                 config=config,
-                purge_service=purge_service,
+                purge_service=results,
                 purge_id=purge_id,
                 affected_roles=affected_roles,
                 roles_to_remove=roles_to_remove,
@@ -239,7 +283,7 @@ async def execute_purge(
                 guild=guild,
                 record=record,
                 config=config,
-                purge_service=purge_service,
+                purge_service=results,
                 purge_id=purge_id,
                 affected_roles=affected_roles,
                 promotions=promotions,
@@ -280,88 +324,88 @@ async def execute_purge(
                                 f"[{guild.name}] Could not remove reaction role "
                                 f"from {reaction_member.name}"
                             )
+    finally:
+        # Keep whatever was already applied even if a phase raised; the cog
+        # marks the purge FAILED in that case
+        await results.flush()
 
-        # === GENERATE FINISH MESSAGE ===
-        if purge_type == PurgeType.GLOBAL:
-            finish_msg_template = config.get(
-                ConfigKey.GLOBAL_EXEC_MSG_FINISH,
-                "✅ **Global purge completed.**\n\n🧹 Users purged: {cleaned}",
-            )
-            finish_msg = format_message(finish_msg_template, cleaned=str(cleaned_count))
-        else:
-            finish_msg_template = config.get(
-                ConfigKey.WAR_EXEC_MSG_FINISH,
-                "✅ **Purge completed.**\n\n"
-                "🧹 Purged: {cleaned}\n"
-                "⬆️ Promoted (group): {promoted_in_group}\n"
-                "⬆️ Promoted (others): {promoted_not_in_group}\n"
-                "🗑️ Global roles removed: {global_removed}",
-            )
-            finish_msg = format_message(
-                finish_msg_template,
-                cleaned=str(cleaned_count),
-                promoted_in_group=str(promoted_in_group),
-                promoted_not_in_group=str(promoted_not_in_group),
-                global_removed=str(global_removed_count),
-            )
-
-        # === LOG FINISH MESSAGE (level 1) ===
-        if audit_level >= 1:
-            execution_logs.append(finish_msg)
-
-        # Update execution result
-        execution_result = {
-            "test_mode": test_mode,
-            "confirmed_count": len(confirmed_users),
-            "cleaned_count": cleaned_count,
-            "promoted_in_group": promoted_in_group,
-            "promoted_not_in_group": promoted_not_in_group,
-            "global_removed_count": global_removed_count,
-        }
-
-        record = await purge_service.update_status(
-            purge_id=purge_id,
-            status=PurgeStatus.EXECUTED,
-            execution_result=execution_result,
+    # === GENERATE FINISH MESSAGE ===
+    if purge_type == PurgeType.GLOBAL:
+        finish_msg_template = config.get(
+            ConfigKey.GLOBAL_EXEC_MSG_FINISH,
+            "✅ **Global purge completed.**\n\n🧹 Users purged: {cleaned}",
+        )
+        finish_msg = format_message(finish_msg_template, cleaned=str(cleaned_count))
+    else:
+        finish_msg_template = config.get(
+            ConfigKey.WAR_EXEC_MSG_FINISH,
+            "✅ **Purge completed.**\n\n"
+            "🧹 Purged: {cleaned}\n"
+            "⬆️ Promoted (group): {promoted_in_group}\n"
+            "⬆️ Promoted (others): {promoted_not_in_group}\n"
+            "🗑️ Global roles removed: {global_removed}",
+        )
+        finish_msg = format_message(
+            finish_msg_template,
+            cleaned=str(cleaned_count),
+            promoted_in_group=str(promoted_in_group),
+            promoted_not_in_group=str(promoted_not_in_group),
+            global_removed=str(global_removed_count),
         )
 
-        if record:
-            # Delete user message
-            if record.user_message_id and record.user_channel_id:
-                await delete_message(
-                    guild=guild,
-                    channel_id=record.user_channel_id,
-                    message_id=record.user_message_id,
-                )
+    # === LOG FINISH MESSAGE (level 1) ===
+    if audit_level >= 1:
+        execution_logs.append(finish_msg)
 
-            # Update moderation message with final logs
-            await cog._update_mod_message(
-                guild=guild,
-                record=record,
-                config=config,
-                remove_view=True,
-                execution_logs=execution_logs if audit_level >= 1 else None,
-            )
+    # Persist the outcome before touching Discord messages
+    execution_result = {
+        "test_mode": test_mode,
+        "confirmed_count": len(confirmed_users),
+        "cleaned_count": cleaned_count,
+        "promoted_in_group": promoted_in_group,
+        "promoted_not_in_group": promoted_not_in_group,
+        "global_removed_count": global_removed_count,
+    }
+    record = await _finalize_purge_record(
+        cog=cog, purge_id=purge_id, execution_result=execution_result
+    )
+    if not record:
+        return
 
-            # Schedule deletion if retention is configured
-            cog._maybe_schedule_mod_message_deletion(record=record, config=config)
+    # Delete user message
+    if record.user_message_id and record.user_channel_id:
+        await delete_message(
+            guild=guild,
+            channel_id=record.user_channel_id,
+            message_id=record.user_message_id,
+        )
 
-            logger.info(
-                f"[{guild.name}] {'[TEST MODE] ' if test_mode else ''}"
-                f"Purge {purge_id} executed: cleaned={cleaned_count}, "
-                f"promoted_in={promoted_in_group}, promoted_out={promoted_not_in_group}, "
-                f"global_removed={global_removed_count}"
-            )
+    # Update moderation message with final logs
+    await cog._update_mod_message(
+        guild=guild,
+        record=record,
+        config=config,
+        remove_view=True,
+        execution_logs=execution_logs if audit_level >= 1 else None,
+    )
 
-            # Send completion log to logs channel
-            await cog._send_log(
-                guild=guild,
-                config=config,
-                public_id=record.public_id,
-                message=finish_msg,
-            )
+    # Schedule deletion if retention is configured
+    cog._maybe_schedule_mod_message_deletion(record=record, config=config)
 
-        await session.commit()
+    logger.info(
+        f"[{guild.name}] {'[TEST MODE] ' if test_mode else ''}"
+        f"Purge {purge_id} executed: cleaned={cleaned_count}, "
+        f"promoted_in={promoted_in_group}, promoted_out={promoted_not_in_group}, "
+        f"global_removed={global_removed_count}"
+    )
+
+    # Send completion log to logs channel
+    await cog._send_log(
+        guild=guild,
+        config=config,
+        public_id=record.public_id,
+        message=finish_msg,
+    )
 
 
 async def _execute_cleaning_phase(
@@ -369,7 +413,7 @@ async def _execute_cleaning_phase(
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
-    purge_service: PurgeService,
+    purge_service: UserResultSink,
     purge_id: int,
     affected_roles: list[int],
     roles_to_remove: list[int],
@@ -385,7 +429,7 @@ async def _execute_cleaning_phase(
         guild (discord.Guild): Discord guild.
         record (PurgeRecord): Purge record.
         config (dict[str, Any]): Cog configuration.
-        purge_service (PurgeService): Purge service.
+        purge_service (UserResultSink): Where to record per-user results.
         purge_id (int): Purge ID.
         affected_roles (list[int]): Affected role IDs.
         roles_to_remove (list[int]): Role IDs to remove.
@@ -459,7 +503,7 @@ async def _execute_global_cleaning_phase(
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
-    purge_service: PurgeService,
+    purge_service: UserResultSink,
     purge_id: int,
     excluded_roles: list[int],
     roles_to_remove: list[int],
@@ -477,7 +521,7 @@ async def _execute_global_cleaning_phase(
         guild (discord.Guild): Discord guild.
         record (PurgeRecord): Purge record.
         config (dict[str, Any]): Cog configuration.
-        purge_service (PurgeService): Purge service.
+        purge_service (UserResultSink): Where to record per-user results.
         purge_id (int): Purge ID.
         excluded_roles (list[int]): Excluded role IDs.
         roles_to_remove (list[int]): Role IDs to remove.
@@ -562,7 +606,7 @@ async def _execute_promotion_phase(
     guild: discord.Guild,
     record: PurgeRecord,
     config: dict[str, Any],
-    purge_service: PurgeService,
+    purge_service: UserResultSink,
     purge_id: int,
     affected_roles: list[int],
     promotions: list[dict[str, Any]],
@@ -579,7 +623,7 @@ async def _execute_promotion_phase(
         guild (discord.Guild): Discord guild.
         record (PurgeRecord): Purge record.
         config (dict[str, Any]): Cog configuration.
-        purge_service (PurgeService): Purge service.
+        purge_service (UserResultSink): Where to record per-user results.
         purge_id (int): Purge ID.
         affected_roles (list[int]): Affected role IDs.
         promotions (list[dict[str, Any]]): Promotions list.
