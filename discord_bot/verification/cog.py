@@ -42,6 +42,7 @@ from discord_bot.verification.handlers import (
     update_tracker_message,
 )
 from discord_bot.verification.handlers.welcome_card import (
+    close_template_client,
     post_welcome_card,
     should_trigger_welcome_card,
 )
@@ -192,8 +193,9 @@ class VerificationCog(commands.Cog):
                 background_task.cancel()
         self._background_tasks.clear()
 
-        # Release the shared verification API client and its connection pool
+        # Release the shared HTTP clients (verification API, welcome card templates)
         await close_client()
+        await close_template_client()
 
     def start_screenshot_timer(
         self,

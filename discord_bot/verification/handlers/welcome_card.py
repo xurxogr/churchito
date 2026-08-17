@@ -19,6 +19,7 @@ import discord
 import httpx
 from PIL import Image, ImageDraw, ImageFont
 
+from discord_bot.common.utils.ttl_cache import TTLCache
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.formatters import format_message
 
@@ -26,6 +27,15 @@ if TYPE_CHECKING:
     from discord_bot.verification.models import VerificationRequest
 
 logger = logging.getLogger(__name__)
+
+# Template images rarely change and are re-used for every card in a guild, so
+# keep the downloaded bytes for a while instead of fetching per card. Admins
+# who replace the image behind the same URL see the change once this expires.
+TEMPLATE_CACHE_TTL_SECONDS = 600.0
+TEMPLATE_FETCH_TIMEOUT_SECONDS = 10.0
+
+_template_cache: TTLCache[str, bytes | None] = TTLCache(ttl_seconds=TEMPLATE_CACHE_TTL_SECONDS)
+_template_client: httpx.AsyncClient | None = None
 
 # Name source choices (stored in config as plain strings)
 NAME_SOURCE_IN_GAME = "in_game"
@@ -354,38 +364,83 @@ def render_welcome_card(
         return output.getvalue()
 
 
+def get_template_client() -> httpx.AsyncClient:
+    """Return the shared HTTP client used to download templates, creating it on first use.
+
+    Returns:
+        httpx.AsyncClient: Shared client with a reusable connection pool.
+    """
+    global _template_client
+    if _template_client is None or _template_client.is_closed:
+        _template_client = httpx.AsyncClient(
+            timeout=TEMPLATE_FETCH_TIMEOUT_SECONDS, follow_redirects=True
+        )
+    return _template_client
+
+
+async def close_template_client() -> None:
+    """Close the shared template HTTP client, if one was created."""
+    global _template_client
+    if _template_client is not None and not _template_client.is_closed:
+        await _template_client.aclose()
+    _template_client = None
+
+
+def clear_template_cache() -> None:
+    """Drop every cached template image."""
+    _template_cache.clear()
+
+
+async def _download_template(url: str, client: httpx.AsyncClient) -> bytes | None:
+    """Download a template image with size validation.
+
+    Args:
+        url (str): Template image URL.
+        client (httpx.AsyncClient): HTTP client to use.
+
+    Returns:
+        bytes | None: Image bytes, or None on any failure.
+    """
+    try:
+        response = await client.get(url)
+    except Exception as exc:
+        logger.warning(f"Failed to fetch welcome card template {url}: {exc}")
+        return None
+    if response.status_code != 200:
+        logger.warning(f"Welcome card template fetch returned {response.status_code}: {url}")
+        return None
+    content = response.content
+    if len(content) > MAX_IMAGE_BYTES:
+        logger.warning(f"Welcome card template too large ({len(content)} bytes): {url}")
+        return None
+    return content
+
+
 async def fetch_template(
     *,
     url: str,
     client: httpx.AsyncClient | None = None,
 ) -> bytes | None:
-    """Fetch a template image from a URL with size validation.
+    """Return a template image, downloading it unless a fresh copy is cached.
+
+    Successful downloads are cached per URL for TEMPLATE_CACHE_TTL_SECONDS;
+    failures are not cached so the next card retries.
 
     Args:
         url (str): Template image URL.
-        client (httpx.AsyncClient | None): Optional client (for testing/reuse).
+        client (httpx.AsyncClient | None): Optional client (for testing); defaults
+            to the shared client.
 
     Returns:
         bytes | None: Image bytes, or None on any failure.
     """
-    owns_client = client is None
-    http = client or httpx.AsyncClient(timeout=10.0, follow_redirects=True)
-    try:
-        response = await http.get(url)
-        if response.status_code != 200:
-            logger.warning(f"Welcome card template fetch returned {response.status_code}: {url}")
-            return None
-        content = response.content
-        if len(content) > MAX_IMAGE_BYTES:
-            logger.warning(f"Welcome card template too large ({len(content)} bytes): {url}")
-            return None
-        return content
-    except Exception as exc:
-        logger.warning(f"Failed to fetch welcome card template {url}: {exc}")
-        return None
-    finally:
-        if owns_client:
-            await http.aclose()
+    http = client or get_template_client()
+    content = await _template_cache.get_or_load(
+        key=url, loader=lambda: _download_template(url=url, client=http)
+    )
+    if content is None:
+        _template_cache.invalidate(url)
+    return content
 
 
 async def post_welcome_card(

@@ -431,6 +431,11 @@ class TestRenderWelcomeCard:
 class TestFetchTemplate:
     """Tests for fetch_template."""
 
+    @pytest.fixture(autouse=True)
+    def _fresh_cache(self) -> None:
+        """Start every test with an empty template cache."""
+        welcome_card.clear_template_cache()
+
     @pytest.mark.asyncio
     async def test_success_returns_bytes(self) -> None:
         """Test that a successful fetch returns the image bytes."""
@@ -477,6 +482,68 @@ class TestFetchTemplate:
         result = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_same_url_is_fetched_once_within_ttl(self) -> None:
+        """A second card for the same template reuses the downloaded bytes."""
+        payload = _make_template()
+        response = MagicMock(status_code=200, content=payload, headers={})
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
+
+        first = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
+        second = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
+
+        assert first == second == payload
+        client.get.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_different_urls_are_cached_separately(self) -> None:
+        """Each template URL is fetched and cached on its own."""
+        client = MagicMock()
+        client.get = AsyncMock(
+            side_effect=[
+                MagicMock(status_code=200, content=b"a", headers={}),
+                MagicMock(status_code=200, content=b"b", headers={}),
+            ]
+        )
+
+        first = await welcome_card.fetch_template(url="https://example.com/a.png", client=client)
+        second = await welcome_card.fetch_template(url="https://example.com/b.png", client=client)
+
+        assert (first, second) == (b"a", b"b")
+
+    @pytest.mark.asyncio
+    async def test_failed_fetch_is_retried_next_time(self) -> None:
+        """A failed download is not cached, so the next card tries again."""
+        payload = _make_template()
+        client = MagicMock()
+        client.get = AsyncMock(
+            side_effect=[
+                MagicMock(status_code=503, content=b"", headers={}),
+                MagicMock(status_code=200, content=payload, headers={}),
+            ]
+        )
+
+        first = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
+        second = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
+
+        assert first is None
+        assert second == payload
+        assert client.get.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_default_client_is_shared_and_closable(self) -> None:
+        """Without an explicit client, one shared client is reused until closed."""
+        client = welcome_card.get_template_client()
+        assert welcome_card.get_template_client() is client
+        assert client.follow_redirects is True
+
+        await welcome_card.close_template_client()
+
+        assert client.is_closed
+        assert welcome_card.get_template_client() is not client
+        await welcome_card.close_template_client()
 
 
 class TestPostWelcomeCard:
