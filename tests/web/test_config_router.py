@@ -1,6 +1,5 @@
 """Tests for the configuration router."""
 
-from datetime import timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -11,7 +10,6 @@ from fastapi.testclient import TestClient
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.web.routers.config import (
     _convert_form_value,
-    _format_relative_time,
     _get_guild_info,
     _validate_channel_permissions,
     get_templates,
@@ -260,65 +258,6 @@ class TestGuildAccessDep:
 
         result = await guild_access_dep(request, 111222333, test_user)
         assert result == test_user
-
-
-class TestFormatRelativeTime:
-    """Tests for _format_relative_time."""
-
-    def test_seconds(self) -> None:
-        """Test format for seconds."""
-        result = _format_relative_time(timedelta(seconds=30))
-        assert result == "a few seconds ago"
-
-    def test_one_minute(self) -> None:
-        """Test format for 1 minute."""
-        result = _format_relative_time(timedelta(minutes=1))
-        assert result == "1 minute ago"
-
-    def test_multiple_minutes(self) -> None:
-        """Test format for multiple minutes."""
-        result = _format_relative_time(timedelta(minutes=45))
-        assert result == "45 minutes ago"
-
-    def test_one_hour(self) -> None:
-        """Test format for 1 hour."""
-        result = _format_relative_time(timedelta(hours=1))
-        assert result == "1 hour ago"
-
-    def test_multiple_hours(self) -> None:
-        """Test format for multiple hours."""
-        result = _format_relative_time(timedelta(hours=12))
-        assert result == "12 hours ago"
-
-    def test_one_day(self) -> None:
-        """Test format for 1 day."""
-        result = _format_relative_time(timedelta(days=1))
-        assert result == "1 day ago"
-
-    def test_multiple_days(self) -> None:
-        """Test format for multiple days."""
-        result = _format_relative_time(timedelta(days=15))
-        assert result == "15 days ago"
-
-    def test_one_month(self) -> None:
-        """Test format for 1 month (~30 days)."""
-        result = _format_relative_time(timedelta(days=30))
-        assert result == "1 month ago"
-
-    def test_multiple_months(self) -> None:
-        """Test format for multiple months."""
-        result = _format_relative_time(timedelta(days=180))
-        assert result == "6 months ago"
-
-    def test_one_year(self) -> None:
-        """Test format for 1 year (~365 days)."""
-        result = _format_relative_time(timedelta(days=365))
-        assert result == "1 year ago"
-
-    def test_multiple_years(self) -> None:
-        """Test format for multiple years."""
-        result = _format_relative_time(timedelta(days=730))
-        assert result == "2 years ago"
 
 
 class TestConvertFormValueEmbedSections:

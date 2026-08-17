@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
@@ -23,6 +23,13 @@ from discord_bot.web.dependencies import (
     require_guild_access,
 )
 from discord_bot.web.middleware import get_csrf_token
+from discord_bot.web.views.cog_settings import (
+    build_option_data,
+    build_preview_data,
+    get_locked_options,
+    list_assignable_roles,
+    list_sendable_channels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,35 +137,6 @@ def _get_guild_info(bot: Any, guild_id: int) -> dict[str, Any]:
     return {"id": str(guild_id), "name": f"Server {guild_id}"}
 
 
-def _format_relative_time(delta: timedelta) -> str:
-    """Format a timedelta as relative text in English.
-
-    Args:
-        delta: Time difference
-
-    Returns:
-        str: Text like "2 days ago", "3 months ago", etc.
-    """
-    total_seconds = int(delta.total_seconds())
-    if total_seconds < 60:
-        return "a few seconds ago"
-    elif total_seconds < 3600:
-        minutes = total_seconds // 60
-        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-    elif total_seconds < 86400:
-        hours = total_seconds // 3600
-        return f"{hours} hour{'s' if hours != 1 else ''} ago"
-    elif total_seconds < 2592000:  # ~30 days
-        days = total_seconds // 86400
-        return f"{days} day{'s' if days != 1 else ''} ago"
-    elif total_seconds < 31536000:  # ~365 days
-        months = total_seconds // 2592000
-        return f"{months} month{'s' if months != 1 else ''} ago"
-    else:
-        years = total_seconds // 31536000
-        return f"{years} year{'s' if years != 1 else ''} ago"
-
-
 @router.get("/{guild_id}", response_class=HTMLResponse)
 async def guild_config(
     request: Request,
@@ -247,6 +225,48 @@ async def guild_config(
     )
 
 
+def _guild_context(
+    bot: Any, guild_id: int, cog_name: str
+) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Resolve the Discord guild plus the dropdown sources and locked options.
+
+    Args:
+        bot (Any): Bot instance (may be None when running without the bot)
+        guild_id (int): Guild ID
+        cog_name (str): Cog name
+
+    Returns:
+        tuple[Any, list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+            Discord guild (or None), sendable channels, assignable roles, locked options
+    """
+    if not bot:
+        return None, [], [], {}
+    discord_guild = bot.get_guild(guild_id)
+    channels: list[dict[str, Any]] = []
+    roles: list[dict[str, Any]] = []
+    if discord_guild:
+        bot_member = discord_guild.get_member(bot.user.id)
+        channels = list_sendable_channels(guild=discord_guild, bot_member=bot_member)
+        roles = list_assignable_roles(guild=discord_guild)
+    return discord_guild, channels, roles, get_locked_options(bot=bot, cog_name=cog_name)
+
+
+def _resolve_member(discord_guild: Any, user: dict[str, Any] | None) -> Any:
+    """Look up the dashboard user's guild member for the placeholder preview.
+
+    Args:
+        discord_guild (Any): Discord guild (or None)
+        user (dict[str, Any] | None): Authenticated user
+
+    Returns:
+        Any: Guild member, or None when unavailable
+    """
+    if not discord_guild or not user:
+        return None
+    user_id = user.get("id")
+    return discord_guild.get_member(int(user_id)) if user_id else None
+
+
 async def _render_cog_settings(
     request: Request,
     guild_id: int,
@@ -262,252 +282,56 @@ async def _render_cog_settings(
         request (Request): FastAPI request
         guild_id (int): Guild ID
         cog_name (str): Cog name
-        session: Database session
-        user: Authenticated user (for placeholder preview)
+        session (Any): Database session
+        user (dict[str, Any] | None): Authenticated user (for placeholder preview)
         error (str | None): Optional error message
         lang (str | None): Language code
 
     Returns:
         HTMLResponse: Partial HTML with cog configuration
+
+    Raises:
+        HTTPException: 404 when the cog has no configuration schema
     """
-    # Get language from browser if not provided
     if lang is None:
         lang = get_browser_language(request)
 
-    schema_service = get_config_schema_service()
-    config_service = ConfigService(session)
-
-    schema = schema_service.get_schema(cog_name)
+    schema = get_config_schema_service().get_schema(cog_name)
     if not schema:
         raise HTTPException(status_code=404, detail="Cog not found")
 
+    config_service = ConfigService(session)
     config_values = await config_service.get_all_config(guild_id, cog_name)
     is_enabled = await config_service.is_cog_enabled(guild_id, cog_name)
 
-    # Get bot and guild for resolving channel/role names
-    bot = request.app.state.bot
-    discord_guild = None
-    channels: list[dict[str, Any]] = []
-    roles: list[dict[str, Any]] = []
+    discord_guild, channels, roles, locked_options = _guild_context(
+        bot=request.app.state.bot, guild_id=guild_id, cog_name=cog_name
+    )
+    cog_translations = get_i18n_service().get_cog_translations(cog_name, lang)
 
-    if bot:
-        discord_guild = bot.get_guild(guild_id)
-        if discord_guild:
-            # Get bot member for permission checks
-            bot_member = discord_guild.get_member(bot.user.id)
-
-            # Get text channels (only those where bot can send messages)
-            for ch in discord_guild.text_channels:
-                can_send = True
-                if bot_member:
-                    permissions = ch.permissions_for(bot_member)
-                    can_send = permissions.send_messages
-
-                if can_send:
-                    channels.append(
-                        {
-                            # Use string IDs to avoid JS precision loss with snowflakes
-                            "id": str(ch.id),
-                            "name": ch.name,
-                            "category": ch.category.name if ch.category else None,
-                        }
-                    )
-            channels.sort(key=lambda c: (c["category"] or "", c["name"]))
-
-            # Get roles (exclude @everyone and roles above bot's highest role)
-            bot_top_role = discord_guild.me.top_role
-            roles = [
-                # Use string IDs to avoid JS precision loss with snowflakes
-                {"id": str(r.id), "name": r.name, "color": str(r.color)}
-                for r in discord_guild.roles
-                if r.name != "@everyone" and r < bot_top_role
-            ]
-            roles.sort(key=lambda r: r["name"].lower())
-
-    # Check for locked options from cog settings
-    locked_options: dict[str, dict[str, Any]] = {}
-    if bot:
-        cog_class_name = cog_name.title().replace("_", "") + "Cog"
-        cog = bot.get_cog(cog_class_name)
-        if cog:
-            try:
-                locked_options = cog.get_locked_options()
-            except Exception as e:
-                logger.warning(f"Error getting locked options from {cog_name}: {e}")
-
-    # Get translations for this cog
-    i18n = get_i18n_service()
-    cog_translations = i18n.get_cog_translations(cog_name, lang)
-    options_trans = cog_translations.get("options", {})
-    groups_trans = cog_translations.get("groups", {})
-    sections_trans = cog_translations.get("sections", {})
-    choices_trans = cog_translations.get("choices", {})
-
-    options_data: list[dict[str, Any]] = []
-    for opt in schema.options:
-        # Skip locked options - they don't appear in the UI
-        if opt.key in locked_options:
-            continue
-
-        # Get option translations
-        opt_trans = options_trans.get(opt.key, {})
-        translated_name = opt_trans.get("name", opt.name)
-        translated_desc = opt_trans.get("description", opt.description)
-        translated_section = sections_trans.get(opt.section, opt.section) if opt.section else None
-        translated_group = groups_trans.get(opt.group, opt.group) if opt.group else None
-
-        raw_value = config_values.get(opt.key, opt.default)
-
-        # Resolve display name for channel/role values (using raw int IDs)
-        display_value = raw_value
-        if raw_value and discord_guild:
-            if opt.option_type == ConfigOptionType.CHANNEL:
-                ch = discord_guild.get_channel(raw_value)
-                display_value = f"#{ch.name}" if ch else f"ID: {raw_value}"
-            elif opt.option_type == ConfigOptionType.ROLE:
-                role = discord_guild.get_role(raw_value)
-                display_value = f"@{role.name}" if role else f"ID: {raw_value}"
-            elif opt.option_type == ConfigOptionType.CHANNEL_LIST and isinstance(raw_value, list):
-                names: list[str] = []
-                for ch_id in raw_value:
-                    ch = discord_guild.get_channel(ch_id)
-                    names.append(f"#{ch.name}" if ch else f"ID: {ch_id}")
-                display_value = ", ".join(names) if names else None
-            elif opt.option_type == ConfigOptionType.ROLE_LIST and isinstance(raw_value, list):
-                role_names: list[str] = []
-                for r_id in raw_value:
-                    role = discord_guild.get_role(r_id)
-                    role_names.append(f"@{role.name}" if role else f"ID: {r_id}")
-                display_value = ", ".join(role_names) if role_names else None
-
-        # Convert channel/role IDs to strings for template comparison
-        # (dropdown options use string IDs to avoid JS precision loss)
-        template_value = raw_value
-        if raw_value is not None:
-            if opt.option_type in (ConfigOptionType.CHANNEL, ConfigOptionType.ROLE):
-                template_value = str(raw_value)
-            elif opt.option_type in (ConfigOptionType.CHANNEL_LIST, ConfigOptionType.ROLE_LIST):
-                if isinstance(raw_value, list):
-                    template_value = [str(v) for v in raw_value]
-
-        # Translate choices if present
-        translated_choices = None
-        if opt.choices:
-            translated_choices = []
-            for label, value in opt.choices:
-                translated_label = label
-                # Check option-specific choices translations first
-                opt_choices_trans = opt_trans.get("choices", {})
-                if label in opt_choices_trans:
-                    translated_label = opt_choices_trans[label]
-                else:
-                    # Search through all choice groups in cog translations
-                    for choice_group in choices_trans.values():
-                        if isinstance(choice_group, dict) and label in choice_group:
-                            translated_label = choice_group[label]
-                            break
-                translated_choices.append((translated_label, value))
-
-        # Translate table columns if present
-        translated_columns = None
-        if opt.columns:
-            columns_trans = cog_translations.get("columns", {})
-            translated_columns = []
-            for col in opt.columns:
-                col_copy = col.copy()
-                col_key = col.get("key", "")
-                if col_key in columns_trans:
-                    col_copy["name"] = columns_trans[col_key]
-                translated_columns.append(col_copy)
-
-        options_data.append(
-            {
-                "key": opt.key,
-                "name": translated_name,
-                "description": translated_desc,
-                "type": opt.option_type.value,
-                "value": template_value,
-                "display_value": display_value,
-                "default": opt.default,
-                "required": opt.required,
-                "section": translated_section,
-                "group": translated_group,
-                "choices": translated_choices,
-                "min_value": opt.min_value,
-                "max_value": opt.max_value,
-                "max_length": opt.max_length,
-                "placeholders": opt.placeholders,
-                "columns": translated_columns,
-            }
+    # Locked options don't appear in the UI
+    options_data = [
+        build_option_data(
+            option=opt,
+            config_values=config_values,
+            guild=discord_guild,
+            cog_translations=cog_translations,
         )
+        for opt in schema.options
+        if opt.key not in locked_options
+    ]
 
-    templates = get_templates(request)
     guild_name = discord_guild.name if discord_guild else f"Server {guild_id}"
-    member_count = discord_guild.member_count if discord_guild else 0
+    preview_data = build_preview_data(
+        guild_id=guild_id,
+        guild_name=guild_name,
+        member_count=discord_guild.member_count if discord_guild else 0,
+        user=user,
+        member=_resolve_member(discord_guild=discord_guild, user=user),
+        now=datetime.now(UTC),
+    )
 
-    # Get member from guild for join date info
-    member = None
-    if discord_guild and user:
-        user_id = user.get("id")
-        if user_id:
-            member = discord_guild.get_member(int(user_id))
-
-    # Build preview data for placeholders
-    now = datetime.now(UTC)
-
-    # Format join dates if member is available
-    user_joined_server = ""
-    user_joined_server_relative = ""
-    user_joined_discord = ""
-    user_joined_discord_relative = ""
-
-    if member:
-        if member.joined_at:
-            user_joined_server = member.joined_at.strftime("%d/%m/%Y %H:%M")
-            delta = now - member.joined_at
-            user_joined_server_relative = _format_relative_time(delta)
-
-        if member.created_at:
-            user_joined_discord = member.created_at.strftime("%d/%m/%Y %H:%M")
-            delta = now - member.created_at
-            user_joined_discord_relative = _format_relative_time(delta)
-
-    preview_data = {
-        "server_name": guild_name,
-        "server_id": str(guild_id),
-        "server_member_count": str(member_count),
-        "user_name": user.get("username", "User") if user else "User",
-        "user_mention": f"@{user.get('username', 'User')}" if user else "@User",
-        "user_id": str(user.get("id", "123456789")) if user else "123456789",
-        "user_avatar_url": (
-            f"https://cdn.discordapp.com/avatars/{user.get('id')}/{user.get('avatar')}.png"
-            if user and user.get("avatar")
-            else "https://cdn.discordapp.com/embed/avatars/0.png"
-        ),
-        "user_joined_server": user_joined_server or "01/01/2024 12:00",
-        "user_joined_server_relative": user_joined_server_relative or "2 months ago",
-        "user_joined_discord": user_joined_discord or "01/06/2020 15:00",
-        "user_joined_discord_relative": user_joined_discord_relative or "4 years ago",
-        "created_at": now.strftime("%Y-%m-%d %H:%M"),
-        "status": "📷 Waiting for screenshots",
-        "verification_type": "Member",
-        "username": user.get("username", "User") if user else "User",
-        # Player info placeholders (for verification API response preview)
-        "name": "PlayerName",
-        "regiment": "82DK",
-        "level": "45",
-        "faction": "colonial",
-        "shard": "ABLE",
-        "time": "268, 07:41",
-        "war": "115",
-        "war_time": "278, 08:34",
-    }
-
-    # Get translated schema display name and description
-    translated_display_name = cog_translations.get("display_name", schema.display_name)
-    translated_description = cog_translations.get("description", schema.description)
-
-    return templates.TemplateResponse(
+    return get_templates(request).TemplateResponse(
         request=request,
         name="partials/cog_settings.html",
         context={
@@ -516,8 +340,8 @@ async def _render_cog_settings(
             "guild_name": guild_name,
             "cog_name": cog_name,
             "schema": {
-                "display_name": translated_display_name,
-                "description": translated_description,
+                "display_name": cog_translations.get("display_name", schema.display_name),
+                "description": cog_translations.get("description", schema.description),
                 "icon": schema.icon or "⚙️",
                 "toggleable": schema.toggleable,
             },

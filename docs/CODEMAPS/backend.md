@@ -155,6 +155,11 @@ request.session = {
 
 **File:** `discord_bot/web/routers/config.py`
 
+The cog settings partial is assembled by pure builders in
+`discord_bot/web/views/cog_settings.py` (channel/role dropdown sources, locked
+options, per-option rows with translations, placeholder preview data); the router
+only orchestrates services and renders the template.
+
 | Method | Path | Auth | Response | Purpose |
 |--------|------|------|----------|---------|
 | GET | `/dashboard/{guild_id}/config` | Required | HTML | Configuration form |
