@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -606,7 +606,7 @@ class TestSyncGuild:
             autoname_cog, "apply_nickname", new_callable=AsyncMock, return_value=True
         ) as mock_apply:
             await autoname_cog._sync_guild(mock_guild)
-            mock_apply.assert_called_once_with(mock_member)
+            mock_apply.assert_called_once_with(member=mock_member, config=ANY)
 
     async def test_skips_bot_members(
         self,
@@ -640,7 +640,7 @@ class TestSyncGuild:
         ) as mock_apply:
             await autoname_cog._sync_guild(mock_guild)
             # Should only be called once (for mock_member, not for bot_member)
-            mock_apply.assert_called_once_with(mock_member)
+            mock_apply.assert_called_once_with(member=mock_member, config=ANY)
 
 
 class TestOnConfigChanged:
@@ -1093,3 +1093,105 @@ class TestOnGuildRemove:
         await autoname_cog.on_guild_remove(guild)
 
         assert guild.id not in autoname_cog._last_sync
+
+
+class TestConfigCaching:
+    """Tests for the per-guild config cache on hot paths."""
+
+    async def _enable_with_tags(self, db: DatabaseService, guild_id: int) -> None:
+        async with db.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=guild_id, cog_name="autoname", enabled=True
+            )
+            await config_service.set_value(
+                guild_id, "autoname", ConfigKey.ROLE_TAGS, [{"role_id": 100, "tag": "CAP"}]
+            )
+            await session.commit()
+
+    async def test_member_updates_share_one_config_load(
+        self,
+        autoname_cog: AutonameCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Repeated role changes in a guild do not open a DB session each time."""
+        await self._enable_with_tags(test_database, mock_member.guild.id)
+        before = MagicMock(spec=discord.Member)
+        before.roles = []
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_spy:
+            await autoname_cog.on_member_update(before, mock_member)
+            await autoname_cog.on_member_update(before, mock_member)
+
+        assert session_spy.call_count == 1
+        assert mock_member.edit.await_count == 2
+
+    async def test_sync_guild_loads_config_once_for_all_members(
+        self,
+        autoname_cog: AutonameCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """A full guild sync reads configuration once, not once per member."""
+        guild = mock_member.guild
+        guild.members = [mock_member, mock_member, mock_member]
+        await self._enable_with_tags(test_database, guild.id)
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_spy:
+            await autoname_cog._sync_guild(guild)
+
+        assert session_spy.call_count == 1
+        assert mock_member.edit.await_count == 3
+
+    async def test_on_config_changed_invalidates_cache(
+        self, autoname_cog: AutonameCog, test_database: DatabaseService
+    ) -> None:
+        """Dashboard config changes are visible immediately, not after the TTL."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 111
+        guild.name = "Test"
+        assert (await autoname_cog._get_config(guild.id)).get(ConfigKey.TAG_FORMAT) != "[NEW]"
+
+        async with test_database.session() as session:
+            await ConfigService(session).set_value(
+                guild.id, "autoname", ConfigKey.TAG_FORMAT, "[NEW]"
+            )
+            await session.commit()
+
+        with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock):
+            await autoname_cog.on_config_changed(guild, [ConfigKey.TAG_FORMAT])
+
+        assert (await autoname_cog._get_config(guild.id)).get(ConfigKey.TAG_FORMAT) == "[NEW]"
+
+    async def test_on_cog_toggled_invalidates_cache(
+        self, autoname_cog: AutonameCog, test_database: DatabaseService
+    ) -> None:
+        """Enabling the cog from the dashboard is visible immediately."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 222
+        guild.name = "Test"
+        assert await autoname_cog._is_cog_enabled(guild.id) is False
+
+        async with test_database.session() as session:
+            await ConfigService(session).set_cog_enabled(
+                guild_id=guild.id, cog_name="autoname", enabled=True
+            )
+            await session.commit()
+
+        with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock):
+            await autoname_cog.on_cog_toggled(guild, enabled=True)
+
+        assert await autoname_cog._is_cog_enabled(guild.id) is True
+
+    async def test_on_guild_remove_drops_cache(self, autoname_cog: AutonameCog) -> None:
+        """Leaving a guild drops its cached configuration."""
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 333
+        guild.name = "Test"
+        await autoname_cog._get_config(guild.id)
+        assert len(autoname_cog._config_cache) == 1
+
+        await autoname_cog.on_guild_remove(guild)
+
+        assert len(autoname_cog._config_cache) == 0

@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -592,3 +592,71 @@ class TestOnGuildRemove:
 
         assert mock_guild.id not in derived_roles_cog._last_sync
         assert mock_guild.id not in derived_roles_cog._error_state
+
+
+class TestConfigCaching:
+    """Tests for the per-guild config cache on hot paths."""
+
+    async def test_member_updates_share_one_config_load(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Repeated role changes in a guild do not open a DB session each time."""
+        await enable_cog_for_guild(test_database, GUILD_ID)
+        await set_rules(test_database, GUILD_ID, [IMPLIES_RULE])
+        before = make_member(mock_guild, [])
+        first = make_member(mock_guild, [COLLIE], member_id=1)
+        second = make_member(mock_guild, [COLLIE], member_id=2)
+
+        with patch.object(test_database, "session", wraps=test_database.session) as session_spy:
+            await derived_roles_cog.on_member_update(before, first)
+            await derived_roles_cog.on_member_update(before, second)
+
+        assert session_spy.call_count == 1
+        first.add_roles.assert_called_once()
+        second.add_roles.assert_called_once()
+
+    async def test_on_config_changed_invalidates_cache(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Rule changes from the dashboard are visible immediately, not after the TTL."""
+        assert (await derived_roles_cog._get_config(GUILD_ID)).get(ConfigKey.RULES) in (None, [])
+
+        await set_rules(test_database, GUILD_ID, [IMPLIES_RULE])
+        with patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
+            await derived_roles_cog.on_config_changed(mock_guild, [ConfigKey.RULES])
+
+        mock_sync.assert_awaited_once()
+        assert mock_sync.await_args.kwargs["config"][ConfigKey.RULES] == [IMPLIES_RULE]
+        assert (await derived_roles_cog._get_config(GUILD_ID))[ConfigKey.RULES] == [IMPLIES_RULE]
+
+    async def test_on_cog_toggled_invalidates_cache(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Enabling the cog from the dashboard is visible immediately."""
+        assert await derived_roles_cog._is_cog_enabled(GUILD_ID) is False
+
+        await enable_cog_for_guild(test_database, GUILD_ID)
+        with patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock):
+            await derived_roles_cog.on_cog_toggled(mock_guild, enabled=True)
+
+        assert await derived_roles_cog._is_cog_enabled(GUILD_ID) is True
+
+    async def test_on_guild_remove_drops_cache(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """Leaving a guild drops its cached configuration."""
+        await derived_roles_cog._get_config(GUILD_ID)
+        assert len(derived_roles_cog._config_cache) == 1
+
+        await derived_roles_cog.on_guild_remove(mock_guild)
+
+        assert len(derived_roles_cog._config_cache) == 0

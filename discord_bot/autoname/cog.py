@@ -10,8 +10,8 @@ from discord.ext import commands, tasks
 from discord_bot.autoname.config import AUTONAME_CONFIG_SCHEMA, COG_NAME, ConfigKey
 from discord_bot.autoname.service import compute_nickname
 from discord_bot.bot import DiscordBot
+from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
-from discord_bot.common.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,9 @@ class AutonameCog(commands.Cog):
         self.bot = bot
         self._last_sync: dict[int, datetime] = {}
         self._sync_started = False
+        # Per-guild enabled flag + config, so member updates and full syncs
+        # do not open a database session per event / per member
+        self._config_cache = CogConfigCache(database=bot.database, cog_name=COG_NAME)
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -50,7 +53,7 @@ class AutonameCog(commands.Cog):
             self._sync_started = False
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
-        """Check if the cog is enabled for a guild.
+        """Check if the cog is enabled for a guild (cached).
 
         Args:
             guild_id (int): Guild ID
@@ -58,12 +61,10 @@ class AutonameCog(commands.Cog):
         Returns:
             bool: True if the cog is enabled
         """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
-            return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
+        return (await self._config_cache.get(guild_id)).enabled
 
     async def _get_config(self, guild_id: int) -> dict[str, Any]:
-        """Get all cog configuration for a guild.
+        """Get all cog configuration for a guild (cached).
 
         Args:
             guild_id (int): Guild ID
@@ -71,9 +72,7 @@ class AutonameCog(commands.Cog):
         Returns:
             dict[str, Any]: Cog configuration
         """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
-            return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+        return (await self._config_cache.get(guild_id)).config
 
     async def _get_sync_interval(self, guild_id: int) -> int:
         """Get the configured sync interval for a guild.
@@ -84,18 +83,12 @@ class AutonameCog(commands.Cog):
         Returns:
             int: Interval in minutes (0 if disabled, 30 by default)
         """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
+        snapshot = await self._config_cache.get(guild_id)
+        if not snapshot.enabled:
+            return 0
 
-            if not await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME):
-                return 0
-
-            interval = await config_service.get_value(
-                guild_id=guild_id,
-                cog_name=COG_NAME,
-                key=ConfigKey.SYNC_INTERVAL,
-            )
-            return interval if interval is not None else 30
+        interval = snapshot.config.get(ConfigKey.SYNC_INTERVAL)
+        return int(interval) if interval is not None else 30
 
     async def _send_log(
         self,
@@ -131,11 +124,15 @@ class AutonameCog(commands.Cog):
         except discord.HTTPException as e:
             logger.warning(f"[{guild.name}] Error sending log to channel: {e}")
 
-    async def apply_nickname(self, member: discord.Member) -> bool:
+    async def apply_nickname(
+        self, member: discord.Member, config: dict[str, Any] | None = None
+    ) -> bool:
         """Apply formatted nickname to a member.
 
         Args:
             member (discord.Member): Member to update
+            config (dict[str, Any] | None): Cog configuration already loaded by the
+                caller (bulk syncs); loaded from the cache when omitted
 
         Returns:
             bool: True if the nickname was updated
@@ -143,7 +140,8 @@ class AutonameCog(commands.Cog):
         if member.bot:
             return False
 
-        config = await self._get_config(member.guild.id)
+        if config is None:
+            config = await self._get_config(member.guild.id)
 
         # Check required roles if configured
         required_roles = config.get(ConfigKey.REQUIRED_ROLES) or []
@@ -221,6 +219,7 @@ class AutonameCog(commands.Cog):
             guild (discord.Guild): Guild the bot left.
         """
         self._last_sync.pop(guild.id, None)
+        self._config_cache.invalidate(guild.id)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
@@ -306,7 +305,7 @@ class AutonameCog(commands.Cog):
                 continue
 
             try:
-                if await self.apply_nickname(member):
+                if await self.apply_nickname(member=member, config=config):
                     updated += 1
             except Exception as e:
                 logger.error(
@@ -326,6 +325,7 @@ class AutonameCog(commands.Cog):
             guild (discord.Guild): Guild where the state changed
             enabled (bool): True if enabled, False if disabled
         """
+        self._config_cache.invalidate(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Autoname enabled, syncing nicknames")
             await self._sync_guild(guild)
@@ -339,6 +339,7 @@ class AutonameCog(commands.Cog):
             guild (discord.Guild): Guild where config changed
             keys (list[str]): List of configuration keys that changed
         """
+        self._config_cache.invalidate(guild.id)
         # Re-sync if role, prefix, format or required role configuration changes
         resync_keys = {
             ConfigKey.ROLE_TAGS,

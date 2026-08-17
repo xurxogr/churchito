@@ -8,8 +8,8 @@ import discord
 from discord.ext import commands, tasks
 
 from discord_bot.bot import DiscordBot
+from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
-from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import KeyedLocks
 from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
 from discord_bot.derived_roles.engine import compute_role_changes
@@ -40,6 +40,9 @@ class DerivedRolesCog(commands.Cog):
         self._member_locks = KeyedLocks()
         # Guilds currently in permission-error state (notify on state change only)
         self._error_state: dict[int, bool] = {}
+        # Per-guild enabled flag + config, so member updates do not open a
+        # database session per event
+        self._config_cache = CogConfigCache(database=bot.database, cog_name=COG_NAME)
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -62,7 +65,7 @@ class DerivedRolesCog(commands.Cog):
             self._sync_started = False
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
-        """Check if the cog is enabled for a guild.
+        """Check if the cog is enabled for a guild (cached).
 
         Args:
             guild_id (int): Guild ID
@@ -70,12 +73,10 @@ class DerivedRolesCog(commands.Cog):
         Returns:
             bool: True if the cog is enabled
         """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
-            return await config_service.is_cog_enabled(guild_id=guild_id, cog_name=COG_NAME)
+        return (await self._config_cache.get(guild_id)).enabled
 
     async def _get_config(self, guild_id: int) -> dict[str, Any]:
-        """Get all cog configuration for a guild.
+        """Get all cog configuration for a guild (cached).
 
         Args:
             guild_id (int): Guild ID
@@ -83,9 +84,7 @@ class DerivedRolesCog(commands.Cog):
         Returns:
             dict[str, Any]: Cog configuration
         """
-        async with self.bot.database.session() as session:
-            config_service = ConfigService(session=session)
-            return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
+        return (await self._config_cache.get(guild_id)).config
 
     # ===== EVENT HANDLERS =====
 
@@ -98,6 +97,7 @@ class DerivedRolesCog(commands.Cog):
         """
         self._last_sync.pop(guild.id, None)
         self._error_state.pop(guild.id, None)
+        self._config_cache.invalidate(guild.id)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
@@ -454,6 +454,7 @@ class DerivedRolesCog(commands.Cog):
             guild (discord.Guild): Guild where the state changed
             enabled (bool): True if enabled, False if disabled
         """
+        self._config_cache.invalidate(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Derived roles enabled, reconciling members")
             config = await self._get_config(guild.id)
@@ -468,6 +469,7 @@ class DerivedRolesCog(commands.Cog):
             guild (discord.Guild): Guild where config changed
             keys (list[str]): List of configuration keys that changed
         """
+        self._config_cache.invalidate(guild.id)
         if ConfigKey.RULES in set(keys):
             logger.info(f"[{guild.name}] Derived roles rules changed, reconciling members")
             config = await self._get_config(guild.id)
