@@ -67,6 +67,24 @@ async def delete_message(
         return False
 
 
+def has_any_of_roles(member: discord.Member, role_ids: list[int]) -> bool:
+    """Check if a member holds at least one of the given roles.
+
+    An empty list grants nothing: cogs whose commands are gated by a
+    configured role list use this so that "no roles configured" means
+    "nobody may run it".
+
+    Args:
+        member (discord.Member): Member to check
+        role_ids (list[int]): Role IDs that grant access
+
+    Returns:
+        bool: True if the member has any of the roles
+    """
+    wanted = set(role_ids)
+    return any(role.id in wanted for role in member.roles)
+
+
 def has_any_role(member: discord.Member, role_ids: list[int]) -> bool:
     """Check if a member has any of the specified roles.
 
@@ -81,4 +99,4 @@ def has_any_role(member: discord.Member, role_ids: list[int]) -> bool:
     """
     if not role_ids:
         return member.guild_permissions.manage_guild
-    return any(role.id in role_ids for role in member.roles)
+    return has_any_of_roles(member=member, role_ids=role_ids)

@@ -16,6 +16,7 @@ from discord_bot.common.services.embed_builder import PlaceholderContext, build_
 from discord_bot.common.utils import (
     delete_message,
     get_hex_display_name,
+    has_any_of_roles,
     is_valid_city,
     is_valid_hex,
     load_hex_cities,
@@ -528,26 +529,6 @@ class StockpileCog(commands.Cog):
             await config_service.set_value(guild.id, COG_NAME, ConfigKey.PINNED_CHANNEL_ID, None)
             await session.commit()
             logger.info(f"[{guild.name}] Pinned message deleted")
-
-    def _has_permission(
-        self,
-        member: discord.Member,
-        allowed_role_ids: list[int],
-    ) -> bool:
-        """Check if member has any of the allowed roles.
-
-        Args:
-            member (discord.Member): Discord member
-            allowed_role_ids (list[int]): List of allowed role IDs
-
-        Returns:
-            bool: True if member has permission
-        """
-        if not allowed_role_ids:
-            # No roles configured means no permission
-            return False
-        member_role_ids = {role.id for role in member.roles}
-        return bool(member_role_ids & set(allowed_role_ids))
 
     async def _check_channel(
         self,
@@ -1101,7 +1082,7 @@ class StockpileCog(commands.Cog):
 
         # Check add permission
         add_roles = config.get(ConfigKey.ADD_ROLES) or []
-        if not self._has_permission(member, add_roles):
+        if not has_any_of_roles(member=member, role_ids=add_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1417,7 +1398,7 @@ class StockpileCog(commands.Cog):
 
         # Check delete permission
         delete_roles = config.get(ConfigKey.DELETE_ROLES) or []
-        if not self._has_permission(member, delete_roles):
+        if not has_any_of_roles(member=member, role_ids=delete_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1573,7 +1554,7 @@ class StockpileCog(commands.Cog):
 
         # Check edit permission
         edit_roles = config.get(ConfigKey.EDIT_ROLES) or []
-        if not self._has_permission(member, edit_roles):
+        if not has_any_of_roles(member=member, role_ids=edit_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,

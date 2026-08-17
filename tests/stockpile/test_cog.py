@@ -185,31 +185,6 @@ class TestGetConfig:
         assert result.get(ConfigKey.ADD_ROLES) == [100, 200]
 
 
-class TestHasPermission:
-    """Tests for _has_permission."""
-
-    def test_has_permission_with_matching_role(
-        self, stockpile_cog: StockpileCog, mock_member: MagicMock
-    ) -> None:
-        """Test when user has a matching role."""
-        result = stockpile_cog._has_permission(member=mock_member, allowed_role_ids=[100])
-        assert result is True
-
-    def test_no_permission_without_matching_role(
-        self, stockpile_cog: StockpileCog, mock_member: MagicMock
-    ) -> None:
-        """Test when user has no matching role."""
-        result = stockpile_cog._has_permission(member=mock_member, allowed_role_ids=[999])
-        assert result is False
-
-    def test_no_permission_with_empty_list(
-        self, stockpile_cog: StockpileCog, mock_member: MagicMock
-    ) -> None:
-        """Test when allowed roles list is empty."""
-        result = stockpile_cog._has_permission(member=mock_member, allowed_role_ids=[])
-        assert result is False
-
-
 # ===== AUTOCOMPLETE TESTS =====
 
 

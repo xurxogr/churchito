@@ -3,6 +3,7 @@
 from discord_bot.common.utils.discord import (
     DISCORD_CDN_DOMAINS,
     delete_message,
+    has_any_of_roles,
     has_any_role,
     is_valid_discord_cdn_url,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "delete_message",
     "get_embed_sections_columns",
     "get_hex_display_name",
+    "has_any_of_roles",
     "has_any_role",
     "is_valid_city",
     "is_valid_discord_cdn_url",

@@ -10,7 +10,7 @@ from discord.ext import commands
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks, TTLCache
+from discord_bot.common.utils import KeyedLocks, TTLCache, has_any_of_roles
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
 from discord_bot.roles.formatters import (
@@ -958,25 +958,6 @@ class RolesCog(commands.Cog):
             config_service = ConfigService(session=session)
             return await config_service.get_all_config(guild_id=guild_id, cog_name=COG_NAME)
 
-    def _has_permission(
-        self,
-        member: discord.Member,
-        allowed_role_ids: list[int],
-    ) -> bool:
-        """Check if member has any of the allowed roles.
-
-        Args:
-            member: Discord member
-            allowed_role_ids: List of allowed role IDs
-
-        Returns:
-            bool: True if member has permission
-        """
-        if not allowed_role_ids:
-            return False
-        member_role_ids = {role.id for role in member.roles}
-        return bool(member_role_ids & set(allowed_role_ids))
-
     # ===== AUTOCOMPLETE =====
 
     async def panel_autocomplete(
@@ -1036,7 +1017,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1121,7 +1102,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1195,7 +1176,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1264,7 +1245,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1372,7 +1353,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,
@@ -1469,7 +1450,7 @@ class RolesCog(commands.Cog):
 
         # Check permission
         manage_roles = config.get(ConfigKey.MANAGE_ROLES) or []
-        if not self._has_permission(member, manage_roles):
+        if not has_any_of_roles(member=member, role_ids=manage_roles):
             await interaction.response.send_message(
                 config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                 ephemeral=True,

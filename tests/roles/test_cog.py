@@ -190,31 +190,6 @@ class TestGetConfig:
         assert result.get(ConfigKey.MANAGE_ROLES) == [100, 200]
 
 
-class TestHasPermission:
-    """Tests for _has_permission."""
-
-    def test_has_permission_with_matching_role(
-        self, roles_cog: RolesCog, mock_member: MagicMock
-    ) -> None:
-        """Test when user has a matching role."""
-        result = roles_cog._has_permission(member=mock_member, allowed_role_ids=[100])
-        assert result is True
-
-    def test_no_permission_without_matching_role(
-        self, roles_cog: RolesCog, mock_member: MagicMock
-    ) -> None:
-        """Test when user has no matching role."""
-        result = roles_cog._has_permission(member=mock_member, allowed_role_ids=[999])
-        assert result is False
-
-    def test_no_permission_with_empty_list(
-        self, roles_cog: RolesCog, mock_member: MagicMock
-    ) -> None:
-        """Test when allowed roles list is empty."""
-        result = roles_cog._has_permission(member=mock_member, allowed_role_ids=[])
-        assert result is False
-
-
 # ===== AUTOCOMPLETE TESTS =====
 
 
@@ -5455,64 +5430,6 @@ class TestGetConfigMethod:
 
         assert isinstance(config, dict)
         assert ConfigKey.COMMAND_PREFIX in config
-
-
-# ===== HAS PERMISSION =====
-
-
-class TestHasPermissionMethod:
-    """Tests for _has_permission method."""
-
-    def test_returns_false_when_allowed_roles_empty(
-        self,
-        roles_cog: RolesCog,
-        mock_member: MagicMock,
-    ) -> None:
-        """Test that permission is denied when allowed_role_ids is empty."""
-        mock_member.roles = []
-
-        result = roles_cog._has_permission(mock_member, [])
-
-        assert result is False
-
-    def test_returns_true_when_member_has_allowed_role(
-        self,
-        roles_cog: RolesCog,
-        mock_member: MagicMock,
-        mock_role: MagicMock,
-    ) -> None:
-        """Test that permission is granted when member has allowed role."""
-        mock_member.roles = [mock_role]
-
-        result = roles_cog._has_permission(mock_member, [mock_role.id])
-
-        assert result is True
-
-    def test_returns_false_when_member_lacks_allowed_role(
-        self,
-        roles_cog: RolesCog,
-        mock_member: MagicMock,
-        mock_role: MagicMock,
-    ) -> None:
-        """Test that permission is denied when member lacks allowed role."""
-        mock_member.roles = [mock_role]
-
-        result = roles_cog._has_permission(mock_member, [999])  # Different role
-
-        assert result is False
-
-    def test_returns_true_when_member_has_one_of_multiple_roles(
-        self,
-        roles_cog: RolesCog,
-        mock_member: MagicMock,
-        mock_role: MagicMock,
-    ) -> None:
-        """Test that permission is granted when member has one of multiple roles."""
-        mock_member.roles = [mock_role]
-
-        result = roles_cog._has_permission(mock_member, [999, mock_role.id, 888])
-
-        assert result is True
 
 
 # ===== ON RAW REACTION REMOVE =====
