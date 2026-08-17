@@ -174,6 +174,7 @@ Publishes:
 - `flow.py` - Start verification, send instructions
 - `auto_processing.py` - OCR integration (if enabled)
 - `mod_messages.py` - Update mod channel messages (preserves existing data)
+- `mod_review.py` - Screenshots-received update: auto-approve/reject decision or manual review embed
 - `utils.py` - Helper functions
 
 ### API Response Models

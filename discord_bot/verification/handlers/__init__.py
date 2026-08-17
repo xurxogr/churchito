@@ -2,7 +2,8 @@
 
 This package contains handlers for the verification flow:
 - flow: Main flow and moderator actions
-- mod_messages: Moderation messages and tracker management
+- mod_messages: Moderation message status updates and tracker management
+- mod_review: Moderation message update when screenshots arrive (auto/manual review)
 - auto_processing: Automatic processing (auto-approval/rejection)
 - utils: Verification-specific utilities
 """
@@ -21,10 +22,10 @@ from discord_bot.verification.handlers.mod_messages import (
     build_initial_check_statuses,
     update_mod_message_cancelled,
     update_mod_message_for_manual_review,
-    update_mod_message_for_review,
     update_mod_message_status,
     update_tracker_message,
 )
+from discord_bot.verification.handlers.mod_review import update_mod_message_for_review
 from discord_bot.verification.handlers.utils import get_ready_for_approval_status
 
 __all__ = [
@@ -41,9 +42,10 @@ __all__ = [
     "build_initial_check_statuses",
     "update_mod_message_cancelled",
     "update_mod_message_for_manual_review",
-    "update_mod_message_for_review",
     "update_mod_message_status",
     "update_tracker_message",
+    # mod_review
+    "update_mod_message_for_review",
     # utils
     "get_ready_for_approval_status",
 ]

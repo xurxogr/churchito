@@ -26,10 +26,10 @@ from discord_bot.verification.formatters import (
 from discord_bot.verification.handlers.mod_messages import (
     build_initial_check_statuses,
     update_mod_message_for_manual_review,
-    update_mod_message_for_review,
     update_mod_message_status,
     update_tracker_message,
 )
+from discord_bot.verification.handlers.mod_review import update_mod_message_for_review
 from discord_bot.verification.handlers.utils import (
     calculate_expires_timestamp,
     get_ready_for_approval_status,
