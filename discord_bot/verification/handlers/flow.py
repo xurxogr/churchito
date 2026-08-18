@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import discord
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,6 +106,262 @@ async def validate_mod_action(
     return ModActionContext(config=config, request=request, service=verification_service)
 
 
+class RoleChanges(NamedTuple):
+    """Roles to grant/revoke on approval and the approval DM template key."""
+
+    add: list[int]
+    remove: list[int]
+    message_key: ConfigKey
+
+
+def previous_statuses(
+    config: dict[str, Any], guild: discord.Guild, request: VerificationRequest
+) -> list[str]:
+    """Status texts the mod message may show right before a moderator decision.
+
+    The message can be at "pending review", "ready for approval" (OCR passed) or
+    still at the auto-rejected status when a review did not update it.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        guild (discord.Guild): Guild of the request.
+        request (VerificationRequest): Request being decided.
+
+    Returns:
+        list[str]: Ready-for-approval, pending-review and auto-rejected texts.
+    """
+    pending_review = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
+    ready_for_approval = get_ready_for_approval_status(config=config, guild=guild)
+    auto_rejected = format_message(
+        template=config.get(ConfigKey.STATUS_REJECTED),
+        moderator="Auto",
+        moderator_display_name="Auto",
+        reason=request.rejection_reason or "",
+    )
+    return [ready_for_approval, pending_review, auto_rejected]
+
+
+def approval_role_changes(config: dict[str, Any], verification_type: str) -> RoleChanges:
+    """Role changes and DM template that apply when a verification is approved.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        verification_type (str): Verification type of the request.
+
+    Returns:
+        RoleChanges: Roles to add/remove and the approval message key.
+    """
+    if verification_type == VerificationType.REGULAR:
+        return RoleChanges(
+            add=config.get(ConfigKey.REGULAR_ROLES_ADD) or [],
+            remove=config.get(ConfigKey.REGULAR_ROLES_REMOVE) or [],
+            message_key=ConfigKey.APPROVAL_MESSAGE_REGULAR,
+        )
+    return RoleChanges(
+        add=config.get(ConfigKey.ALLY_ROLES_ADD) or [],
+        remove=config.get(ConfigKey.ALLY_ROLES_REMOVE) or [],
+        message_key=ConfigKey.APPROVAL_MESSAGE_ALLY,
+    )
+
+
+def approval_confirmation(confirmation: str, failed_roles: list[str]) -> str:
+    """Moderator confirmation, with a warning when some roles could not be changed.
+
+    Args:
+        confirmation (str): Formatted confirmation text.
+        failed_roles (list[str]): Failed role changes as "@Role (add|remove)".
+
+    Returns:
+        str: Text to send to the moderator.
+    """
+    if not failed_roles:
+        return confirmation
+    return (
+        f"{confirmation}\n\n"
+        f"⚠️ **Warning:** Could not modify some roles: {', '.join(failed_roles)}\n"
+        f"Verify that:\n"
+        f"• The bot has the **Manage Roles** permission\n"
+        f"• The bot's role is **above** these roles in the hierarchy"
+    )
+
+
+async def _change_role(
+    member: discord.Member, role: discord.Role, action: Literal["add", "remove"]
+) -> bool:
+    """Add or remove a single role, reporting permission failures.
+
+    Args:
+        member (discord.Member): Member to change.
+        role (discord.Role): Role to add or remove.
+        action (Literal["add", "remove"]): Whether to add or remove the role.
+
+    Returns:
+        bool: True if the change was applied.
+    """
+    try:
+        if action == "add":
+            await member.add_roles(role)
+        else:
+            await member.remove_roles(role)
+    except discord.Forbidden as e:
+        logger.warning(
+            f"Could not {action} role {role.name} ({role.id}): {e}. "
+            f"Verify the bot has 'Manage Roles' permission and that "
+            f"its role is above @{role.name} in the hierarchy."
+        )
+        return False
+    return True
+
+
+async def apply_role_changes(
+    guild: discord.Guild, member: discord.Member, changes: RoleChanges
+) -> list[str]:
+    """Grant and revoke the configured roles on an approved member.
+
+    Missing roles are skipped; forbidden changes are collected for the moderator.
+
+    Args:
+        guild (discord.Guild): Guild of the member.
+        member (discord.Member): Approved member.
+        changes (RoleChanges): Roles to add and remove.
+
+    Returns:
+        list[str]: Failed changes as "@Role (add|remove)".
+    """
+    failed: list[str] = []
+    steps: list[tuple[Literal["add", "remove"], list[int]]] = [
+        ("add", changes.add),
+        ("remove", changes.remove),
+    ]
+    for action, role_ids in steps:
+        for role_id in role_ids:
+            role = guild.get_role(role_id)
+            if not role:
+                logger.warning(f"[{guild.name}] Role not found (ID: {role_id})")
+                continue
+            if not await _change_role(member=member, role=role, action=action):
+                failed.append(f"@{role.name} ({action})")
+    return failed
+
+
+async def _dm_member(member: discord.Member, content: str) -> None:
+    """DM the member, ignoring closed DMs.
+
+    Args:
+        member (discord.Member): Member to notify.
+        content (str): Message text.
+    """
+    try:
+        await member.send(content=content)
+    except discord.Forbidden:
+        pass
+
+
+async def _grant_approval(
+    guild: discord.Guild, config: dict[str, Any], request: VerificationRequest
+) -> list[str]:
+    """Apply the approval roles and DM the user, if still in the guild.
+
+    Args:
+        guild (discord.Guild): Guild of the request.
+        config (dict[str, Any]): Cog configuration.
+        request (VerificationRequest): Approved request.
+
+    Returns:
+        list[str]: Failed role changes as "@Role (add|remove)".
+    """
+    member = guild.get_member(request.user_id)
+    if not member:
+        return []
+    changes = approval_role_changes(config=config, verification_type=request.verification_type)
+    failed_roles = await apply_role_changes(guild=guild, member=member, changes=changes)
+    await _dm_member(
+        member=member,
+        content=format_message(
+            template=config.get(changes.message_key),
+            username=request.username,
+            server_name=guild.name,
+        ),
+    )
+    return failed_roles
+
+
+async def _notify_rejection(
+    guild: discord.Guild, config: dict[str, Any], request: VerificationRequest, reason: str
+) -> None:
+    """DM the rejection reason to the user, if still in the guild.
+
+    Args:
+        guild (discord.Guild): Guild of the request.
+        config (dict[str, Any]): Cog configuration.
+        request (VerificationRequest): Rejected request.
+        reason (str): Rejection reason.
+    """
+    member = guild.get_member(request.user_id)
+    if not member:
+        return
+    type_display = get_verification_type_display(
+        verification_type=VerificationType(request.verification_type), config=config
+    )
+    await _dm_member(
+        member=member,
+        content=format_message(
+            template=config.get(ConfigKey.REJECTION_MESSAGE),
+            username=request.username,
+            server_name=guild.name,
+            verification_type=type_display,
+            reason=reason,
+        ),
+    )
+
+
+async def _publish_decision(
+    session: AsyncSession,
+    guild: discord.Guild,
+    ctx: ModActionContext,
+    moderator: discord.Member,
+    status_key: ConfigKey,
+    color: discord.Color,
+    previous: list[str],
+    **status_values: str,
+) -> None:
+    """Update the mod message with the decision, commit and refresh the tracker.
+
+    Args:
+        session (AsyncSession): Database session.
+        guild (discord.Guild): Guild of the request.
+        ctx (ModActionContext): Validated action context.
+        moderator (discord.Member): Moderator who decided.
+        status_key (ConfigKey): Template key of the new status text.
+        color (discord.Color): Embed color for the decision.
+        previous (list[str]): Status texts the message may currently show.
+        **status_values (str): Extra placeholders for the status template.
+    """
+    status = format_message(
+        template=ctx.config.get(status_key),
+        moderator=moderator.name,
+        moderator_display_name=moderator.display_name,
+        **status_values,
+    )
+    await update_mod_message_status(
+        guild=guild,
+        request=ctx.request,
+        config=ctx.config,
+        status=status,
+        color=color,
+        previous_statuses=previous,
+    )
+    await session.commit()
+
+    await update_tracker_message(
+        guild=guild,
+        config=ctx.config,
+        verification_service=ctx.service,
+        config_service=ConfigService(session=session),
+    )
+    await session.commit()
+
+
 async def handle_accept(
     cog: VerificationCog,
     interaction: discord.Interaction,
@@ -137,20 +393,8 @@ async def handle_accept(
             return
 
         config, request, verification_service = ctx
-
-        # Determine possible previous status texts
-        # Could be either "pending review" or "ready for approval" (when OCR passed)
-        # Also include auto-rejected status in case Review didn't properly update
-        pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
-        ready_for_approval_status = get_ready_for_approval_status(
-            config=config, guild=interaction.guild
-        )
-        auto_rejected_status = format_message(
-            template=config.get(ConfigKey.STATUS_REJECTED),
-            moderator="Auto",
-            moderator_display_name="Auto",
-            reason=request.rejection_reason or "",
-        )
+        # Captured before approving: the mod message may still show any of these
+        previous = previous_statuses(config=config, guild=interaction.guild, request=request)
 
         await verification_service.approve(
             request_id=request.id,
@@ -158,105 +402,29 @@ async def handle_accept(
             reviewer_username=interaction.user.name,
             guild_name=interaction.guild.name,
         )
-
-        failed_roles: list[str] = []
-        member = interaction.guild.get_member(request.user_id)
-        if member:
-            if request.verification_type == VerificationType.REGULAR:
-                roles_add = config.get(ConfigKey.REGULAR_ROLES_ADD)
-                roles_remove = config.get(ConfigKey.REGULAR_ROLES_REMOVE)
-                approval_msg_key = ConfigKey.APPROVAL_MESSAGE_REGULAR
-            else:
-                roles_add = config.get(ConfigKey.ALLY_ROLES_ADD)
-                roles_remove = config.get(ConfigKey.ALLY_ROLES_REMOVE)
-                approval_msg_key = ConfigKey.APPROVAL_MESSAGE_ALLY
-
-            for role_id in roles_add or []:
-                role = interaction.guild.get_role(role_id)
-                if not role:
-                    logger.warning(f"[{interaction.guild.name}] Role not found (ID: {role_id})")
-                    continue
-                try:
-                    await member.add_roles(role)
-                except discord.Forbidden as e:
-                    failed_roles.append(f"@{role.name} (add)")
-                    logger.warning(
-                        f"Could not add role {role.name} ({role_id}): {e}. "
-                        f"Verify the bot has 'Manage Roles' permission and that "
-                        f"its role is above @{role.name} in the hierarchy."
-                    )
-
-            for role_id in roles_remove or []:
-                role = interaction.guild.get_role(role_id)
-                if not role:
-                    logger.warning(f"[{interaction.guild.name}] Role not found (ID: {role_id})")
-                    continue
-                try:
-                    await member.remove_roles(role)
-                except discord.Forbidden as e:
-                    failed_roles.append(f"@{role.name} (remove)")
-                    logger.warning(
-                        f"Could not remove role {role.name} ({role_id}): {e}. "
-                        f"Verify the bot has 'Manage Roles' permission and that "
-                        f"its role is above @{role.name} in the hierarchy."
-                    )
-
-            formatted = format_message(
-                template=config.get(approval_msg_key),
-                username=request.username,
-                server_name=interaction.guild.name,
-            )
-            try:
-                await member.send(content=formatted)
-            except discord.Forbidden:
-                pass
-
-        approved_status = format_message(
-            template=config.get(ConfigKey.STATUS_APPROVED),
-            moderator=interaction.user.name,
-            moderator_display_name=interaction.user.display_name,
+        failed_roles = await _grant_approval(
+            guild=interaction.guild, config=config, request=request
         )
-        await update_mod_message_status(
+
+        await _publish_decision(
+            session=session,
             guild=interaction.guild,
-            request=request,
-            config=config,
-            status=approved_status,
+            ctx=ctx,
+            moderator=interaction.user,
+            status_key=ConfigKey.STATUS_APPROVED,
             color=discord.Color.green(),
-            previous_statuses=[
-                ready_for_approval_status,
-                pending_review_status,
-                auto_rejected_status,
-            ],
+            previous=previous,
         )
-
-        await session.commit()
-
-        config_service = ConfigService(session=session)
-        await update_tracker_message(
-            guild=interaction.guild,
-            config=config,
-            verification_service=verification_service,
-            config_service=config_service,
-        )
-        await session.commit()
 
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_APPROVED_CONFIRMATION)
             or "Verification approved for {username}.",
             username=request.username,
         )
-        if failed_roles:
-            roles_warning = ", ".join(failed_roles)
-            await interaction.followup.send(
-                f"{confirmation}\n\n"
-                f"⚠️ **Warning:** Could not modify some roles: {roles_warning}\n"
-                f"Verify that:\n"
-                f"• The bot has the **Manage Roles** permission\n"
-                f"• The bot's role is **above** these roles in the hierarchy",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(confirmation, ephemeral=True)
+        await interaction.followup.send(
+            content=approval_confirmation(confirmation=confirmation, failed_roles=failed_roles),
+            ephemeral=True,
+        )
 
 
 async def show_rejection_select(
@@ -389,19 +557,8 @@ async def handle_reject(
             return
 
         config, request, verification_service = ctx
-
-        # Determine possible previous status texts
-        # Also include auto-rejected status in case Review didn't properly update
-        pending_review_status = config.get(ConfigKey.STATUS_PENDING_REVIEW) or "⏳ Pending review"
-        ready_for_approval_status = get_ready_for_approval_status(
-            config=config, guild=interaction.guild
-        )
-        auto_rejected_status = format_message(
-            template=config.get(ConfigKey.STATUS_REJECTED),
-            moderator="Auto",
-            moderator_display_name="Auto",
-            reason=request.rejection_reason or "",
-        )
+        # Captured before rejecting: the mod message may still show any of these
+        previous = previous_statuses(config=config, guild=interaction.guild, request=request)
 
         await verification_service.reject(
             request_id=request.id,
@@ -410,53 +567,20 @@ async def handle_reject(
             reason=reason,
             guild_name=interaction.guild.name,
         )
+        await _notify_rejection(
+            guild=interaction.guild, config=config, request=request, reason=reason
+        )
 
-        member = interaction.guild.get_member(request.user_id)
-        if member:
-            type_display = get_verification_type_display(
-                verification_type=VerificationType(request.verification_type), config=config
-            )
-            formatted = format_message(
-                template=config.get(ConfigKey.REJECTION_MESSAGE),
-                username=request.username,
-                server_name=interaction.guild.name,
-                verification_type=type_display,
-                reason=reason,
-            )
-            try:
-                await member.send(content=formatted)
-            except discord.Forbidden:
-                pass
-
-        rejected_status = format_message(
-            template=config.get(ConfigKey.STATUS_REJECTED),
-            moderator=interaction.user.name,
-            moderator_display_name=interaction.user.display_name,
+        await _publish_decision(
+            session=session,
+            guild=interaction.guild,
+            ctx=ctx,
+            moderator=interaction.user,
+            status_key=ConfigKey.STATUS_REJECTED,
+            color=discord.Color.red(),
+            previous=previous,
             reason=reason,
         )
-        await update_mod_message_status(
-            guild=interaction.guild,
-            request=request,
-            config=config,
-            status=rejected_status,
-            color=discord.Color.red(),
-            previous_statuses=[
-                ready_for_approval_status,
-                pending_review_status,
-                auto_rejected_status,
-            ],
-        )
-
-        await session.commit()
-
-        config_service = ConfigService(session=session)
-        await update_tracker_message(
-            guild=interaction.guild,
-            config=config,
-            verification_service=verification_service,
-            config_service=config_service,
-        )
-        await session.commit()
 
         confirmation = format_message(
             template=config.get(ConfigKey.MOD_REJECTED_CONFIRMATION)
