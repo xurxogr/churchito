@@ -257,6 +257,21 @@ async def update_mod_message_for_manual_review(
     )
 
 
+async def _clear_tracker_message_id(guild: discord.Guild, config_service: ConfigService) -> None:
+    """Forget the stored tracker message ID of a guild.
+
+    Args:
+        guild (discord.Guild): Guild whose tracker message is gone.
+        config_service (ConfigService): Config service holding the message ID.
+    """
+    await config_service.set_value(
+        guild_id=guild.id,
+        cog_name=COG_NAME,
+        key=ConfigKey.TRACKER_MESSAGE_ID,
+        value=None,
+    )
+
+
 async def update_tracker_message(
     guild: discord.Guild,
     config: dict[str, Any],
@@ -287,20 +302,13 @@ async def update_tracker_message(
 
     pending_requests = await verification_service.get_pending_for_guild(guild.id)
 
+    # The tracker is only deleted or fully rewritten, so a partial message
+    # is enough: this runs on every verification event and fetching it
+    # first was one more request each time
     tracker_message_id = config.get(ConfigKey.TRACKER_MESSAGE_ID)
-    tracker_message: discord.Message | None = None
-
+    tracker_message: discord.PartialMessage | None = None
     if tracker_message_id:
-        try:
-            tracker_message = await mod_channel.fetch_message(tracker_message_id)
-        except discord.NotFound:
-            tracker_message = None
-            await config_service.set_value(
-                guild_id=guild.id,
-                cog_name=COG_NAME,
-                key=ConfigKey.TRACKER_MESSAGE_ID,
-                value=None,
-            )
+        tracker_message = mod_channel.get_partial_message(tracker_message_id)
 
     if not tracker_enabled or not pending_requests:
         if tracker_message:
@@ -308,12 +316,7 @@ async def update_tracker_message(
                 await tracker_message.delete()
             except discord.NotFound:
                 pass
-            await config_service.set_value(
-                guild_id=guild.id,
-                cog_name=COG_NAME,
-                key=ConfigKey.TRACKER_MESSAGE_ID,
-                value=None,
-            )
+            await _clear_tracker_message_id(guild=guild, config_service=config_service)
         return
 
     tracker_embed = create_tracker_embed(
@@ -338,6 +341,7 @@ async def update_tracker_message(
             await tracker_message.edit(embed=tracker_embed)
         except discord.NotFound:
             tracker_message = None
+            await _clear_tracker_message_id(guild=guild, config_service=config_service)
 
     if not tracker_message:
         try:
