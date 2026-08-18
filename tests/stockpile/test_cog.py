@@ -1,11 +1,13 @@
 """Tests for StockpileCog."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
+from sqlalchemy import select
 
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
@@ -14,6 +16,7 @@ from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.stockpile.cog import StockpileCog
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
+from discord_bot.stockpile.models import Stockpile
 from discord_bot.stockpile.service import StockpileService
 
 
@@ -744,6 +747,74 @@ class TestStockpileAddCommand:
             )
             assert stockpile is not None
             assert stockpile.code == "123456"
+
+    async def test_concurrent_adds_create_a_single_stockpile(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that two overlapping adds with the same name create only one stockpile."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.ADD_ROLES,
+                value=[100],
+            )
+            await session.commit()
+
+        mock_interaction.guild.get_role = MagicMock(return_value=mock_role)
+        second_interaction = MagicMock(spec=discord.Interaction)
+        second_interaction.guild = mock_interaction.guild
+        second_interaction.user = mock_interaction.user
+        second_interaction.response = MagicMock()
+        second_interaction.response.defer = AsyncMock()
+        second_interaction.response.send_message = AsyncMock()
+
+        # Yield on the duplicate check so both commands look before either creates
+        original_lookup = StockpileService.get_by_guild_and_name
+
+        async def slow_lookup(self: StockpileService, guild_id: int, name: str) -> Any:
+            await asyncio.sleep(0.01)
+            return await original_lookup(self, guild_id=guild_id, name=name)
+
+        with patch.object(StockpileService, "get_by_guild_and_name", slow_lookup):
+            await asyncio.gather(
+                stockpile_cog._handle_stockpile_add(
+                    mock_interaction,
+                    hex="AcrithiaHex",
+                    city="Patridia",
+                    name="Twice",
+                    code="123456",
+                    role1=str(mock_role.id),
+                ),
+                stockpile_cog._handle_stockpile_add(
+                    second_interaction,
+                    hex="AcrithiaHex",
+                    city="Patridia",
+                    name="Twice",
+                    code="654321",
+                    role1=str(mock_role.id),
+                ),
+            )
+
+        replies = [
+            interaction.response.send_message.call_args[0][0]
+            for interaction in (mock_interaction, second_interaction)
+        ]
+        assert sum("already exists" in reply for reply in replies) == 1
+
+        async with test_database.session() as session:
+            result = await session.execute(
+                select(Stockpile).where(Stockpile.guild_id == guild_id, Stockpile.name == "Twice")
+            )
+            assert len(result.scalars().all()) == 1
 
     async def test_returns_when_user_not_member(
         self,

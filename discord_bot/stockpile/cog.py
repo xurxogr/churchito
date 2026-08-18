@@ -15,6 +15,7 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.embed_builder import PlaceholderContext, build_embed
 from discord_bot.common.utils import (
+    KeyedLocks,
     choose_command_name,
     delete_message,
     get_hex_display_name,
@@ -60,6 +61,9 @@ class StockpileCog(commands.Cog):
         # Track registered commands per guild:
         # {guild_id: {"add": name, "show": name, "delete": name, "edit": name}}
         self._registered_commands: dict[int, dict[str, str]] = {}
+        # Per-guild locks so overlapping add commands cannot both create a
+        # stockpile with the same name (names are only unique app-side)
+        self._creation_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -1225,8 +1229,13 @@ class StockpileCog(commands.Cog):
 
         hex_display = get_hex_display_name(hex)
 
-        # Check for duplicate stockpile (guild-wide uniqueness)
-        async with self.bot.database.session() as session:
+        # Check for duplicate stockpile (guild-wide uniqueness). The table has
+        # no unique constraint on the name, so check-and-create is serialized
+        # per guild to keep two overlapping commands from both creating it
+        async with (
+            self._creation_locks.acquire(interaction.guild.id),
+            self.bot.database.session() as session,
+        ):
             service = StockpileService(session=session)
             existing = await service.get_by_guild_and_name(
                 guild_id=interaction.guild.id,
