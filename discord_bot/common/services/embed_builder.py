@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from typing import Any
 
 import discord
 from discord import Guild, Member
+from pydantic import BaseModel, ConfigDict, Field
 
 from discord_bot.common.enums.embed_section_type import EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
@@ -39,8 +39,7 @@ ANSI_COLORS: dict[str, str] = {
 ANSI_RESET = "\u001b[0m"
 
 
-@dataclass
-class PlaceholderContext:
+class PlaceholderContext(BaseModel):
     """Context with data for resolving placeholders.
 
     Global placeholders (server_*, user_*) are resolved automatically
@@ -48,18 +47,20 @@ class PlaceholderContext:
     be passed in extra_data.
     """
 
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
     guild: Guild | None = None
     member: Member | None = None
-    extra_data: dict[str, Any] = field(default_factory=dict)
+    extra_data: dict[str, Any] = Field(default_factory=dict)
 
     def resolve(self, key: str) -> str | None:
         """Resolve a placeholder by its key.
 
         Args:
-            key: Placeholder name without braces.
+            key (str): Placeholder name without braces.
 
         Returns:
-            Resolved value or None if not found.
+            str | None: Resolved value or None if not found.
         """
         # First look in extra_data (allows override of globals)
         if key in self.extra_data:

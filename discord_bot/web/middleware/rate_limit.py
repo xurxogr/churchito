@@ -11,8 +11,8 @@ For production with multiple workers, it is recommended to:
 import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -29,19 +29,32 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
 DEFAULT_POST_LIMIT = (30, 60)  # 30 requests per minute
 
 
-@dataclass
-class RateLimitState:
+class RateLimitState(BaseModel):
     """Rate limiting state for an IP/route."""
 
-    requests: list[float] = field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+    requests: list[float] = Field(default_factory=list)
 
     def clean_old_requests(self, window_seconds: int) -> None:
-        """Remove requests outside the time window."""
+        """Remove requests outside the time window.
+
+        Args:
+            window_seconds (int): Sliding window length in seconds.
+        """
         cutoff = time.time() - window_seconds
         self.requests = [t for t in self.requests if t > cutoff]
 
     def is_limited(self, max_requests: int, window_seconds: int) -> bool:
-        """Check if the limit has been exceeded."""
+        """Check if the limit has been exceeded.
+
+        Args:
+            max_requests (int): Maximum requests allowed in the window.
+            window_seconds (int): Sliding window length in seconds.
+
+        Returns:
+            bool: True if the limit is reached.
+        """
         self.clean_old_requests(window_seconds)
         return len(self.requests) >= max_requests
 

@@ -4438,6 +4438,8 @@ class TestUpdateModMessageForReview:
 
             mock_channel = MagicMock(spec=discord.TextChannel)
             mock_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+            mock_channel.guild = MagicMock(spec=discord.Guild)
+            mock_channel.guild.get_member.return_value = MagicMock(spec=discord.Member)
 
             config = {
                 "mod_message_template": "Template {username}",
@@ -5140,6 +5142,8 @@ class TestOnMessageUpdateModMessage:
         mock_guild.id = 123
         mock_guild.name = "Test Guild"
         mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+        mock_guild.get_member = MagicMock(return_value=MagicMock(spec=discord.Member))
+        mock_mod_channel.guild = mock_guild
 
         object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
 
@@ -6098,6 +6102,8 @@ class TestUpdateModMessageWithRejectionReason:
         # Mock channel
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.fetch_message = AsyncMock(return_value=mod_message)
+        mock_channel.guild = MagicMock(spec=discord.Guild)
+        mock_channel.guild.get_member.return_value = MagicMock(spec=discord.Member)
 
         config_values: dict[str, Any] = {
             "mod_message_template": "{username} - {status}",

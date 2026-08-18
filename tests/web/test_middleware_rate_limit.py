@@ -4,6 +4,7 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.testclient import TestClient
 
@@ -12,6 +13,11 @@ from discord_bot.web.middleware.rate_limit import RateLimitMiddleware, RateLimit
 
 class TestRateLimitState:
     """Tests for RateLimitState."""
+
+    def test_rejects_unknown_fields(self) -> None:
+        """Unknown fields are rejected (strict schema)."""
+        with pytest.raises(ValidationError):
+            RateLimitState(unknown=1)  # type: ignore[call-arg]
 
     def test_clean_old_requests(self) -> None:
         """Test cleaning old requests."""

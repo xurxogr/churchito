@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import discord
 import pytest
+from pydantic import ValidationError
 
 from discord_bot.common.enums.embed_section_type import EmbedSectionType
 from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
@@ -67,6 +68,17 @@ class TestCreateProgressBar:
 
 class TestPlaceholderContext:
     """Tests for PlaceholderContext."""
+
+    def test_rejects_unknown_fields(self) -> None:
+        """Unknown fields are rejected (strict schema)."""
+        with pytest.raises(ValidationError):
+            PlaceholderContext(unknown="x")  # type: ignore[call-arg]
+
+    def test_is_immutable(self) -> None:
+        """The context cannot be mutated after creation."""
+        context = PlaceholderContext(extra_data={"a": "1"})
+        with pytest.raises(ValidationError):
+            context.extra_data = {}
 
     def test_resolve_extra_data(self) -> None:
         """Test resolving placeholder from extra_data."""
