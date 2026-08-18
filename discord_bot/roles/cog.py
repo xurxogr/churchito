@@ -270,11 +270,38 @@ class RolesCog(commands.Cog):
         """
         await sync_guild_commands(tree=self.bot.tree, guild=guild, label="roles")
 
-    # ===== EVENT LISTENERS =====
+    # ===== LIFECYCLE =====
 
-    @commands.Cog.listener()
-    async def on_ready(self) -> None:
-        """Register commands when the bot is ready."""
+    async def cog_load(self) -> None:
+        """Register commands right away when the cog is (re)loaded on a running bot.
+
+        At startup the guilds are not available yet, so registration waits for
+        ``on_ready``; after a dashboard reload the bot is already ready and
+        ``on_ready`` will not fire again.
+        """
+        if self.bot.is_ready():
+            await self._start()
+
+    async def cog_unload(self) -> None:
+        """Drop this instance's commands from the tree so a reloaded cog can register them.
+
+        The tree keeps dynamically added commands (bound to this instance's
+        callbacks) across an extension reload; without this the new instance
+        would see every name as taken and the old code would keep serving.
+        """
+        await self._unregister_all_guild_commands()
+
+    async def _unregister_all_guild_commands(self) -> None:
+        """Remove the tracked commands of every guild from the command tree."""
+        for guild_id in list(self._registered_commands):
+            guild = self.bot.get_guild(guild_id)
+            if guild is None:
+                del self._registered_commands[guild_id]
+                continue
+            await self._unregister_guild_commands(guild)
+
+    async def _start(self) -> None:
+        """Register roles commands in every guild and sync them with Discord."""
         logger.info("RolesCog: Registering commands in all guilds...")
         registered_guilds: list[discord.Guild] = []
         for guild in self.bot.guilds:
@@ -292,6 +319,13 @@ class RolesCog(commands.Cog):
                     await self._sync_guild_commands(guild)
 
         logger.info("RolesCog: Command registration completed")
+
+    # ===== EVENT LISTENERS =====
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """Register commands when the bot is ready."""
+        await self._start()
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:

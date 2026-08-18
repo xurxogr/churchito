@@ -2388,6 +2388,98 @@ class TestOnReady:
             await stockpile_cog.on_ready()
 
 
+class TestReloadLifecycle:
+    """Reloading the cog from the dashboard must hand the slash commands to the new instance."""
+
+    async def test_cog_unload_removes_registered_commands_from_tree(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Unloading drops this instance's commands so a reloaded cog can register them again."""
+        stockpile_cog._registered_commands[mock_guild.id] = {
+            "add": "stockpile_add",
+            "show": "stockpile_show",
+        }
+        mock_discord_bot.get_guild.return_value = mock_guild
+
+        await stockpile_cog.cog_unload()
+
+        mock_discord_bot.tree.remove_command.assert_any_call("stockpile_add", guild=mock_guild)
+        mock_discord_bot.tree.remove_command.assert_any_call("stockpile_show", guild=mock_guild)
+        assert mock_discord_bot.tree.remove_command.call_count == 2
+        assert mock_guild.id not in stockpile_cog._registered_commands
+
+    async def test_cog_unload_forgets_guilds_the_bot_left(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A tracked guild the bot is no longer in is dropped without touching the tree."""
+        stockpile_cog._registered_commands[mock_guild.id] = {
+            "add": "stockpile_add",
+            "show": "stockpile_show",
+        }
+        mock_discord_bot.get_guild.return_value = None
+
+        await stockpile_cog.cog_unload()
+
+        mock_discord_bot.tree.remove_command.assert_not_called()
+        assert stockpile_cog._registered_commands == {}
+
+    async def test_cog_load_registers_commands_when_bot_is_already_ready(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A reload on a running bot registers and syncs commands without waiting for on_ready."""
+        mock_discord_bot.is_ready.return_value = True
+        mock_discord_bot.guilds = [mock_guild]
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {
+                "add": "stockpile_add",
+                "show": "stockpile_show",
+            }
+
+        with (
+            patch.object(
+                stockpile_cog,
+                "_register_guild_commands",
+                new_callable=AsyncMock,
+                side_effect=register,
+            ) as mock_register,
+            patch.object(
+                stockpile_cog, "_sync_guild_commands", new_callable=AsyncMock
+            ) as mock_sync,
+            patch.object(stockpile_cog, "_update_pinned_message", new_callable=AsyncMock),
+        ):
+            await stockpile_cog.cog_load()
+
+        mock_register.assert_awaited_once_with(mock_guild)
+        mock_sync.assert_awaited_once_with(mock_guild)
+
+    async def test_cog_load_waits_for_on_ready_at_startup(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """At startup the guilds are not available yet, so cog_load leaves it to on_ready."""
+        mock_discord_bot.is_ready.return_value = False
+        mock_discord_bot.guilds = [mock_guild]
+
+        with patch.object(
+            stockpile_cog, "_register_guild_commands", new_callable=AsyncMock
+        ) as mock_register:
+            await stockpile_cog.cog_load()
+
+        mock_register.assert_not_awaited()
+
+
 class TestOnGuildJoin:
     """Tests for on_guild_join event listener."""
 

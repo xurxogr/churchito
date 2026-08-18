@@ -1332,6 +1332,104 @@ class TestCogLifecycle:
             mock_cancel.assert_called_once()
 
 
+class TestReloadLifecycle:
+    """Reloading the cog from the dashboard must hand the slash commands to the new instance."""
+
+    async def test_cog_unload_removes_registered_commands_from_tree(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Unloading drops this instance's commands so a reloaded cog can register them again."""
+        purge_cog._registered_commands[mock_guild.id] = {"war": "purge_war"}
+        mock_discord_bot.get_guild.return_value = mock_guild
+
+        await purge_cog.cog_unload()
+
+        mock_discord_bot.tree.remove_command.assert_any_call("purge_war", guild=mock_guild)
+        assert mock_discord_bot.tree.remove_command.call_count == 1
+        assert mock_guild.id not in purge_cog._registered_commands
+
+    async def test_cog_unload_forgets_guilds_the_bot_left(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A tracked guild the bot is no longer in is dropped without touching the tree."""
+        purge_cog._registered_commands[mock_guild.id] = {"war": "purge_war"}
+        mock_discord_bot.get_guild.return_value = None
+
+        await purge_cog.cog_unload()
+
+        mock_discord_bot.tree.remove_command.assert_not_called()
+        assert purge_cog._registered_commands == {}
+
+    async def test_cog_load_registers_commands_when_bot_is_already_ready(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A reload on a running bot registers and syncs commands without waiting for on_ready."""
+        mock_discord_bot.is_ready.return_value = True
+        mock_discord_bot.guilds = [mock_guild]
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+
+        with (
+            patch.object(
+                purge_cog, "_register_guild_commands", new_callable=AsyncMock, side_effect=register
+            ) as mock_register,
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as mock_sync,
+            patch.object(purge_cog, "_restore_active_purges", new_callable=AsyncMock),
+            patch.object(purge_cog, "_check_expired_purges", new_callable=AsyncMock),
+            patch.object(purge_cog.expiration_check_loop, "is_running", return_value=True),
+        ):
+            await purge_cog.cog_load()
+
+        mock_register.assert_awaited_once_with(mock_guild)
+        mock_sync.assert_awaited_once_with(mock_guild)
+
+    async def test_cog_load_waits_for_on_ready_at_startup(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """At startup the guilds are not available yet, so cog_load leaves it to on_ready."""
+        mock_discord_bot.is_ready.return_value = False
+        mock_discord_bot.guilds = [mock_guild]
+
+        with patch.object(
+            purge_cog, "_register_guild_commands", new_callable=AsyncMock
+        ) as mock_register:
+            await purge_cog.cog_load()
+
+        mock_register.assert_not_awaited()
+
+    async def test_cog_load_starts_expiration_loop_when_bot_is_already_ready(
+        self,
+        purge_cog: PurgeCog,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """A reload on a running bot restarts the expiration loop the old instance cancelled."""
+        mock_discord_bot.is_ready.return_value = True
+        mock_discord_bot.guilds = []
+
+        with (
+            patch.object(purge_cog, "_restore_active_purges", new_callable=AsyncMock),
+            patch.object(purge_cog, "_check_expired_purges", new_callable=AsyncMock),
+            patch.object(purge_cog.expiration_check_loop, "is_running", return_value=False),
+            patch.object(purge_cog.expiration_check_loop, "start") as mock_start,
+        ):
+            await purge_cog.cog_load()
+
+        mock_start.assert_called_once()
+
+
 class TestSetupAndTeardown:
     """Tests for cog setup and teardown."""
 

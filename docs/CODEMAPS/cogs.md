@@ -544,6 +544,13 @@ suppress the error so one guild cannot stop the others; dashboard callbacks
 shows the "Saved, but the bot could not apply the change" message. Purge's
 debounced re-sync runs in a task and only logs failures.
 
+Registration lives in `_start()`, called from `on_ready` at startup and from
+`cog_load` when the bot is already ready (dashboard "Reload cog"). `cog_unload`
+removes the instance's tracked commands from the tree first: discord.py only
+ejects decorator-defined commands, so without it a reloaded cog would find every
+name taken and the old instance would keep serving the commands. Purge's
+`_start()` also restores active purges and starts the expiration loop.
+
 ---
 
 ## Shared Cog Infrastructure
