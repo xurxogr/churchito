@@ -12,7 +12,13 @@ from discord.ext import commands
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks, TTLCache, choose_command_name, has_any_of_roles
+from discord_bot.common.utils import (
+    KeyedLocks,
+    TTLCache,
+    choose_command_name,
+    delete_message,
+    has_any_of_roles,
+)
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
@@ -1523,15 +1529,13 @@ class RolesCog(commands.Cog):
                 )
                 return
 
-            # Try to delete the message if posted
+            # Delete the message if posted (missing or forbidden is tolerated)
             if panel.message_id:
-                channel = interaction.guild.get_channel(panel.channel_id)
-                if isinstance(channel, discord.TextChannel):
-                    try:
-                        message = await channel.fetch_message(panel.message_id)
-                        await message.delete()
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
+                await delete_message(
+                    guild=interaction.guild,
+                    channel_id=panel.channel_id,
+                    message_id=panel.message_id,
+                )
 
             await service.delete(panel_id=panel.id, guild_name=interaction.guild.name)
             await session.commit()

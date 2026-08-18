@@ -3983,19 +3983,20 @@ class TestHandleDeletePostedPanel:
         mock_role: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Test that handler deletes posted panel and message."""
+        """Test that the posted panel message is deleted through a partial message, no fetch."""
         mock_interaction.guild = mock_guild
         mock_interaction.user = mock_member
         mock_member.roles = [mock_role]
         await enable_cog_for_guild(test_database, mock_guild.id)
 
         # Mock channel and message
-        mock_message = MagicMock(spec=discord.Message)
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.delete = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 456
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
         mock_guild.get_channel.return_value = mock_channel
 
         # Give user permission
@@ -4022,7 +4023,9 @@ class TestHandleDeletePostedPanel:
 
         await roles_cog._handle_delete(mock_interaction, "TestPanel")
 
-        mock_message.delete.assert_called_once()
+        mock_channel.get_partial_message.assert_called_once_with(999)
+        mock_message.delete.assert_awaited_once()
+        mock_channel.fetch_message.assert_not_awaited()
         mock_interaction.response.send_message.assert_called_once()
 
 
@@ -5234,12 +5237,12 @@ class TestHandleDeleteMessageErrors:
         await enable_cog_for_guild(test_database, mock_guild.id)
 
         # Mock message that fails on delete
-        mock_message = MagicMock(spec=discord.Message)
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.delete = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 456
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         original_isinstance = builtins.isinstance
@@ -5293,11 +5296,11 @@ class TestHandleDeleteMessageErrors:
         mock_member.roles = [mock_role]
         await enable_cog_for_guild(test_database, mock_guild.id)
 
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.id = 456
-        mock_channel.fetch_message = AsyncMock(
-            side_effect=discord.NotFound(MagicMock(), "Not found")
-        )
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         original_isinstance = builtins.isinstance

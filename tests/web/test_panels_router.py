@@ -1530,17 +1530,18 @@ class TestDeletePanelDirectCall:
         mock_session: AsyncMock,
         test_user: dict[str, Any],
     ) -> None:
-        """Test that delete_panel deletes the Discord message."""
+        """Test that delete_panel deletes the Discord message through a partial message."""
         # Setup mock templates
         mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
         mock_response = MagicMock()
         mock_request.app.state.templates.TemplateResponse.return_value = mock_response
 
         # Setup mock channel and message
-        mock_message = AsyncMock()
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.delete = AsyncMock()
-        mock_channel = MagicMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
 
         # Setup mock bot
         mock_guild = MagicMock()
@@ -1578,8 +1579,9 @@ class TestDeletePanelDirectCall:
                 session=mock_session,
             )
 
-            mock_channel.fetch_message.assert_called_once_with(789)
-            mock_message.delete.assert_called_once()
+            mock_channel.get_partial_message.assert_called_once_with(789)
+            mock_message.delete.assert_awaited_once()
+            mock_channel.fetch_message.assert_not_awaited()
 
     async def test_notifies_roles_cog_after_delete(
         self,
@@ -2142,11 +2144,13 @@ class TestDeletePanelExceptionHandling:
         mock_response = MagicMock()
         mock_request.app.state.templates.TemplateResponse.return_value = mock_response
 
-        # Setup mock channel that raises an error when fetching message
-        mock_channel = MagicMock()
-        mock_channel.fetch_message = AsyncMock(
+        # Setup mock channel whose message is already gone
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.delete = AsyncMock(
             side_effect=discord.NotFound(MagicMock(), "Message not found")
         )
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
 
         # Setup mock bot
         mock_guild = MagicMock()

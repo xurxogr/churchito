@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from discord_bot.common.utils import delete_message
 from discord_bot.i18n import get_i18n_service
 from discord_bot.roles.formatters import build_panel_embed
 from discord_bot.roles.models import PanelType, ReactionPanel
@@ -510,15 +511,11 @@ async def delete_panel(
     if not panel or panel.guild_id != guild_id:
         raise HTTPException(status_code=404, detail="Panel not found")
 
-    # Delete the Discord message if posted
+    # Delete the Discord message if posted (missing or forbidden is tolerated)
     if panel.message_id and discord_guild:
-        channel = discord_guild.get_channel(panel.channel_id)
-        if channel:
-            try:
-                message = await channel.fetch_message(panel.message_id)
-                await message.delete()
-            except (discord.NotFound, discord.Forbidden):
-                pass  # Message already deleted or no permission
+        await delete_message(
+            guild=discord_guild, channel_id=panel.channel_id, message_id=panel.message_id
+        )
 
     await service.delete(panel_id=panel_id, guild_name=guild_name)
     await session.commit()
@@ -639,17 +636,11 @@ async def unpost_panel(
     if not panel.message_id:
         raise HTTPException(status_code=400, detail="Panel is not posted")
 
-    # Delete the Discord message
+    # Delete the Discord message (missing or forbidden is tolerated)
     if discord_guild:
-        channel = discord_guild.get_channel(panel.channel_id)
-        if isinstance(channel, discord.TextChannel):
-            try:
-                message = await channel.fetch_message(panel.message_id)
-                await message.delete()
-            except discord.NotFound:
-                pass  # Message already deleted
-            except discord.Forbidden:
-                logger.warning(f"[{guild_name}] Cannot delete panel message - missing permissions")
+        await delete_message(
+            guild=discord_guild, channel_id=panel.channel_id, message_id=panel.message_id
+        )
 
     # Clear the message ID
     await service.set_message_id(panel_id=panel.id, message_id=None, guild_name=guild_name)
