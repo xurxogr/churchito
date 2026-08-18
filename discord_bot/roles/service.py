@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 # cannot leave two panels with the same name
 panel_name_locks = KeyedLocks()
 
+# Posting a panel is check-then-send (message + one reaction per mapping):
+# hold this per-guild lock around it in the cog and the dashboard so a double
+# click, or a slash command overlapping a dashboard post, cannot publish the
+# same panel twice and orphan one of the messages
+panel_post_locks = KeyedLocks()
+
 
 class ReactionRolesService:
     """Service for reaction panel CRUD operations.

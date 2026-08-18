@@ -31,7 +31,7 @@ from discord_bot.roles.formatters import (
     format_message,
 )
 from discord_bot.roles.models import PanelType, ReactionPanel
-from discord_bot.roles.service import ReactionRolesService, panel_name_locks
+from discord_bot.roles.service import ReactionRolesService, panel_name_locks, panel_post_locks
 
 logger = logging.getLogger(__name__)
 
@@ -1314,7 +1314,11 @@ class RolesCog(commands.Cog):
             )
             return
 
-        async with self.bot.database.session() as session:
+        # Serialized per guild with the dashboard: see panel_post_locks
+        async with (
+            panel_post_locks.acquire(interaction.guild.id),
+            self.bot.database.session() as session,
+        ):
             service = ReactionRolesService(session)
 
             panel = await service.get_by_name(guild_id=interaction.guild.id, name=panel_name)

@@ -1747,6 +1747,94 @@ class TestPostPanelDirectCall:
                 123
             )
 
+    async def test_concurrent_posts_publish_the_panel_once(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """A double click on Post must not send two panel messages."""
+        import builtins
+
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+
+        mock_message = AsyncMock()
+        mock_message.id = 999
+        mock_message.add_reaction = AsyncMock()
+
+        async def slow_send(**kwargs: Any) -> AsyncMock:
+            # Sending is a network round trip, so the other request runs meanwhile
+            await asyncio.sleep(0.01)
+            return mock_message
+
+        mock_channel = MagicMock()
+        mock_channel.send = AsyncMock(side_effect=slow_send)
+
+        mock_guild = MagicMock()
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel.return_value = mock_channel
+        mock_guild.text_channels = []
+        mock_guild.roles = []
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_request.app.state.bot.user.id = 999
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "TestPanel"
+        mock_panel.guild_id = 123
+        mock_panel.channel_id = 456
+        mock_panel.message_id = None
+        mock_panel.role_mappings = [{"emoji": "👍", "role_id": 100}]
+
+        async def slow_get_by_id(panel_id: int) -> MagicMock:
+            # Let both requests read the panel before either posts it
+            await asyncio.sleep(0.01)
+            return mock_panel
+
+        async def set_message_id(**kwargs: Any) -> None:
+            mock_panel.message_id = kwargs["message_id"]
+
+        original_isinstance = builtins.isinstance
+
+        def patched_isinstance(obj: Any, classinfo: Any) -> bool:
+            if classinfo is discord.TextChannel and obj is mock_channel:
+                return True
+            return original_isinstance(obj, classinfo)
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+            patch("discord_bot.web.routers.panels.build_panel_embed", return_value=MagicMock()),
+            patch.object(builtins, "isinstance", patched_isinstance),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(side_effect=slow_get_by_id)
+            mock_service.set_message_id = AsyncMock(side_effect=set_message_id)
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            results = await asyncio.gather(
+                *(
+                    post_panel(
+                        request=mock_request,
+                        guild_id=123,
+                        panel_id=1,
+                        user=test_user,
+                        session=mock_session,
+                    )
+                    for _ in range(2)
+                ),
+                return_exceptions=True,
+            )
+
+        mock_channel.send.assert_awaited_once()
+        mock_service.set_message_id.assert_awaited_once()
+        errors = [r for r in results if isinstance(r, HTTPException)]
+        assert len(errors) == 1
+        assert errors[0].status_code == 400
+        assert "already posted" in errors[0].detail
+
     async def test_unpost_notifies_roles_cog(
         self,
         mock_request: MagicMock,

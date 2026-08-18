@@ -2704,6 +2704,70 @@ class TestHandlePostSuccess:
         mock_channel.send.assert_called_once()
         mock_interaction.followup.send.assert_called_once()
 
+    async def test_concurrent_posts_publish_the_panel_once(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Two overlapping post commands must not send two panel messages."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup.send = AsyncMock()
+        mock_member.roles = [mock_role]
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 99999
+        mock_message.add_reaction = AsyncMock()
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 456
+        mock_channel.mention = "<#456>"
+        mock_channel.send = AsyncMock(return_value=mock_message)
+        mock_guild.get_channel.return_value = mock_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=mock_guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.MANAGE_ROLES,
+                value=[mock_role.id],
+            )
+            service = ReactionRolesService(session)
+            await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+                role_mappings=[{"emoji": "👍", "role_id": 100}],
+            )
+            await session.commit()
+
+        original_get_by_name = ReactionRolesService.get_by_name
+
+        async def slow_get_by_name(self: ReactionRolesService, **kwargs: Any) -> Any:
+            # Let both commands read the panel before either posts it
+            await asyncio.sleep(0.01)
+            return await original_get_by_name(self, **kwargs)
+
+        with patch.object(ReactionRolesService, "get_by_name", slow_get_by_name):
+            await asyncio.gather(
+                roles_cog._handle_post(mock_interaction, "TestPanel"),
+                roles_cog._handle_post(mock_interaction, "TestPanel"),
+            )
+
+        mock_channel.send.assert_awaited_once()
+        # The second command is told the panel is already posted
+        mock_interaction.response.send_message.assert_called_once()
+        assert "already posted" in mock_interaction.response.send_message.call_args.args[0]
+
     async def test_rejects_already_posted_panel(
         self,
         roles_cog: RolesCog,

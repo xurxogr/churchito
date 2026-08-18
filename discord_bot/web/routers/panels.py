@@ -7,12 +7,13 @@ import discord
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.utils import delete_message
 from discord_bot.i18n import get_i18n_service
 from discord_bot.roles.formatters import build_panel_embed
 from discord_bot.roles.models import PanelType, ReactionPanel
-from discord_bot.roles.service import ReactionRolesService, panel_name_locks
+from discord_bot.roles.service import ReactionRolesService, panel_name_locks, panel_post_locks
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
 from discord_bot.web.middleware import get_csrf_token
 from discord_bot.web.panel_forms import parse_panel_json_fields, validate_panel_fields
@@ -546,11 +547,44 @@ async def post_panel(
         HTMLResponse: Updated panels list
     """
     discord_guild, _, _, _ = _get_guild_data(request=request, guild_id=guild_id)
-    guild_name = discord_guild.name if discord_guild else "Unknown"
-
     if not discord_guild:
         raise HTTPException(status_code=400, detail="Guild not found")
 
+    # Serialized per guild with the cog: see panel_post_locks
+    async with panel_post_locks.acquire(guild_id):
+        await _post_panel_message(
+            request=request,
+            discord_guild=discord_guild,
+            guild_id=guild_id,
+            panel_id=panel_id,
+            session=session,
+        )
+
+    # Return updated list
+    return await list_panels(request=request, guild_id=guild_id, user=user, session=session)
+
+
+async def _post_panel_message(
+    request: Request,
+    discord_guild: discord.Guild,
+    guild_id: int,
+    panel_id: int,
+    session: AsyncSession,
+) -> None:
+    """Send a panel message with its reactions and store the message ID.
+
+    Args:
+        request: FastAPI request
+        discord_guild: Discord guild the panel belongs to
+        guild_id: Guild ID
+        panel_id: Panel ID
+        session: Database session
+
+    Raises:
+        HTTPException: If the panel is missing, already posted, has no
+            mappings, its channel is not found or the bot cannot send there.
+    """
+    guild_name = discord_guild.name
     service = ReactionRolesService(session)
     panel = await service.get_by_id(panel_id)
 
@@ -587,8 +621,8 @@ async def post_panel(
             if emoji:
                 try:
                     await message.add_reaction(emoji)
-                except discord.HTTPException:
-                    pass
+                except discord.HTTPException as e:
+                    logger.warning(f"[{guild_name}] Failed to add reaction {emoji_str}: {e}")
 
         # Update panel with message ID
         await service.set_message_id(
@@ -599,9 +633,6 @@ async def post_panel(
 
     except discord.Forbidden:
         raise HTTPException(status_code=400, detail="Cannot send message to channel") from None
-
-    # Return updated list
-    return await list_panels(request=request, guild_id=guild_id, user=user, session=session)
 
 
 @router.post("/{guild_id}/panels/{panel_id}/unpost", response_class=HTMLResponse)
