@@ -1416,8 +1416,8 @@ class PurgeCog(commands.Cog):
 
             guild = channel.guild
             try:
-                message = await channel.fetch_message(message_id)
-                await message.delete()
+                # One request instead of fetch + delete
+                await channel.get_partial_message(message_id).delete()
                 logger.info(
                     f"[{guild.name}] Moderation message deleted due to retention in #{channel.name}"
                 )

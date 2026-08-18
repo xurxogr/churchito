@@ -56,8 +56,8 @@ async def delete_message(
         return False
 
     try:
-        message = await channel.fetch_message(message_id)
-        await message.delete()
+        # A partial message deletes in one request instead of fetch + delete
+        await channel.get_partial_message(message_id).delete()
         logger.info(f"[{guild.name}] Message deleted from #{channel.name}")
         return True
     except discord.NotFound:

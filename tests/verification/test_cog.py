@@ -3670,7 +3670,7 @@ class TestHealthCheck:
         mock_old_channel = MagicMock(spec=discord.TextChannel)
         mock_old_channel.name = "old-verification"
         mock_old_message = MagicMock()
-        mock_old_channel.fetch_message = AsyncMock(return_value=mock_old_message)
+        mock_old_channel.get_partial_message = MagicMock(return_value=mock_old_message)
         mock_old_message.delete = AsyncMock()
 
         # New channel (where panel should go)
@@ -3716,13 +3716,14 @@ class TestDeleteMessage:
     """Tests for delete_message utility."""
 
     async def test_delete_message_success(self) -> None:
-        """Test successful message deletion."""
+        """Test that the message is deleted through a partial message, without fetching it."""
         mock_message = MagicMock()
         mock_message.delete = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.name = "old-channel"
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -3731,7 +3732,9 @@ class TestDeleteMessage:
         result = await delete_message(guild=mock_guild, channel_id=111, message_id=999)
 
         assert result is True
-        mock_message.delete.assert_called_once()
+        mock_channel.get_partial_message.assert_called_once_with(999)
+        mock_message.delete.assert_awaited_once()
+        mock_channel.fetch_message.assert_not_awaited()
 
     async def test_delete_message_channel_not_found(self) -> None:
         """Test deletion when channel does not exist."""
@@ -3745,10 +3748,10 @@ class TestDeleteMessage:
 
     async def test_delete_message_not_found(self) -> None:
         """Test deletion when message no longer exists."""
+        mock_message = MagicMock()
+        mock_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(
-            side_effect=discord.NotFound(MagicMock(), "Not found")
-        )
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -3760,10 +3763,10 @@ class TestDeleteMessage:
 
     async def test_delete_message_forbidden(self) -> None:
         """Test deletion without permissions."""
+        mock_message = MagicMock()
+        mock_message.delete = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(
-            side_effect=discord.Forbidden(MagicMock(), "Forbidden")
-        )
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123

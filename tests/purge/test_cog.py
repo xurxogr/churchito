@@ -1692,22 +1692,25 @@ class TestCheckPendingDeletions:
     async def test_deletes_expired_messages(
         self, purge_cog: PurgeCog, mock_discord_bot: MagicMock
     ) -> None:
-        """Test that deletes expired messages."""
+        """Test that expired messages are deleted through a partial message, without fetching."""
         # Schedule message with past time
         past_time = datetime.now(UTC) - timedelta(minutes=5)
         purge_cog._pending_deletions[(123, 456)] = past_time
 
         # Mock channel and message
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_message = MagicMock(spec=discord.Message)
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.delete = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
         mock_discord_bot.get_channel = MagicMock(return_value=mock_channel)
 
         await purge_cog._check_pending_deletions()
 
         assert (123, 456) not in purge_cog._pending_deletions
-        mock_message.delete.assert_called_once()
+        mock_channel.get_partial_message.assert_called_once_with(456)
+        mock_message.delete.assert_awaited_once()
+        mock_channel.fetch_message.assert_not_awaited()
 
     async def test_does_not_delete_future_messages(
         self, purge_cog: PurgeCog, mock_discord_bot: MagicMock
@@ -2604,10 +2607,10 @@ class TestCheckPendingDeletionsExtended:
         past_time = datetime.now(UTC) - timedelta(minutes=5)
         purge_cog._pending_deletions[(123, 456)] = past_time
 
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(
-            side_effect=discord.NotFound(MagicMock(), "Not found")
-        )
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_discord_bot.get_channel = MagicMock(return_value=mock_channel)
 
         await purge_cog._check_pending_deletions()
@@ -4088,8 +4091,10 @@ class TestCheckPendingDeletionsException:
         mock_discord_bot: MagicMock,
     ) -> None:
         """Test exception handling when deleting message."""
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.delete = AsyncMock(side_effect=Exception("Unknown error"))
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(side_effect=Exception("Unknown error"))
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_discord_bot.get_channel = MagicMock(return_value=mock_channel)
 
         # Schedule deletion - key is tuple (channel_id, message_id), value is delete_at
@@ -4645,7 +4650,7 @@ class TestExecutePurgeWithRetentionDeletion:
 
         mock_user_channel = MagicMock(spec=discord.TextChannel)
         mock_user_message = MagicMock(spec=discord.Message)
-        mock_user_channel.fetch_message = AsyncMock(return_value=mock_user_message)
+        mock_user_channel.get_partial_message = MagicMock(return_value=mock_user_message)
         mock_user_message.delete = AsyncMock()
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -5345,7 +5350,7 @@ class TestHandleCancelDeletesUserMessage:
 
         mock_user_channel = MagicMock(spec=discord.TextChannel)
         mock_user_message = MagicMock(spec=discord.Message)
-        mock_user_channel.fetch_message = AsyncMock(return_value=mock_user_message)
+        mock_user_channel.get_partial_message = MagicMock(return_value=mock_user_message)
         mock_user_message.delete = AsyncMock()
 
         mock_interaction = MagicMock(spec=discord.Interaction)
