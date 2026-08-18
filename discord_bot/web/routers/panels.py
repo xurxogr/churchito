@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/guild", tags=["panels"])
 
+# Matches the ReactionPanel.name column length
+MAX_PANEL_NAME_LENGTH = 100
+
 
 def get_browser_language(request: Request) -> str:
     """Get the language from the browser's Accept-Language header.
@@ -113,6 +116,23 @@ def _panel_to_dict(panel: ReactionPanel, guild: Any) -> dict[str, Any]:
         "exclusive_require_existing": panel.exclusive_require_existing,
         "embed_config": _format_embed_config(panel.embed_config),
     }
+
+
+def _validate_panel_fields(name: str, panel_type: str) -> None:
+    """Validate the user-editable panel name and type.
+
+    Args:
+        name (str): Panel name from the form.
+        panel_type (str): Panel type from the form.
+
+    Raises:
+        HTTPException: 400 if the name is empty or too long, or the type is unknown.
+    """
+    if not name or len(name) > MAX_PANEL_NAME_LENGTH:
+        raise HTTPException(status_code=400, detail="Invalid panel name")
+
+    if panel_type not in [t.value for t in PanelType]:
+        raise HTTPException(status_code=400, detail="Invalid panel type")
 
 
 def _parse_required_roles(value: Any) -> list[int]:
@@ -318,16 +338,12 @@ async def create_panel(
         HTMLResponse: Updated panels list
     """
     # Validate inputs
-    if not name or len(name) > 100:
-        raise HTTPException(status_code=400, detail="Invalid panel name")
+    _validate_panel_fields(name=name, panel_type=panel_type)
 
     try:
         channel_id_int = int(channel_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid channel ID") from None
-
-    if panel_type not in [t.value for t in PanelType]:
-        raise HTTPException(status_code=400, detail="Invalid panel type")
 
     # Parse JSON fields
     try:
@@ -469,6 +485,8 @@ async def update_panel(
     Returns:
         HTMLResponse: Updated panels list
     """
+    _validate_panel_fields(name=name, panel_type=panel_type)
+
     discord_guild, _, _, _ = _get_guild_data(request=request, guild_id=guild_id)
     guild_name = discord_guild.name if discord_guild else "Unknown"
 

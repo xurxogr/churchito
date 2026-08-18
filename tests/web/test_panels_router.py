@@ -1156,6 +1156,55 @@ class TestUpdatePanelDirectCall:
         assert "Invalid required roles" in exc_info.value.detail
         mock_session.commit.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("name", "panel_type", "expected_detail"),
+        [
+            ("", "toggle", "Invalid panel name"),
+            ("x" * 101, "toggle", "Invalid panel name"),
+            ("Panel", "bogus", "Invalid panel type"),
+        ],
+    )
+    async def test_rejects_invalid_name_or_type(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+        name: str,
+        panel_type: str,
+        expected_detail: str,
+    ) -> None:
+        """Test that update_panel validates name and panel type like create_panel."""
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+
+        with patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls:
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.get_by_name = AsyncMock(return_value=None)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await update_panel(
+                    request=mock_request,
+                    guild_id=123,
+                    panel_id=1,
+                    user=test_user,
+                    session=mock_session,
+                    name=name,
+                    channel_id="456",
+                    panel_type=panel_type,
+                    role_mappings="[]",
+                    required_roles="[]",
+                )
+
+        assert exc_info.value.status_code == 400
+        assert expected_detail in exc_info.value.detail
+        assert mock_panel.name == "Panel"
+        mock_session.commit.assert_not_called()
+
 
 class TestDeletePanelDirectCall:
     """Tests for delete_panel endpoint called directly."""
