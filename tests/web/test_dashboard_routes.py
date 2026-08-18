@@ -445,6 +445,73 @@ class TestCheckGuildAccess:
 
         assert result is False
 
+    def _setup_admin_role_lookup(self, mock_session: AsyncMock) -> None:
+        """Make the DB return no inviter and one configured admin role."""
+        mock_guild_record = MagicMock()
+        mock_guild_record.invited_by_id = None
+        mock_guild_result = MagicMock()
+        mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
+        mock_config_result = MagicMock()
+        mock_config_result.scalar_one_or_none.return_value = [999888777]
+        mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
+
+    async def test_does_not_hit_api_when_member_cache_is_complete(
+        self,
+        mock_session: AsyncMock,
+        mock_bot: MagicMock,
+    ) -> None:
+        """Test that a cache miss on a chunked guild is authoritative and skips fetch_member."""
+        self._setup_admin_role_lookup(mock_session)
+
+        mock_discord_guild = MagicMock()
+        mock_discord_guild.owner_id = 0
+        mock_discord_guild.chunked = True
+        mock_discord_guild.get_member.return_value = None
+        mock_discord_guild.fetch_member = AsyncMock()
+        mock_bot.get_guild.return_value = mock_discord_guild
+
+        result = await _check_guild_access(
+            session=mock_session,
+            bot=mock_bot,
+            guild_id=111222333,
+            user_id=123456789012345678,
+            is_bot_owner=False,
+        )
+
+        assert result is False
+        mock_discord_guild.fetch_member.assert_not_awaited()
+
+    async def test_fetches_member_when_cache_is_incomplete(
+        self,
+        mock_session: AsyncMock,
+        mock_bot: MagicMock,
+    ) -> None:
+        """Test that fetch_member is used when the guild has not been chunked."""
+        self._setup_admin_role_lookup(mock_session)
+
+        mock_role = MagicMock()
+        mock_role.id = 999888777
+        mock_member = MagicMock()
+        mock_member.roles = [mock_role]
+
+        mock_discord_guild = MagicMock()
+        mock_discord_guild.owner_id = 0
+        mock_discord_guild.chunked = False
+        mock_discord_guild.get_member.return_value = None
+        mock_discord_guild.fetch_member = AsyncMock(return_value=mock_member)
+        mock_bot.get_guild.return_value = mock_discord_guild
+
+        result = await _check_guild_access(
+            session=mock_session,
+            bot=mock_bot,
+            guild_id=111222333,
+            user_id=123456789012345678,
+            is_bot_owner=False,
+        )
+
+        assert result is True
+        mock_discord_guild.fetch_member.assert_awaited_once_with(123456789012345678)
+
     async def test_discord_guild_not_found(
         self,
         mock_session: AsyncMock,

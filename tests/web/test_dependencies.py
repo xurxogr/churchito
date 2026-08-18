@@ -163,6 +163,54 @@ class TestRequireGuildAccess:
         result = await require_guild_access(request, 111222333, test_user)
         assert result == test_user
 
+    async def test_does_not_hit_api_when_member_cache_is_complete(
+        self, simple_app: FastAPI, test_user: dict[str, Any]
+    ) -> None:
+        """Test that a cache miss on a chunked guild is authoritative and skips fetch_member."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.settings.web.owner_ids = []
+        self._setup_db_mock(simple_app, guild=None, config=[999888777])
+
+        mock_guild = MagicMock()
+        mock_guild.owner_id = 0
+        mock_guild.chunked = True
+        mock_guild.get_member.return_value = None
+        mock_guild.fetch_member = AsyncMock()
+        simple_app.state.bot.get_guild.return_value = mock_guild
+
+        with pytest.raises(HTTPException) as exc_info:
+            await require_guild_access(request, 111222333, test_user)
+
+        assert exc_info.value.status_code == 403
+        mock_guild.fetch_member.assert_not_awaited()
+
+    async def test_fetches_member_when_cache_is_incomplete(
+        self, simple_app: FastAPI, test_user: dict[str, Any]
+    ) -> None:
+        """Test that fetch_member is used when the guild has not been chunked."""
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.settings.web.owner_ids = []
+        self._setup_db_mock(simple_app, guild=None, config=[999888777])
+
+        mock_role = MagicMock()
+        mock_role.id = 999888777
+        mock_member = MagicMock()
+        mock_member.roles = [mock_role]
+
+        mock_guild = MagicMock()
+        mock_guild.owner_id = 0
+        mock_guild.chunked = False
+        mock_guild.get_member.return_value = None
+        mock_guild.fetch_member = AsyncMock(return_value=mock_member)
+        simple_app.state.bot.get_guild.return_value = mock_guild
+
+        result = await require_guild_access(request, 111222333, test_user)
+
+        assert result == test_user
+        mock_guild.fetch_member.assert_awaited_once_with(123456789012345678)
+
     async def test_user_without_permission_denied(
         self, simple_app: FastAPI, test_user: dict[str, Any]
     ) -> None:

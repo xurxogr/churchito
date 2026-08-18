@@ -177,9 +177,10 @@ async def require_guild_access(
 
         if admin_roles_config:
             admin_role_ids = set(admin_roles_config)
-            # Try cache first, then fetch from API if not cached
+            # The member cache is authoritative once the guild has been chunked
+            # (members intent); only fall back to the API while it is incomplete
             member = discord_guild.get_member(user_id)
-            if not member:
+            if member is None and not discord_guild.chunked:
                 try:
                     member = await discord_guild.fetch_member(user_id)
                 except discord.HTTPException:
