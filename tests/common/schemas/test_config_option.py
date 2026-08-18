@@ -4,6 +4,24 @@ from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.config_option import ConfigOption
 
 
+class TestManageableOnly:
+    """Role pickers offer every role unless the bot must be able to manage it."""
+
+    def test_defaults_to_any_role(self) -> None:
+        """By default a role option only checks membership, so any role is selectable."""
+        option = ConfigOption(key="mods", name="Mods", option_type=ConfigOptionType.ROLE_LIST)
+
+        assert option.manageable_only is False
+
+    def test_can_restrict_to_manageable_roles(self) -> None:
+        """Options whose roles the bot assigns/removes opt into the hierarchy filter."""
+        option = ConfigOption(
+            key="grant", name="Grant", option_type=ConfigOptionType.ROLE, manageable_only=True
+        )
+
+        assert option.manageable_only is True
+
+
 class TestConfigOptionValidation:
     """Tests for ConfigOption validation."""
 

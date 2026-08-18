@@ -81,8 +81,41 @@ def list_sendable_channels(
     return channels
 
 
+def _role_rows(roles: list[discord.Role]) -> list[dict[str, Any]]:
+    """Turn roles into dropdown rows sorted by name.
+
+    Args:
+        roles (list[discord.Role]): Roles to render
+
+    Returns:
+        list[dict[str, Any]]: Rows with string ``id`` (avoids JS precision loss), ``name``
+            and ``color``
+    """
+    rows = [{"id": str(role.id), "name": role.name, "color": str(role.color)} for role in roles]
+    rows.sort(key=lambda r: r["name"].lower())
+    return rows
+
+
+def list_selectable_roles(guild: discord.Guild) -> list[dict[str, Any]]:
+    """List every role except @everyone, sorted by name.
+
+    Used by pickers whose roles the bot only checks membership of (admin/mod
+    roles, affected or excluded roles...), which may sit above the bot.
+
+    Args:
+        guild (discord.Guild): Guild to inspect
+
+    Returns:
+        list[dict[str, Any]]: Rows with string ``id``, ``name`` and ``color``
+    """
+    return _role_rows([role for role in guild.roles if role.name != "@everyone"])
+
+
 def list_assignable_roles(guild: discord.Guild) -> list[dict[str, Any]]:
     """List roles below the bot's top role, excluding @everyone, sorted by name.
+
+    Used by pickers whose roles the bot assigns or removes; Discord rejects
+    changes to roles at or above the bot's top role.
 
     Args:
         guild (discord.Guild): Guild to inspect
@@ -91,13 +124,9 @@ def list_assignable_roles(guild: discord.Guild) -> list[dict[str, Any]]:
         list[dict[str, Any]]: Rows with string ``id``, ``name`` and ``color``
     """
     bot_top_role = guild.me.top_role
-    roles = [
-        {"id": str(role.id), "name": role.name, "color": str(role.color)}
-        for role in guild.roles
-        if role.name != "@everyone" and role < bot_top_role
-    ]
-    roles.sort(key=lambda r: r["name"].lower())
-    return roles
+    return _role_rows(
+        [role for role in guild.roles if role.name != "@everyone" and role < bot_top_role]
+    )
 
 
 def get_locked_options(bot: Any, cog_name: str) -> dict[str, dict[str, Any]]:
@@ -295,6 +324,7 @@ def build_option_data(
         "columns": translate_columns(
             option=option, columns_translations=cog_translations.get("columns", {})
         ),
+        "manageable_only": option.manageable_only,
     }
 
 

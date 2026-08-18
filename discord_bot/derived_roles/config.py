@@ -68,6 +68,7 @@ DERIVED_ROLES_CONFIG_SCHEMA = CogConfigSchema(
                     "key": "target_role",
                     "name": "Target role",
                     "type": "role",
+                    "manageable_only": True,
                     "required": True,
                     "allow_duplicates": True,
                 },

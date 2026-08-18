@@ -263,8 +263,10 @@ class TestCogSettings:
 
             assert "channels" in context
             assert "roles" in context
+            assert "assignable_roles" in context
             assert len(context["channels"]) == 1
             assert len(context["roles"]) == 1  # @everyone excluded
+            assert len(context["assignable_roles"]) == 1  # below the bot's top role
 
     async def test_cog_settings_not_found(
         self,

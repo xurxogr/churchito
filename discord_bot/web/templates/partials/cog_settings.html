@@ -490,6 +490,7 @@
             </select>
 
             {% elif option.type == 'role' %}
+            {% set option_roles = assignable_roles if option.manageable_only else roles %}
             <select
                 name="value"
                 id="opt-{{ option.key }}"
@@ -499,7 +500,7 @@
                 onchange="trackChange(this)"
             >
                 <option value="">{{ _('ui.labels.select_role', lang) }}</option>
-                {% for role in roles %}
+                {% for role in option_roles %}
                 <option value="{{ role.id }}" {% if option.value == role.id %}selected{% endif %}>
                     @{{ role.name }}
                 </option>
@@ -535,11 +536,12 @@
             </div>
 
             {% elif option.type == 'role_list' %}
+            {% set option_roles = assignable_roles if option.manageable_only else roles %}
             <div class="dual-listbox" data-option-key="{{ option.key }}" data-original="{{ option.value | join(',') if option.value else '' }}">
                 <div class="listbox-container">
                     <label class="listbox-label">{{ _('ui.config.available', lang) }}</label>
                     <select id="avail-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'sel-{{ option.key }}'); trackListChange('{{ option.key }}')">
-                        {% for role in roles %}
+                        {% for role in option_roles %}
                         {% if not option.value or role.id not in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
                         {% endif %}
@@ -553,7 +555,7 @@
                 <div class="listbox-container">
                     <label class="listbox-label">{{ _('ui.config.selected', lang) }}</label>
                     <select id="sel-{{ option.key }}" class="listbox" multiple size="8" ondblclick="moveSelectedItem(this, 'avail-{{ option.key }}'); trackListChange('{{ option.key }}')">
-                        {% for role in roles %}
+                        {% for role in option_roles %}
                         {% if option.value and role.id in option.value %}
                         <option value="{{ role.id }}">@{{ role.name }}</option>
                         {% endif %}
@@ -579,9 +581,10 @@
                             {% for col in option.columns %}
                             <td>
                                 {% if col.type == 'role' %}
+                                {% set column_roles = assignable_roles if col.manageable_only else roles %}
                                 <select class="select select-sm" data-col="{{ col.key }}" onchange="trackTableChange('{{ option.key }}')">
                                     <option value="">-- Select --</option>
-                                    {% for role in roles %}
+                                    {% for role in column_roles %}
                                     <option value="{{ role.id }}" {% if row[col.key]|string == role.id|string %}selected{% endif %}>@{{ role.name }}</option>
                                     {% endfor %}
                                 </select>
@@ -623,6 +626,7 @@
                     window.tableColumns = window.tableColumns || {};
                     window.tableColumns['{{ option.key }}'] = {{ option.columns | tojson }};
                     window.tableRoles = {{ roles | tojson }};
+                    window.tableAssignableRoles = {{ assignable_roles | tojson }};
                     window.tableChannels = {{ channels | tojson }};
                 </script>
             </div>
@@ -1289,6 +1293,7 @@ function addTableRow(optionKey) {
     const tbody = document.getElementById('tbody-' + optionKey);
     const columns = window.tableColumns[optionKey] || [];
     const roles = window.tableRoles || [];
+    const assignableRoles = window.tableAssignableRoles || [];
     const channels = window.tableChannels || [];
 
     const tr = document.createElement('tr');
@@ -1300,8 +1305,10 @@ function addTableRow(optionKey) {
             // Get roles already used in this column, unless the column
             // allows the same role in multiple rows (e.g. derived role rules)
             const usedRoleIds = col.allow_duplicates ? new Set() : getUsedRoleIds(optionKey, col.key);
-            // Filter out already used roles
-            const availableRoles = roles.filter(r => !usedRoleIds.has(r.id));
+            // Roles the bot assigns/removes must be below its top role; membership-only
+            // columns may reference any role. Then filter out already used roles.
+            const pool = col.manageable_only ? assignableRoles : roles;
+            const availableRoles = pool.filter(r => !usedRoleIds.has(r.id));
 
             const select = document.createElement('select');
             select.className = 'select select-sm';

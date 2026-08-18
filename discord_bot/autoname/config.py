@@ -36,6 +36,7 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
                 "Leave empty to process all members."
             ),
             option_type=ConfigOptionType.ROLE_LIST,
+            manageable_only=True,
             default=[],
         ),
         ConfigOption(
@@ -49,6 +50,7 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
                     "key": "role_id",
                     "name": "Role",
                     "type": "role",
+                    "manageable_only": True,
                     "required": True,
                 },
                 {
@@ -75,6 +77,7 @@ AUTONAME_CONFIG_SCHEMA = CogConfigSchema(
                     "key": "role_id",
                     "name": "Role",
                     "type": "role",
+                    "manageable_only": True,
                     "required": True,
                 },
                 {

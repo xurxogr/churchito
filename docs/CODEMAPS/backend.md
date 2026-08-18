@@ -160,6 +160,13 @@ The cog settings partial is assembled by pure builders in
 options, per-option rows with translations, placeholder preview data); the router
 only orchestrates services and renders the template.
 
+Role pickers get two sources: `roles` (every role except @everyone) for options
+the bot only checks membership of (admin/mod roles, affected/excluded roles, rule
+triggers) and `assignable_roles` (below the bot's top role) for options whose
+roles the bot assigns or removes. An option — or a table role column — opts into
+the restricted list with `manageable_only=True` on its `ConfigOption`;
+`tests/common/test_role_option_scope.py` classifies every role option.
+
 | Method | Path | Auth | Response | Purpose |
 |--------|------|------|----------|---------|
 | GET | `/dashboard/{guild_id}/config` | Required | HTML | Configuration form |

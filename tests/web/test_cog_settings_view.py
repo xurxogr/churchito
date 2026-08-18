@@ -14,6 +14,7 @@ from discord_bot.web.views.cog_settings import (
     format_relative_time,
     get_locked_options,
     list_assignable_roles,
+    list_selectable_roles,
     list_sendable_channels,
     resolve_display_value,
     to_template_value,
@@ -124,6 +125,21 @@ class TestGuildLists:
 
         assert [r["id"] for r in result] == ["3", "2"]
         assert result[0] == {"id": "3", "name": "Alpha", "color": "#ff0000"}
+
+    def test_selectable_roles_only_excludes_everyone(self) -> None:
+        """Membership-only pickers list every role, including those above the bot."""
+        roles = [
+            _role(1, "@everyone", 0),
+            _role(2, "zulu", 1),
+            _role(3, "Alpha", 2),
+            _role(4, "Above", 5),
+            _role(5, "BotTop", 4),
+        ]
+
+        result = list_selectable_roles(guild=_guild([], roles))
+
+        assert [r["id"] for r in result] == ["4", "3", "5", "2"]
+        assert result[0] == {"id": "4", "name": "Above", "color": "#ff0000"}
 
 
 class TestLockedOptions:
@@ -269,6 +285,23 @@ class TestBuildOptionData:
         assert row["value"] == "10"
         assert row["display_value"] == "#general"
         assert row["type"] == "channel"
+        assert row["manageable_only"] is False
+
+    def test_option_row_exposes_manageable_only(self) -> None:
+        """The template needs the flag to pick the right role list."""
+        opt = ConfigOption(
+            key="grant",
+            name="Grant",
+            option_type=ConfigOptionType.ROLE_LIST,
+            default=[],
+            manageable_only=True,
+        )
+
+        row = build_option_data(
+            option=opt, config_values={}, guild=_guild([], []), cog_translations={}
+        )
+
+        assert row["manageable_only"] is True
 
 
 class TestFormatRelativeTime:

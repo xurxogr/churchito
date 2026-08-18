@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, NamedTuple
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse
@@ -28,6 +28,7 @@ from discord_bot.web.views.cog_settings import (
     build_preview_data,
     get_locked_options,
     list_assignable_roles,
+    list_selectable_roles,
     list_sendable_channels,
 )
 
@@ -225,10 +226,22 @@ async def guild_config(
     )
 
 
-def _guild_context(
-    bot: Any, guild_id: int, cog_name: str
-) -> tuple[Any, list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+class GuildContext(NamedTuple):
+    """Discord guild plus the dropdown sources and locked options for the settings page."""
+
+    guild: Any
+    channels: list[dict[str, Any]]
+    roles: list[dict[str, Any]]
+    assignable_roles: list[dict[str, Any]]
+    locked_options: dict[str, dict[str, Any]]
+
+
+def _guild_context(bot: Any, guild_id: int, cog_name: str) -> GuildContext:
     """Resolve the Discord guild plus the dropdown sources and locked options.
+
+    ``roles`` lists every role (for pickers that only check membership) while
+    ``assignable_roles`` keeps only those below the bot's top role (for pickers
+    whose roles the bot assigns or removes).
 
     Args:
         bot (Any): Bot instance (may be None when running without the bot)
@@ -236,19 +249,29 @@ def _guild_context(
         cog_name (str): Cog name
 
     Returns:
-        tuple[Any, list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
-            Discord guild (or None), sendable channels, assignable roles, locked options
+        GuildContext: Guild (or None), sendable channels, all roles, assignable roles and
+            locked options
     """
     if not bot:
-        return None, [], [], {}
+        return GuildContext(
+            guild=None, channels=[], roles=[], assignable_roles=[], locked_options={}
+        )
     discord_guild = bot.get_guild(guild_id)
     channels: list[dict[str, Any]] = []
     roles: list[dict[str, Any]] = []
+    assignable_roles: list[dict[str, Any]] = []
     if discord_guild:
         bot_member = discord_guild.get_member(bot.user.id)
         channels = list_sendable_channels(guild=discord_guild, bot_member=bot_member)
-        roles = list_assignable_roles(guild=discord_guild)
-    return discord_guild, channels, roles, get_locked_options(bot=bot, cog_name=cog_name)
+        roles = list_selectable_roles(guild=discord_guild)
+        assignable_roles = list_assignable_roles(guild=discord_guild)
+    return GuildContext(
+        guild=discord_guild,
+        channels=channels,
+        roles=roles,
+        assignable_roles=assignable_roles,
+        locked_options=get_locked_options(bot=bot, cog_name=cog_name),
+    )
 
 
 def _resolve_member(discord_guild: Any, user: dict[str, Any] | None) -> Any:
@@ -304,7 +327,7 @@ async def _render_cog_settings(
     config_values = await config_service.get_all_config(guild_id, cog_name)
     is_enabled = await config_service.is_cog_enabled(guild_id, cog_name)
 
-    discord_guild, channels, roles, locked_options = _guild_context(
+    discord_guild, channels, roles, assignable_roles, locked_options = _guild_context(
         bot=request.app.state.bot, guild_id=guild_id, cog_name=cog_name
     )
     cog_translations = get_i18n_service().get_cog_translations(cog_name, lang)
@@ -350,6 +373,7 @@ async def _render_cog_settings(
             "can_reload": is_bot_owner(request=request, user=user) if user else False,
             "channels": channels,
             "roles": roles,
+            "assignable_roles": assignable_roles,
             "ConfigOptionType": ConfigOptionType,
             "error": error,
             "global_placeholders": GLOBAL_PLACEHOLDERS,

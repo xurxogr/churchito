@@ -41,7 +41,17 @@ class ConfigOption(BaseModel):
     )
     columns: list[dict[str, Any]] | None = Field(
         default=None,
-        description="Column definition for TABLE (key, name, type, required, etc.)",
+        description=(
+            "Column definition for TABLE (key, name, type, required, etc.); role columns "
+            "accept ``manageable_only`` with the same meaning as the option-level flag"
+        ),
+    )
+    manageable_only: bool = Field(
+        default=False,
+        description=(
+            "For ROLE/ROLE_LIST: offer only roles the bot can assign or remove (below its "
+            "top role). Leave False for roles the bot merely checks membership of"
+        ),
     )
     custom_validator: Any = Field(
         default=None,
