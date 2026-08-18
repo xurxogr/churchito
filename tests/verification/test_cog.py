@@ -6583,7 +6583,7 @@ class TestHandleAcceptDeleteModMessage:
         mock_mod_message.delete = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
-        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_mod_message)
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -6708,7 +6708,7 @@ class TestHandleRejectDeleteModMessage:
         mock_mod_message.delete = AsyncMock()
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
-        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_mod_message)
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123

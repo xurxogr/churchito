@@ -107,14 +107,18 @@ async def update_mod_message_status(
     if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
         return
 
+    if config.get(ConfigKey.DELETE_PROCESSED_MESSAGES):
+        # Only deleting: a partial message spares fetching it first
+        try:
+            await mod_channel.get_partial_message(request.mod_message_id).delete()
+        except discord.NotFound:
+            logger.warning(f"[{guild.name}] Mod message not found: {request.mod_message_id}")
+        return
+
     try:
         mod_message = await mod_channel.fetch_message(request.mod_message_id)
     except discord.NotFound:
         logger.warning(f"[{guild.name}] Mod message not found: {request.mod_message_id}")
-        return
-
-    if config.get(ConfigKey.DELETE_PROCESSED_MESSAGES):
-        await mod_message.delete()
         return
 
     if not mod_message.embeds:

@@ -371,12 +371,13 @@ class TestUpdateModMessageCancelled:
 
     @pytest.mark.asyncio
     async def test_deletes_message_if_configured(self) -> None:
-        """Test that deletes message if DELETE_PROCESSED_MESSAGES is active."""
-        mock_message = MagicMock(spec=discord.Message)
+        """Test that DELETE_PROCESSED_MESSAGES deletes through a partial message, no fetch."""
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.delete = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
@@ -396,8 +397,38 @@ class TestUpdateModMessageCancelled:
             previous_statuses=["⏳ Pending"],
         )
 
-        mock_message.delete.assert_called_once()
-        mock_message.edit.assert_not_called()
+        mock_channel.get_partial_message.assert_called_once_with(123)
+        mock_message.delete.assert_awaited_once()
+        mock_channel.fetch_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_delete_if_configured_ignores_a_missing_message(self) -> None:
+        """Test that a mod message already gone does not raise when deleting."""
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        mock_request = MagicMock(spec=VerificationRequest)
+        mock_request.mod_message_id = 123
+
+        config = {
+            "mod_notification_channel": 456,
+            "delete_processed_messages": True,
+        }
+
+        # Should not raise
+        await update_mod_message_cancelled(
+            guild=mock_guild,
+            request=mock_request,
+            config=config,
+            previous_statuses=["⏳ Pending"],
+        )
 
     @pytest.mark.asyncio
     async def test_updates_message_with_cancelled_status(self) -> None:
