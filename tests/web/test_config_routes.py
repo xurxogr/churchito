@@ -455,6 +455,113 @@ class TestUpdateOption:
             )
 
 
+class TestUpdateLockedOption:
+    """Options locked by the deployment are hidden in the UI and must not be writable either."""
+
+    LOCKED = {"string_option": {"locked": True, "reason": "Disabled by the system administrator"}}
+
+    @staticmethod
+    def _config_service_mock() -> MagicMock:
+        """Config service stub that accepts every save.
+
+        Returns:
+            MagicMock: Service with async save/read methods.
+        """
+        service = MagicMock()
+        service.set_value = AsyncMock(return_value=(True, None))
+        service.set_values = AsyncMock(return_value=(["channel_option"], {}))
+        service.is_cog_enabled = AsyncMock(return_value=True)
+        service.get_all_config = AsyncMock(return_value={})
+        return service
+
+    async def test_update_option_rejects_a_locked_option(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A direct POST to a locked option is not saved and reports the lock reason."""
+        mock_cog = MagicMock()
+        mock_cog.get_locked_options.return_value = self.LOCKED
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+        service = self._config_service_mock()
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService", return_value=service),
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+            ) as mock_notify,
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock
+            ) as mock_render,
+        ):
+            await update_option(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                "string_option",
+                test_user,
+                test_session,
+                value="new_value",
+            )
+
+        service.set_value.assert_not_awaited()
+        mock_notify.assert_not_awaited()
+        error = mock_render.call_args.kwargs["error"]
+        assert "string_option" in error
+        assert "Disabled by the system administrator" in error
+
+    async def test_batch_save_skips_locked_options_and_saves_the_rest(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A batch with a locked key saves only the other keys and reports the lock."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_cog = MagicMock()
+        mock_cog.get_locked_options.return_value = self.LOCKED
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+        mock_config_request.json = AsyncMock(
+            return_value={"options": {"string_option": "new_value", "channel_option": ""}}
+        )
+        service = self._config_service_mock()
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService", return_value=service),
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock
+            ) as mock_render,
+        ):
+            await update_options_batch(
+                mock_config_request, 111222333, "test_cog", test_user, test_session
+            )
+
+        saved_values = service.set_values.call_args.kwargs["values"]
+        assert "string_option" not in saved_values
+        assert "channel_option" in saved_values
+        error = mock_render.call_args.kwargs["error"]
+        assert "string_option" in error
+        assert "Disabled by the system administrator" in error
+
+
 class TestReloadCog:
     """Tests for reload_cog."""
 

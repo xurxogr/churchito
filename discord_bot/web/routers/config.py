@@ -491,15 +491,14 @@ async def update_option(
     if not option:
         raise HTTPException(status_code=404, detail="Option not found")
 
-    try:
-        converted_value = _convert_form_value(value, option.option_type, option=option)
-    except ValueError as e:
-        guild_error: str | None = f"{key}: {e}"
-    else:
-        # Channel permissions / role hierarchy checks need the live guild
-        guild_error = _validate_option_value(
-            request=request, guild_id=guild_id, option=option, value=converted_value
-        )
+    locked_options = get_locked_options(bot=request.app.state.bot, cog_name=cog_name)
+    converted_value, guild_error = _prepare_option_value(
+        request=request,
+        guild_id=guild_id,
+        option=option,
+        value=value,
+        locked_options=locked_options,
+    )
     if guild_error:
         return await _render_cog_settings(
             request=request,
@@ -597,6 +596,7 @@ async def update_options_batch(
     saved_keys: list[str] = []
     errors: list[str] = []
     values_to_save: dict[str, Any] = {}
+    locked_options = get_locked_options(bot=request.app.state.bot, cog_name=cog_name)
 
     # Convert and check every option first, then save them in one go
     for key, value in options_to_save.items():
@@ -605,15 +605,12 @@ async def update_options_batch(
             errors.append(f"Option '{key}' not found")
             continue
 
-        try:
-            converted_value = _convert_form_value(value, option.option_type, option=option)
-        except ValueError as e:
-            errors.append(f"{key}: {e}")
-            continue
-
-        # Channel permissions / role hierarchy checks need the live guild
-        guild_error = _validate_option_value(
-            request=request, guild_id=guild_id, option=option, value=converted_value
+        converted_value, guild_error = _prepare_option_value(
+            request=request,
+            guild_id=guild_id,
+            option=option,
+            value=value,
+            locked_options=locked_options,
         )
         if guild_error:
             errors.append(guild_error)
@@ -935,6 +932,44 @@ def _validate_manageable_roles(
         f"'{option.name}': the bot cannot manage {', '.join(too_high)}. "
         f"Move the bot's role above them or pick roles below it."
     )
+
+
+def _prepare_option_value(
+    request: Request,
+    guild_id: int,
+    option: ConfigOption,
+    value: Any,
+    locked_options: dict[str, Any],
+) -> tuple[Any, str | None]:
+    """Convert a submitted option value and run every check on it.
+
+    Args:
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        option (ConfigOption): Option being saved
+        value (Any): Raw submitted value
+        locked_options (dict[str, Any]): Options locked by the deployment for this cog
+
+    Returns:
+        tuple[Any, str | None]: Converted value and the first error found, or None
+    """
+    # Locked options are hidden in the UI, but a crafted request must not
+    # be able to write them either
+    if option.key in locked_options:
+        lock = locked_options[option.key]
+        reason = lock.get("reason") if isinstance(lock, dict) else str(lock)
+        return None, f"{option.key}: {reason or 'locked by the deployment configuration'}"
+
+    try:
+        converted_value = _convert_form_value(value, option.option_type, option=option)
+    except ValueError as e:
+        return None, f"{option.key}: {e}"
+
+    # Channel permissions / role hierarchy checks need the live guild
+    guild_error = _validate_option_value(
+        request=request, guild_id=guild_id, option=option, value=converted_value
+    )
+    return converted_value, guild_error
 
 
 def _validate_option_value(
