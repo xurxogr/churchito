@@ -778,10 +778,10 @@ class RolesCog(commands.Cog):
             if not isinstance(channel, discord.TextChannel):
                 return
 
-            message = await channel.fetch_message(message_id)
-            user = guild.get_member(user_id)
-            if user:
-                await message.remove_reaction(emoji, user)
+            # One request instead of fetch + remove, and a Snowflake is enough
+            # for the removal, so an uncached member no longer skips it
+            partial_message = channel.get_partial_message(message_id)
+            await partial_message.remove_reaction(emoji, discord.Object(id=user_id))
         except discord.Forbidden:
             logger.debug(f"[{guild.name}] Cannot remove reaction - no permission")
         except discord.NotFound:

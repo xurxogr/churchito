@@ -616,7 +616,7 @@ class TestVerifyPanelBehavior:
         mock_message.remove_reaction = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         # Create a verify panel
@@ -801,7 +801,7 @@ class TestRequiredRolesCheck:
         mock_message.remove_reaction = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         # Create a panel with required roles
@@ -861,7 +861,7 @@ class TestRequiredRolesCheck:
         mock_message.remove_reaction = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         # Setup DM
@@ -4084,38 +4084,60 @@ class TestSetupAndTeardown:
 class TestRemoveUserReaction:
     """Tests for _remove_user_reaction method."""
 
-    async def test_removes_reaction_success(
+    @staticmethod
+    def _make_channel(mock_guild: MagicMock, message: MagicMock) -> MagicMock:
+        """Build a text channel mock whose partial message is the given message.
+
+        Args:
+            mock_guild (MagicMock): Guild mock returning the channel.
+            message (MagicMock): Message returned by get_partial_message.
+
+        Returns:
+            MagicMock: The channel mock.
+        """
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.get_partial_message = MagicMock(return_value=message)
+        mock_channel.fetch_message = AsyncMock()
+        mock_guild.get_channel.return_value = mock_channel
+        return mock_channel
+
+    async def test_removes_reaction_with_partial_message(
         self,
         roles_cog: RolesCog,
         mock_guild: MagicMock,
     ) -> None:
-        """Test that reaction is removed when channel is valid."""
-        import builtins
-
-        mock_message = MagicMock(spec=discord.Message)
+        """Test that the reaction is removed via a partial message without fetching."""
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.remove_reaction = AsyncMock()
-
-        mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_guild.get_channel.return_value = mock_channel
-
-        mock_member = MagicMock(spec=discord.Member)
-        mock_guild.get_member.return_value = mock_member
+        mock_channel = self._make_channel(mock_guild, mock_message)
+        mock_guild.get_member.return_value = MagicMock(spec=discord.Member)
 
         emoji = discord.PartialEmoji(name="👍")
+        await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
 
-        # Patch isinstance to handle our mock TextChannel
-        original_isinstance = builtins.isinstance
+        mock_channel.get_partial_message.assert_called_once_with(999)
+        mock_channel.fetch_message.assert_not_awaited()
+        mock_message.remove_reaction.assert_awaited_once()
+        called_emoji, called_user = mock_message.remove_reaction.await_args[0]
+        assert called_emoji == emoji
+        assert called_user.id == 123
 
-        def patched_isinstance(obj: object, classinfo: type | tuple) -> bool:
-            if classinfo is discord.TextChannel and obj is mock_channel:
-                return True
-            return original_isinstance(obj, classinfo)
+    async def test_removes_reaction_when_member_not_cached(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Test that the reaction is removed even when the member is not cached."""
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.remove_reaction = AsyncMock()
+        self._make_channel(mock_guild, mock_message)
+        mock_guild.get_member.return_value = None  # Member not in cache
 
-        with patch.object(builtins, "isinstance", patched_isinstance):
-            await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
+        emoji = discord.PartialEmoji(name="👍")
+        await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
 
-        mock_message.remove_reaction.assert_called_once_with(emoji, mock_member)
+        mock_message.remove_reaction.assert_awaited_once()
+        assert mock_message.remove_reaction.await_args[0][1].id == 123
 
     async def test_handles_missing_channel(
         self,
@@ -4135,24 +4157,13 @@ class TestRemoveUserReaction:
         mock_guild: MagicMock,
     ) -> None:
         """Test that exceptions are handled."""
-        import builtins
-
-        mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(side_effect=Exception("Error"))
-        mock_guild.get_channel.return_value = mock_channel
-
-        # Patch isinstance to handle our mock TextChannel
-        original_isinstance = builtins.isinstance
-
-        def patched_isinstance(obj: object, classinfo: type | tuple) -> bool:
-            if classinfo is discord.TextChannel and obj is mock_channel:
-                return True
-            return original_isinstance(obj, classinfo)
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.remove_reaction = AsyncMock(side_effect=Exception("Error"))
+        self._make_channel(mock_guild, mock_message)
 
         emoji = discord.PartialEmoji(name="👍")
         # Should not raise
-        with patch.object(builtins, "isinstance", patched_isinstance):
-            await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
+        await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
 
     async def test_handles_forbidden(
         self,
@@ -4160,28 +4171,15 @@ class TestRemoveUserReaction:
         mock_guild: MagicMock,
     ) -> None:
         """Test that Forbidden is handled."""
-        import builtins
-
-        mock_message = MagicMock(spec=discord.Message)
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.remove_reaction = AsyncMock(
             side_effect=discord.Forbidden(MagicMock(), "No perms")
         )
-
-        mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_guild.get_channel.return_value = mock_channel
-        mock_guild.get_member.return_value = MagicMock()
-
-        original_isinstance = builtins.isinstance
-
-        def patched_isinstance(obj: object, classinfo: type | tuple) -> bool:
-            if classinfo is discord.TextChannel and obj is mock_channel:
-                return True
-            return original_isinstance(obj, classinfo)
+        self._make_channel(mock_guild, mock_message)
 
         emoji = discord.PartialEmoji(name="👍")
-        with patch.object(builtins, "isinstance", patched_isinstance):
-            await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
+        # Should not raise
+        await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
 
     async def test_handles_not_found(
         self,
@@ -4189,54 +4187,15 @@ class TestRemoveUserReaction:
         mock_guild: MagicMock,
     ) -> None:
         """Test that NotFound is handled."""
-        import builtins
-
-        mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.remove_reaction = AsyncMock(
             side_effect=discord.NotFound(MagicMock(), "Not found")
         )
-        mock_guild.get_channel.return_value = mock_channel
-
-        original_isinstance = builtins.isinstance
-
-        def patched_isinstance(obj: object, classinfo: type | tuple) -> bool:
-            if classinfo is discord.TextChannel and obj is mock_channel:
-                return True
-            return original_isinstance(obj, classinfo)
+        self._make_channel(mock_guild, mock_message)
 
         emoji = discord.PartialEmoji(name="👍")
-        with patch.object(builtins, "isinstance", patched_isinstance):
-            await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
-
-    async def test_skips_when_member_not_found(
-        self,
-        roles_cog: RolesCog,
-        mock_guild: MagicMock,
-    ) -> None:
-        """Test that removal is skipped when member not found."""
-        import builtins
-
-        mock_message = MagicMock(spec=discord.Message)
-        mock_message.remove_reaction = AsyncMock()
-
-        mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_guild.get_channel.return_value = mock_channel
-        mock_guild.get_member.return_value = None  # Member not in cache
-
-        original_isinstance = builtins.isinstance
-
-        def patched_isinstance(obj: object, classinfo: type | tuple) -> bool:
-            if classinfo is discord.TextChannel and obj is mock_channel:
-                return True
-            return original_isinstance(obj, classinfo)
-
-        emoji = discord.PartialEmoji(name="👍")
-        with patch.object(builtins, "isinstance", patched_isinstance):
-            await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
-
-        # Should not be called since member not found
-        mock_message.remove_reaction.assert_not_called()
+        # Should not raise
+        await roles_cog._remove_user_reaction(mock_guild, 456, 999, emoji, 123)
 
 
 # ===== CONFIG CHANGE CALLBACK TESTS =====
@@ -5373,7 +5332,7 @@ class TestExclusivePanelReactionRemoval:
         mock_message.remove_reaction = AsyncMock()
 
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel.return_value = mock_channel
 
         original_isinstance = builtins.isinstance
