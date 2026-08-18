@@ -1618,8 +1618,105 @@ class TestConvertFormValueDefault:
         assert result == "test_value"
 
 
+class TestConvertFormValueNumbers:
+    """Numeric conversions reject bad input with a message instead of crashing."""
+
+    @pytest.mark.parametrize(
+        "option_type",
+        [ConfigOptionType.INTEGER, ConfigOptionType.CHANNEL, ConfigOptionType.ROLE],
+    )
+    def test_non_numeric_value_raises_value_error(self, option_type: ConfigOptionType) -> None:
+        """A non-numeric string raises ValueError naming the value."""
+        with pytest.raises(ValueError, match="abc"):
+            _convert_form_value("abc", option_type)
+
+    @pytest.mark.parametrize(
+        "option_type", [ConfigOptionType.CHANNEL_LIST, ConfigOptionType.ROLE_LIST]
+    )
+    def test_non_numeric_list_item_raises_value_error(self, option_type: ConfigOptionType) -> None:
+        """A list with a non-numeric item raises ValueError naming the item."""
+        with pytest.raises(ValueError, match="abc"):
+            _convert_form_value("123,abc", option_type)
+
+    @pytest.mark.parametrize("value", [5, True, None, ["1"], {"a": 1}])
+    def test_non_string_value_raises_value_error(self, value: Any) -> None:
+        """JSON values that are not strings are rejected before conversion."""
+        with pytest.raises(ValueError, match="string"):
+            _convert_form_value(value, ConfigOptionType.BOOLEAN)
+
+
 class TestUpdateOptionsBatch:
     """Tests for update_options_batch."""
+
+    async def test_options_not_an_object_raises_400(
+        self,
+        mock_config_request: MagicMock,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A body whose options field is not an object returns 400 instead of 500."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(return_value={"options": ["channel_option"]})
+
+        with pytest.raises(HTTPException) as exc_info:
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+        assert exc_info.value.status_code == 400
+
+    async def test_invalid_number_is_reported_and_other_options_saved(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A non-numeric channel value is an error for that key; the rest is still saved."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(
+            return_value={"options": {"channel_option": "abc", "string_option": "ok"}}
+        )
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings",
+                new_callable=AsyncMock,
+            ) as mock_render,
+        ):
+            mock_config_service = MagicMock()
+            mock_config_service.set_values = AsyncMock(return_value=(["string_option"], {}))
+            mock_config_service_class.return_value = mock_config_service
+
+            await update_options_batch(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                test_user,
+                test_session,
+            )
+
+            mock_config_service.set_values.assert_awaited_once_with(
+                guild_id=111222333, cog_name="test_cog", values={"string_option": "ok"}
+            )
+            error = mock_render.call_args.kwargs["error"]
+            assert "channel_option" in error and "abc" in error
 
     async def test_empty_options_returns_early(
         self,

@@ -491,12 +491,15 @@ async def update_option(
     if not option:
         raise HTTPException(status_code=404, detail="Option not found")
 
-    converted_value = _convert_form_value(value, option.option_type, option=option)
-
-    # Channel permissions / role hierarchy checks need the live guild
-    guild_error = _validate_option_value(
-        request=request, guild_id=guild_id, option=option, value=converted_value
-    )
+    try:
+        converted_value = _convert_form_value(value, option.option_type, option=option)
+    except ValueError as e:
+        guild_error: str | None = f"{key}: {e}"
+    else:
+        # Channel permissions / role hierarchy checks need the live guild
+        guild_error = _validate_option_value(
+            request=request, guild_id=guild_id, option=option, value=converted_value
+        )
     if guild_error:
         return await _render_cog_settings(
             request=request,
@@ -576,9 +579,11 @@ async def update_options_batch(
     # Parse JSON body
     try:
         body = await request.json()
-        options_to_save: dict[str, str] = body.get("options", {})
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON") from None
+    options_to_save = body.get("options", {}) if isinstance(body, dict) else None
+    if not isinstance(options_to_save, dict):
+        raise HTTPException(status_code=400, detail="'options' must be an object")
 
     if not options_to_save:
         return await _render_cog_settings(
@@ -600,7 +605,11 @@ async def update_options_batch(
             errors.append(f"Option '{key}' not found")
             continue
 
-        converted_value = _convert_form_value(value, option.option_type, option=option)
+        try:
+            converted_value = _convert_form_value(value, option.option_type, option=option)
+        except ValueError as e:
+            errors.append(f"{key}: {e}")
+            continue
 
         # Channel permissions / role hierarchy checks need the live guild
         guild_error = _validate_option_value(
@@ -949,6 +958,24 @@ def _validate_option_value(
     )
 
 
+def _parse_int(value: str) -> int:
+    """Parse a whole number from form input.
+
+    Args:
+        value (str): Value as string
+
+    Returns:
+        int: Parsed number
+
+    Raises:
+        ValueError: If the value is not a whole number.
+    """
+    try:
+        return int(value.strip())
+    except ValueError:
+        raise ValueError(f"'{value.strip()}' is not a valid number") from None
+
+
 def _convert_form_value(
     value: str,
     option_type: ConfigOptionType,
@@ -963,7 +990,14 @@ def _convert_form_value(
 
     Returns:
         Any: Converted value
+
+    Raises:
+        ValueError: If the value is not a string or is not a valid number for
+            numeric option types.
     """
+    if not isinstance(value, str):
+        raise ValueError("value must be a string")
+
     # For STRING, TEXTAREA and TEXT_CHOICE, preserve empty strings
     # (allows "clearing" a value or selecting empty option)
     preserve_empty_types = (
@@ -978,14 +1012,12 @@ def _convert_form_value(
         return None
 
     match option_type:
-        case ConfigOptionType.INTEGER:
-            return int(value)
+        case ConfigOptionType.INTEGER | ConfigOptionType.CHANNEL | ConfigOptionType.ROLE:
+            return _parse_int(value)
         case ConfigOptionType.BOOLEAN:
             return value.lower() in ("true", "1", "on", "yes")
-        case ConfigOptionType.CHANNEL | ConfigOptionType.ROLE:
-            return int(value)
         case ConfigOptionType.CHANNEL_LIST | ConfigOptionType.ROLE_LIST:
-            return [int(v.strip()) for v in value.split(",") if v.strip()]
+            return [_parse_int(v) for v in value.split(",") if v.strip()]
         case ConfigOptionType.TABLE:
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
