@@ -5619,6 +5619,68 @@ class TestCheckVerificationMessageRecreate:
             mock_delete.assert_called_once()
             mock_create.assert_called_once()
 
+    async def test_concurrent_recreate_and_health_check_create_a_single_panel(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A health check overlapping a recreate must not post a second panel."""
+        deleted_ids: set[int] = set()
+        sent_ids = iter([888, 999])
+
+        async def fake_delete(guild: Any, channel_id: int, message_id: int) -> bool:
+            deleted_ids.add(message_id)
+            return True
+
+        async def fake_fetch(message_id: int) -> MagicMock:
+            if message_id in deleted_ids:
+                raise discord.NotFound(MagicMock(), "Not found")
+            return MagicMock(id=message_id, components=[])
+
+        async def fake_send(**kwargs: Any) -> MagicMock:
+            return MagicMock(id=next(sent_ids))
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 111
+        mock_channel.name = "verify"
+        mock_channel.fetch_message = AsyncMock(side_effect=fake_fetch)
+        mock_channel.send = AsyncMock(side_effect=fake_send)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(123, "verification", True)
+            await config_service.set_value(123, "verification", "verification_channel", 111)
+            await config_service.set_value(123, "verification", "_panel_message_id", 777)
+            await config_service.set_value(123, "verification", "_panel_channel_id", 111)
+            await session.commit()
+
+        original_get_all_config = ConfigService.get_all_config
+
+        async def slow_get_all_config(self: ConfigService, **kwargs: Any) -> dict[str, Any]:
+            # Let both callers read the panel ID before either acts on it
+            await asyncio.sleep(0.01)
+            return await original_get_all_config(self, **kwargs)
+
+        with (
+            patch("discord_bot.verification.panel.delete_message", side_effect=fake_delete),
+            patch.object(ConfigService, "get_all_config", slow_get_all_config),
+        ):
+            await asyncio.gather(
+                verification_cog._check_verification_message(guild=mock_guild, recreate=True),
+                verification_cog._check_verification_message(guild=mock_guild),
+            )
+
+        assert mock_channel.send.await_count == 1
+        assert deleted_ids == {777}
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            panel_id = await config_service.get_value(123, "verification", "_panel_message_id")
+            assert panel_id == 888
+
 
 class TestCreateVerificationMessagePermissions:
     """Tests for _create_verification_message with different permission states."""

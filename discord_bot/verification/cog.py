@@ -109,6 +109,9 @@ class VerificationCog(commands.Cog):
         # Per-request locks (keyed by public ID) so two moderators deciding on
         # the same request at once cannot both apply their decision
         self._request_locks = KeyedLocks()
+        # Per-guild locks so the health check tick, a config change and a cog
+        # toggle cannot recreate the verification panel at the same time
+        self._panel_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -1046,7 +1049,11 @@ class VerificationCog(commands.Cog):
             guild (discord.Guild): Guild to verify
             recreate (bool): If True, deletes existing panel and recreates it
         """
-        await check_verification_message(cog=self, guild=guild, recreate=recreate)
+        # A config change resets the schedule, so the health check becomes
+        # due while the recreate may still be running: both read the same
+        # panel ID and the second one would post a duplicate panel
+        async with self._panel_locks.acquire(guild.id):
+            await check_verification_message(cog=self, guild=guild, recreate=recreate)
 
     async def _create_verification_message(
         self,
