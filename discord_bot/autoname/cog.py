@@ -8,6 +8,7 @@ import discord
 from discord.ext import commands, tasks
 
 from discord_bot.autoname.config import AUTONAME_CONFIG_SCHEMA, COG_NAME, ConfigKey
+from discord_bot.autoname.formatters import format_message
 from discord_bot.autoname.service import compute_nickname
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.cog_config_cache import CogConfigCache
@@ -125,10 +126,13 @@ class AutonameCog(commands.Cog):
             channel_id_int = int(channel_id)
             channel = guild.get_channel(channel_id_int)
             if channel and isinstance(channel, discord.TextChannel):
-                message = message_template.format(**placeholders)
+                # Safe replace loop: an admin-written template with stray
+                # braces or format-style attribute access must never break
+                # the log message or expand object internals
+                message = format_message(template=message_template, **placeholders)
                 await channel.send(message)
-        except (ValueError, TypeError, KeyError) as e:
-            logger.warning(f"[{guild.name}] Error formatting log message: {e}")
+        except (ValueError, TypeError) as e:
+            logger.warning(f"[{guild.name}] Invalid log channel configured: {e}")
         except discord.HTTPException as e:
             logger.warning(f"[{guild.name}] Error sending log to channel: {e}")
 

@@ -913,7 +913,7 @@ class TestSendLog:
         await autoname_cog._send_log(mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS)
 
     async def test_handles_missing_placeholder(self, autoname_cog: AutonameCog) -> None:
-        """Test that handles missing placeholders."""
+        """Test that an unknown placeholder is left literal and the log is still sent."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_channel.send = AsyncMock()
 
@@ -925,12 +925,49 @@ class TestSendLog:
             ConfigKey.LOG_MESSAGE_SUCCESS: "Message with {missing_placeholder}",
         }
 
-        # Should not raise - KeyError is caught
         await autoname_cog._send_log(
             mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS, old_name="Test"
         )
 
-        mock_channel.send.assert_not_called()
+        mock_channel.send.assert_called_once_with("Message with {missing_placeholder}")
+
+    async def test_sends_templates_with_literal_braces(self, autoname_cog: AutonameCog) -> None:
+        """Test that a stray brace in the template does not stop the log message."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, object] = {
+            ConfigKey.LOG_CHANNEL: "123456",
+            ConfigKey.LOG_MESSAGE_SUCCESS: "Renamed {old_name} \\o/ {",
+        }
+
+        await autoname_cog._send_log(
+            mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS, old_name="Test"
+        )
+
+        mock_channel.send.assert_called_once_with("Renamed Test \\o/ {")
+
+    async def test_does_not_expand_format_attribute_access(self, autoname_cog: AutonameCog) -> None:
+        """Test that format-string attribute access is not expanded into object internals."""
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_channel.return_value = mock_channel
+
+        config: dict[str, object] = {
+            ConfigKey.LOG_CHANNEL: "123456",
+            ConfigKey.LOG_MESSAGE_SUCCESS: "{old_name.__class__}",
+        }
+
+        await autoname_cog._send_log(
+            mock_guild, config, ConfigKey.LOG_MESSAGE_SUCCESS, old_name="Test"
+        )
+
+        mock_channel.send.assert_called_once_with("{old_name.__class__}")
 
     async def test_handles_http_exception_on_send(self, autoname_cog: AutonameCog) -> None:
         """Test that handles HTTP errors when sending."""
