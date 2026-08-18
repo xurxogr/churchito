@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from discord_bot.verification.api_client import MAX_IMAGE_BYTES
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.handlers.dm_intake import (
     ack_key,
@@ -11,17 +12,19 @@ from discord_bot.verification.handlers.dm_intake import (
 )
 
 
-def _attachment(content_type: str | None) -> MagicMock:
+def _attachment(content_type: str | None, size: int = 1024) -> MagicMock:
     """Build an attachment mock.
 
     Args:
         content_type (str | None): Attachment content type.
+        size (int): Attachment size in bytes. Defaults to 1024.
 
     Returns:
         MagicMock: Attachment mock.
     """
     attachment = MagicMock()
     attachment.content_type = content_type
+    attachment.size = size
     return attachment
 
 
@@ -54,6 +57,16 @@ class TestImageAttachmentsOf:
         message.attachments = [png, _attachment("text/plain"), jpeg, _attachment(None)]
 
         assert image_attachments_of(message) == [png, jpeg]
+
+    def test_drops_images_larger_than_the_api_limit(self) -> None:
+        """An oversized screenshot would be rejected after downloading it whole."""
+        small = _attachment("image/png")
+        huge = _attachment("image/png", size=MAX_IMAGE_BYTES + 1)
+        at_limit = _attachment("image/jpeg", size=MAX_IMAGE_BYTES)
+        message = MagicMock()
+        message.attachments = [huge, small, at_limit]
+
+        assert image_attachments_of(message) == [small, at_limit]
 
 
 class TestReminderKey:

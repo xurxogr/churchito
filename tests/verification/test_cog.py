@@ -1487,6 +1487,7 @@ class TestOnMessage:
         # Only 1 image
         attachment = MagicMock()
         attachment.content_type = "image/png"
+        attachment.size = 1024
         message.attachments = [attachment]
 
         config_values = {
@@ -1573,9 +1574,11 @@ class TestOnMessage:
         # 2 valid images
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -1637,9 +1640,11 @@ class TestOnMessage:
         # URLs from external domain (not Discord CDN)
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://example.com/image1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://example.com/image2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -1732,9 +1737,11 @@ class TestOnMessage:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -1861,9 +1868,11 @@ class TestOnMessage:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -1993,9 +2002,11 @@ class TestOnMessage:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -2066,6 +2077,7 @@ class TestOnMessageSteamProfile:
         for url in urls:
             attachment = MagicMock()
             attachment.content_type = "image/png"
+            attachment.size = 1024
             attachment.url = url
             attachments.append(attachment)
         message.attachments = attachments
@@ -2100,6 +2112,7 @@ class TestOnMessageSteamProfile:
         for url in urls:
             attachment = MagicMock()
             attachment.content_type = "image/png"
+            attachment.size = 1024
             attachment.url = url
             attachments.append(attachment)
         message.attachments = attachments
@@ -4785,9 +4798,11 @@ class TestOnMessageScreenshots:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -5411,9 +5426,11 @@ class TestOnMessageUpdateModMessage:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7244,9 +7261,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7355,9 +7374,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7482,9 +7503,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7613,9 +7636,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7750,9 +7775,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -7882,9 +7909,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8012,9 +8041,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8130,9 +8161,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8242,9 +8275,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8360,9 +8395,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8505,9 +8542,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8636,9 +8675,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8753,9 +8794,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -8862,9 +8905,11 @@ class TestAutoProcessingEdgeCases:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -9228,9 +9273,11 @@ class TestLegacyBooleanAutoMode:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -9362,9 +9409,11 @@ class TestStatusReplacementInFormatted:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -9484,9 +9533,11 @@ class TestStatusReplacementInFormatted:
 
         attachment1 = MagicMock()
         attachment1.content_type = "image/png"
+        attachment1.size = 1024
         attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
         attachment2 = MagicMock()
         attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
         attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
         message.attachments = [attachment1, attachment2]
 
@@ -10532,6 +10583,7 @@ class TestAutoRejectByTimeout:
         ):
             attachment = MagicMock()
             attachment.content_type = "image/png"
+            attachment.size = 1024
             attachment.url = url
             message.attachments.append(attachment)
 

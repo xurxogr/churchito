@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import is_valid_discord_cdn_url
-from discord_bot.verification.api_client import call_verification_api
+from discord_bot.verification.api_client import MAX_IMAGE_BYTES, call_verification_api
 from discord_bot.verification.auto_processor import is_steam_profile_required
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import format_message
@@ -67,11 +67,21 @@ def image_attachments_of(message: discord.Message) -> list[discord.Attachment]:
         message (discord.Message): Received message.
 
     Returns:
-        list[discord.Attachment]: Attachments whose content type is an image.
+        list[discord.Attachment]: Attachments whose content type is an image and
+            whose size the verification API would accept.
     """
-    return [
+    images = [
         a for a in message.attachments if a.content_type and a.content_type.startswith("image/")
     ]
+    # The size comes in the payload: dropping oversized screenshots here saves
+    # storing a URL whose download the API call would reject afterwards anyway
+    accepted = [a for a in images if a.size <= MAX_IMAGE_BYTES]
+    if len(accepted) < len(images):
+        logger.warning(
+            f"Ignored {len(images) - len(accepted)} oversized screenshot(s) "
+            f"from user {message.author.id}"
+        )
+    return accepted
 
 
 def reminder_key(
