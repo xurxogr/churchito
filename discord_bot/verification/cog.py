@@ -312,6 +312,27 @@ class VerificationCog(commands.Cog):
         """
         await self.bot.wait_until_ready()
 
+        # Serialized with the DM intake of the same user: both check the
+        # status before committing, so a screenshot arriving as the timer
+        # fires would otherwise be accepted and the request rejected at once
+        async with self._user_locks.acquire(user_id):
+            await self._reject_if_awaiting_screenshots(
+                request_id=request_id, guild_id=guild_id, user_id=user_id
+            )
+
+    async def _reject_if_awaiting_screenshots(
+        self,
+        request_id: int,
+        guild_id: int,
+        user_id: int,
+    ) -> None:
+        """Reject a request by screenshot timeout if it is still waiting for them.
+
+        Args:
+            request_id: Request ID
+            guild_id: Server ID
+            user_id: User ID
+        """
         # Get guild for logs and message updates
         guild = self.bot.get_guild(guild_id)
         guild_name = guild.name if guild else f"Guild {guild_id}"

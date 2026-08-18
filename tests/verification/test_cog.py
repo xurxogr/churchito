@@ -10423,6 +10423,95 @@ class TestScreenshotTimer:
 class TestAutoRejectByTimeout:
     """Tests for auto-reject due to screenshot timeout."""
 
+    async def test_concurrent_dm_and_timeout_apply_a_single_outcome(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that a DM completing the request as the timer fires is not also rejected."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.send = AsyncMock()
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = mock_member
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+        object.__setattr__(verification_cog.bot, "user", MagicMock(id=999))
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+        message.content = ""
+        message.attachments = []
+        for url in (
+            "https://cdn.discordapp.com/attachments/123/456/1.png",
+            "https://cdn.discordapp.com/attachments/123/456/2.png",
+        ):
+            attachment = MagicMock()
+            attachment.content_type = "image/png"
+            attachment.url = url
+            message.attachments.append(attachment)
+
+        # Yield on every request read so the DM and the timeout both load
+        # the request while it is still awaiting screenshots
+        original_get_request = VerificationService.get_request
+
+        async def slow_get_request(self: VerificationService, request_id: int) -> Any:
+            await asyncio.sleep(0.01)
+            return await original_get_request(self, request_id)
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(VerificationService, "get_request", slow_get_request),
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new_callable=AsyncMock,
+            ) as mock_update_status,
+            patch(
+                "discord_bot.verification.cog.update_tracker_message",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_config.return_value = {"screenshots_received_message": "All done!"}
+            await asyncio.gather(
+                verification_cog.on_message(message),
+                verification_cog._auto_reject_by_timeout(
+                    request_id=request_id, guild_id=123, user_id=456
+                ),
+            )
+
+        # The DM completed the request first, so the timeout must not reject it
+        replies = [call.kwargs["content"] for call in message.channel.send.call_args_list]
+        assert replies.count("All done!") == 1
+        mock_member.send.assert_not_called()
+        mock_update_status.assert_not_called()
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+
     async def test_waits_for_the_gateway_before_touching_discord(
         self, verification_cog: VerificationCog, mock_discord_bot: MagicMock
     ) -> None:
