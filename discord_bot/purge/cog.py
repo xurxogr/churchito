@@ -1146,32 +1146,33 @@ class PurgeCog(commands.Cog):
         if not channel or not isinstance(channel, discord.TextChannel):
             return
 
-        try:
-            message = await channel.fetch_message(record.mod_message_id)
-        except discord.NotFound:
-            logger.warning(f"[{guild.name}] Purge moderation message not found")
-            return
-
+        # The content is rebuilt from the record, so a partial message edits
+        # in one request instead of fetch + edit (this runs after every role
+        # while a purge executes)
+        message = channel.get_partial_message(record.mod_message_id)
         content = get_mod_message_content(
             guild=guild, record=record, config=config, execution_logs=execution_logs
         )
 
-        if remove_view or record.status in (
-            PurgeStatus.CANCELLED,
-            PurgeStatus.EXPIRED,
-            PurgeStatus.EXECUTED,
-            PurgeStatus.FAILED,
-        ):
-            await message.edit(content=content, view=None)
-        elif record.status in (
-            PurgeStatus.PENDING,
-            PurgeStatus.AUTHORIZED,
-            PurgeStatus.CANCEL_PENDING,
-        ):
-            view = self._create_mod_view(record=record, config=config)
-            await message.edit(content=content, view=view)
-        else:
-            await message.edit(content=content)
+        try:
+            if remove_view or record.status in (
+                PurgeStatus.CANCELLED,
+                PurgeStatus.EXPIRED,
+                PurgeStatus.EXECUTED,
+                PurgeStatus.FAILED,
+            ):
+                await message.edit(content=content, view=None)
+            elif record.status in (
+                PurgeStatus.PENDING,
+                PurgeStatus.AUTHORIZED,
+                PurgeStatus.CANCEL_PENDING,
+            ):
+                view = self._create_mod_view(record=record, config=config)
+                await message.edit(content=content, view=view)
+            else:
+                await message.edit(content=content)
+        except discord.NotFound:
+            logger.warning(f"[{guild.name}] Purge moderation message not found")
 
     async def _send_user_message(
         self,

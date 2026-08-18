@@ -1923,11 +1923,12 @@ class TestUpdateModMessage:
         mock_guild: MagicMock,
         mock_purge_record: MagicMock,
     ) -> None:
-        """Test message update."""
+        """Test that the message is edited through a partial message, without fetching it."""
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_message = MagicMock(spec=discord.Message)
+        mock_message = MagicMock(spec=discord.PartialMessage)
         mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_channel.fetch_message = AsyncMock()
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
         config: dict[str, Any] = {
@@ -1940,7 +1941,9 @@ class TestUpdateModMessage:
             guild=mock_guild, record=mock_purge_record, config=config
         )
 
-        mock_message.edit.assert_called_once()
+        mock_channel.get_partial_message.assert_called_once_with(mock_purge_record.mod_message_id)
+        mock_message.edit.assert_awaited_once()
+        mock_channel.fetch_message.assert_not_awaited()
 
     async def test_handles_no_channel(
         self,
@@ -3119,7 +3122,7 @@ class TestUpdateModMessageExtended:
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
         mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
         async with test_database.session() as session:
@@ -3162,7 +3165,7 @@ class TestUpdateModMessageExtended:
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
         mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
         async with test_database.session() as session:
@@ -4058,9 +4061,9 @@ class TestUpdateModMessageNotFound:
     ) -> None:
         """Test that does not fail when message does not exist."""
         mock_channel = MagicMock(spec=discord.TextChannel)
-        mock_channel.fetch_message = AsyncMock(
-            side_effect=discord.NotFound(MagicMock(), "Not found")
-        )
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.edit = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
         async with test_database.session() as session:
@@ -4576,7 +4579,7 @@ class TestCheckExpiredPurgesWithUpdate:
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
 
         # Mock role to avoid error in _format_roles
@@ -4645,7 +4648,7 @@ class TestExecutePurgeWithRetentionDeletion:
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
 
         mock_user_channel = MagicMock(spec=discord.TextChannel)
@@ -4799,7 +4802,7 @@ class TestUpdateModMessageCancelPending:
         """Test update with CANCEL_PENDING status (without view)."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
 
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
@@ -5927,7 +5930,7 @@ class TestHandleCancelSchedulesDeletion:
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_message = MagicMock(spec=discord.Message)
-        mock_mod_channel.fetch_message = AsyncMock(return_value=mock_mod_message)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_mod_message)
         mock_mod_message.edit = AsyncMock()
 
         mock_interaction = MagicMock(spec=discord.Interaction)
@@ -5989,7 +5992,7 @@ class TestUpdateModMessageCancelPendingBranch:
         """Test update without view for CANCEL_PENDING status."""
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
 
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
@@ -6206,7 +6209,7 @@ class TestCheckCancelPendingExpired:
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
@@ -6267,7 +6270,7 @@ class TestCheckCancelPendingExpired:
 
         mock_channel = MagicMock(spec=discord.TextChannel)
         mock_message = MagicMock(spec=discord.Message)
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
         mock_message.edit = AsyncMock()
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
