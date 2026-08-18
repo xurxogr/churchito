@@ -2,16 +2,17 @@
 
 This package contains handlers for the verification flow:
 - flow: Main flow and moderator actions
+- dm_intake: Screenshots / Steam URL received by DM
 - mod_messages: Moderation message status updates and tracker management
 - mod_review: Moderation message update when screenshots arrive (auto/manual review)
 - auto_processing: Automatic processing (auto-approval/rejection)
 - utils: Verification-specific utilities
 """
 
+from discord_bot.verification.handlers.dm_intake import handle_dm_screenshots
 from discord_bot.verification.handlers.flow import (
     ModActionContext,
     handle_accept,
-    handle_dm_screenshots,
     handle_reject,
     handle_review,
     handle_verification_start,
@@ -29,10 +30,11 @@ from discord_bot.verification.handlers.mod_review import update_mod_message_for_
 from discord_bot.verification.handlers.utils import get_ready_for_approval_status
 
 __all__ = [
+    # dm_intake
+    "handle_dm_screenshots",
     # flow
     "ModActionContext",
     "handle_accept",
-    "handle_dm_screenshots",
     "handle_reject",
     "handle_review",
     "handle_verification_start",
