@@ -1,16 +1,19 @@
 """Fixtures for web module tests."""
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
+from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 from starlette.middleware.sessions import SessionMiddleware
 
 from discord_bot.common.core import AppSettings
 from discord_bot.common.core.settings.web import WebSettings
 from discord_bot.common.services import DatabaseService
+from discord_bot.web.app import register_template_globals
 
 
 @pytest.fixture
@@ -108,10 +111,6 @@ def simple_app(
     Returns:
         FastAPI: Application for tests
     """
-    from pathlib import Path
-
-    from fastapi.templating import Jinja2Templates
-
     app = FastAPI()
     app.add_middleware(
         SessionMiddleware,
@@ -127,13 +126,7 @@ def simple_app(
     templates_dir = Path(__file__).parent.parent.parent / "discord_bot" / "web" / "templates"
     if templates_dir.exists():
         app.state.templates = Jinja2Templates(directory=str(templates_dir))
-        # Register i18n globals for templates
-        from discord_bot.i18n import get_i18n_service
-
-        i18n = get_i18n_service()
-        app.state.templates.env.globals["_"] = i18n.translate
-        app.state.templates.env.globals["LANGUAGES"] = i18n.SUPPORTED_LANGUAGES
-        app.state.i18n = i18n
+        app.state.i18n = register_template_globals(templates=app.state.templates)
     else:
         app.state.templates = MagicMock()
 

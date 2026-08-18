@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Final
 
 import discord
 from discord import Guild, Member
@@ -107,6 +107,10 @@ class PlaceholderContext(BaseModel):
 
         return None
 
+
+# Discord blurple: fallback color for embeds and the dashboard color pickers.
+DEFAULT_EMBED_COLOR: Final[discord.Color] = discord.Color.blurple()
+DEFAULT_EMBED_COLOR_HEX: Final[str] = f"#{DEFAULT_EMBED_COLOR.value:06X}"
 
 # List of available global placeholders
 GLOBAL_PLACEHOLDERS: list[dict[str, str]] = [
@@ -358,7 +362,7 @@ def build_embed(
         embed_title = format_placeholders(config.title, context)
 
     # Determine color
-    color = _parse_hex_color(config.color) or default_color or discord.Color.blurple()
+    color = _parse_hex_color(config.color) or default_color or DEFAULT_EMBED_COLOR
 
     embed = discord.Embed(title=embed_title, color=color)
 

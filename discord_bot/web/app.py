@@ -14,7 +14,8 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from discord_bot.common.core.app_settings import AppSettings
 from discord_bot.common.services.database import DatabaseService
-from discord_bot.i18n import get_i18n_service
+from discord_bot.common.services.embed_builder import DEFAULT_EMBED_COLOR_HEX
+from discord_bot.i18n import I18nService, get_i18n_service
 from discord_bot.web.auth.oauth import router as auth_router
 from discord_bot.web.dependencies import NotAuthenticatedException
 from discord_bot.web.middleware import (
@@ -30,6 +31,22 @@ from discord_bot.web.routers.panels import router as panels_router
 logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).parent
+
+
+def register_template_globals(templates: Jinja2Templates) -> I18nService:
+    """Expose the i18n helpers and shared UI defaults to every template.
+
+    Args:
+        templates (Jinja2Templates): Template engine to configure
+
+    Returns:
+        I18nService: The i18n service the ``_`` helper is bound to
+    """
+    i18n = get_i18n_service()
+    templates.env.globals["_"] = i18n.translate
+    templates.env.globals["LANGUAGES"] = i18n.SUPPORTED_LANGUAGES
+    templates.env.globals["DEFAULT_EMBED_COLOR"] = DEFAULT_EMBED_COLOR_HEX
+    return i18n
 
 
 def create_app(
@@ -111,12 +128,7 @@ def create_app(
     static_dir = WEB_DIR / "static"
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
-
-    # Register i18n globals for templates
-    i18n = get_i18n_service()
-    app.state.templates.env.globals["_"] = i18n.translate
-    app.state.templates.env.globals["LANGUAGES"] = i18n.SUPPORTED_LANGUAGES
-    app.state.i18n = i18n
+    app.state.i18n = register_template_globals(templates=app.state.templates)
 
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 

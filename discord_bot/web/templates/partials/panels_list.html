@@ -84,7 +84,7 @@
                             <input
                                 type="color"
                                 id="new-embed-color-picker"
-                                value="#5865F2"
+                                value="{{ DEFAULT_EMBED_COLOR }}"
                                 style="width: 38px; height: 38px; padding: 0; border: none; cursor: pointer; border-radius: 4px;"
                                 oninput="document.getElementById('new-embed-color').value = this.value; updateCreatePreview()"
                             >
@@ -92,7 +92,7 @@
                                 type="text"
                                 id="new-embed-color"
                                 class="input"
-                                placeholder="#5865F2"
+                                placeholder="{{ DEFAULT_EMBED_COLOR }}"
                                 maxlength="7"
                                 style="flex: 1;"
                                 oninput="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)) document.getElementById('new-embed-color-picker').value = this.value; updateCreatePreview()"

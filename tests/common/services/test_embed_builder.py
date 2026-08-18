@@ -13,6 +13,8 @@ from discord_bot.common.schemas.embed_section import EmbedConfig, EmbedSection
 from discord_bot.common.services.embed_builder import (
     ANSI_COLORS,
     COLOR_TAGS,
+    DEFAULT_EMBED_COLOR,
+    DEFAULT_EMBED_COLOR_HEX,
     DOT_EMOJIS,
     GLOBAL_PLACEHOLDERS,
     EmbedFieldLimitError,
@@ -23,6 +25,15 @@ from discord_bot.common.services.embed_builder import (
     format_placeholders,
     format_with_colors,
 )
+
+
+class TestDefaultEmbedColor:
+    """One shared default (Discord blurple) for embeds and the dashboard color pickers."""
+
+    def test_is_discord_blurple(self) -> None:
+        """The default color is blurple, and its hex form is what the templates use."""
+        assert DEFAULT_EMBED_COLOR == discord.Color.blurple()
+        assert DEFAULT_EMBED_COLOR_HEX == "#5865F2"
 
 
 class TestCreateProgressBar:

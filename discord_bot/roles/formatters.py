@@ -6,10 +6,11 @@ from typing import Any, Final
 
 import discord
 
+from discord_bot.common.services.embed_builder import DEFAULT_EMBED_COLOR
 from discord_bot.roles.models import ReactionPanel
 
-# Discord blurple: fallback embed color when a panel has none configured.
-DEFAULT_PANEL_COLOR: Final[int] = discord.Color.blurple().value
+# Fallback embed color when a panel has none configured (Discord blurple).
+DEFAULT_PANEL_COLOR: Final[int] = DEFAULT_EMBED_COLOR.value
 
 
 def format_message(template: str | None, **kwargs: Any) -> str:

@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from discord_bot.common.core import AppSettings
+from discord_bot.common.services.embed_builder import DEFAULT_EMBED_COLOR_HEX
 from discord_bot.web.app import create_app
 
 
@@ -26,6 +27,19 @@ class TestCreateApp:
         assert app.state.settings == test_app_settings
         assert app.state.db_service == mock_db_service
         assert app.state.bot == mock_bot
+
+    def test_registers_template_globals(
+        self,
+        test_app_settings: AppSettings,
+        mock_db_service: MagicMock,
+    ) -> None:
+        """Templates get i18n helpers and the shared default embed color."""
+        app = create_app(test_app_settings, mock_db_service)
+
+        template_globals = app.state.templates.env.globals
+        assert callable(template_globals["_"])
+        assert "LANGUAGES" in template_globals
+        assert template_globals["DEFAULT_EMBED_COLOR"] == DEFAULT_EMBED_COLOR_HEX
 
     def test_creates_app_without_bot(
         self,
