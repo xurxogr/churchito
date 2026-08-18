@@ -1,5 +1,6 @@
 """Tests for the TTLCache utility."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -84,6 +85,80 @@ async def test_invalidate_unknown_key_is_noop() -> None:
     cache.invalidate(key=42)
 
     assert len(cache) == 0
+
+
+@pytest.mark.asyncio
+async def test_invalidate_during_load_does_not_cache_the_stale_value() -> None:
+    """Test that a value loaded before an invalidation is not served afterwards."""
+    cache: TTLCache[int, str] = TTLCache(ttl_seconds=60.0)
+    load_started = asyncio.Event()
+    release_load = asyncio.Event()
+
+    async def slow_loader() -> str:
+        load_started.set()
+        await release_load.wait()
+        return "old"
+
+    load_task = asyncio.create_task(cache.get_or_load(key=1, loader=slow_loader))
+    await load_started.wait()
+    cache.invalidate(key=1)
+    release_load.set()
+
+    assert await load_task == "old"
+    assert cache.get(key=1) is None
+    assert await cache.get_or_load(key=1, loader=AsyncMock(return_value="new")) == "new"
+
+
+@pytest.mark.asyncio
+async def test_clear_during_load_does_not_cache_the_stale_value() -> None:
+    """Test that clear also discards values still being loaded."""
+    cache: TTLCache[int, str] = TTLCache(ttl_seconds=60.0)
+    load_started = asyncio.Event()
+    release_load = asyncio.Event()
+
+    async def slow_loader() -> str:
+        load_started.set()
+        await release_load.wait()
+        return "old"
+
+    load_task = asyncio.create_task(cache.get_or_load(key=1, loader=slow_loader))
+    await load_started.wait()
+    cache.clear()
+    release_load.set()
+
+    assert await load_task == "old"
+    assert cache.get(key=1) is None
+
+
+@pytest.mark.asyncio
+async def test_concurrent_loads_keep_the_latest_started_value() -> None:
+    """Test that overlapping loads of a key end up caching the most recent read."""
+    cache: TTLCache[int, str] = TTLCache(ttl_seconds=60.0)
+    release_first = asyncio.Event()
+
+    async def first_loader() -> str:
+        await release_first.wait()
+        return "first"
+
+    first_task = asyncio.create_task(cache.get_or_load(key=1, loader=first_loader))
+    await asyncio.sleep(0)
+    assert await cache.get_or_load(key=1, loader=AsyncMock(return_value="second")) == "second"
+    release_first.set()
+
+    assert await first_task == "first"
+    assert cache.get(key=1) == "second"
+
+
+@pytest.mark.asyncio
+async def test_failed_load_does_not_block_a_later_load_from_caching() -> None:
+    """Test that a loader error leaves no in-flight marker behind."""
+    cache: TTLCache[int, str] = TTLCache(ttl_seconds=60.0)
+
+    with pytest.raises(RuntimeError):
+        await cache.get_or_load(key=1, loader=AsyncMock(side_effect=RuntimeError("boom")))
+
+    assert await cache.get_or_load(key=1, loader=AsyncMock(return_value="ok")) == "ok"
+    assert cache.get(key=1) == "ok"
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,11 @@ class TTLCache[K, V]:
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
         self._entries: dict[K, tuple[float, V]] = {}
+        # Token of the latest in-flight load per key: a load only stores its
+        # value if its token is still current, so an invalidate/clear issued
+        # while the loader ran (e.g. the config changed from the dashboard)
+        # is not overwritten by the stale value the loader read
+        self._loads: dict[K, object] = {}
 
     def __len__(self) -> int:
         """Return the number of stored keys, including expired ones not yet reloaded.
@@ -67,7 +72,9 @@ class TTLCache[K, V]:
         """Return the cached value for a key, loading and storing it if stale or absent.
 
         Concurrent callers on a cold key may each run the loader; that is
-        acceptable for the idempotent read-only loaders this cache is meant for.
+        acceptable for the idempotent read-only loaders this cache is meant for,
+        and only the most recently started load stores its value. A load whose
+        key is invalidated while it runs returns its value without caching it.
 
         Args:
             key (K): Cache key.
@@ -81,8 +88,16 @@ class TTLCache[K, V]:
         if entry is not None and entry[0] > now:
             return entry[1]
 
-        value = await loader()
-        self._store(key=key, value=value, now=now)
+        token = object()
+        self._loads[key] = token
+        try:
+            value = await loader()
+        finally:
+            is_current = self._loads.get(key) is token
+            if is_current:
+                del self._loads[key]
+        if is_current:
+            self._store(key=key, value=value, now=now)
         return value
 
     def invalidate(self, key: K) -> None:
@@ -92,10 +107,12 @@ class TTLCache[K, V]:
             key (K): Cache key; unknown keys are ignored.
         """
         self._entries.pop(key, None)
+        self._loads.pop(key, None)
 
     def clear(self) -> None:
         """Drop every cached entry."""
         self._entries.clear()
+        self._loads.clear()
 
     def _store(self, key: K, value: V, now: float) -> None:
         """Store an entry, making room first if the cache is bounded and full.
