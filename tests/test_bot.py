@@ -1526,6 +1526,8 @@ async def test_on_app_command_error_handles_other_errors(test_bot: DiscordBot) -
     mock_interaction = MagicMock()
     mock_interaction.command = MagicMock()
     mock_interaction.command.name = "failing_command"
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.response.send_message = AsyncMock()
 
     error = app_commands.AppCommandError("Something went wrong")
 
@@ -1549,6 +1551,8 @@ async def test_on_app_command_error_handles_unknown_command(test_bot: DiscordBot
 
     mock_interaction = MagicMock()
     mock_interaction.command = None
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.response.send_message = AsyncMock()
 
     error = app_commands.AppCommandError("Error with unknown command")
 
@@ -1558,3 +1562,52 @@ async def test_on_app_command_error_handles_unknown_command(test_bot: DiscordBot
         # Verify error was logged with "unknown"
         error_calls = [call for call in mock_logger.error.call_args_list if "unknown" in str(call)]
         assert len(error_calls) > 0
+
+
+class TestAppCommandErrorReply:
+    """Unhandled command errors are reported to the user instead of hanging the interaction."""
+
+    async def test_replies_ephemerally_when_not_yet_responded(self, test_bot: DiscordBot) -> None:
+        """An error before any response gets an ephemeral initial response."""
+        interaction = MagicMock()
+        interaction.command.name = "stockpile_add"
+        interaction.response.is_done.return_value = False
+        interaction.response.send_message = AsyncMock()
+        interaction.followup.send = AsyncMock()
+
+        await test_bot._on_app_command_error(
+            interaction, discord.app_commands.AppCommandError("db")
+        )
+
+        interaction.response.send_message.assert_awaited_once()
+        assert interaction.response.send_message.call_args.kwargs["ephemeral"] is True
+        interaction.followup.send.assert_not_called()
+
+    async def test_uses_followup_when_already_deferred(self, test_bot: DiscordBot) -> None:
+        """An error after defer() is sent as a followup so the "thinking" state resolves."""
+        interaction = MagicMock()
+        interaction.command.name = "purge"
+        interaction.response.is_done.return_value = True
+        interaction.response.send_message = AsyncMock()
+        interaction.followup.send = AsyncMock()
+
+        await test_bot._on_app_command_error(
+            interaction, discord.app_commands.AppCommandError("db")
+        )
+
+        interaction.followup.send.assert_awaited_once()
+        assert interaction.followup.send.call_args.kwargs["ephemeral"] is True
+        interaction.response.send_message.assert_not_called()
+
+    async def test_expired_interaction_does_not_raise(self, test_bot: DiscordBot) -> None:
+        """A failed reply (expired interaction) is swallowed; the error is already logged."""
+        interaction = MagicMock()
+        interaction.command.name = "purge"
+        interaction.response.is_done.return_value = False
+        interaction.response.send_message = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=404), "Unknown interaction")
+        )
+
+        await test_bot._on_app_command_error(
+            interaction, discord.app_commands.AppCommandError("db")
+        )

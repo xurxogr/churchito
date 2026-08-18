@@ -136,9 +136,29 @@ class DiscordBot(commands.Bot):
                 pass  # Interaction may have expired
             return
 
-        # Log other errors
+        # Log other errors and tell the user, so the interaction does not
+        # end in Discord's generic "The application did not respond"
         cmd_name = interaction.command.name if interaction.command else "unknown"
         logger.error(f"App command error in /{cmd_name}: {error}", exc_info=error)
+        await self._reply_command_error(interaction)
+
+    async def _reply_command_error(self, interaction: discord.Interaction) -> None:
+        """Send a generic ephemeral failure message for an unhandled command error.
+
+        Uses the initial response when still available and a followup when the
+        command already deferred or responded.
+
+        Args:
+            interaction: The interaction whose command failed.
+        """
+        message = "Something went wrong while running this command. Please try again later."
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.HTTPException:
+            pass  # Interaction expired or already acknowledged elsewhere
 
     async def _create_tables(self) -> None:
         """Apply Alembic migrations to the database."""
