@@ -492,20 +492,19 @@ async def update_option(
 
     converted_value = _convert_form_value(value, option.option_type, option=option)
 
-    # Validate bot permissions for channels
-    if converted_value and option.option_type == ConfigOptionType.CHANNEL:
-        permission_error = _validate_channel_permissions(
-            request=request, guild_id=guild_id, channel_id=converted_value
+    # Channel permissions / role hierarchy checks need the live guild
+    guild_error = _validate_option_value(
+        request=request, guild_id=guild_id, option=option, value=converted_value
+    )
+    if guild_error:
+        return await _render_cog_settings(
+            request=request,
+            guild_id=guild_id,
+            cog_name=cog_name,
+            session=session,
+            user=user,
+            error=guild_error,
         )
-        if permission_error:
-            return await _render_cog_settings(
-                request=request,
-                guild_id=guild_id,
-                cog_name=cog_name,
-                session=session,
-                user=user,
-                error=permission_error,
-            )
 
     success, validation_error = await config_service.set_value(
         guild_id=guild_id, cog_name=cog_name, key=key, value=converted_value
@@ -601,14 +600,13 @@ async def update_options_batch(
 
         converted_value = _convert_form_value(value, option.option_type, option=option)
 
-        # Validate channel permissions
-        if converted_value and option.option_type == ConfigOptionType.CHANNEL:
-            permission_error = _validate_channel_permissions(
-                request=request, guild_id=guild_id, channel_id=converted_value
-            )
-            if permission_error:
-                errors.append(permission_error)
-                continue
+        # Channel permissions / role hierarchy checks need the live guild
+        guild_error = _validate_option_value(
+            request=request, guild_id=guild_id, option=option, value=converted_value
+        )
+        if guild_error:
+            errors.append(guild_error)
+            continue
 
         values_to_save[key] = converted_value
 
@@ -826,6 +824,96 @@ def _validate_channel_permissions(request: Request, guild_id: int, channel_id: i
         )
 
     return None
+
+
+def _manageable_role_ids(option: ConfigOption, value: Any) -> list[int]:
+    """Collect the role IDs in ``value`` that the bot must be able to manage.
+
+    Args:
+        option (ConfigOption): Option being saved
+        value (Any): Converted value (int, list of ints or table rows)
+
+    Returns:
+        list[int]: Role IDs to check against the bot's hierarchy (empty when N/A)
+    """
+    if option.option_type == ConfigOptionType.TABLE:
+        columns = [
+            col["key"]
+            for col in option.columns or []
+            if col.get("type") == "role" and col.get("manageable_only")
+        ]
+        rows = value if isinstance(value, list) else []
+        raw = [row.get(col) for row in rows if isinstance(row, dict) for col in columns]
+    elif not option.manageable_only:
+        return []
+    elif option.option_type == ConfigOptionType.ROLE:
+        raw = [value]
+    elif option.option_type == ConfigOptionType.ROLE_LIST:
+        raw = list(value) if isinstance(value, list) else []
+    else:
+        return []
+    ids: list[int] = []
+    for item in raw:
+        if isinstance(item, int):
+            ids.append(item)
+        elif isinstance(item, str) and item.strip().isdigit():
+            ids.append(int(item))  # Legacy string IDs in table rows
+        # Anything else (blank, junk) is left to the regular type validation
+    return ids
+
+
+def _validate_manageable_roles(
+    request: Request, guild_id: int, option: ConfigOption, value: Any
+) -> str | None:
+    """Reject roles the bot cannot assign or remove (at or above its top role).
+
+    Only applies to options (or table role columns) flagged ``manageable_only``;
+    unknown role IDs are left to the regular validation.
+
+    Args:
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        option (ConfigOption): Option being saved
+        value (Any): Converted value
+
+    Returns:
+        str | None: Error message naming the offending roles, or None
+    """
+    bot = request.app.state.bot
+    guild = bot.get_guild(guild_id) if bot else None
+    if not guild:
+        return None  # Cannot validate without the bot's view of the guild
+
+    bot_top_role = guild.me.top_role
+    roles = (guild.get_role(rid) for rid in _manageable_role_ids(option=option, value=value))
+    too_high = [f"@{role.name}" for role in roles if role is not None and role >= bot_top_role]
+    if not too_high:
+        return None
+    return (
+        f"'{option.name}': the bot cannot manage {', '.join(too_high)}. "
+        f"Move the bot's role above them or pick roles below it."
+    )
+
+
+def _validate_option_value(
+    request: Request, guild_id: int, option: ConfigOption, value: Any
+) -> str | None:
+    """Run the guild-dependent checks on a converted option value.
+
+    Args:
+        request (Request): FastAPI request
+        guild_id (int): Guild ID
+        option (ConfigOption): Option being saved
+        value (Any): Converted value
+
+    Returns:
+        str | None: First error found, or None
+    """
+    if value and option.option_type == ConfigOptionType.CHANNEL:
+        return _validate_channel_permissions(request=request, guild_id=guild_id, channel_id=value)
+    return _validate_manageable_roles(
+        request=request, guild_id=guild_id, option=option, value=value
+    )
 
 
 def _convert_form_value(

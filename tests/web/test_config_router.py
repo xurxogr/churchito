@@ -8,10 +8,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
+from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.web.routers.config import (
     _convert_form_value,
     _get_guild_info,
     _validate_channel_permissions,
+    _validate_manageable_roles,
     get_templates,
     guild_access_dep,
     router,
@@ -150,6 +152,132 @@ class TestConvertFormValue:
         """Test text choice conversion."""
         result = _convert_form_value("option_a", ConfigOptionType.TEXT_CHOICE)
         assert result == "option_a"
+
+
+def _hierarchy_guild(bot_position: int, roles: dict[int, tuple[str, int]]) -> MagicMock:
+    """Build a guild whose roles compare by position against the bot's top role.
+
+    Args:
+        bot_position (int): Position of the bot's top role.
+        roles (dict[int, tuple[str, int]]): Role ID -> (name, position).
+
+    Returns:
+        MagicMock: Guild mock.
+    """
+    guild = MagicMock()
+    guild.me.top_role.position = bot_position
+    built: dict[int, MagicMock] = {}
+    for role_id, (name, position) in roles.items():
+        role = MagicMock()
+        role.id = role_id
+        role.name = name
+        role.position = position
+        role.__ge__ = lambda self, other: self.position >= other.position
+        built[role_id] = role
+    guild.get_role.side_effect = lambda rid: built.get(rid)
+    return guild
+
+
+class TestValidateManageableRoles:
+    """Server-side guard: roles the bot assigns/removes must sit below its top role."""
+
+    @staticmethod
+    def _request(simple_app: FastAPI, guild: MagicMock | None) -> MagicMock:
+        """Request whose app state holds a bot returning ``guild``.
+
+        Args:
+            simple_app (FastAPI): Base application.
+            guild (MagicMock | None): Guild the bot resolves.
+
+        Returns:
+            MagicMock: Request mock.
+        """
+        request = MagicMock()
+        request.app = simple_app
+        simple_app.state.bot = MagicMock()
+        simple_app.state.bot.get_guild.return_value = guild
+        return request
+
+    def test_membership_only_option_is_not_checked(self, simple_app: FastAPI) -> None:
+        """Options without manageable_only accept roles above the bot."""
+        guild = _hierarchy_guild(bot_position=5, roles={1: ("Above", 9)})
+        option = ConfigOption(key="admins", name="Admins", option_type=ConfigOptionType.ROLE_LIST)
+
+        error = _validate_manageable_roles(
+            request=self._request(simple_app, guild), guild_id=1, option=option, value=[1]
+        )
+
+        assert error is None
+
+    def test_role_list_above_bot_is_rejected(self, simple_app: FastAPI) -> None:
+        """A manageable-only list naming a role at/above the bot is refused by name."""
+        guild = _hierarchy_guild(bot_position=5, roles={1: ("Below", 2), 2: ("Above", 9)})
+        option = ConfigOption(
+            key="add", name="Add", option_type=ConfigOptionType.ROLE_LIST, manageable_only=True
+        )
+
+        error = _validate_manageable_roles(
+            request=self._request(simple_app, guild), guild_id=1, option=option, value=[1, 2]
+        )
+
+        assert error is not None
+        assert "@Above" in error and "Below" not in error
+
+    def test_single_role_below_bot_is_accepted(self, simple_app: FastAPI) -> None:
+        """A manageable-only ROLE below the bot passes; unknown IDs are ignored."""
+        guild = _hierarchy_guild(bot_position=5, roles={1: ("Below", 2)})
+        option = ConfigOption(
+            key="grant", name="Grant", option_type=ConfigOptionType.ROLE, manageable_only=True
+        )
+        request = self._request(simple_app, guild)
+
+        for value in (1, 404):
+            error = _validate_manageable_roles(
+                request=request, guild_id=1, option=option, value=value
+            )
+            assert error is None
+
+    def test_table_checks_only_manageable_columns(self, simple_app: FastAPI) -> None:
+        """Only role columns flagged manageable_only are checked (legacy string IDs too)."""
+        guild = _hierarchy_guild(bot_position=5, roles={1: ("Above", 9), 2: ("Below", 2)})
+        option = ConfigOption(
+            key="promotions",
+            name="Promotions",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "from_role", "type": "role"},
+                {"key": "to_role", "type": "role", "manageable_only": True},
+            ],
+        )
+        request = self._request(simple_app, guild)
+
+        ok = _validate_manageable_roles(
+            request=request, guild_id=1, option=option, value=[{"from_role": 1, "to_role": "2"}]
+        )
+        bad = _validate_manageable_roles(
+            request=request, guild_id=1, option=option, value=[{"from_role": 2, "to_role": "1"}]
+        )
+
+        assert ok is None
+        assert bad is not None and "@Above" in bad
+
+    def test_without_bot_or_guild_nothing_is_checked(self, simple_app: FastAPI) -> None:
+        """Without a bot/guild the check cannot run and passes."""
+        option = ConfigOption(
+            key="add", name="Add", option_type=ConfigOptionType.ROLE_LIST, manageable_only=True
+        )
+        request = self._request(simple_app, None)
+
+        without_guild = _validate_manageable_roles(
+            request=request, guild_id=1, option=option, value=[1]
+        )
+        simple_app.state.bot = None
+        without_bot = _validate_manageable_roles(
+            request=request, guild_id=1, option=option, value=[1]
+        )
+
+        assert without_guild is None
+        assert without_bot is None
 
 
 class TestValidateChannelPermissions:
