@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from discord_bot.i18n import get_i18n_service
 from discord_bot.roles.formatters import build_panel_embed
 from discord_bot.roles.models import PanelType, ReactionPanel
-from discord_bot.roles.service import ReactionRolesService
+from discord_bot.roles.service import ReactionRolesService, panel_name_locks
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
 from discord_bot.web.middleware import get_csrf_token
 from discord_bot.web.panel_forms import parse_panel_json_fields, validate_panel_fields
@@ -305,27 +305,29 @@ async def create_panel(
 
     service = ReactionRolesService(session)
 
-    # Check for duplicate name
-    existing = await service.get_by_name(guild_id=guild_id, name=name)
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
+    # Serialized per guild: see panel_name_locks
+    async with panel_name_locks.acquire(guild_id):
+        # Check for duplicate name
+        existing = await service.get_by_name(guild_id=guild_id, name=name)
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
 
-    # Create panel with all configuration
-    user_id = int(user.get("id", 0))
-    await service.create_panel(
-        guild_id=guild_id,
-        channel_id=channel_id_int,
-        name=name,
-        panel_type=PanelType(panel_type),
-        created_by=user_id,
-        guild_name=guild_name,
-        role_mappings=mappings if mappings else None,
-        embed_config=embed_cfg if embed_cfg else None,
-        dm_on_missing_role=dm_on_missing_role,
-        dm_on_role_change=dm_on_role_change,
-        exclusive_require_existing=exclusive_require_existing,
-    )
-    await session.commit()
+        # Create panel with all configuration
+        user_id = int(user.get("id", 0))
+        await service.create_panel(
+            guild_id=guild_id,
+            channel_id=channel_id_int,
+            name=name,
+            panel_type=PanelType(panel_type),
+            created_by=user_id,
+            guild_name=guild_name,
+            role_mappings=mappings if mappings else None,
+            embed_config=embed_cfg if embed_cfg else None,
+            dm_on_missing_role=dm_on_missing_role,
+            dm_on_role_change=dm_on_role_change,
+            exclusive_require_existing=exclusive_require_existing,
+        )
+        await session.commit()
 
     # Return updated list
     return await list_panels(request=request, guild_id=guild_id, user=user, session=session)
@@ -438,39 +440,41 @@ async def update_panel(
     discord_guild, _, _, _ = _get_guild_data(request=request, guild_id=guild_id)
     guild_name = discord_guild.name if discord_guild else "Unknown"
 
-    service = ReactionRolesService(session)
-    panel = await service.get_by_id(panel_id)
-
-    if not panel or panel.guild_id != guild_id:
-        raise HTTPException(status_code=404, detail="Panel not found")
-
-    # Check for duplicate name (excluding current panel)
-    if name != panel.name:
-        existing = await service.get_by_name(guild_id=guild_id, name=name)
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
-
     mappings, embed_cfg, req_roles = parse_panel_json_fields(
         role_mappings=role_mappings, embed_config=embed_config, required_roles=required_roles
     )
-
-    # Update panel
     try:
         channel_id_int = int(channel_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid channel ID") from None
 
-    panel.name = name
-    panel.channel_id = channel_id_int
-    panel.panel_type = panel_type
-    panel.role_mappings = mappings
-    panel.required_roles = req_roles
-    panel.embed_config = embed_cfg if embed_cfg else None
-    panel.dm_on_missing_role = dm_on_missing_role
-    panel.dm_on_role_change = dm_on_role_change
-    panel.exclusive_require_existing = exclusive_require_existing
+    service = ReactionRolesService(session)
 
-    await session.commit()
+    # Serialized per guild: see panel_name_locks (a rename races with creates)
+    async with panel_name_locks.acquire(guild_id):
+        panel = await service.get_by_id(panel_id)
+
+        if not panel or panel.guild_id != guild_id:
+            raise HTTPException(status_code=404, detail="Panel not found")
+
+        # Check for duplicate name (excluding current panel)
+        if name != panel.name:
+            existing = await service.get_by_name(guild_id=guild_id, name=name)
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
+
+        # Update panel
+        panel.name = name
+        panel.channel_id = channel_id_int
+        panel.panel_type = panel_type
+        panel.role_mappings = mappings
+        panel.required_roles = req_roles
+        panel.embed_config = embed_cfg if embed_cfg else None
+        panel.dm_on_missing_role = dm_on_missing_role
+        panel.dm_on_role_change = dm_on_role_change
+        panel.exclusive_require_existing = exclusive_require_existing
+
+        await session.commit()
     logger.info(f"[{guild_name}] Panel {panel.name} updated via web dashboard")
 
     # Return updated list

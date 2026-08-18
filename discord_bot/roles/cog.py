@@ -25,7 +25,7 @@ from discord_bot.roles.formatters import (
     format_message,
 )
 from discord_bot.roles.models import PanelType, ReactionPanel
-from discord_bot.roles.service import ReactionRolesService
+from discord_bot.roles.service import ReactionRolesService, panel_name_locks
 
 logger = logging.getLogger(__name__)
 
@@ -1083,7 +1083,11 @@ class RolesCog(commands.Cog):
             )
             return
 
-        async with self.bot.database.session() as session:
+        # Serialized per guild: see panel_name_locks
+        async with (
+            panel_name_locks.acquire(interaction.guild.id),
+            self.bot.database.session() as session,
+        ):
             service = ReactionRolesService(session)
 
             # Check for duplicate name

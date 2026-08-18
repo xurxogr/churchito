@@ -1,10 +1,12 @@
 """Tests for RolesCog."""
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
+from sqlalchemy import select
 
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
@@ -13,7 +15,7 @@ from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.roles.cog import RolesCog
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
-from discord_bot.roles.models import PanelType
+from discord_bot.roles.models import PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 
 
@@ -1310,6 +1312,68 @@ class TestHandleCreate:
 
         mock_interaction.response.send_message.assert_called_once()
         assert "created" in mock_interaction.response.send_message.call_args[0][0]
+
+    async def test_concurrent_creates_leave_a_single_panel(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that two overlapping creates with the same name leave one panel."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=mock_guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.MANAGE_ROLES,
+                value=[mock_role.id],
+            )
+            await session.commit()
+
+        second_interaction = MagicMock(spec=discord.Interaction)
+        second_interaction.guild = mock_guild
+        second_interaction.user = mock_member
+        second_interaction.response = MagicMock()
+        second_interaction.response.send_message = AsyncMock()
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 456
+        mock_channel.mention = "<#456>"
+
+        # Yield on the duplicate check so both commands look before either creates
+        original_lookup = ReactionRolesService.get_by_name
+
+        async def slow_lookup(self: ReactionRolesService, guild_id: int, name: str) -> Any:
+            await asyncio.sleep(0.01)
+            return await original_lookup(self, guild_id=guild_id, name=name)
+
+        with patch.object(ReactionRolesService, "get_by_name", slow_lookup):
+            await asyncio.gather(
+                roles_cog._handle_create(mock_interaction, "Twice", mock_channel, "toggle"),
+                roles_cog._handle_create(second_interaction, "Twice", mock_channel, "toggle"),
+            )
+
+        replies = [
+            interaction.response.send_message.call_args[0][0]
+            for interaction in (mock_interaction, second_interaction)
+        ]
+        assert sum("already exists" in reply for reply in replies) == 1
+
+        async with test_database.session() as session:
+            result = await session.execute(
+                select(ReactionPanel).where(
+                    ReactionPanel.guild_id == mock_guild.id, ReactionPanel.name == "Twice"
+                )
+            )
+            assert len(result.scalars().all()) == 1
 
 
 class TestHandleList:

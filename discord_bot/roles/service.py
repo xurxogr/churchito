@@ -7,9 +7,16 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from discord_bot.common.utils import KeyedLocks
 from discord_bot.roles.models import PanelType, ReactionPanel
 
 logger = logging.getLogger(__name__)
+
+# Panel names are only unique app-side (no constraint in the table), and both
+# the cog and the web dashboard create/rename panels from this process: hold
+# this per-guild lock around every name check-and-write so overlapping calls
+# cannot leave two panels with the same name
+panel_name_locks = KeyedLocks()
 
 
 class ReactionRolesService:

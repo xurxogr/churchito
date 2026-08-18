@@ -1,5 +1,6 @@
 """Tests for the panels router."""
 
+import asyncio
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -634,6 +635,60 @@ class TestCreatePanelDirectCall:
 
             mock_service.create_panel.assert_called_once()
             mock_session.commit.assert_called()
+
+    async def test_concurrent_creates_leave_a_single_panel(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that two overlapping creates with the same name create only one panel."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        # Stateful service: the duplicate check reads the panels that exist
+        # when it runs, then yields before answering (like a DB round trip)
+        created: list[str] = []
+
+        async def slow_get_by_name(guild_id: int, name: str) -> MagicMock | None:
+            found = name in created
+            await asyncio.sleep(0.01)
+            return MagicMock() if found else None
+
+        async def create(**kwargs: Any) -> None:
+            created.append(kwargs["name"])
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_name = AsyncMock(side_effect=slow_get_by_name)
+            mock_service.create_panel = AsyncMock(side_effect=create)
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            results = await asyncio.gather(
+                *(
+                    create_panel(
+                        request=mock_request,
+                        guild_id=123,
+                        user=test_user,
+                        session=mock_session,
+                        name="Twice",
+                        channel_id="456",
+                        panel_type="toggle",
+                    )
+                    for _ in range(2)
+                ),
+                return_exceptions=True,
+            )
+
+        assert created == ["Twice"]
+        errors = [r for r in results if isinstance(r, HTTPException)]
+        assert len(errors) == 1
+        assert errors[0].status_code == 400
 
     async def test_normalizes_role_mappings(
         self,
