@@ -297,11 +297,18 @@ class VerificationCog(commands.Cog):
     ) -> None:
         """Automatically reject a request due to screenshot timeout.
 
+        Waits for the gateway first: requests that expired while the bot was
+        offline are rejected from ``cog_load``, before the guild cache exists,
+        and without the guild the moderation message and the user would never
+        be updated.
+
         Args:
             request_id: Request ID
             guild_id: Server ID
             user_id: User ID
         """
+        await self.bot.wait_until_ready()
+
         # Get guild for logs and message updates
         guild = self.bot.get_guild(guild_id)
         guild_name = guild.name if guild else f"Guild {guild_id}"

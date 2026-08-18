@@ -10177,6 +10177,26 @@ class TestScreenshotTimer:
 class TestAutoRejectByTimeout:
     """Tests for auto-reject due to screenshot timeout."""
 
+    async def test_waits_for_the_gateway_before_touching_discord(
+        self, verification_cog: VerificationCog, mock_discord_bot: MagicMock
+    ) -> None:
+        """Requests expired while offline are rejected once the guild cache is populated."""
+        events: list[str] = []
+
+        async def ready() -> None:
+            events.append("ready")
+
+        def get_guild(guild_id: int) -> None:
+            events.append("get_guild")
+            return None
+
+        mock_discord_bot.wait_until_ready = AsyncMock(side_effect=ready)
+        mock_discord_bot.get_guild = MagicMock(side_effect=get_guild)
+
+        await verification_cog._auto_reject_by_timeout(request_id=99999, guild_id=123, user_id=456)
+
+        assert events[:2] == ["ready", "get_guild"]
+
     async def test_auto_reject_updates_status(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
@@ -10198,6 +10218,7 @@ class TestAutoRejectByTimeout:
         # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = None
@@ -10243,6 +10264,7 @@ class TestAutoRejectByTimeout:
         # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
 
@@ -10282,6 +10304,7 @@ class TestAutoRejectByTimeout:
         # Execute auto-rejection
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = None
@@ -10300,6 +10323,7 @@ class TestAutoRejectByTimeout:
         """Test that does not fail if the request does not exist."""
         with patch.object(verification_cog, "bot") as mock_bot:
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
 
             # Should not throw exception
             await verification_cog._auto_reject_by_timeout(
@@ -10342,6 +10366,7 @@ class TestAutoRejectByTimeout:
             ),
         ):
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = mock_guild
@@ -10391,6 +10416,7 @@ class TestAutoRejectByTimeout:
             ),
         ):
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = mock_guild
@@ -10440,6 +10466,7 @@ class TestAutoRejectByTimeout:
             ),
         ):
             mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
             mock_bot.user = MagicMock()
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = mock_guild
