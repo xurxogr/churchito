@@ -541,8 +541,9 @@ logs the outcome and raises `CommandSyncError` when Discord rejects the sync
 (e.g. `403 Missing Access`). Startup paths (`on_ready`, `on_guild_join`)
 suppress the error so one guild cannot stop the others; dashboard callbacks
 (`on_config_changed`, `on_cog_toggled`) let it propagate so the config page
-shows the "Saved, but the bot could not apply the change" message. Purge's
-debounced re-sync runs in a task and only logs failures.
+shows the "Saved, but the bot could not apply the change" message. All three
+cogs re-register and sync inline in `on_config_changed`: the dashboard saves
+every changed option in a single request, so no debouncing is needed.
 
 Registration lives in `_start()`, called from `on_ready` at startup and from
 `cog_load` when the bot is already ready (dashboard "Reload cog"). `cog_unload`

@@ -1,6 +1,5 @@
 """Purge cog for member activity management."""
 
-import asyncio
 import logging
 from collections.abc import Sequence
 from contextlib import suppress
@@ -46,10 +45,6 @@ class PurgeCog(commands.Cog):
         self.bot = bot
         # Track registered commands per guild and type: {guild_id: {"war": name, "global": name}}
         self._registered_commands: dict[int, dict[str, str]] = {}
-        # Debounce pending syncs: {guild_id: asyncio.Task}
-        self._pending_syncs: dict[int, asyncio.Task[None]] = {}
-        # Debounce delay in seconds
-        self._sync_debounce_delay = 2.0
         # Track active purges in memory: {guild_id: (purge_id, expires_at)}
         self._active_purges: dict[int, tuple[int, datetime | None]] = {}
         # Track authorized purges for execution: {guild_id: (purge_id, scheduled_for)}
@@ -389,38 +384,6 @@ class PurgeCog(commands.Cog):
             CommandSyncError: If Discord rejects the sync (already logged).
         """
         await sync_guild_commands(tree=self.bot.tree, guild=guild, label="purge")
-
-    async def _debounced_register_and_sync(self, guild: discord.Guild) -> None:
-        """Register and sync commands with debounce.
-
-        Waits a brief period before executing to batch multiple
-        configuration changes into a single sync.
-
-        Args:
-            guild (discord.Guild): Discord guild.
-        """
-        # Cancel any pending sync for this guild
-        if guild.id in self._pending_syncs:
-            self._pending_syncs[guild.id].cancel()
-
-        async def _delayed_sync() -> None:
-            try:
-                await asyncio.sleep(self._sync_debounce_delay)
-                await self._register_guild_commands(guild)
-                await self._sync_guild_commands(guild)
-            except asyncio.CancelledError:
-                pass  # Task was cancelled, a new one will run
-            except CommandSyncError:
-                pass  # Already logged by the sync helper
-            except Exception as e:
-                logger.error(f"[{guild.name}] Error re-registering purge commands: {e}")
-            finally:
-                # Only drop our own entry: a cancelled task must not pop
-                # the replacement task that superseded it
-                if self._pending_syncs.get(guild.id) is asyncio.current_task():
-                    del self._pending_syncs[guild.id]
-
-        self._pending_syncs[guild.id] = asyncio.create_task(_delayed_sync())
 
     # =========================================================================
     # Command handlers
@@ -1283,9 +1246,6 @@ class PurgeCog(commands.Cog):
         would see every name as taken and the old code would keep serving.
         """
         self.expiration_check_loop.cancel()
-        for pending_sync in self._pending_syncs.values():
-            pending_sync.cancel()
-        self._pending_syncs.clear()
         await self._unregister_all_guild_commands()
 
     async def _unregister_all_guild_commands(self) -> None:
@@ -1650,9 +1610,6 @@ class PurgeCog(commands.Cog):
             guild (discord.Guild): Guild the bot left.
         """
         await self._unregister_guild_commands(guild)
-        pending_sync = self._pending_syncs.pop(guild.id, None)
-        if pending_sync:
-            pending_sync.cancel()
         self._active_purges.pop(guild.id, None)
         self._authorized_purges.pop(guild.id, None)
         self._cancel_pending_purges.pop(guild.id, None)
@@ -1715,9 +1672,16 @@ class PurgeCog(commands.Cog):
     async def on_config_changed(self, guild: discord.Guild, keys: list[str]) -> None:
         """Callback when cog configuration changes.
 
+        The dashboard saves every changed option in a single call, so the
+        commands are re-registered and synced inline; failures propagate to
+        the caller so the dashboard can report them.
+
         Args:
             guild (discord.Guild): Guild where configuration changed.
             keys (list[str]): List of configuration keys that changed.
+
+        Raises:
+            CommandSyncError: If Discord rejects the command sync.
         """
         # Keys that affect command registration
         essential_keys = {
@@ -1737,10 +1701,10 @@ class PurgeCog(commands.Cog):
             changed = set(keys) & essential_keys
             logger.debug(
                 f"Essential configuration {changed} changed in {guild.name}, "
-                "scheduling command re-evaluation..."
+                "re-evaluating commands..."
             )
-            # Use debounced sync to batch multiple config changes
-            await self._debounced_register_and_sync(guild)
+            await self._register_guild_commands(guild)
+            await self._sync_guild_commands(guild)
 
 
 async def setup(bot: DiscordBot) -> None:

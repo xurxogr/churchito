@@ -1,7 +1,5 @@
 """Tests for PurgeCog."""
 
-import asyncio
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -2008,15 +2006,18 @@ class TestOnGuildJoin:
 class TestOnConfigChanged:
     """Tests for on_config_changed."""
 
-    async def test_triggers_resync_on_config_change(
+    async def test_registers_and_syncs_immediately_on_config_change(
         self, purge_cog: PurgeCog, mock_guild: MagicMock
     ) -> None:
-        """Test that triggers re-sync when config changes."""
-        with patch.object(
-            purge_cog, "_debounced_register_and_sync", new_callable=AsyncMock
-        ) as mock_register:
+        """An essential key change re-registers and syncs before returning."""
+        with (
+            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock) as reg,
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as sync,
+        ):
             await purge_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
-            mock_register.assert_called_once_with(mock_guild)
+
+        reg.assert_awaited_once_with(mock_guild)
+        sync.assert_awaited_once_with(mock_guild)
 
 
 class TestOnCogToggled:
@@ -2242,44 +2243,29 @@ class TestSyncFailureSurfacesToDashboard:
         with patch.object(purge_cog, "_register_guild_commands", side_effect=register):
             await purge_cog.on_guild_join(mock_guild)
 
-    async def test_debounced_sync_logs_registration_errors(
-        self, purge_cog: PurgeCog, mock_guild: MagicMock, caplog: pytest.LogCaptureFixture
+    async def test_on_config_changed_raises_when_sync_fails(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, mock_discord_bot: MagicMock
     ) -> None:
-        """A failure inside the delayed task is logged instead of dying silently."""
-        purge_cog._sync_debounce_delay = 0
+        """A command-name change whose sync fails is reported to the caller."""
+        mock_discord_bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
 
+        with (
+            patch.object(purge_cog, "_register_guild_commands", AsyncMock()),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await purge_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
+
+    async def test_on_config_changed_raises_when_registration_fails(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock
+    ) -> None:
+        """A registration error is no longer swallowed by a background task."""
         with (
             patch.object(
                 purge_cog, "_register_guild_commands", AsyncMock(side_effect=RuntimeError("db"))
             ),
-            caplog.at_level(logging.ERROR),
+            pytest.raises(RuntimeError, match="db"),
         ):
-            await purge_cog._debounced_register_and_sync(mock_guild)
-            await asyncio.gather(*purge_cog._pending_syncs.values(), return_exceptions=True)
-
-        assert "db" in caplog.text
-        assert mock_guild.id not in purge_cog._pending_syncs
-
-
-class TestDebouncedRegisterAndSync:
-    """Tests for _debounced_register_and_sync."""
-
-    async def test_cancels_pending_sync(
-        self,
-        purge_cog: PurgeCog,
-        mock_guild: MagicMock,
-    ) -> None:
-        """Test that cancels pending synchronization."""
-        import asyncio
-
-        # Create pending task mock
-        mock_task = MagicMock(spec=asyncio.Task)
-        mock_task.cancel = MagicMock()
-        purge_cog._pending_syncs[mock_guild.id] = mock_task
-
-        await purge_cog._debounced_register_and_sync(mock_guild)
-
-        mock_task.cancel.assert_called_once()
+            await purge_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
 
 
 class TestExpirationCheckLoop:
@@ -2486,45 +2472,39 @@ class TestOnInteraction:
 class TestOnConfigChangedExtended:
     """Extended tests for on_config_changed."""
 
+    @pytest.mark.parametrize(
+        "key",
+        [
+            ConfigKey.WAR_COMMAND_NAME,
+            ConfigKey.GLOBAL_COMMAND_NAME,
+            ConfigKey.GLOBAL_ADMIN_ROLES,
+        ],
+    )
     async def test_triggers_resync_on_essential_key(
-        self, purge_cog: PurgeCog, mock_guild: MagicMock
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, key: ConfigKey
     ) -> None:
-        """Test that triggers re-sync with essential key."""
-        with patch.object(
-            purge_cog, "_debounced_register_and_sync", new_callable=AsyncMock
-        ) as mock_register:
-            await purge_cog.on_config_changed(mock_guild, [ConfigKey.WAR_COMMAND_NAME])
-            mock_register.assert_called_once_with(mock_guild)
+        """Test that triggers re-sync with each essential key."""
+        with (
+            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock) as reg,
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as sync,
+        ):
+            await purge_cog.on_config_changed(mock_guild, [key])
+
+        reg.assert_awaited_once_with(mock_guild)
+        sync.assert_awaited_once_with(mock_guild)
 
     async def test_ignores_non_essential_key(
         self, purge_cog: PurgeCog, mock_guild: MagicMock
     ) -> None:
         """Test that ignores non-essential keys."""
-        with patch.object(
-            purge_cog, "_debounced_register_and_sync", new_callable=AsyncMock
-        ) as mock_register:
+        with (
+            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock) as reg,
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as sync,
+        ):
             await purge_cog.on_config_changed(mock_guild, [ConfigKey.TEST_MODE])
-            mock_register.assert_not_called()
 
-    async def test_triggers_resync_on_global_command_name(
-        self, purge_cog: PurgeCog, mock_guild: MagicMock
-    ) -> None:
-        """Test that triggers re-sync with GLOBAL_COMMAND_NAME."""
-        with patch.object(
-            purge_cog, "_debounced_register_and_sync", new_callable=AsyncMock
-        ) as mock_register:
-            await purge_cog.on_config_changed(mock_guild, [ConfigKey.GLOBAL_COMMAND_NAME])
-            mock_register.assert_called_once_with(mock_guild)
-
-    async def test_triggers_resync_on_global_admin_roles(
-        self, purge_cog: PurgeCog, mock_guild: MagicMock
-    ) -> None:
-        """Test that triggers re-sync with GLOBAL_ADMIN_ROLES."""
-        with patch.object(
-            purge_cog, "_debounced_register_and_sync", new_callable=AsyncMock
-        ) as mock_register:
-            await purge_cog.on_config_changed(mock_guild, [ConfigKey.GLOBAL_ADMIN_ROLES])
-            mock_register.assert_called_once_with(mock_guild)
+        reg.assert_not_called()
+        sync.assert_not_called()
 
 
 class TestCheckPendingDeletionsExtended:
@@ -6874,44 +6854,6 @@ class TestSendLog:
         )
 
 
-class TestPendingSyncLifecycle:
-    """Tests for the debounced sync task lifecycle."""
-
-    async def test_cog_unload_cancels_pending_syncs(self, purge_cog: PurgeCog) -> None:
-        """Test that unloading the cog cancels queued sync tasks."""
-        pending_sync = MagicMock()
-        purge_cog._pending_syncs[123] = pending_sync
-
-        await purge_cog.cog_unload()
-
-        pending_sync.cancel.assert_called_once()
-        assert len(purge_cog._pending_syncs) == 0
-
-    async def test_replaced_sync_task_keeps_new_entry(
-        self, purge_cog: PurgeCog, mock_guild: MagicMock
-    ) -> None:
-        """Test that a superseded sync task does not drop its replacement."""
-        purge_cog._sync_debounce_delay = 0.05
-        with (
-            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock),
-            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock),
-        ):
-            await purge_cog._debounced_register_and_sync(mock_guild)
-            # Let the first task start and enter its debounce sleep
-            await asyncio.sleep(0)
-            await purge_cog._debounced_register_and_sync(mock_guild)
-            second_task = purge_cog._pending_syncs[mock_guild.id]
-
-            # Let the first (cancelled) task run its cleanup
-            await asyncio.sleep(0)
-            await asyncio.sleep(0)
-
-            assert purge_cog._pending_syncs.get(mock_guild.id) is second_task
-
-            await second_task
-            assert mock_guild.id not in purge_cog._pending_syncs
-
-
 class TestOnGuildRemove:
     """Tests for on_guild_remove cleanup."""
 
@@ -6919,8 +6861,6 @@ class TestOnGuildRemove:
         """Test that guild commands and cached state are dropped on removal."""
         now = datetime.now(UTC)
         purge_cog._registered_commands[mock_guild.id] = {"war": "purge"}
-        pending_sync = MagicMock()
-        purge_cog._pending_syncs[mock_guild.id] = pending_sync
         purge_cog._active_purges[mock_guild.id] = (1, None)
         purge_cog._authorized_purges[mock_guild.id] = (1, now)
         purge_cog._cancel_pending_purges[mock_guild.id] = (1, now)
@@ -6929,8 +6869,6 @@ class TestOnGuildRemove:
 
         assert mock_guild.id not in purge_cog._registered_commands
         purge_cog.bot.tree.remove_command.assert_called_once_with("purge", guild=mock_guild)
-        assert mock_guild.id not in purge_cog._pending_syncs
-        pending_sync.cancel.assert_called_once()
         assert mock_guild.id not in purge_cog._active_purges
         assert mock_guild.id not in purge_cog._authorized_purges
         assert mock_guild.id not in purge_cog._cancel_pending_purges
