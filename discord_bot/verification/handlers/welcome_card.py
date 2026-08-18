@@ -385,28 +385,54 @@ def clear_template_cache() -> None:
 
 
 async def _download_template(url: str, client: httpx.AsyncClient) -> bytes | None:
-    """Download a template image with size validation.
+    """Download a template image, giving up as soon as it exceeds the size limit.
 
     Args:
-        url (str): Template image URL.
-        client (httpx.AsyncClient): HTTP client to use.
+        url (str): Template URL.
+        client (httpx.AsyncClient): HTTP client used for the request.
 
     Returns:
         bytes | None: Image bytes, or None on any failure.
     """
     try:
-        response = await client.get(url)
+        async with client.stream("GET", url) as response:
+            if response.status_code != 200:
+                logger.warning(
+                    f"Welcome card template fetch returned {response.status_code}: {url}"
+                )
+                return None
+            # The admin controls this URL: refuse an oversized body from the
+            # headers when possible and stop reading as soon as it grows past
+            # the limit instead of buffering the whole thing in memory first
+            declared = response.headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > MAX_IMAGE_BYTES:
+                logger.warning(f"Welcome card template too large ({declared} bytes): {url}")
+                return None
+            return await _read_up_to_limit(response=response, url=url)
     except Exception as exc:
         logger.warning(f"Failed to fetch welcome card template {url}: {exc}")
         return None
-    if response.status_code != 200:
-        logger.warning(f"Welcome card template fetch returned {response.status_code}: {url}")
-        return None
-    content = response.content
-    if len(content) > MAX_IMAGE_BYTES:
-        logger.warning(f"Welcome card template too large ({len(content)} bytes): {url}")
-        return None
-    return content
+
+
+async def _read_up_to_limit(response: httpx.Response, url: str) -> bytes | None:
+    """Read a streamed response body, aborting once it exceeds MAX_IMAGE_BYTES.
+
+    Args:
+        response (httpx.Response): Streaming response to consume.
+        url (str): Template URL, for logging.
+
+    Returns:
+        bytes | None: The full body, or None when it is too large.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in response.aiter_bytes():
+        total += len(chunk)
+        if total > MAX_IMAGE_BYTES:
+            logger.warning(f"Welcome card template too large (>{MAX_IMAGE_BYTES} bytes): {url}")
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 async def fetch_template(

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import io
+from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import httpx
 import pytest
 from PIL import Image
 
@@ -428,6 +431,35 @@ class TestRenderWelcomeCard:
         assert Image.open(io.BytesIO(result)).size == (600, 400)
 
 
+def _mock_client(handler: Any) -> httpx.AsyncClient:
+    """Build an httpx client whose transport answers with the given handler.
+
+    Args:
+        handler (Any): Callable receiving the request and returning a response.
+
+    Returns:
+        httpx.AsyncClient: Client backed by a MockTransport.
+    """
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def _static_client(*responses: httpx.Response) -> httpx.AsyncClient:
+    """Build a client answering the given responses in order (last one repeats).
+
+    Args:
+        *responses (httpx.Response): Responses to return, one per request.
+
+    Returns:
+        httpx.AsyncClient: Client backed by a MockTransport.
+    """
+    queue = list(responses)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return queue.pop(0) if len(queue) > 1 else queue[0]
+
+    return _mock_client(handler)
+
+
 class TestFetchTemplate:
     """Tests for fetch_template."""
 
@@ -440,10 +472,9 @@ class TestFetchTemplate:
     async def test_success_returns_bytes(self) -> None:
         """Test that a successful fetch returns the image bytes."""
         payload = _make_template()
-        response = MagicMock(status_code=200, content=payload)
-        response.headers = {"content-type": "image/png", "content-length": str(len(payload))}
-        client = MagicMock()
-        client.get = AsyncMock(return_value=response)
+        client = _static_client(
+            httpx.Response(200, content=payload, headers={"content-type": "image/png"})
+        )
 
         result = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
@@ -452,9 +483,7 @@ class TestFetchTemplate:
     @pytest.mark.asyncio
     async def test_non_200_returns_none(self) -> None:
         """Test that a non-200 response returns None."""
-        response = MagicMock(status_code=404, content=b"", headers={})
-        client = MagicMock()
-        client.get = AsyncMock(return_value=response)
+        client = _static_client(httpx.Response(404, content=b""))
 
         result = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
@@ -464,22 +493,70 @@ class TestFetchTemplate:
     async def test_oversize_returns_none(self) -> None:
         """Test that an oversized payload returns None."""
         big = b"x" * (welcome_card.MAX_IMAGE_BYTES + 1)
-        response = MagicMock(status_code=200, content=big)
-        response.headers = {"content-type": "image/png"}
-        client = MagicMock()
-        client.get = AsyncMock(return_value=response)
+        client = _static_client(httpx.Response(200, content=big))
 
         result = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_declared_oversize_is_rejected_before_reading_the_body(self) -> None:
+        """A Content-Length above the limit is refused without downloading anything."""
+        chunks_served = 0
+
+        async def body() -> AsyncIterator[bytes]:
+            nonlocal chunks_served
+            for _ in range(3):
+                chunks_served += 1
+                yield b"x" * 1024
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=body(),
+                headers={"content-length": str(welcome_card.MAX_IMAGE_BYTES + 1)},
+            )
+
+        result = await welcome_card.fetch_template(
+            url="https://example.com/t.png", client=_mock_client(handler)
+        )
+
+        assert result is None
+        assert chunks_served == 0
+
+    @pytest.mark.asyncio
+    async def test_unbounded_body_is_cut_off_at_the_limit(self) -> None:
+        """Without Content-Length the download stops as soon as the limit is exceeded."""
+        chunk = b"x" * (1024 * 1024)
+        chunks_served = 0
+
+        async def body() -> AsyncIterator[bytes]:
+            nonlocal chunks_served
+            for _ in range(20):
+                chunks_served += 1
+                yield chunk
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=body())
+
+        result = await welcome_card.fetch_template(
+            url="https://example.com/t.png", client=_mock_client(handler)
+        )
+
+        assert result is None
+        # 8 MiB fit, the 9th chunk crosses the limit; nothing more is pulled
+        assert chunks_served <= welcome_card.MAX_IMAGE_BYTES // len(chunk) + 2
+
+    @pytest.mark.asyncio
     async def test_request_error_returns_none(self) -> None:
         """Test that a transport error returns None."""
-        client = MagicMock()
-        client.get = AsyncMock(side_effect=Exception("boom"))
 
-        result = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("boom")
+
+        result = await welcome_card.fetch_template(
+            url="https://example.com/t.png", client=_mock_client(handler)
+        )
 
         assert result is None
 
@@ -487,29 +564,32 @@ class TestFetchTemplate:
     async def test_same_url_is_fetched_once_within_ttl(self) -> None:
         """A second card for the same template reuses the downloaded bytes."""
         payload = _make_template()
-        response = MagicMock(status_code=200, content=payload, headers={})
-        client = MagicMock()
-        client.get = AsyncMock(return_value=response)
+        calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(200, content=payload)
+
+        client = _mock_client(handler)
 
         first = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
         second = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
         assert first == second == payload
-        client.get.assert_awaited_once()
+        assert calls == 1
 
     @pytest.mark.asyncio
     async def test_different_urls_are_cached_separately(self) -> None:
         """Each template URL is fetched and cached on its own."""
-        client = MagicMock()
-        client.get = AsyncMock(
-            side_effect=[
-                MagicMock(status_code=200, content=b"a", headers={}),
-                MagicMock(status_code=200, content=b"b", headers={}),
-            ]
-        )
 
-        first = await welcome_card.fetch_template(url="https://example.com/a.png", client=client)
-        second = await welcome_card.fetch_template(url="https://example.com/b.png", client=client)
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=request.url.path.strip("/").encode())
+
+        client = _mock_client(handler)
+
+        first = await welcome_card.fetch_template(url="https://example.com/a", client=client)
+        second = await welcome_card.fetch_template(url="https://example.com/b", client=client)
 
         assert (first, second) == (b"a", b"b")
 
@@ -517,20 +597,23 @@ class TestFetchTemplate:
     async def test_failed_fetch_is_retried_next_time(self) -> None:
         """A failed download is not cached, so the next card tries again."""
         payload = _make_template()
-        client = MagicMock()
-        client.get = AsyncMock(
-            side_effect=[
-                MagicMock(status_code=503, content=b"", headers={}),
-                MagicMock(status_code=200, content=payload, headers={}),
-            ]
-        )
+        calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return httpx.Response(503, content=b"")
+            return httpx.Response(200, content=payload)
+
+        client = _mock_client(handler)
 
         first = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
         second = await welcome_card.fetch_template(url="https://example.com/t.png", client=client)
 
         assert first is None
         assert second == payload
-        assert client.get.await_count == 2
+        assert calls == 2
 
     @pytest.mark.asyncio
     async def test_default_client_is_shared_and_closable(self) -> None:
