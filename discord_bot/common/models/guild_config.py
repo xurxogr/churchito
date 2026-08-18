@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
@@ -17,11 +17,9 @@ class GuildConfig(Base):
     """
 
     __tablename__ = "guild_configs"
-    __table_args__ = (
-        UniqueConstraint("guild_id", "cog_name", "key", name="uq_guild_cog_key"),
-        Index("ix_guild_config_guild_id", "guild_id"),
-        Index("ix_guild_config_cog_name", "cog_name"),
-    )
+    # The unique constraint's index also serves the (guild_id) and
+    # (guild_id, cog_name) lookups, so no extra single-column indexes.
+    __table_args__ = (UniqueConstraint("guild_id", "cog_name", "key", name="uq_guild_cog_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)

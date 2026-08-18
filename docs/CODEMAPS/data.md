@@ -102,11 +102,8 @@ class Guild(Base):
 ```python
 class GuildConfig(Base):
     __tablename__ = "guild_configs"
-    __table_args__ = (
-        PrimaryKeyConstraint("guild_id", "cog_name", "key"),
-        Index("ix_guild_config_guild_id", "guild_id"),
-        Index("ix_guild_config_cog_name", "cog_name"),
-    )
+    # The unique index also serves (guild_id) and (guild_id, cog_name) lookups
+    __table_args__ = (UniqueConstraint("guild_id", "cog_name", "key", name="uq_guild_cog_key"),)
 
     guild_id: Mapped[int] = mapped_column(BigInteger)
     cog_name: Mapped[str] = mapped_column(String(100))  # "verification", "purge", etc.
@@ -136,10 +133,7 @@ class GuildConfig(Base):
 ```python
 class GuildCogEnabled(Base):
     __tablename__ = "guild_cog_enabled"
-    __table_args__ = (
-        PrimaryKeyConstraint("guild_id", "cog_name"),
-        Index("ix_cog_enabled_guild_id", "guild_id"),
-    )
+    __table_args__ = (UniqueConstraint("guild_id", "cog_name", name="uq_guild_cog_enabled"),)
 
     guild_id: Mapped[int] = mapped_column(BigInteger)
     cog_name: Mapped[str] = mapped_column(String(100))
@@ -160,7 +154,8 @@ class GuildCogEnabled(Base):
 class VerificationRequest(Base):
     __tablename__ = "verification_requests"
     __table_args__ = (
-        Index("ix_verification_guild_id", "guild_id"),
+        Index("ix_verification_guild_user", "guild_id", "user_id"),
+        Index("ix_verification_guild_status", "guild_id", "status"),
         Index("ix_verification_user_id", "user_id"),
         Index("ix_verification_status", "status"),
     )
@@ -196,7 +191,7 @@ class VerificationRequest(Base):
 **Verification Types:** `REGULAR`, `ALLY`
 **Purpose:** Track user verification requests (screenshots, OCR analysis, review status)
 **Access:** `VerificationService` (CRUD)
-**Indexes:** `guild_id`, `user_id`, `status` (for fast queries)
+**Indexes:** `(guild_id, user_id)`, `(guild_id, status)`, `user_id`, `status`
 **IDOR Protection:** `public_id` is NanoID (cryptographically random 21-char string)
 
 ---
@@ -406,6 +401,7 @@ alembic downgrade -1
 - `purge_records` and `purge_user_results` tables
 - `stockpiles` table (added 2026-03-27 or later)
 - `guild_configs` and `guild_cog_enabled` tables (config system)
+- `k5l6m7n8o9p0`: composite verification indexes, redundant config indexes dropped
 
 ---
 
@@ -428,9 +424,10 @@ alembic downgrade -1
 
 | Index | Purpose | Used By |
 |-------|---------|---------|
-| `ix_verification_guild_id` | Find pending verifications | on_member_join, health checks |
-| `ix_verification_user_id` | Check if user has pending request | verification flow |
-| `ix_verification_status` | List by status | Mod panel queries |
+| `ix_verification_guild_user` | Pending/latest/history of a user in a guild | verification flow, mod message |
+| `ix_verification_guild_status` | Pending list of a guild | tracker message |
+| `ix_verification_user_id` | Pending request in any guild | verification start |
+| `ix_verification_status` | List by status across guilds | screenshot/expiry timers |
 | `ix_purge_guild_id` | Find purge records per guild | Purge commands |
 | `ix_purge_status` | Find pending/authorized purges | Vote checking |
 | `ix_stockpile_guild_id` | List all stockpiles for guild | /stockpile_show command |

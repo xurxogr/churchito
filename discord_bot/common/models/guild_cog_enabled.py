@@ -1,6 +1,6 @@
 """Model for storing cog enabled state per guild."""
 
-from sqlalchemy import BigInteger, Boolean, Index, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
@@ -14,11 +14,8 @@ class GuildCogEnabled(Base):
     """
 
     __tablename__ = "guild_cogs_enabled"
-    __table_args__ = (
-        UniqueConstraint("guild_id", "cog_name", name="uq_guild_cog_enabled"),
-        Index("ix_guild_cog_enabled_guild_id", "guild_id"),
-        Index("ix_guild_cog_enabled_cog_name", "cog_name"),
-    )
+    # The unique constraint's index also serves the (guild_id) lookups.
+    __table_args__ = (UniqueConstraint("guild_id", "cog_name", name="uq_guild_cog_enabled"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)

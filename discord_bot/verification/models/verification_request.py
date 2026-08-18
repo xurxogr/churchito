@@ -25,7 +25,10 @@ class VerificationRequest(Base):
 
     __tablename__ = "verification_requests"
     __table_args__ = (
-        Index("ix_verification_guild_id", "guild_id"),
+        # Per-guild lookups: pending/latest/history by user, pending list by status
+        Index("ix_verification_guild_user", "guild_id", "user_id"),
+        Index("ix_verification_guild_status", "guild_id", "status"),
+        # Cross-guild lookups: pending in any guild by user, timers by status
         Index("ix_verification_user_id", "user_id"),
         Index("ix_verification_status", "status"),
     )
