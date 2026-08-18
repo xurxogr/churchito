@@ -941,6 +941,44 @@ class TestNotifyCogConfigChanged:
 
             mock_logger.error.assert_called_once()
 
+    async def test_returns_none_when_callback_succeeds(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """A successful callback yields no error message."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_cog = MagicMock()
+        mock_cog.on_config_changed = AsyncMock()
+        mock_config_request.app.state.bot.get_guild.return_value = MagicMock()
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        result = await _notify_cog_config_changed(
+            request=mock_config_request, guild_id=123, cog_name="test_cog", keys=["k"]
+        )
+
+        assert result is None
+
+    async def test_returns_error_message_when_callback_raises(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """A failing callback yields a user-facing message that names the cause."""
+        from discord_bot.web.routers.config import _notify_cog_config_changed
+
+        mock_cog = MagicMock()
+        mock_cog.on_config_changed = AsyncMock(side_effect=RuntimeError("sync failed"))
+        mock_config_request.app.state.bot.get_guild.return_value = MagicMock()
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        result = await _notify_cog_config_changed(
+            request=mock_config_request, guild_id=123, cog_name="test_cog", keys=["k"]
+        )
+
+        assert result is not None
+        assert "sync failed" in result
+        assert "saved" in result.lower()
+
     async def test_cog_not_found(
         self,
         mock_config_request: MagicMock,
@@ -1046,6 +1084,25 @@ class TestNotifyCogToggled:
 
             mock_logger.error.assert_called_once()
 
+    async def test_returns_error_message_when_callback_raises(
+        self,
+        mock_config_request: MagicMock,
+    ) -> None:
+        """A failing callback yields a user-facing message that names the cause."""
+        from discord_bot.web.routers.config import _notify_cog_toggled
+
+        mock_cog = MagicMock()
+        mock_cog.on_cog_toggled = AsyncMock(side_effect=RuntimeError("sync failed"))
+        mock_config_request.app.state.bot.get_guild.return_value = MagicMock()
+        mock_config_request.app.state.bot.get_cog.return_value = mock_cog
+
+        result = await _notify_cog_toggled(
+            request=mock_config_request, guild_id=123, cog_name="test_cog", enabled=True
+        )
+
+        assert result is not None
+        assert "sync failed" in result
+
     async def test_cog_not_found(
         self,
         mock_config_request: MagicMock,
@@ -1064,6 +1121,132 @@ class TestNotifyCogToggled:
             cog_name="test_cog",
             enabled=True,
         )
+
+
+class TestCogApplyErrorsSurfaced:
+    """The dashboard reports when the bot could not apply a saved change."""
+
+    APPLY_ERROR = "Saved, but the bot could not apply the change: boom"
+
+    @staticmethod
+    def _config_service_mock() -> MagicMock:
+        """Config service stub that accepts every save.
+
+        Returns:
+            MagicMock: Service with async save/read methods.
+        """
+        service = MagicMock()
+        service.set_value = AsyncMock(return_value=(True, None))
+        service.set_values = AsyncMock(return_value=(["string_option"], {}))
+        service.is_cog_enabled = AsyncMock(return_value=True)
+        service.set_cog_enabled = AsyncMock()
+        service.get_all_config = AsyncMock(return_value={})
+        return service
+
+    async def test_update_option_shows_apply_error(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A single-option save renders the cog apply error."""
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+                return_value=self.APPLY_ERROR,
+            ),
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock
+            ) as mock_render,
+        ):
+            service_class.return_value = self._config_service_mock()
+
+            await update_option(
+                mock_config_request,
+                111222333,
+                "test_cog",
+                "string_option",
+                test_user,
+                test_session,
+                value="new_value",
+            )
+
+        assert mock_render.call_args.kwargs["error"] == self.APPLY_ERROR
+
+    async def test_batch_save_appends_apply_error(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A batch save combines validation errors with the cog apply error."""
+        from discord_bot.web.routers.config import update_options_batch
+
+        mock_config_request.json = AsyncMock(
+            return_value={"options": {"string_option": "new_value", "missing": "x"}}
+        )
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+                return_value=self.APPLY_ERROR,
+            ),
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock
+            ) as mock_render,
+        ):
+            service_class.return_value = self._config_service_mock()
+
+            await update_options_batch(
+                mock_config_request, 111222333, "test_cog", test_user, test_session
+            )
+
+        error = mock_render.call_args.kwargs["error"]
+        assert "Option 'missing' not found" in error
+        assert self.APPLY_ERROR in error
+
+    async def test_toggle_cog_shows_apply_error(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """Toggling a cog renders the cog apply error."""
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_toggled",
+                new_callable=AsyncMock,
+                return_value=self.APPLY_ERROR,
+            ),
+            patch(
+                "discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock
+            ) as mock_render,
+        ):
+            service_class.return_value = self._config_service_mock()
+
+            await toggle_cog(mock_config_request, 111222333, "test_cog", test_user, test_session)
+
+        assert mock_render.call_args.kwargs["error"] == self.APPLY_ERROR
 
 
 class TestChannelPermissionValidation:
@@ -1614,7 +1797,9 @@ class TestUpdateOptionsBatch:
             ),
             patch("discord_bot.web.routers.config.ConfigService") as mock_config_service_class,
             patch(
-                "discord_bot.web.routers.config._notify_cog_config_changed", new_callable=AsyncMock
+                "discord_bot.web.routers.config._notify_cog_config_changed",
+                new_callable=AsyncMock,
+                return_value=None,
             ) as mock_notify,
             patch(
                 "discord_bot.web.routers.config._render_cog_settings",

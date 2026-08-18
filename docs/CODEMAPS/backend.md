@@ -169,6 +169,13 @@ save endpoints enforce it server-side (`_validate_manageable_roles` rejects role
 at or above the bot's top role by name); `tests/common/test_role_option_scope.py`
 classifies every role option.
 
+After a save or toggle is committed, the router calls the cog's
+`on_config_changed` / `on_cog_toggled`. If that callback raises (e.g. a command
+sync fails), `_notify_cog_config_changed` / `_notify_cog_toggled` log the traceback
+and return a message that is rendered in the partial's error alert ("Saved, but the
+bot could not apply the change: …"), so the dashboard never reports a change as
+applied when the bot could not apply it.
+
 | Method | Path | Auth | Response | Purpose |
 |--------|------|------|----------|---------|
 | GET | `/dashboard/{guild_id}/config` | Required | HTML | Configuration form |

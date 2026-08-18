@@ -445,8 +445,8 @@ async def toggle_cog(
     # Commit so the cog sees the change in its own session
     await session.commit()
 
-    # Notify the cog of the change
-    await _notify_cog_toggled(
+    # Notify the cog of the change; report it if the bot could not apply it
+    apply_error = await _notify_cog_toggled(
         request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state
     )
 
@@ -456,6 +456,7 @@ async def toggle_cog(
         cog_name=cog_name,
         session=session,
         user=user,
+        error=apply_error,
     )
 
 
@@ -524,8 +525,8 @@ async def update_option(
     # Commit so the cog sees the changes in its own session
     await session.commit()
 
-    # Notify the cog that a configuration changed
-    await _notify_cog_config_changed(
+    # Notify the cog that a configuration changed; report it if it could not apply it
+    apply_error = await _notify_cog_config_changed(
         request=request, guild_id=guild_id, cog_name=cog_name, keys=[key]
     )
 
@@ -535,6 +536,7 @@ async def update_option(
         cog_name=cog_name,
         session=session,
         user=user,
+        error=apply_error,
     )
 
 
@@ -619,14 +621,16 @@ async def update_options_batch(
     # Commit all changes at once
     await session.commit()
 
-    # Notify cog once with all changed keys
+    # Notify cog once with all changed keys; report it if it could not apply them
     if saved_keys:
-        await _notify_cog_config_changed(
+        apply_error = await _notify_cog_config_changed(
             request=request,
             guild_id=guild_id,
             cog_name=cog_name,
             keys=saved_keys,
         )
+        if apply_error:
+            errors.append(apply_error)
 
     error_message = "; ".join(errors) if errors else None
     return await _render_cog_settings(
@@ -718,9 +722,30 @@ async def reload_cog(
     )
 
 
+def _cog_apply_error(*, cog_name: str, callback: str, error: Exception) -> str:
+    """Log a failed cog callback and build the message shown in the dashboard.
+
+    The change is already committed at this point, so the message makes clear
+    that the value was saved but the bot could not apply it yet.
+
+    Args:
+        cog_name (str): Cog name
+        callback (str): Name of the cog method that raised
+        error (Exception): Exception raised by the callback
+
+    Returns:
+        str: User-facing error message
+    """
+    logger.error(f"Error in {callback} of {cog_name}: {error}", exc_info=error)
+    return (
+        f"Saved, but the bot could not apply the change: {error}. "
+        "It will be retried when the bot restarts; check the bot logs for details."
+    )
+
+
 async def _notify_cog_config_changed(
     request: Request, guild_id: int, cog_name: str, keys: list[str]
-) -> None:
+) -> str | None:
     """Notify a cog that configurations changed.
 
     If the cog implements the `on_config_changed` method, it will be called with
@@ -731,14 +756,17 @@ async def _notify_cog_config_changed(
         guild_id (int): Guild ID
         cog_name (str): Cog name
         keys (list[str]): List of configuration keys that changed
+
+    Returns:
+        str | None: Error message when the cog failed to apply the change, else None
     """
     bot = request.app.state.bot
     if not bot:
-        return
+        return None
 
     guild = bot.get_guild(guild_id)
     if not guild:
-        return
+        return None
 
     # Find the cog by name (convert snake_case to CamelCase + Cog)
     # For example: "verification" -> "VerificationCog"
@@ -746,17 +774,18 @@ async def _notify_cog_config_changed(
     cog = bot.get_cog(cog_class_name)
 
     if not cog:
-        return
+        return None
 
     try:
         await cog.on_config_changed(guild=guild, keys=keys)
     except Exception as e:
-        logger.error(f"Error in on_config_changed of {cog_name}: {e}")
+        return _cog_apply_error(cog_name=cog_name, callback="on_config_changed", error=e)
+    return None
 
 
 async def _notify_cog_toggled(
     request: Request, guild_id: int, cog_name: str, enabled: bool
-) -> None:
+) -> str | None:
     """Notify a cog that it was enabled or disabled.
 
     If the cog implements the `on_cog_toggled` method, it will be called with
@@ -767,25 +796,29 @@ async def _notify_cog_toggled(
         guild_id (int): Guild ID
         cog_name (str): Cog name
         enabled (bool): True if enabled, False if disabled
+
+    Returns:
+        str | None: Error message when the cog failed to apply the change, else None
     """
     bot = request.app.state.bot
     if not bot:
-        return
+        return None
 
     guild = bot.get_guild(guild_id)
     if not guild:
-        return
+        return None
 
     cog_class_name = cog_name.title().replace("_", "") + "Cog"
     cog = bot.get_cog(cog_class_name)
 
     if not cog:
-        return
+        return None
 
     try:
         await cog.on_cog_toggled(guild=guild, enabled=enabled)
     except Exception as e:
-        logger.error(f"Error in on_cog_toggled of {cog_name}: {e}")
+        return _cog_apply_error(cog_name=cog_name, callback="on_cog_toggled", error=e)
+    return None
 
 
 def _validate_channel_permissions(request: Request, guild_id: int, channel_id: int) -> str | None:
