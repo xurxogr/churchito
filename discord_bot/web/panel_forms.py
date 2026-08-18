@@ -9,6 +9,9 @@ from discord_bot.roles.models import PanelType
 
 # Matches the ReactionPanel.name column length
 MAX_PANEL_NAME_LENGTH = 100
+# Discord allows this many distinct reactions on a message, and every
+# mapping needs its own reaction to be usable
+MAX_ROLE_MAPPINGS = 20
 
 
 def validate_panel_fields(name: str, panel_type: str) -> None:
@@ -119,11 +122,25 @@ def parse_role_mappings(value: Any) -> list[dict[str, Any]]:
         list[dict[str, Any]]: Normalized mappings.
 
     Raises:
-        ValueError: If the value is not a list of valid mappings.
+        ValueError: If the value is not a list of valid mappings, has more
+            mappings than reactions fit on a message, or repeats an emoji.
     """
     if not isinstance(value, list):
         raise ValueError("role mappings must be a list")
-    return [parse_role_mapping(item) for item in value]
+    if len(value) > MAX_ROLE_MAPPINGS:
+        raise ValueError(f"at most {MAX_ROLE_MAPPINGS} mappings are allowed")
+
+    mappings = [parse_role_mapping(item) for item in value]
+
+    # Reactions are looked up by emoji, so a repeated one would never reach
+    # its second role (the slash command rejects this too)
+    seen: set[int | str] = set()
+    for mapping in mappings:
+        emoji_key: int | str = mapping.get("emoji_id") or mapping["emoji"]
+        if emoji_key in seen:
+            raise ValueError(f"duplicate emoji: {mapping['emoji']}")
+        seen.add(emoji_key)
+    return mappings
 
 
 def parse_panel_json_fields(
