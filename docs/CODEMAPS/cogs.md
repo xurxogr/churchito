@@ -310,6 +310,13 @@ async def execute_purge(cog: PurgeCog, guild_id: int, purge_id: int) -> None:
 (cleaning, promotions, global removal, reaction-role cleanup; always
 followed by `results.flush()`) → `_finalize_purge_record` → `_publish_outcome`.
 
+**File:** `discord_bot/purge/phases.py` — the phases themselves:
+`execute_cleaning_phase` / `execute_global_cleaning_phase` (non-confirmed
+users), `execute_promotion_phase` (`build_promotion_map` → role promotions →
+default promotion), `execute_global_removal_phase`, plus `apply_cleaning_to_member`,
+`make_execution_log` and the audit helpers (`PhaseContext`, `_append_log`,
+`_update_progress`).
+
 **File:** `discord_bot/purge/plan.py` — `PurgePlan.from_record(record)` (typed,
 frozen view of the config snapshot), `PurgeStats` (phase counters →
 `to_execution_result`) and `build_finish_message(config, plan, stats)`.

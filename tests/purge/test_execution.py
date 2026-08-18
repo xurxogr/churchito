@@ -1,4 +1,4 @@
-"""Tests for discord_bot/purge/execution.py."""
+"""Tests for discord_bot/purge/execution.py and discord_bot/purge/phases.py."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,17 +15,17 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.purge.cog import PurgeCog
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
-from discord_bot.purge.execution import (
+from discord_bot.purge.execution import execute_purge
+from discord_bot.purge.models import PurgeUserResult
+from discord_bot.purge.phases import (
     EXECUTION_LOG_MAX_LINES,
-    _apply_cleaning_to_member,
-    _execute_cleaning_phase,
-    _execute_global_cleaning_phase,
-    _execute_global_removal_phase,
-    _execute_promotion_phase,
-    execute_purge,
+    apply_cleaning_to_member,
+    execute_cleaning_phase,
+    execute_global_cleaning_phase,
+    execute_global_removal_phase,
+    execute_promotion_phase,
     make_execution_log,
 )
-from discord_bot.purge.models import PurgeUserResult
 from discord_bot.purge.service import PurgeService
 
 
@@ -167,7 +167,7 @@ class TestExecutePurge:
 
 
 class TestExecuteCleaningPhase:
-    """Tests for _execute_cleaning_phase."""
+    """Tests for execute_cleaning_phase."""
 
     async def test_cleans_non_confirmed_members(
         self,
@@ -210,7 +210,7 @@ class TestExecuteCleaningPhase:
             )
             await session.flush()
 
-            cleaned_count, processed_users = await _execute_cleaning_phase(
+            cleaned_count, processed_users = await execute_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -264,7 +264,7 @@ class TestExecuteCleaningPhase:
             )
             await session.flush()
 
-            cleaned_count, processed_users = await _execute_cleaning_phase(
+            cleaned_count, processed_users = await execute_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -307,7 +307,7 @@ class TestExecuteCleaningPhase:
             )
             await session.flush()
 
-            cleaned_count, processed_users = await _execute_cleaning_phase(
+            cleaned_count, processed_users = await execute_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -326,7 +326,7 @@ class TestExecuteCleaningPhase:
 
 
 class TestExecutePromotionPhase:
-    """Tests for _execute_promotion_phase."""
+    """Tests for execute_promotion_phase."""
 
     async def test_promotes_confirmed_members(
         self,
@@ -378,7 +378,7 @@ class TestExecutePromotionPhase:
             )
             await session.flush()
 
-            promoted_in, promoted_out, promoted_users = await _execute_promotion_phase(
+            promoted_in, promoted_out, promoted_users = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -446,7 +446,7 @@ class TestExecutePromotionPhase:
             )
             await session.flush()
 
-            promoted_in, promoted_out, promoted_users = await _execute_promotion_phase(
+            promoted_in, promoted_out, promoted_users = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -502,7 +502,7 @@ class TestExecutePromotionPhase:
             )
             await session.flush()
 
-            promoted_in, promoted_out, promoted_users = await _execute_promotion_phase(
+            promoted_in, promoted_out, promoted_users = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -524,7 +524,7 @@ class TestExecutePromotionPhase:
 
 
 class TestExecuteGlobalRemovalPhase:
-    """Tests for _execute_global_removal_phase."""
+    """Tests for execute_global_removal_phase."""
 
     async def test_removes_global_roles_from_members(
         self,
@@ -552,7 +552,7 @@ class TestExecuteGlobalRemovalPhase:
             ConfigKey.AUDIT_LEVEL: 0,
         }
 
-        removed_count = await _execute_global_removal_phase(
+        removed_count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -588,7 +588,7 @@ class TestExecuteGlobalRemovalPhase:
             ConfigKey.AUDIT_LEVEL: 0,
         }
 
-        removed_count = await _execute_global_removal_phase(
+        removed_count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -623,7 +623,7 @@ class TestExecuteGlobalRemovalPhase:
             ConfigKey.AUDIT_LEVEL: 0,
         }
 
-        removed_count = await _execute_global_removal_phase(
+        removed_count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -649,7 +649,7 @@ class TestExecuteGlobalRemovalPhase:
             ConfigKey.AUDIT_LEVEL: 0,
         }
 
-        removed_count = await _execute_global_removal_phase(
+        removed_count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -688,7 +688,7 @@ class TestExecuteGlobalRemovalPhase:
         }
 
         # Should not raise exception
-        removed_count = await _execute_global_removal_phase(
+        removed_count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -728,7 +728,7 @@ class TestExecuteGlobalRemovalPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            removed_count = await _execute_global_removal_phase(
+            removed_count = await execute_global_removal_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -745,7 +745,7 @@ class TestExecuteGlobalRemovalPhase:
 
 
 class TestExecuteGlobalCleaningPhase:
-    """Tests for _execute_global_cleaning_phase."""
+    """Tests for execute_global_cleaning_phase."""
 
     async def test_cleans_non_confirmed_members(
         self,
@@ -794,7 +794,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, processed_users = await _execute_global_cleaning_phase(
+            cleaned_count, processed_users = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -847,7 +847,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, processed_users = await _execute_global_cleaning_phase(
+            cleaned_count, processed_users = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -902,7 +902,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, processed_users = await _execute_global_cleaning_phase(
+            cleaned_count, processed_users = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -953,7 +953,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, processed_users = await _execute_global_cleaning_phase(
+            cleaned_count, processed_users = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1011,7 +1011,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, _ = await _execute_global_cleaning_phase(
+            cleaned_count, _ = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1072,7 +1072,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            cleaned_count, _ = await _execute_global_cleaning_phase(
+            cleaned_count, _ = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1132,7 +1132,7 @@ class TestExecuteGlobalCleaningPhase:
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
             # Should not raise exception
-            cleaned_count, _ = await _execute_global_cleaning_phase(
+            cleaned_count, _ = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1193,7 +1193,7 @@ class TestExecuteGlobalCleaningPhase:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            await _execute_global_cleaning_phase(
+            await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1341,7 +1341,7 @@ class TestExecuteWarEndWithGlobalRemoval:
 
 
 class TestExecuteGlobalRemovalPhaseIntegration:
-    """Integration tests for _execute_global_removal_phase."""
+    """Integration tests for execute_global_removal_phase."""
 
     async def test_global_removal_with_roles(
         self,
@@ -1389,7 +1389,7 @@ class TestExecuteGlobalRemovalPhaseIntegration:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            count = await _execute_global_removal_phase(
+            count = await execute_global_removal_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1457,7 +1457,7 @@ class TestExecutePromotionWithDefault:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            in_group, not_in_group, promoted_users = await _execute_promotion_phase(
+            in_group, not_in_group, promoted_users = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -1519,7 +1519,7 @@ class TestGlobalCleaningAlreadyProcessed:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            count, processed = await _execute_global_cleaning_phase(
+            count, processed = await execute_global_cleaning_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1588,7 +1588,7 @@ class TestDefaultPromotionEdgeCases:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            in_group, not_in_group, promoted = await _execute_promotion_phase(
+            in_group, not_in_group, promoted = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -1645,7 +1645,7 @@ class TestDefaultPromotionEdgeCases:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            in_group, not_in_group, promoted = await _execute_promotion_phase(
+            in_group, not_in_group, promoted = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -1713,7 +1713,7 @@ class TestDefaultPromotionEdgeCases:
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
             # Should not raise exception
-            in_group, not_in_group, promoted = await _execute_promotion_phase(
+            in_group, not_in_group, promoted = await execute_promotion_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=record,
@@ -1734,7 +1734,7 @@ class TestDefaultPromotionEdgeCases:
 
 
 class TestGlobalRemovalEdgeCases:
-    """Tests for edge cases in _execute_global_removal_phase."""
+    """Tests for edge cases in execute_global_removal_phase."""
 
     async def test_global_removal_role_not_found(
         self,
@@ -1752,7 +1752,7 @@ class TestGlobalRemovalEdgeCases:
         }
         execution_logs: list[str] = []
 
-        count = await _execute_global_removal_phase(
+        count = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -1793,7 +1793,7 @@ class TestGlobalRemovalEdgeCases:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            count = await _execute_global_removal_phase(
+            count = await execute_global_removal_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1835,7 +1835,7 @@ class TestGlobalRemovalEdgeCases:
         execution_logs: list[str] = []
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
-            count = await _execute_global_removal_phase(
+            count = await execute_global_removal_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -1880,7 +1880,7 @@ class TestGlobalRemovalEdgeCases:
 
         with patch.object(purge_cog, "_update_mod_message", new_callable=AsyncMock):
             # Should not raise exception (lines 789-790)
-            count = await _execute_global_removal_phase(
+            count = await execute_global_removal_phase(
                 cog=purge_cog,
                 guild=mock_guild,
                 record=mock_purge_record,
@@ -2048,7 +2048,7 @@ class TestSingleEditRoleChanges:
         sink = MagicMock()
         sink.add_user_result = AsyncMock()
 
-        _, roles_before, _ = await _apply_cleaning_to_member(
+        _, roles_before, _ = await apply_cleaning_to_member(
             guild=mock_guild,
             member=member,
             roles_to_remove=[1],
@@ -2072,7 +2072,7 @@ class TestSingleEditRoleChanges:
         sink = MagicMock()
         sink.add_user_result = AsyncMock()
 
-        await _apply_cleaning_to_member(
+        await apply_cleaning_to_member(
             guild=mock_guild,
             member=member,
             roles_to_remove=[42],
@@ -2094,7 +2094,7 @@ class TestSingleEditRoleChanges:
         sink = MagicMock()
         sink.add_user_result = AsyncMock()
 
-        await _apply_cleaning_to_member(
+        await apply_cleaning_to_member(
             guild=mock_guild,
             member=member,
             roles_to_remove=[1],
@@ -2120,7 +2120,7 @@ class TestSingleEditRoleChanges:
         sink = MagicMock()
         sink.add_user_result = AsyncMock()
 
-        promoted_in, promoted_out, _ = await _execute_promotion_phase(
+        promoted_in, promoted_out, _ = await execute_promotion_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -2157,7 +2157,7 @@ class TestSingleEditRoleChanges:
         sink = MagicMock()
         sink.add_user_result = AsyncMock()
 
-        promoted_in, _, _ = await _execute_promotion_phase(
+        promoted_in, _, _ = await execute_promotion_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
@@ -2192,7 +2192,7 @@ class TestSingleEditRoleChanges:
         fine = _member_with_roles(mock_guild, 2, [global_role])
         mock_guild.members = [failing, fine]
 
-        removed = await _execute_global_removal_phase(
+        removed = await execute_global_removal_phase(
             cog=purge_cog,
             guild=mock_guild,
             record=mock_purge_record,
