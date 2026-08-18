@@ -489,8 +489,9 @@ class RolesCog(commands.Cog):
             if not panel:
                 return
 
-            # Get member
-            member = guild.get_member(payload.user_id)
+            # Get member: reaction adds carry it in the payload, so an
+            # uncached member only costs an API fetch on removals
+            member = guild.get_member(payload.user_id) or payload.member
             if not member:
                 try:
                     member = await guild.fetch_member(payload.user_id)

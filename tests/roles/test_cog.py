@@ -298,6 +298,7 @@ class TestOnRawReactionAdd:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -456,6 +457,7 @@ class TestOnRawReactionRemove:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -586,6 +588,7 @@ class TestVerifyPanelBehavior:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -674,6 +677,7 @@ class TestExclusivePanelBehavior:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -771,6 +775,7 @@ class TestRequiredRolesCheck:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -938,6 +943,7 @@ class TestUserLockManager:
         payload.channel_id = 456
         payload.message_id = 99999  # Not a panel
         payload.user_id = mock_member.id
+        payload.member = None
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = "👍"
         emoji.id = None
@@ -958,6 +964,7 @@ class TestReactionCaching:
         payload.channel_id = 456
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = "👍"
         emoji.id = None
@@ -4376,6 +4383,7 @@ class TestHandleReactionEdgeCases:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -4438,6 +4446,7 @@ class TestProcessReactionEdgeCases:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -4493,6 +4502,53 @@ class TestProcessReactionEdgeCases:
         await roles_cog._process_reaction(payload, mock_guild, is_add=True)
 
         mock_guild.fetch_member.assert_called_once_with(111)
+
+    async def test_uses_the_payload_member_before_fetching(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Reaction adds carry the member, so it is used instead of an API fetch."""
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.id = 111
+        mock_member.roles = []
+        mock_member.add_roles = AsyncMock()
+        mock_member.send = AsyncMock()
+
+        mock_guild.get_member.return_value = None
+        mock_guild.fetch_member = AsyncMock(return_value=mock_member)
+        mock_guild.get_role.return_value = mock_role
+
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+                role_mappings=[{"emoji": "👍", "role_id": mock_role.id}],
+            )
+            await service.set_message_id(panel_id=panel.id, message_id=999, guild_name="Test Guild")
+            await session.commit()
+
+        payload = self._create_mock_payload(
+            guild_id=mock_guild.id,
+            channel_id=456,
+            message_id=999,
+            user_id=111,
+        )
+        payload.member = mock_member
+
+        await roles_cog._process_reaction(payload, mock_guild, is_add=True)
+
+        mock_guild.fetch_member.assert_not_awaited()
+        mock_member.add_roles.assert_awaited_once()
 
     async def test_ignores_when_member_not_found(
         self,
@@ -5008,6 +5064,7 @@ class TestCustomEmojiHandling:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -5358,6 +5415,7 @@ class TestExclusivePanelReactionRemoval:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
@@ -5718,6 +5776,7 @@ class TestOnRawReactionRemoveHandler:
         payload.channel_id = channel_id
         payload.message_id = message_id
         payload.user_id = user_id
+        payload.member = None
 
         emoji = MagicMock(spec=discord.PartialEmoji)
         emoji.name = emoji_name
