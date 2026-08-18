@@ -528,7 +528,8 @@ REST call each) in `_sync_guild`. When the dashboard triggers one via
 `on_config_changed` / `on_cog_toggled`, the cog runs it through
 `BackgroundTasks` (`discord_bot/common/utils/background_tasks.py`) so the web
 request returns immediately; failures are logged by the task helper and
-`cog_unload` cancels in-flight syncs. `_sync_guild` skips a guild whose sync
+`cog_unload` cancels in-flight syncs. Verification uses the same helper for
+the immediate auto-rejections spawned while restoring pending requests. `_sync_guild` skips a guild whose sync
 is already running (`_syncing_guilds`), so the periodic loop and a dashboard
 change never run two passes over the same members at once.
 

@@ -1,6 +1,7 @@
 """Tests for VerificationCog."""
 
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -4623,15 +4624,18 @@ class TestCogLifecycle:
     async def test_cog_unload_cancels_background_tasks(self, mock_discord_bot: MagicMock) -> None:
         """Test that cog_unload cancels tracked background tasks."""
         cog = VerificationCog(mock_discord_bot)
-        task = MagicMock()
-        task.done.return_value = False
-        cog._background_tasks.add(task)
+
+        async def forever() -> None:
+            await asyncio.Event().wait()
+
+        task = cog._background.spawn(forever(), name="forever")
 
         with patch("discord_bot.verification.cog.close_client", new_callable=AsyncMock):
             await cog.cog_unload()
+        await cog._background.drain()
 
-        task.cancel.assert_called_once()
-        assert len(cog._background_tasks) == 0
+        assert task.cancelled()
+        assert len(cog._background) == 0
 
 
 class TestWelcomeCardGateCache:
@@ -10747,15 +10751,54 @@ class TestRestorePendingVerificationsWithTimer:
             await verification_cog._restore_pending_verifications()
 
             # A strong reference must be held while the task runs
-            assert len(verification_cog._background_tasks) == 1
+            assert len(verification_cog._background) == 1
 
             release.set()
-            await asyncio.gather(*verification_cog._background_tasks)
-            # Let the done callback run
-            await asyncio.sleep(0)
+            await verification_cog._background.drain()
 
         # The reference is dropped once the task finishes
-        assert len(verification_cog._background_tasks) == 0
+        assert len(verification_cog._background) == 0
+
+    async def test_restore_logs_immediate_auto_reject_failure(
+        self,
+        verification_cog: VerificationCog,
+        test_database: DatabaseService,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A failing immediate auto-rejection is logged as soon as it happens."""
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="user",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            request.created_at = datetime.now(UTC) - timedelta(hours=1)
+            await session.commit()
+
+        verification_cog._pending_dm_verifications.clear()
+        verification_cog._screenshot_timers.clear()
+
+        with (
+            patch.object(
+                ConfigService,
+                "get_all_config",
+                new_callable=AsyncMock,
+                return_value={ConfigKey.SCREENSHOT_TIMEOUT_MINUTES: 5},
+            ),
+            patch.object(
+                verification_cog,
+                "_auto_reject_by_timeout",
+                AsyncMock(side_effect=RuntimeError("db gone")),
+            ),
+            caplog.at_level(logging.ERROR, logger="discord_bot.verification.cog"),
+        ):
+            await verification_cog._restore_pending_verifications()
+            await verification_cog._background.drain()
+
+        assert "db gone" in caplog.text
 
 
 class TestOnGuildRemove:

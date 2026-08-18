@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import time
-from collections.abc import Coroutine
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,7 +12,13 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import GuildScheduler, KeyedLocks, TTLCache, delete_message
+from discord_bot.common.utils import (
+    BackgroundTasks,
+    GuildScheduler,
+    KeyedLocks,
+    TTLCache,
+    delete_message,
+)
 from discord_bot.verification.api_client import close_client
 from discord_bot.verification.config import (
     COG_NAME,
@@ -89,7 +94,9 @@ class VerificationCog(commands.Cog):
         self._screenshot_timers: dict[int, asyncio.Task[None]] = {}
         # Strong references to fire-and-forget tasks: the event loop only
         # keeps weak references, so untracked tasks can be GC'd before running
-        self._background_tasks: set[asyncio.Task[None]] = set()
+        # Fire-and-forget tasks (e.g. immediate auto-rejections on restore):
+        # strong references until done, failures logged as they happen
+        self._background = BackgroundTasks(logger=logger)
         # Welcome card gate per guild: (expiry, required role IDs or None if
         # inactive), so on_member_update doesn't hit the DB on every role change
         self._welcome_gate_cache: dict[int, tuple[float, list[int] | None]] = {}
@@ -119,19 +126,6 @@ class VerificationCog(commands.Cog):
         if not self._health_check_started:
             self.health_check_loop.start()
             self._health_check_started = True
-
-    def _spawn_background_task(self, coro: Coroutine[Any, Any, None]) -> None:
-        """Run a coroutine as a tracked fire-and-forget task.
-
-        Keeps a strong reference until the task finishes so the garbage
-        collector cannot destroy it mid-flight.
-
-        Args:
-            coro (Coroutine[Any, Any, None]): Coroutine to run.
-        """
-        task = asyncio.create_task(coro)
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
 
     async def _restore_pending_verifications(self) -> None:
         """Restore screenshot timers for pending verifications.
@@ -170,12 +164,13 @@ class VerificationCog(commands.Cog):
 
                 if remaining_minutes <= 0:
                     # Time already passed, reject immediately
-                    self._spawn_background_task(
+                    self._background.spawn(
                         self._auto_reject_by_timeout(
                             request_id=request.id,
                             guild_id=request.guild_id,
                             user_id=request.user_id,
-                        )
+                        ),
+                        name=f"verification-auto-reject-{request.id}",
                     )
                     continue
 
@@ -207,10 +202,7 @@ class VerificationCog(commands.Cog):
         self._screenshot_timers.clear()
 
         # Cancel tracked fire-and-forget tasks
-        for background_task in list(self._background_tasks):
-            if not background_task.done():
-                background_task.cancel()
-        self._background_tasks.clear()
+        self._background.cancel_all()
 
         # Release the shared HTTP clients (verification API, Steam, welcome card templates)
         await close_client()
