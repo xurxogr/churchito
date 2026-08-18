@@ -1,5 +1,10 @@
 """Common utilities."""
 
+from discord_bot.common.utils.command_name import (
+    normalize_command_name,
+    resolve_command_name,
+    validate_command_name,
+)
 from discord_bot.common.utils.discord import (
     DISCORD_CDN_DOMAINS,
     delete_message,
@@ -38,4 +43,7 @@ __all__ = [
     "is_valid_discord_cdn_url",
     "is_valid_hex",
     "load_hex_cities",
+    "normalize_command_name",
+    "resolve_command_name",
+    "validate_command_name",
 ]

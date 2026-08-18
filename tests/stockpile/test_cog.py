@@ -2078,6 +2078,74 @@ class TestRegisterCommand:
         stockpile_cog.bot.tree.add_command.assert_not_called()
 
 
+class TestRegisterCommandInvalidName:
+    """Names discord.py would reject fall back to the default instead of breaking registration."""
+
+    async def test_invalid_name_registers_default_and_keeps_old_until_replaced(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """An invalid stored name registers the default command and swaps the old one."""
+        stockpile_cog._registered_commands[mock_guild.id] = {"add": "old_add"}
+
+        await stockpile_cog._register_command(
+            mock_guild, "add", "Añadir_stockpile", "Add stockpile"
+        )
+
+        stockpile_cog.bot.tree.add_command.assert_called_once()
+        registered = stockpile_cog.bot.tree.add_command.call_args.args[0]
+        assert registered.name == "stockpile_add"
+        stockpile_cog.bot.tree.remove_command.assert_called_once_with("old_add", guild=mock_guild)
+        assert stockpile_cog._registered_commands[mock_guild.id]["add"] == "stockpile_add"
+
+    async def test_normalizes_unicode_name(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A decomposed 'ñ' is composed before the command is created."""
+        stockpile_cog._registered_commands[mock_guild.id] = {}
+
+        await stockpile_cog._register_command(
+            mock_guild, "add", "an\u0303adir_stockpile ", "Add stockpile"
+        )
+
+        registered = stockpile_cog.bot.tree.add_command.call_args.args[0]
+        assert registered.name == "a\u00f1adir_stockpile"
+        assert stockpile_cog._registered_commands[mock_guild.id]["add"] == "a\u00f1adir_stockpile"
+
+    async def test_one_bad_name_does_not_block_the_other_commands(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """All four commands are registered even if one configured name is invalid."""
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(
+                guild_id=mock_guild.id, cog_name=COG_NAME, enabled=True
+            )
+            await session.commit()
+
+        config = {
+            ConfigKey.COMMAND_CHANNEL: 999,
+            ConfigKey.ADD_COMMAND_NAME: "Añadir_stockpile",
+            ConfigKey.SHOW_COMMAND_NAME: "ver_stockpile",
+        }
+        with patch.object(stockpile_cog, "_get_config", AsyncMock(return_value=config)):
+            await stockpile_cog._register_guild_commands(mock_guild)
+
+        assert stockpile_cog._registered_commands[mock_guild.id] == {
+            "add": "stockpile_add",
+            "show": "ver_stockpile",
+            "delete": "stockpile_delete",
+            "edit": "stockpile_edit",
+        }
+        assert stockpile_cog.bot.tree.add_command.call_count == 4
+
+
 class TestUnregisterGuildCommands:
     """Tests for _unregister_guild_commands."""
 

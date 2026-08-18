@@ -745,6 +745,47 @@ class TestRegisterGlobalCommand:
         assert "global" not in purge_cog._registered_commands.get(mock_guild.id, {})
 
 
+class TestRegisterPurgeCommandInvalidName:
+    """A stored name discord.py would reject falls back to the default command name."""
+
+    async def test_invalid_name_registers_default(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that an uppercase name registers the default instead of raising."""
+        purge_cog._registered_commands[mock_guild.id] = {}
+        config = {
+            ConfigKey.MOD_CHANNEL: 123,
+            ConfigKey.USER_CHANNEL: 456,
+            ConfigKey.GLOBAL_ADMIN_ROLES: [100],
+            ConfigKey.GLOBAL_COMMAND_NAME: "Purga_Global",
+        }
+
+        await purge_cog._register_purge_command(mock_guild, config, PurgeType.GLOBAL, True)
+
+        registered = mock_discord_bot.tree.add_command.call_args.args[0]
+        assert registered.name == "purge_global"
+        assert purge_cog._registered_commands[mock_guild.id]["global"] == "purge_global"
+
+    async def test_normalized_unicode_name_is_registered(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that a lowercase name with a decomposed accent is composed and used."""
+        purge_cog._registered_commands[mock_guild.id] = {}
+        config = {ConfigKey.WAR_COMMAND_NAME: " purga_fin_de_guerra\u0301 "}
+
+        await purge_cog._register_purge_command(mock_guild, config, PurgeType.WAR_END, True)
+
+        registered = mock_discord_bot.tree.add_command.call_args.args[0]
+        assert registered.name == "purga_fin_de_guerr\u00e1"
+        assert purge_cog._registered_commands[mock_guild.id]["war"] == "purga_fin_de_guerr\u00e1"
+
+
 class TestHandleAuthorize:
     """Tests for _handle_authorize."""
 

@@ -20,6 +20,7 @@ from discord_bot.common.utils import (
     is_valid_city,
     is_valid_hex,
     load_hex_cities,
+    resolve_command_name,
 )
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
@@ -34,6 +35,14 @@ from discord_bot.stockpile.formatters import (
 from discord_bot.stockpile.service import StockpileService
 
 logger = logging.getLogger(__name__)
+
+# Command key -> (config key holding the name, default name, description)
+STOCKPILE_COMMANDS: dict[str, tuple[str, str, str]] = {
+    "add": (ConfigKey.ADD_COMMAND_NAME, "stockpile_add", "Add a new stockpile"),
+    "show": (ConfigKey.SHOW_COMMAND_NAME, "stockpile_show", "Show stockpiles"),
+    "delete": (ConfigKey.DELETE_COMMAND_NAME, "stockpile_delete", "Delete a stockpile"),
+    "edit": (ConfigKey.EDIT_COMMAND_NAME, "stockpile_edit", "Edit a stockpile's code"),
+}
 
 
 class StockpileCog(commands.Cog):
@@ -85,16 +94,11 @@ class StockpileCog(commands.Cog):
         if guild.id not in self._registered_commands:
             self._registered_commands[guild.id] = {}
 
-        # Register commands with configured names
-        add_name = config.get(ConfigKey.ADD_COMMAND_NAME, "stockpile_add")
-        show_name = config.get(ConfigKey.SHOW_COMMAND_NAME, "stockpile_show")
-        delete_name = config.get(ConfigKey.DELETE_COMMAND_NAME, "stockpile_delete")
-        edit_name = config.get(ConfigKey.EDIT_COMMAND_NAME, "stockpile_edit")
-
-        await self._register_command(guild, "add", add_name, "Add a new stockpile")
-        await self._register_command(guild, "show", show_name, "Show stockpiles")
-        await self._register_command(guild, "delete", delete_name, "Delete a stockpile")
-        await self._register_command(guild, "edit", edit_name, "Edit a stockpile's code")
+        # Register commands with configured names (invalid names fall back to defaults)
+        for key, (name_key, default_name, description) in STOCKPILE_COMMANDS.items():
+            await self._register_command(
+                guild, key, config.get(name_key, default_name), description
+            )
 
     async def _register_command(
         self,
@@ -105,30 +109,38 @@ class StockpileCog(commands.Cog):
     ) -> None:
         """Register a single stockpile command.
 
+        Names Discord would reject (uppercase, spaces, ...) fall back to the
+        default name for ``key`` so the command is always available.
+
         Args:
             guild (discord.Guild): Discord guild
             key (str): Command key for tracking
-            name (str): Command name
+            name (str): Configured command name
             description (str): Command description
         """
+        if key not in STOCKPILE_COMMANDS:
+            return
+
+        name = resolve_command_name(
+            configured=name, default=STOCKPILE_COMMANDS[key][1], guild_name=guild.name
+        )
         old_name = self._registered_commands.get(guild.id, {}).get(key)
         if old_name == name:
             return  # Already registered
 
+        factories = {
+            "add": self._create_add_command,
+            "show": self._create_show_command,
+            "delete": self._create_delete_command,
+            "edit": self._create_edit_command,
+        }
+        cmd = factories[key](name, description)
+
+        # Only drop the old command once the new one exists, so a failure here
+        # never leaves the guild without the command.
         if old_name:
             self.bot.tree.remove_command(old_name, guild=guild)
             logger.info(f"[{guild.name}] Command '/{old_name}' removed")
-
-        if key == "add":
-            cmd = self._create_add_command(name, description)
-        elif key == "show":
-            cmd = self._create_show_command(name, description)
-        elif key == "delete":
-            cmd = self._create_delete_command(name, description)
-        elif key == "edit":
-            cmd = self._create_edit_command(name, description)
-        else:
-            return
 
         self.bot.tree.add_command(cmd, guild=guild)
         self._registered_commands[guild.id][key] = name

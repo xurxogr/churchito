@@ -1,6 +1,7 @@
 """Tests for discord_bot/purge/config.py."""
 
 import discord
+import pytest
 
 from discord_bot.purge.config import (
     BUTTON_STYLES,
@@ -9,6 +10,7 @@ from discord_bot.purge.config import (
     DEFAULT_USER_MESSAGE,
     PURGE_CONFIG_SCHEMA,
 )
+from discord_bot.purge.enums import ConfigKey
 
 
 class TestButtonStyles:
@@ -100,3 +102,17 @@ class TestPurgeConfigSchema:
     def test_schema_has_icon(self) -> None:
         """Test that the schema has an icon."""
         assert PURGE_CONFIG_SCHEMA.icon is not None
+
+
+class TestCommandNameValidation:
+    """Command name options only accept names Discord will register."""
+
+    @pytest.mark.parametrize("key", [ConfigKey.WAR_COMMAND_NAME, ConfigKey.GLOBAL_COMMAND_NAME])
+    def test_rejects_names_discord_would_refuse(self, key: str) -> None:
+        """Uppercase or spaced names are rejected at save time."""
+        option = PURGE_CONFIG_SCHEMA.get_option(key)
+
+        assert option is not None
+        assert option.validate_value("Purga_Global")[0] is False
+        assert option.validate_value("purga global")[0] is False
+        assert option.validate_value("purga_global") == (True, None)

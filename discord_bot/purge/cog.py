@@ -14,7 +14,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import delete_message, has_any_role
+from discord_bot.common.utils import delete_message, has_any_role, resolve_command_name
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.execution import execute_purge
@@ -320,7 +320,11 @@ class PurgeCog(commands.Cog):
 
         cfg = type_config[purge_type]
         command_key = cfg["key"]
-        command_name = config.get(cfg["name_config"], cfg["default_name"])
+        command_name = resolve_command_name(
+            configured=config.get(cfg["name_config"]),
+            default=cfg["default_name"],
+            guild_name=guild.name,
+        )
         old_command_name = self._registered_commands.get(guild.id, {}).get(command_key)
 
         # If not available, remove existing command
@@ -330,11 +334,6 @@ class PurgeCog(commands.Cog):
                 del self._registered_commands[guild.id][command_key]
                 logger.info(f"[{guild.name}] Command '/{old_command_name}' removed")
             return
-
-        # Remove old command if name changed
-        if old_command_name and old_command_name != command_name:
-            self.bot.tree.remove_command(old_command_name, guild=guild)
-            logger.info(f"[{guild.name}] Command '/{old_command_name}' removed")
 
         # Check if command already registered with same name
         if old_command_name == command_name:
@@ -352,6 +351,11 @@ class PurgeCog(commands.Cog):
             _purge_type: PurgeType = purge_type,
         ) -> None:
             await self._handle_purge(interaction=interaction, hours=hours, purge_type=_purge_type)
+
+        # Swap the old command only once the new one exists
+        if old_command_name:
+            self.bot.tree.remove_command(old_command_name, guild=guild)
+            logger.info(f"[{guild.name}] Command '/{old_command_name}' removed")
 
         # Add command to guild
         self.bot.tree.add_command(purge_command, guild=guild)

@@ -5,6 +5,7 @@ import discord
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
+from discord_bot.common.utils.command_name import validate_command_name
 from discord_bot.purge.enums import ConfigKey
 
 COG_NAME = "purge"
@@ -499,6 +500,7 @@ PURGE_CONFIG_SCHEMA = CogConfigSchema(
             section="Purge: War end",
             default="purge_war",
             max_length=32,
+            custom_validator=validate_command_name,
         ),
         ConfigOption(
             key=ConfigKey.WAR_DISPLAY_NAME,
@@ -632,6 +634,7 @@ PURGE_CONFIG_SCHEMA = CogConfigSchema(
             section="Purge: Global",
             default="purge_global",
             max_length=32,
+            custom_validator=validate_command_name,
         ),
         ConfigOption(
             key=ConfigKey.GLOBAL_DISPLAY_NAME,

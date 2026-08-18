@@ -1,5 +1,7 @@
 """Tests for stockpile configuration schema."""
 
+import pytest
+
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
@@ -145,3 +147,31 @@ class TestConfigKey:
         for key in keys:
             assert key == key.lower(), f"Key {key} is not lowercase"
             assert " " not in key, f"Key {key} contains spaces"
+
+
+class TestCommandNameValidation:
+    """Command name options only accept names Discord will register."""
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            ConfigKey.ADD_COMMAND_NAME,
+            ConfigKey.SHOW_COMMAND_NAME,
+            ConfigKey.DELETE_COMMAND_NAME,
+            ConfigKey.EDIT_COMMAND_NAME,
+        ],
+    )
+    def test_rejects_names_discord_would_refuse(self, key: str) -> None:
+        """Uppercase or spaced names are rejected at save time."""
+        option = STOCKPILE_CONFIG_SCHEMA.get_option(key)
+
+        assert option is not None
+        assert option.validate_value("Añadir_stockpile")[0] is False
+        assert option.validate_value("añadir stockpile")[0] is False
+
+    def test_accepts_lowercase_unicode_names(self) -> None:
+        """A lowercase name with 'ñ' is valid."""
+        option = STOCKPILE_CONFIG_SCHEMA.get_option(ConfigKey.ADD_COMMAND_NAME)
+
+        assert option is not None
+        assert option.validate_value("añadir_stockpile") == (True, None)

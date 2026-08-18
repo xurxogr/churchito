@@ -383,7 +383,11 @@ async def delete_stockpile(stockpile_id: int) -> bool
 **File:** `discord_bot/stockpile/config.py`
 
 Organized into sections:
-- **General:** Command channel, command names (add/show/delete)
+- **General:** Command channel, command names (add/show/delete/edit). Names are
+  validated with `common/utils/command_name.py` (Discord's lowercase/`[-_\w]`/1-32
+  rule, NFC-normalized) both at save time (`custom_validator`) and at
+  registration (`resolve_command_name` falls back to the default name and logs a
+  warning). Purge's `WAR/GLOBAL_COMMAND_NAME` use the same helpers.
 - **Display:** Embed title, description, color, field formatting
 - **Notifications:** Show all stockpiles on change, notification channel
 
