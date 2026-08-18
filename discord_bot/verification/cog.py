@@ -38,15 +38,21 @@ from discord_bot.verification.handlers import (
     handle_verification_start,
     show_rejection_select,
     update_mod_message_cancelled,
+    update_mod_message_for_review,
     update_mod_message_status,
     update_tracker_message,
+    validate_mod_action,
 )
 from discord_bot.verification.handlers.welcome_card import (
     close_template_client,
     post_welcome_card,
     should_trigger_welcome_card,
 )
-from discord_bot.verification.panel import check_verification_message, get_mod_channel
+from discord_bot.verification.panel import (
+    check_verification_message,
+    create_verification_message,
+    get_mod_channel,
+)
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.steam_client import close_client as close_steam_client
 from discord_bot.verification.views import ModReviewView, VerificationPanelView
@@ -1036,8 +1042,6 @@ class VerificationCog(commands.Cog):
             config_service (ConfigService): Config service
             session (Any): Database session
         """
-        from discord_bot.verification.panel import create_verification_message
-
         await create_verification_message(
             cog=self,
             guild=guild,
@@ -1062,8 +1066,6 @@ class VerificationCog(commands.Cog):
             verification_service (VerificationService): Verification service
             config (dict[str, Any]): Cog configuration
         """
-        from discord_bot.verification.handlers import update_mod_message_for_review
-
         await update_mod_message_for_review(
             cog=self,
             channel=channel,
@@ -1092,8 +1094,6 @@ class VerificationCog(commands.Cog):
         Returns:
             ModActionContext | None: Validated context or None if failed
         """
-        from discord_bot.verification.handlers import validate_mod_action
-
         return await validate_mod_action(
             cog=self,
             interaction=interaction,

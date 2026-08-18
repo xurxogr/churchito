@@ -1,6 +1,7 @@
 """Reaction roles cog for self-assignable roles."""
 
 import logging
+import re
 from typing import Any
 
 import discord
@@ -1638,8 +1639,6 @@ class RolesCog(commands.Cog):
             tuple[str, int | None]: (emoji_name, emoji_id or None)
         """
         # Check for custom emoji format <:name:id> or <a:name:id>
-        import re
-
         custom_match = re.match(r"<a?:([^:]+):(\d+)>", emoji_input)
         if custom_match:
             return custom_match.group(1), int(custom_match.group(2))

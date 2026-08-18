@@ -1322,7 +1322,7 @@ class TestPostPanelDirectCall:
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
             patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
-            patch("discord_bot.roles.formatters.build_panel_embed") as mock_build_embed,
+            patch("discord_bot.web.routers.panels.build_panel_embed") as mock_build_embed,
             patch.object(builtins, "isinstance", patched_isinstance),
         ):
             mock_service = mock_service_cls.return_value
@@ -1581,7 +1581,7 @@ class TestPostPanelDirectCall:
 
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
-            patch("discord_bot.roles.formatters.build_panel_embed") as mock_build_embed,
+            patch("discord_bot.web.routers.panels.build_panel_embed") as mock_build_embed,
             patch.object(builtins, "isinstance", patched_isinstance),
         ):
             mock_service = mock_service_cls.return_value
@@ -1653,7 +1653,7 @@ class TestPostPanelDirectCall:
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
             patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
-            patch("discord_bot.roles.formatters.build_panel_embed") as mock_build_embed,
+            patch("discord_bot.web.routers.panels.build_panel_embed") as mock_build_embed,
             patch.object(builtins, "isinstance", patched_isinstance),
         ):
             mock_service = mock_service_cls.return_value
@@ -1866,7 +1866,7 @@ class TestPostPanelReactionErrors:
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
             patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
-            patch("discord_bot.roles.formatters.build_panel_embed") as mock_build_embed,
+            patch("discord_bot.web.routers.panels.build_panel_embed") as mock_build_embed,
             patch.object(builtins, "isinstance", patched_isinstance),
         ):
             mock_service = mock_service_cls.return_value

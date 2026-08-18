@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from discord_bot.i18n import get_i18n_service
+from discord_bot.roles.formatters import build_panel_embed
 from discord_bot.roles.models import PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
@@ -551,8 +552,6 @@ async def post_panel(
     Returns:
         HTMLResponse: Updated panels list
     """
-    from discord_bot.roles.formatters import build_panel_embed
-
     discord_guild, _, _, _ = _get_guild_data(request=request, guild_id=guild_id)
     guild_name = discord_guild.name if discord_guild else "Unknown"
 
