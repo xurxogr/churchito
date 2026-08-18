@@ -106,6 +106,9 @@ class VerificationCog(commands.Cog):
         )
         # User locks to serialize verification starts and DM intake per user
         self._user_locks = KeyedLocks()
+        # Per-request locks (keyed by public ID) so two moderators deciding on
+        # the same request at once cannot both apply their decision
+        self._request_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.

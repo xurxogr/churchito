@@ -380,7 +380,13 @@ async def handle_accept(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
-    async with cog.bot.database.session() as session:
+    # Serialize decisions per request: validate_mod_action checks the status
+    # before the decision commits, so two overlapping moderators would both
+    # pass it and both apply their decision (roles, DMs, mod message)
+    async with (
+        cog._request_locks.acquire(public_id),
+        cog.bot.database.session() as session,
+    ):
         ctx = await validate_mod_action(
             cog=cog,
             interaction=interaction,
@@ -563,7 +569,11 @@ async def handle_reject(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
-    async with cog.bot.database.session() as session:
+    # Serialized per request, see handle_accept
+    async with (
+        cog._request_locks.acquire(public_id),
+        cog.bot.database.session() as session,
+    ):
         ctx = await validate_mod_action(
             cog=cog,
             interaction=interaction,
@@ -712,7 +722,11 @@ async def handle_review(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
-    async with cog.bot.database.session() as session:
+    # Serialized per request, see handle_accept
+    async with (
+        cog._request_locks.acquire(public_id),
+        cog.bot.database.session() as session,
+    ):
         config_service = ConfigService(session=session)
         config = await cog._get_all_config(
             guild_id=interaction.guild.id, config_service=config_service

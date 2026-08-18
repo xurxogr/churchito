@@ -1,7 +1,7 @@
 """Per-key asyncio locks that evict themselves when no longer in use."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Hashable
 from contextlib import asynccontextmanager
 
 
@@ -15,8 +15,8 @@ class KeyedLocks:
 
     def __init__(self) -> None:
         """Initialize an empty lock pool."""
-        self._locks: dict[int, asyncio.Lock] = {}
-        self._holders: dict[int, int] = {}
+        self._locks: dict[Hashable, asyncio.Lock] = {}
+        self._holders: dict[Hashable, int] = {}
 
     def __len__(self) -> int:
         """Return the number of keys with active or waiting holders.
@@ -27,11 +27,11 @@ class KeyedLocks:
         return len(self._locks)
 
     @asynccontextmanager
-    async def acquire(self, key: int) -> AsyncIterator[None]:
+    async def acquire(self, key: Hashable) -> AsyncIterator[None]:
         """Acquire the lock for a key, creating and later evicting it as needed.
 
         Args:
-            key (int): Key identifying the lock (e.g. a user or member ID).
+            key (Hashable): Key identifying the lock (e.g. a user ID or a request public ID).
 
         Yields:
             None: Control while the lock is held.

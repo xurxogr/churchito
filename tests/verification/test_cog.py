@@ -2896,6 +2896,174 @@ class TestHandleAcceptHappyPath:
             assert "already been processed" in call_args.kwargs["content"].lower()
 
 
+class TestConcurrentModDecisions:
+    """Tests for two moderators deciding on the same request at once."""
+
+    @staticmethod
+    async def _create_pending_request(test_database: DatabaseService) -> str:
+        """Create a request awaiting moderator review.
+
+        Args:
+            test_database (DatabaseService): Test database.
+
+        Returns:
+            str: Public ID of the request.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.update_screenshots(
+                request_id=request.id, url1="url1", url2="url2", guild_name="Test Guild"
+            )
+            await service.mark_pending_review(request_id=request.id, guild_name="Test Guild")
+            await session.commit()
+            return request.public_id
+
+    @staticmethod
+    def _mod_interaction(guild: MagicMock, mod_id: int) -> MagicMock:
+        """Build a moderator interaction whose defer yields to the event loop.
+
+        Args:
+            guild (MagicMock): Guild mock.
+            mod_id (int): Moderator user ID.
+
+        Returns:
+            MagicMock: Interaction mock.
+        """
+
+        async def slow_defer(*args: Any, **kwargs: Any) -> None:
+            await asyncio.sleep(0.01)
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = guild
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = mod_id
+        interaction.user.name = f"Mod{mod_id}"
+        interaction.user.display_name = f"Mod{mod_id}"
+        interaction.user.roles = []
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock(side_effect=slow_defer)
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+        return interaction
+
+    @staticmethod
+    def _guild_with_member() -> tuple[MagicMock, MagicMock]:
+        """Build a guild mock holding the verified member and the role to grant.
+
+        Returns:
+            tuple[MagicMock, MagicMock]: Guild and member mocks.
+        """
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.id = 999
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.add_roles = AsyncMock()
+        mock_member.remove_roles = AsyncMock()
+        mock_member.send = AsyncMock()
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+        mock_guild.get_channel = MagicMock(return_value=None)
+        return mock_guild, mock_member
+
+    @staticmethod
+    def _replies(interaction: MagicMock) -> list[str]:
+        """Collect the follow-up contents sent to an interaction.
+
+        Args:
+            interaction (MagicMock): Interaction mock.
+
+        Returns:
+            list[str]: Lowercased contents.
+        """
+        return [call.kwargs["content"].lower() for call in interaction.followup.send.call_args_list]
+
+    async def test_concurrent_approvals_process_the_request_once(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that two moderators approving at once grant roles and DM only once."""
+        public_id = await self._create_pending_request(test_database)
+        mock_guild, mock_member = self._guild_with_member()
+        first = self._mod_interaction(guild=mock_guild, mod_id=789)
+        second = self._mod_interaction(guild=mock_guild, mod_id=790)
+        config_values: dict[str, object] = {
+            "mod_roles": [],
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Approved!",
+            "mod_notification_channel": None,
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+            await asyncio.gather(
+                verification_cog.handle_accept(interaction=first, public_id=public_id),
+                verification_cog.handle_accept(interaction=second, public_id=public_id),
+            )
+
+        assert mock_member.add_roles.await_count == 1
+        assert mock_member.send.await_count == 1
+        already = [
+            reply
+            for interaction in (first, second)
+            for reply in self._replies(interaction)
+            if "already been processed" in reply
+        ]
+        assert len(already) == 1
+
+    async def test_concurrent_approve_and_reject_apply_a_single_decision(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that an approval racing a rejection leaves exactly one decision applied."""
+        public_id = await self._create_pending_request(test_database)
+        mock_guild, mock_member = self._guild_with_member()
+        approver = self._mod_interaction(guild=mock_guild, mod_id=789)
+        rejecter = self._mod_interaction(guild=mock_guild, mod_id=790)
+        config_values: dict[str, object] = {
+            "mod_roles": [],
+            "regular_roles_add": [999],
+            "regular_roles_remove": [],
+            "approval_message_regular": "Approved!",
+            "rejection_message": "Rejected: {reason}",
+            "mod_notification_channel": None,
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+            await asyncio.gather(
+                verification_cog.handle_accept(interaction=approver, public_id=public_id),
+                verification_cog.handle_reject(
+                    interaction=rejecter, public_id=public_id, reason="Invalid captures"
+                ),
+            )
+
+        # The member hears about exactly one decision
+        assert mock_member.send.await_count == 1
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            if updated.status == VerificationStatus.APPROVED:
+                assert mock_member.add_roles.await_count == 1
+                assert "already been processed" in " ".join(self._replies(rejecter))
+            else:
+                assert updated.status == VerificationStatus.REJECTED
+                mock_member.add_roles.assert_not_awaited()
+                assert "already been processed" in " ".join(self._replies(approver))
+
+
 class TestHandleRejectHappyPath:
     """Tests for handle_reject successful flow."""
 
