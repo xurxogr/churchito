@@ -177,6 +177,8 @@ class DiscordBot(commands.Bot):
             for guild in self.guilds:
                 logger.info(f"  - {guild.name} (ID: {guild.id})")
 
+            await self._reconcile_guilds()
+
             # Sync application commands with Discord
             try:
                 synced = await self.tree.sync()
@@ -200,8 +202,21 @@ class DiscordBot(commands.Bot):
         Registers the server in the database and saves who invited the bot.
         """
         logger.info(f"Bot joined server: {guild.name} (ID: {guild.id})")
+        invited_by_id = await self._find_inviter(guild)
+        await self._save_guild(guild, invited_by_id)
 
-        # Try to get who invited the bot from the audit log
+    async def _find_inviter(self, guild: discord.Guild) -> int | None:
+        """Find who invited the bot to a guild.
+
+        Looks the bot up in the audit log and falls back to the server owner
+        when the log is unavailable or has no matching entry.
+
+        Args:
+            guild (discord.Guild): The Discord server
+
+        Returns:
+            int | None: User ID of the inviter (or owner), None if the guild has no owner.
+        """
         invited_by_id: int | None = None
         try:
             if guild.me and guild.me.guild_permissions.view_audit_log and self.user:
@@ -224,9 +239,33 @@ class DiscordBot(commands.Bot):
         if invited_by_id is None:
             invited_by_id = guild.owner_id
             logger.info(f"Using server owner as inviter: {invited_by_id}")
+        return invited_by_id
 
-        # Save to database
-        await self._save_guild(guild, invited_by_id)
+    async def _reconcile_guilds(self) -> None:
+        """Make sure every guild the bot is in has a current row in the database.
+
+        on_guild_join only fires while the bot is online, so a guild that
+        invited the bot during downtime would otherwise never get a row (and
+        its inviter no dashboard access), and renamed guilds would keep the
+        old name.
+        """
+        try:
+            async with self.database.session() as session:
+                result = await session.execute(select(GuildModel.id, GuildModel.name))
+                known_names = {guild_id: name for guild_id, name in result.all()}
+        except Exception as e:
+            logger.error(f"Error loading guilds from the database: {e}")
+            return
+
+        for guild in self.guilds:
+            try:
+                if guild.id not in known_names:
+                    logger.info(f"[{guild.name}] Guild missing from the database, registering it")
+                    await self._save_guild(guild, await self._find_inviter(guild))
+                elif known_names[guild.id] != guild.name:
+                    await self._save_guild(guild, None)
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error updating guild in the database: {e}")
 
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         """Event handler when the bot is removed from a server."""

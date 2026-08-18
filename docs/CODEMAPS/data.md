@@ -92,6 +92,10 @@ class Guild(Base):
 **Purpose:** Guild metadata (discord.Guild snapshots)
 **Unique:** `id` (Discord guild ID, 64-bit)
 **Usage:** Cogs reference this for guild-specific settings
+**Written by:** `DiscordBot.on_guild_join` (inviter from the audit log, owner as
+fallback) and `DiscordBot._reconcile_guilds` on every `on_ready`, which inserts
+guilds joined while the bot was offline and refreshes renamed guilds without
+touching `invited_by_id`. The dashboard grants access to `invited_by_id`.
 
 ---
 

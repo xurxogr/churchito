@@ -808,6 +808,107 @@ async def test_monitor_event_loop_logs_stop(
             assert len(info_calls) > 0
 
 
+# Tests for guild reconciliation on ready
+
+
+def _ready_guild(guild_id: int, name: str, owner_id: int) -> MagicMock:
+    """Guild mock without audit-log access, so the inviter falls back to the owner.
+
+    Args:
+        guild_id (int): Guild ID.
+        name (str): Guild name.
+        owner_id (int): Guild owner ID.
+
+    Returns:
+        MagicMock: Guild mock.
+    """
+    guild = MagicMock()
+    guild.id = guild_id
+    guild.name = name
+    guild.owner_id = owner_id
+    guild.me = None
+    return guild
+
+
+class TestOnReadyReconcilesGuilds:
+    """on_ready must register guilds joined while the bot was offline and refresh names."""
+
+    async def test_registers_guilds_missing_from_database(
+        self, test_bot: DiscordBot, test_database: DatabaseService
+    ) -> None:
+        """A guild without a row is saved with the owner as inviter (no audit log access)."""
+        guild = _ready_guild(guild_id=424242, name="Joined Offline", owner_id=777)
+        type(test_bot).guilds = PropertyMock(return_value=[guild])
+        type(test_bot).tree = PropertyMock(return_value=MagicMock(sync=AsyncMock(return_value=[])))
+
+        await test_bot.on_ready()
+
+        async with test_database.session() as session:
+            row = (
+                await session.execute(select(GuildModel).where(GuildModel.id == 424242))
+            ).scalar_one_or_none()
+        assert row is not None
+        assert row.name == "Joined Offline"
+        assert row.invited_by_id == 777
+
+    async def test_refreshes_renamed_guild_without_touching_inviter(
+        self, test_bot: DiscordBot, test_database: DatabaseService
+    ) -> None:
+        """A known guild gets its name updated but keeps who invited the bot."""
+        async with test_database.session() as session:
+            session.add(GuildModel(id=515151, name="Old Name", invited_by_id=42))
+            await session.commit()
+        guild = _ready_guild(guild_id=515151, name="New Name", owner_id=777)
+        type(test_bot).guilds = PropertyMock(return_value=[guild])
+        type(test_bot).tree = PropertyMock(return_value=MagicMock(sync=AsyncMock(return_value=[])))
+
+        await test_bot.on_ready()
+
+        async with test_database.session() as session:
+            row = (
+                await session.execute(select(GuildModel).where(GuildModel.id == 515151))
+            ).scalar_one()
+        assert row.name == "New Name"
+        assert row.invited_by_id == 42
+
+    async def test_known_unchanged_guild_is_not_rewritten(
+        self, test_bot: DiscordBot, test_database: DatabaseService
+    ) -> None:
+        """A guild whose row is current is left alone."""
+        async with test_database.session() as session:
+            session.add(GuildModel(id=616161, name="Same", invited_by_id=42))
+            await session.commit()
+        guild = _ready_guild(guild_id=616161, name="Same", owner_id=777)
+        type(test_bot).guilds = PropertyMock(return_value=[guild])
+        type(test_bot).tree = PropertyMock(return_value=MagicMock(sync=AsyncMock(return_value=[])))
+
+        with patch.object(test_bot, "_save_guild", new_callable=AsyncMock) as mock_save:
+            await test_bot.on_ready()
+
+        mock_save.assert_not_awaited()
+
+    async def test_reconciliation_failure_does_not_stop_startup(self, test_bot: DiscordBot) -> None:
+        """A database error while saving a guild is logged and on_ready carries on."""
+        guild = _ready_guild(guild_id=717171, name="Broken", owner_id=777)
+        type(test_bot).guilds = PropertyMock(return_value=[guild])
+        mock_tree = MagicMock(sync=AsyncMock(return_value=[]))
+        type(test_bot).tree = PropertyMock(return_value=mock_tree)
+        mock_emit = MagicMock()
+        test_bot.event_bus.emit = mock_emit
+
+        with (
+            patch.object(
+                test_bot, "_save_guild", new_callable=AsyncMock, side_effect=RuntimeError("db gone")
+            ),
+            patch("discord_bot.bot.logger") as mock_logger,
+        ):
+            await test_bot.on_ready()
+
+        assert any("db gone" in str(call) for call in mock_logger.error.call_args_list)
+        mock_tree.sync.assert_awaited_once()
+        mock_emit.assert_called_once()
+
+
 # Tests for on_guild_join
 
 
