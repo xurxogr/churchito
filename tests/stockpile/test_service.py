@@ -121,6 +121,73 @@ class TestStockpileService:
         )
         assert result is None
 
+    async def test_get_by_location_and_name_returns_oldest_duplicate(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Duplicated legacy rows at one location resolve to the oldest instead of raising."""
+        service = StockpileService(test_session)
+
+        first = await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Dupe",
+            code="111111",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Dupe",
+            code="222222",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        found = await service.get_by_location_and_name(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Dupe",
+        )
+        assert found is not None
+        assert found.id == first.id
+
+    async def test_get_by_guild_and_name_returns_oldest_duplicate(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Legacy rows sharing a name across locations resolve to the oldest instead of raising."""
+        service = StockpileService(test_session)
+
+        first = await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Dupe",
+            code="111111",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Swordfort",
+            name="Dupe",
+            code="222222",
+            view_roles=[],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        found = await service.get_by_guild_and_name(guild_id=123, name="Dupe")
+        assert found is not None
+        assert found.id == first.id
+
     async def test_get_all_for_guild(self, test_session: AsyncSession) -> None:
         """Test getting all stockpiles for a guild."""
         service = StockpileService(test_session)

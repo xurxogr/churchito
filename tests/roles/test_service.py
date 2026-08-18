@@ -306,6 +306,31 @@ class TestReactionRolesService:
         result = await service.get_by_name(guild_id=999, name="SameName")
         assert result is None
 
+    async def test_get_by_name_returns_oldest_duplicate(self, test_session: AsyncSession) -> None:
+        """Duplicated panel names (racing creates) resolve to the oldest instead of raising."""
+        service = ReactionRolesService(test_session)
+
+        first = await service.create_panel(
+            guild_id=123,
+            channel_id=456,
+            name="Dupe",
+            panel_type=PanelType.TOGGLE,
+            created_by=789,
+            guild_name="Test Guild",
+        )
+        await service.create_panel(
+            guild_id=123,
+            channel_id=456,
+            name="Dupe",
+            panel_type=PanelType.TOGGLE,
+            created_by=789,
+            guild_name="Test Guild",
+        )
+
+        found = await service.get_by_name(guild_id=123, name="Dupe")
+        assert found is not None
+        assert found.id == first.id
+
     async def test_set_message_id(self, test_session: AsyncSession) -> None:
         """Test setting message ID after posting."""
         service = ReactionRolesService(test_session)

@@ -177,15 +177,20 @@ class ReactionRolesService:
             name: Panel name
 
         Returns:
-            ReactionPanel | None: Panel or None if not found
+            ReactionPanel | None: Oldest matching panel, or None if not found
         """
+        # Name uniqueness is only enforced by the callers, so racing creates can
+        # leave duplicates: return the oldest instead of raising MultipleResultsFound
         result = await self._session.execute(
-            select(ReactionPanel).where(
+            select(ReactionPanel)
+            .where(
                 ReactionPanel.guild_id == guild_id,
                 ReactionPanel.name == name,
             )
+            .order_by(ReactionPanel.id)
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def set_message_id(
         self,

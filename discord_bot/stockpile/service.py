@@ -109,17 +109,22 @@ class StockpileService:
             name (str): Stockpile name
 
         Returns:
-            Stockpile | None: Stockpile or None if not found
+            Stockpile | None: Oldest matching stockpile, or None if not found
         """
+        # (guild, hex, city, name) has no unique constraint and legacy data may
+        # hold duplicates: return the oldest instead of raising MultipleResultsFound
         result = await self._session.execute(
-            select(Stockpile).where(
+            select(Stockpile)
+            .where(
                 Stockpile.guild_id == guild_id,
                 Stockpile.hex_key == hex_key,
                 Stockpile.city == city,
                 Stockpile.name == name,
             )
+            .order_by(Stockpile.id)
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_by_guild_and_name(
         self,
@@ -133,15 +138,20 @@ class StockpileService:
             name (str): Stockpile name
 
         Returns:
-            Stockpile | None: Stockpile or None if not found
+            Stockpile | None: Oldest matching stockpile, or None if not found
         """
+        # Legacy data may hold the same name at several locations (see
+        # get_all_by_guild_and_name): return the oldest instead of raising
         result = await self._session.execute(
-            select(Stockpile).where(
+            select(Stockpile)
+            .where(
                 Stockpile.guild_id == guild_id,
                 Stockpile.name == name,
             )
+            .order_by(Stockpile.id)
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_all_by_guild_and_name(
         self,
