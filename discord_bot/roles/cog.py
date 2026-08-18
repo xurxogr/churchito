@@ -11,7 +11,7 @@ from discord.ext import commands
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import KeyedLocks, TTLCache, has_any_of_roles
+from discord_bot.common.utils import KeyedLocks, TTLCache, choose_command_name, has_any_of_roles
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
 from discord_bot.roles.formatters import (
@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 # toggle / panel changes; the TTL only bounds staleness if a notification is missed.
 _ENABLED_CACHE_TTL_SECONDS = 60.0
 _PANEL_MESSAGES_CACHE_TTL_SECONDS = 300.0
+
+DEFAULT_COMMAND_PREFIX = "roles"
 
 
 class RolesCog(commands.Cog):
@@ -88,25 +90,29 @@ class RolesCog(commands.Cog):
             return
 
         config = await self._get_config(guild.id)
-        prefix = config.get(ConfigKey.COMMAND_PREFIX, "roles")
-
-        if guild.id not in self._registered_commands:
-            self._registered_commands[guild.id] = {}
-
         old_prefix = self._registered_commands.get(guild.id, {}).get("prefix")
-        if old_prefix == prefix:
-            return  # Already registered with same prefix
+        prefix = choose_command_name(
+            tree=self.bot.tree,
+            guild=guild,
+            configured=config.get(ConfigKey.COMMAND_PREFIX),
+            default=DEFAULT_COMMAND_PREFIX,
+            current=old_prefix,
+        )
+        if prefix is None or prefix == old_prefix:
+            return  # Nothing registrable, or already registered with same prefix
 
-        # Unregister old commands if prefix changed
-        if old_prefix and old_prefix != prefix:
-            await self._unregister_guild_commands(guild)
-
-        # Create command group
+        # Create command group (validates the name before touching the old group)
         group = app_commands.Group(
             name=prefix,
             description="Manage reaction role panels",
             guild_ids=[guild.id],
         )
+
+        # Unregister old commands if prefix changed
+        if old_prefix:
+            await self._unregister_guild_commands(guild)
+        if guild.id not in self._registered_commands:
+            self._registered_commands[guild.id] = {}
 
         # Add subcommands
         self._add_create_command(group)
@@ -269,14 +275,17 @@ class RolesCog(commands.Cog):
     async def on_ready(self) -> None:
         """Register commands when the bot is ready."""
         logger.info("RolesCog: Registering commands in all guilds...")
+        registered_guilds: list[discord.Guild] = []
         for guild in self.bot.guilds:
             try:
                 await self._register_guild_commands(guild)
+                registered_guilds.append(guild)
             except Exception as e:
                 logger.error(f"[{guild.name}] Error registering roles commands: {e}")
 
-        # Sync commands for all guilds
-        for guild in self.bot.guilds:
+        # Sync only guilds that registered cleanly: syncing after a failure would
+        # push a partial tree and wipe the guild's existing commands.
+        for guild in registered_guilds:
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
 

@@ -14,13 +14,13 @@ from discord_bot.common.services.config_schema_service import get_config_schema_
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.embed_builder import PlaceholderContext, build_embed
 from discord_bot.common.utils import (
+    choose_command_name,
     delete_message,
     get_hex_display_name,
     has_any_of_roles,
     is_valid_city,
     is_valid_hex,
     load_hex_cities,
-    resolve_command_name,
 )
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
@@ -109,8 +109,9 @@ class StockpileCog(commands.Cog):
     ) -> None:
         """Register a single stockpile command.
 
-        Names Discord would reject (uppercase, spaces, ...) fall back to the
-        default name for ``key`` so the command is always available.
+        Names Discord would reject (uppercase, spaces, ...) or that another
+        command already uses fall back to the default name for ``key`` so the
+        command stays available.
 
         Args:
             guild (discord.Guild): Discord guild
@@ -121,12 +122,17 @@ class StockpileCog(commands.Cog):
         if key not in STOCKPILE_COMMANDS:
             return
 
-        name = resolve_command_name(
-            configured=name, default=STOCKPILE_COMMANDS[key][1], guild_name=guild.name
-        )
         old_name = self._registered_commands.get(guild.id, {}).get(key)
-        if old_name == name:
-            return  # Already registered
+        chosen = choose_command_name(
+            tree=self.bot.tree,
+            guild=guild,
+            configured=name,
+            default=STOCKPILE_COMMANDS[key][1],
+            current=old_name,
+        )
+        if chosen is None or chosen == old_name:
+            return  # Nothing registrable, or already registered under this name
+        name = chosen
 
         factories = {
             "add": self._create_add_command,
@@ -321,14 +327,17 @@ class StockpileCog(commands.Cog):
     async def on_ready(self) -> None:
         """Register commands when the bot is ready."""
         logger.info("StockpileCog: Registering commands in all guilds...")
+        registered_guilds: list[discord.Guild] = []
         for guild in self.bot.guilds:
             try:
                 await self._register_guild_commands(guild)
+                registered_guilds.append(guild)
             except Exception as e:
                 logger.error(f"[{guild.name}] Error registering stockpile commands: {e}")
 
-        # Sync commands for all guilds
-        for guild in self.bot.guilds:
+        # Sync only guilds that registered cleanly: syncing after a failure would
+        # push a partial tree and wipe the guild's existing commands.
+        for guild in registered_guilds:
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
 

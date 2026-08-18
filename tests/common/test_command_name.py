@@ -1,10 +1,12 @@
 """Tests for the slash command name helpers."""
 
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 
 from discord_bot.common.utils.command_name import (
+    choose_command_name,
     normalize_command_name,
     resolve_command_name,
     validate_command_name,
@@ -96,4 +98,82 @@ class TestResolveCommandName:
         assert result == "stockpile_add"
         assert "[Guild]" in caplog.text
         assert "Añadir_stockpile" in caplog.text
+        assert "stockpile_add" in caplog.text
+
+
+def _tree(taken: set[str]) -> MagicMock:
+    """Command tree stub where ``taken`` names already belong to another command.
+
+    Args:
+        taken (set[str]): Names that ``get_command`` reports as registered.
+
+    Returns:
+        MagicMock: Tree with ``get_command`` configured.
+    """
+    tree = MagicMock()
+    tree.get_command = MagicMock(
+        side_effect=lambda name, guild=None: MagicMock() if name in taken else None
+    )
+    return tree
+
+
+class TestChooseCommandName:
+    """Tests for choose_command_name (validation + collision check)."""
+
+    def test_returns_configured_name_when_free(self) -> None:
+        """A valid, unused configured name is chosen."""
+        guild = MagicMock(name="guild")
+        guild.name = "G"
+
+        result = choose_command_name(
+            tree=_tree(set()), guild=guild, configured="ver_stockpile", default="stockpile_show"
+        )
+
+        assert result == "ver_stockpile"
+
+    def test_keeps_current_name_even_if_registered(self) -> None:
+        """The name this command already holds is not treated as a collision."""
+        guild = MagicMock()
+        guild.name = "G"
+
+        result = choose_command_name(
+            tree=_tree({"ver_stockpile"}),
+            guild=guild,
+            configured="ver_stockpile",
+            default="stockpile_show",
+            current="ver_stockpile",
+        )
+
+        assert result == "ver_stockpile"
+
+    def test_falls_back_to_default_on_collision(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A name used by another command falls back to the default with a warning."""
+        guild = MagicMock()
+        guild.name = "Guild"
+
+        with caplog.at_level(logging.WARNING):
+            result = choose_command_name(
+                tree=_tree({"purge_war"}),
+                guild=guild,
+                configured="purge_war",
+                default="stockpile_add",
+            )
+
+        assert result == "stockpile_add"
+        assert "[Guild]" in caplog.text and "purge_war" in caplog.text
+
+    def test_returns_none_when_default_is_taken_too(self, caplog: pytest.LogCaptureFixture) -> None:
+        """When even the default collides nothing can be registered."""
+        guild = MagicMock()
+        guild.name = "Guild"
+
+        with caplog.at_level(logging.ERROR):
+            result = choose_command_name(
+                tree=_tree({"purge_war", "stockpile_add"}),
+                guild=guild,
+                configured="purge_war",
+                default="stockpile_add",
+            )
+
+        assert result is None
         assert "stockpile_add" in caplog.text

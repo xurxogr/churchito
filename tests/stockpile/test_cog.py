@@ -28,6 +28,7 @@ def mock_discord_bot(test_database: DatabaseService) -> Any:
     bot.wait_until_ready = AsyncMock()
     bot.tree = MagicMock()
     bot.tree.add_command = MagicMock()
+    bot.tree.get_command = MagicMock(return_value=None)
     bot.tree.remove_command = MagicMock()
     bot.tree.sync = AsyncMock()
     return bot
@@ -2144,6 +2145,70 @@ class TestRegisterCommandInvalidName:
             "edit": "stockpile_edit",
         }
         assert stockpile_cog.bot.tree.add_command.call_count == 4
+
+
+class TestRegisterCommandNameCollision:
+    """Names already used by another command in the guild are not registered twice."""
+
+    async def test_collision_falls_back_to_default(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A configured name owned by another command registers the default instead."""
+        stockpile_cog._registered_commands[mock_guild.id] = {}
+        stockpile_cog.bot.tree.get_command = MagicMock(
+            side_effect=lambda name, guild=None: MagicMock() if name == "purge_war" else None
+        )
+
+        await stockpile_cog._register_command(mock_guild, "add", "purge_war", "Add stockpile")
+
+        registered = stockpile_cog.bot.tree.add_command.call_args.args[0]
+        assert registered.name == "stockpile_add"
+        assert stockpile_cog._registered_commands[mock_guild.id]["add"] == "stockpile_add"
+
+    async def test_collision_on_default_keeps_old_command(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """If neither name is free, nothing is registered and the old command stays."""
+        stockpile_cog._registered_commands[mock_guild.id] = {"add": "old_add"}
+        stockpile_cog.bot.tree.get_command = MagicMock(return_value=MagicMock())
+
+        await stockpile_cog._register_command(mock_guild, "add", "purge_war", "Add stockpile")
+
+        stockpile_cog.bot.tree.add_command.assert_not_called()
+        stockpile_cog.bot.tree.remove_command.assert_not_called()
+        assert stockpile_cog._registered_commands[mock_guild.id]["add"] == "old_add"
+
+
+class TestOnReadySkipsSyncForFailedGuilds:
+    """A guild whose registration raised is not synced (would wipe its commands)."""
+
+    async def test_failed_guild_is_not_synced(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Only guilds that registered successfully are synced."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        stockpile_cog.bot.guilds = [mock_guild, ok_guild]
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+            if guild is mock_guild:
+                raise RuntimeError("db down")
+
+        with (
+            patch.object(stockpile_cog, "_register_guild_commands", side_effect=register),
+            patch.object(stockpile_cog, "_update_pinned_message", AsyncMock()),
+        ):
+            await stockpile_cog.on_ready()
+
+        stockpile_cog.bot.tree.sync.assert_called_once_with(guild=ok_guild)
 
 
 class TestUnregisterGuildCommands:

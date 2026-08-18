@@ -11,6 +11,8 @@ import logging
 import unicodedata
 from typing import Any
 
+import discord
+from discord import app_commands
 from discord.app_commands.commands import validate_name
 
 logger = logging.getLogger(__name__)
@@ -80,3 +82,65 @@ def resolve_command_name(*, configured: Any, default: str, guild_name: str) -> s
         )
         return default
     return normalize_command_name(configured)
+
+
+def _is_name_free(
+    *,
+    tree: app_commands.CommandTree[Any],
+    guild: discord.Guild,
+    name: str,
+    current: str | None,
+) -> bool:
+    """Whether ``name`` can be registered in ``guild`` (unused, or held by this command).
+
+    Args:
+        tree (app_commands.CommandTree[Any]): Bot command tree.
+        guild (discord.Guild): Guild the command is registered in.
+        name (str): Candidate command name.
+        current (str | None): Name this command currently holds in the guild, if any.
+
+    Returns:
+        bool: True when nothing else in the guild uses ``name``.
+    """
+    return name == current or tree.get_command(name, guild=guild) is None
+
+
+def choose_command_name(
+    *,
+    tree: app_commands.CommandTree[Any],
+    guild: discord.Guild,
+    configured: Any,
+    default: str,
+    current: str | None = None,
+) -> str | None:
+    """Pick a registrable name: valid, and not used by another command in the guild.
+
+    Invalid or colliding configured names fall back to ``default`` with a
+    warning; when the default is taken as well, an error is logged and None
+    is returned so the caller leaves the guild's commands untouched.
+
+    Args:
+        tree (app_commands.CommandTree[Any]): Bot command tree.
+        guild (discord.Guild): Guild the command is registered in.
+        configured (Any): Value stored in the guild configuration.
+        default (str): Fallback command name.
+        current (str | None): Name this command currently holds in the guild, if any.
+
+    Returns:
+        str | None: Name to register, or None when neither candidate is available.
+    """
+    name = resolve_command_name(configured=configured, default=default, guild_name=guild.name)
+    if _is_name_free(tree=tree, guild=guild, name=name, current=current):
+        return name
+    if name != default:
+        logger.warning(
+            f"[{guild.name}] Command name '/{name}' is already used by another command; "
+            f"registering '/{default}' instead"
+        )
+        if _is_name_free(tree=tree, guild=guild, name=default, current=current):
+            return default
+    logger.error(
+        f"[{guild.name}] Cannot register '/{default}': the name is already used by "
+        f"another command in this guild"
+    )
+    return None

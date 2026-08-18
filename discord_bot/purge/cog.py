@@ -14,7 +14,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import delete_message, has_any_role, resolve_command_name
+from discord_bot.common.utils import choose_command_name, delete_message, has_any_role
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.execution import execute_purge
@@ -320,11 +320,6 @@ class PurgeCog(commands.Cog):
 
         cfg = type_config[purge_type]
         command_key = cfg["key"]
-        command_name = resolve_command_name(
-            configured=config.get(cfg["name_config"]),
-            default=cfg["default_name"],
-            guild_name=guild.name,
-        )
         old_command_name = self._registered_commands.get(guild.id, {}).get(command_key)
 
         # If not available, remove existing command
@@ -335,8 +330,15 @@ class PurgeCog(commands.Cog):
                 logger.info(f"[{guild.name}] Command '/{old_command_name}' removed")
             return
 
-        # Check if command already registered with same name
-        if old_command_name == command_name:
+        command_name = choose_command_name(
+            tree=self.bot.tree,
+            guild=guild,
+            configured=config.get(cfg["name_config"]),
+            default=cfg["default_name"],
+            current=old_command_name,
+        )
+        # Nothing registrable, or already registered under this name
+        if command_name is None or command_name == old_command_name:
             return
 
         # Create and register the purge command
@@ -1257,14 +1259,17 @@ class PurgeCog(commands.Cog):
     async def on_ready(self) -> None:
         """Register commands when the bot is ready."""
         logger.info("PurgeCog: Registering commands in all guilds...")
+        registered_guilds: list[discord.Guild] = []
         for guild in self.bot.guilds:
             try:
                 await self._register_guild_commands(guild)
+                registered_guilds.append(guild)
             except Exception as e:
                 logger.error(f"[{guild.name}] Error registering commands: {e}")
 
-        # Sync commands for all guilds
-        for guild in self.bot.guilds:
+        # Sync only guilds that registered cleanly: syncing after a failure would
+        # push a partial tree and wipe the guild's existing commands.
+        for guild in registered_guilds:
             if guild.id in self._registered_commands:
                 await self._sync_guild_commands(guild)
 

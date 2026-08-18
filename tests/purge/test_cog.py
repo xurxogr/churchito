@@ -29,6 +29,7 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
     bot.wait_until_ready = AsyncMock()
     bot.tree = MagicMock()
     bot.tree.add_command = MagicMock()
+    bot.tree.get_command = MagicMock(return_value=None)
     bot.tree.remove_command = MagicMock()
     bot.tree.sync = AsyncMock()
     return bot
@@ -784,6 +785,76 @@ class TestRegisterPurgeCommandInvalidName:
         registered = mock_discord_bot.tree.add_command.call_args.args[0]
         assert registered.name == "purga_fin_de_guerr\u00e1"
         assert purge_cog._registered_commands[mock_guild.id]["war"] == "purga_fin_de_guerr\u00e1"
+
+
+class TestRegisterPurgeCommandNameCollision:
+    """A configured name owned by another command falls back to the default."""
+
+    async def test_collision_falls_back_to_default(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that a taken name registers the default purge command instead."""
+        purge_cog._registered_commands[mock_guild.id] = {}
+        mock_discord_bot.tree.get_command = MagicMock(
+            side_effect=lambda name, guild=None: MagicMock() if name == "stockpile_add" else None
+        )
+        config = {ConfigKey.GLOBAL_COMMAND_NAME: "stockpile_add"}
+
+        await purge_cog._register_purge_command(mock_guild, config, PurgeType.GLOBAL, True)
+
+        registered = mock_discord_bot.tree.add_command.call_args.args[0]
+        assert registered.name == "purge_global"
+
+    async def test_collision_on_default_keeps_old_command(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that nothing changes when neither the configured nor default name is free."""
+        purge_cog._registered_commands[mock_guild.id] = {"global": "old_global"}
+        mock_discord_bot.tree.get_command = MagicMock(return_value=MagicMock())
+        config = {ConfigKey.GLOBAL_COMMAND_NAME: "stockpile_add"}
+
+        await purge_cog._register_purge_command(mock_guild, config, PurgeType.GLOBAL, True)
+
+        mock_discord_bot.tree.add_command.assert_not_called()
+        mock_discord_bot.tree.remove_command.assert_not_called()
+        assert purge_cog._registered_commands[mock_guild.id]["global"] == "old_global"
+
+
+class TestOnReadySkipsSyncForFailedGuilds:
+    """A guild whose registration raised is not synced (would wipe its commands)."""
+
+    async def test_failed_guild_is_not_synced(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """Test that only guilds that registered successfully are synced."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        mock_discord_bot.guilds = [mock_guild, ok_guild]
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+            if guild is mock_guild:
+                raise RuntimeError("db down")
+
+        with (
+            patch.object(purge_cog, "_register_guild_commands", side_effect=register),
+            patch.object(purge_cog, "_restore_active_purges", AsyncMock()),
+            patch.object(purge_cog, "_check_expired_purges", AsyncMock()),
+            patch.object(purge_cog.expiration_check_loop, "start", MagicMock()),
+        ):
+            await purge_cog.on_ready()
+
+        mock_discord_bot.tree.sync.assert_called_once_with(guild=ok_guild)
 
 
 class TestHandleAuthorize:

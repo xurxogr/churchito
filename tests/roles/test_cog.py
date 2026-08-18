@@ -36,6 +36,7 @@ def mock_discord_bot(test_database: DatabaseService) -> Any:
     bot.wait_until_ready = AsyncMock()
     bot.tree = MagicMock()
     bot.tree.add_command = MagicMock()
+    bot.tree.get_command = MagicMock(return_value=None)
     bot.tree.remove_command = MagicMock()
     bot.tree.sync = AsyncMock()
     return bot
@@ -2966,6 +2967,75 @@ class TestRegisterGuildCommands:
         # Try to register again (should unregister)
         await roles_cog._register_guild_commands(mock_guild)
         assert mock_guild.id not in roles_cog._registered_commands
+
+
+class TestRegisterGuildCommandsPrefixSafety:
+    """Invalid or colliding prefixes fall back to the default group name."""
+
+    async def test_invalid_prefix_registers_default_group(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """An uppercase stored prefix registers '/roles' instead of raising."""
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        with patch.object(
+            roles_cog, "_get_config", AsyncMock(return_value={ConfigKey.COMMAND_PREFIX: "Roles"})
+        ):
+            await roles_cog._register_guild_commands(mock_guild)
+
+        group = roles_cog.bot.tree.add_command.call_args.args[0]
+        assert group.name == "roles"
+        assert roles_cog._registered_commands[mock_guild.id]["prefix"] == "roles"
+
+    async def test_colliding_prefix_falls_back_to_default(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """A prefix already used by another command registers '/roles' instead."""
+        await enable_cog_for_guild(test_database, mock_guild.id)
+        roles_cog.bot.tree.get_command = MagicMock(
+            side_effect=lambda name, guild=None: MagicMock() if name == "purge_war" else None
+        )
+
+        with patch.object(
+            roles_cog,
+            "_get_config",
+            AsyncMock(return_value={ConfigKey.COMMAND_PREFIX: "purge_war"}),
+        ):
+            await roles_cog._register_guild_commands(mock_guild)
+
+        group = roles_cog.bot.tree.add_command.call_args.args[0]
+        assert group.name == "roles"
+
+
+class TestOnReadySkipsSyncForFailedGuilds:
+    """A guild whose registration raised is not synced (would wipe its commands)."""
+
+    async def test_failed_guild_is_not_synced(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Only guilds that registered successfully are synced."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        roles_cog.bot.guilds = [mock_guild, ok_guild]
+
+        async def register(guild: MagicMock) -> None:
+            roles_cog._registered_commands[guild.id] = {"prefix": "roles"}
+            if guild is mock_guild:
+                raise RuntimeError("db down")
+
+        with patch.object(roles_cog, "_register_guild_commands", side_effect=register):
+            await roles_cog.on_ready()
+
+        roles_cog.bot.tree.sync.assert_called_once_with(guild=ok_guild)
 
 
 class TestUnregisterGuildCommands:

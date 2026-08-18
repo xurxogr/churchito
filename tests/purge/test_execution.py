@@ -55,6 +55,7 @@ def mock_discord_bot(test_database: DatabaseService) -> MagicMock:
     bot.wait_until_ready = AsyncMock()
     bot.tree = MagicMock()
     bot.tree.add_command = MagicMock()
+    bot.tree.get_command = MagicMock(return_value=None)
     bot.tree.remove_command = MagicMock()
     bot.tree.sync = AsyncMock()
     return bot

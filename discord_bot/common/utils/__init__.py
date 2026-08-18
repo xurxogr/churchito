@@ -1,6 +1,7 @@
 """Common utilities."""
 
 from discord_bot.common.utils.command_name import (
+    choose_command_name,
     normalize_command_name,
     resolve_command_name,
     validate_command_name,
@@ -34,6 +35,7 @@ __all__ = [
     "KeyedLocks",
     "SharedAsyncClient",
     "TTLCache",
+    "choose_command_name",
     "delete_message",
     "get_embed_sections_columns",
     "get_hex_display_name",

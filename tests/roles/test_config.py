@@ -246,3 +246,16 @@ class TestConfigKey:
         assert ConfigKey.NO_PERMISSION_TEXT == "no_permission_text"
         assert ConfigKey.NOT_FOUND_TEXT == "not_found_text"
         assert ConfigKey.MISSING_REQUIRED_ROLE_TEXT == "missing_required_role_text"
+
+
+class TestCommandPrefixValidation:
+    """The command prefix only accepts names Discord will register."""
+
+    def test_rejects_prefixes_discord_would_refuse(self) -> None:
+        """Uppercase or spaced prefixes are rejected at save time."""
+        option = ROLES_CONFIG_SCHEMA.get_option(ConfigKey.COMMAND_PREFIX)
+
+        assert option is not None
+        assert option.validate_value("Roles")[0] is False
+        assert option.validate_value("roles panel")[0] is False
+        assert option.validate_value("rangos") == (True, None)

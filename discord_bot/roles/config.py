@@ -3,6 +3,7 @@
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
+from discord_bot.common.utils.command_name import validate_command_name
 from discord_bot.roles.enums import ConfigKey
 
 COG_NAME = "roles"
@@ -23,6 +24,7 @@ ROLES_CONFIG_SCHEMA = CogConfigSchema(
             option_type=ConfigOptionType.STRING,
             default="roles",
             max_length=32,
+            custom_validator=validate_command_name,
             group="General",
         ),
         # ===== 2. PERMISSIONS =====
