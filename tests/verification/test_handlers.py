@@ -661,7 +661,7 @@ class TestUpdateTrackerMessage:
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
-        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+        mock_mod_channel.last_message_id = 888
         mock_tracker_msg = MagicMock()
         mock_tracker_msg.id = 9999
         mock_mod_channel.send = AsyncMock(return_value=mock_tracker_msg)
@@ -775,16 +775,13 @@ class TestUpdateTrackerMessage:
         mock_tracker_message.id = 888
         mock_tracker_message.delete = AsyncMock()
 
-        # Last message is different from tracker
-        mock_last_message = MagicMock()
-        mock_last_message.id = 999
-
         mock_new_tracker = MagicMock()
         mock_new_tracker.id = 1000
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
-        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_last_message]))
+        # Someone posted after the tracker
+        mock_mod_channel.last_message_id = 999
         mock_mod_channel.send = AsyncMock(return_value=mock_new_tracker)
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -832,7 +829,7 @@ class TestUpdateTrackerMessage:
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
         mock_mod_channel.fetch_message = AsyncMock()
-        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+        mock_mod_channel.last_message_id = 888
 
         mock_guild = MagicMock(spec=discord.Guild)
         mock_guild.id = 123
@@ -866,6 +863,49 @@ class TestUpdateTrackerMessage:
 
         mock_tracker_message.edit.assert_awaited_once()
         mock_mod_channel.fetch_message.assert_not_awaited()
+        # The gateway cache already knows the last message: no history request
+        mock_mod_channel.history.assert_not_called()
+
+    async def test_keeps_the_tracker_when_the_last_message_is_unknown(self) -> None:
+        """Without a cached last message ID the tracker is edited in place."""
+        mock_tracker_message = MagicMock()
+        mock_tracker_message.id = 888
+        mock_tracker_message.edit = AsyncMock()
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
+        mock_mod_channel.last_message_id = None
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+            ConfigKey.TRACKER_MESSAGE_ID: 888,
+        }
+
+        await update_tracker_message(
+            guild=mock_guild,
+            config=config,
+            verification_service=mock_verification_service,
+            config_service=MagicMock(),
+        )
+
+        mock_tracker_message.edit.assert_awaited_once()
+        mock_mod_channel.history.assert_not_called()
 
     async def test_handles_not_found_when_editing_tracker(self) -> None:
         """Test that handles NotFound when editing tracker and creates a new one."""
@@ -878,7 +918,7 @@ class TestUpdateTrackerMessage:
 
         mock_mod_channel = MagicMock(spec=discord.TextChannel)
         mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
-        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+        mock_mod_channel.last_message_id = 888
         mock_mod_channel.send = AsyncMock(return_value=mock_new_tracker)
 
         mock_guild = MagicMock(spec=discord.Guild)
@@ -923,7 +963,7 @@ class TestUpdateTrackerMessage:
         mock_tracker_message.id = 888
         mock_tracker_message.edit = AsyncMock(side_effect=discord.NotFound(MagicMock(), ""))
         mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
-        mock_mod_channel.history = MagicMock(return_value=AsyncIteratorMock([mock_tracker_message]))
+        mock_mod_channel.last_message_id = 888
         mock_mod_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
 
         mock_guild = MagicMock(spec=discord.Guild)

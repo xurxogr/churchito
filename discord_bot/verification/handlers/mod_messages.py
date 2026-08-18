@@ -330,15 +330,16 @@ async def update_tracker_message(
         channel_id=mod_channel_id,
     )
 
-    if tracker_message:
-        async for last_message in mod_channel.history(limit=1):
-            if last_message.id != tracker_message.id:
-                try:
-                    await tracker_message.delete()
-                except discord.NotFound:
-                    pass
-                tracker_message = None
-            break
+    # The gateway keeps last_message_id updated, so finding out whether the
+    # tracker is still the newest message costs no history request; when the
+    # cache has no answer the tracker is simply edited in place
+    last_message_id = mod_channel.last_message_id
+    if tracker_message and last_message_id and last_message_id != tracker_message.id:
+        try:
+            await tracker_message.delete()
+        except discord.NotFound:
+            pass
+        tracker_message = None
 
     if tracker_message:
         try:
