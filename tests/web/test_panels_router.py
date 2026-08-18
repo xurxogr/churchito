@@ -1,5 +1,6 @@
 """Tests for the panels router."""
 
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -634,6 +635,113 @@ class TestCreatePanelDirectCall:
             mock_service.create_panel.assert_called_once()
             mock_session.commit.assert_called()
 
+    async def test_normalizes_role_mappings(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that string snowflakes in mappings are stored as integers and junk keys dropped."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        raw_mappings = json.dumps(
+            [
+                {
+                    "emoji": "👍",
+                    "role_id": "1234567890123456789",
+                    "emoji_id": "",
+                    "display_name": " Fans ",
+                    "junk": True,
+                },
+                {"emoji": "party", "emoji_id": "987654321098765432", "role_id": 5},
+            ]
+        )
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_name = AsyncMock(return_value=None)
+            mock_service.create_panel = AsyncMock()
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await create_panel(
+                request=mock_request,
+                guild_id=123,
+                user=test_user,
+                session=mock_session,
+                name="NewPanel",
+                channel_id="456",
+                panel_type="toggle",
+                role_mappings=raw_mappings,
+            )
+
+        assert mock_service.create_panel.await_args.kwargs["role_mappings"] == [
+            {"emoji": "👍", "role_id": 1234567890123456789, "display_name": "Fans"},
+            {"emoji": "party", "role_id": 5, "emoji_id": 987654321098765432},
+        ]
+
+    @pytest.mark.parametrize(
+        "role_mappings",
+        [
+            "{}",
+            "[1]",
+            '[{"emoji": "👍"}]',
+            '[{"role_id": "1"}]',
+            '[{"emoji": "", "role_id": "1"}]',
+            '[{"emoji": "👍", "role_id": "abc"}]',
+            '[{"emoji": "👍", "role_id": true}]',
+            '[{"emoji": "👍", "role_id": "1", "emoji_id": "abc"}]',
+            '[{"emoji": "👍", "role_id": "1", "display_name": 7}]',
+        ],
+    )
+    async def test_rejects_malformed_role_mappings(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+        role_mappings: str,
+    ) -> None:
+        """Test that role mappings must be objects with an emoji and a valid role ID."""
+        with pytest.raises(HTTPException) as exc_info:
+            await create_panel(
+                request=mock_request,
+                guild_id=123,
+                user=test_user,
+                session=mock_session,
+                name="ValidName",
+                channel_id="456",
+                panel_type="toggle",
+                role_mappings=role_mappings,
+            )
+        assert exc_info.value.status_code == 400
+        assert "Invalid role mappings" in exc_info.value.detail
+
+    async def test_rejects_non_object_embed_config(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that embed_config must be a JSON object."""
+        with pytest.raises(HTTPException) as exc_info:
+            await create_panel(
+                request=mock_request,
+                guild_id=123,
+                user=test_user,
+                session=mock_session,
+                name="ValidName",
+                channel_id="456",
+                panel_type="toggle",
+                embed_config="[1, 2]",
+            )
+        assert exc_info.value.status_code == 400
+        assert "Invalid embed config" in exc_info.value.detail
+
     async def test_rejects_invalid_name(
         self,
         mock_request: MagicMock,
@@ -1154,6 +1262,94 @@ class TestUpdatePanelDirectCall:
 
         assert exc_info.value.status_code == 400
         assert "Invalid required roles" in exc_info.value.detail
+        mock_session.commit.assert_not_called()
+
+    async def test_normalizes_role_mappings(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that updated mappings are stored with integer IDs and only known keys."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.get_by_name = AsyncMock(return_value=None)
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await update_panel(
+                request=mock_request,
+                guild_id=123,
+                panel_id=1,
+                user=test_user,
+                session=mock_session,
+                name="Panel",
+                channel_id="456",
+                panel_type="toggle",
+                role_mappings='[{"emoji": "👍", "role_id": "1234567890123456789", "x": 1}]',
+                required_roles="[]",
+            )
+
+        assert mock_panel.role_mappings == [{"emoji": "👍", "role_id": 1234567890123456789}]
+
+    @pytest.mark.parametrize(
+        ("role_mappings", "embed_config", "expected_detail"),
+        [
+            ('[{"emoji": "👍", "role_id": "abc"}]', "{}", "Invalid role mappings"),
+            ("[]", "[]", "Invalid embed config"),
+        ],
+    )
+    async def test_rejects_malformed_mappings_or_embed(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+        role_mappings: str,
+        embed_config: str,
+        expected_detail: str,
+    ) -> None:
+        """Test that update_panel validates the shape of mappings and embed config."""
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+
+        with patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls:
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await update_panel(
+                    request=mock_request,
+                    guild_id=123,
+                    panel_id=1,
+                    user=test_user,
+                    session=mock_session,
+                    name="Panel",
+                    channel_id="456",
+                    panel_type="toggle",
+                    role_mappings=role_mappings,
+                    required_roles="[]",
+                    embed_config=embed_config,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert expected_detail in exc_info.value.detail
         mock_session.commit.assert_not_called()
 
     @pytest.mark.parametrize(

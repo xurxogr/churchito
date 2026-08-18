@@ -1,6 +1,5 @@
 """Router for reaction panels management."""
 
-import json
 import logging
 from typing import Annotated, Any
 
@@ -15,13 +14,11 @@ from discord_bot.roles.models import PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 from discord_bot.web.dependencies import DbSession, RequireAuth, require_guild_access
 from discord_bot.web.middleware import get_csrf_token
+from discord_bot.web.panel_forms import parse_panel_json_fields, validate_panel_fields
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/guild", tags=["panels"])
-
-# Matches the ReactionPanel.name column length
-MAX_PANEL_NAME_LENGTH = 100
 
 
 def get_browser_language(request: Request) -> str:
@@ -116,52 +113,6 @@ def _panel_to_dict(panel: ReactionPanel, guild: Any) -> dict[str, Any]:
         "exclusive_require_existing": panel.exclusive_require_existing,
         "embed_config": _format_embed_config(panel.embed_config),
     }
-
-
-def _validate_panel_fields(name: str, panel_type: str) -> None:
-    """Validate the user-editable panel name and type.
-
-    Args:
-        name (str): Panel name from the form.
-        panel_type (str): Panel type from the form.
-
-    Raises:
-        HTTPException: 400 if the name is empty or too long, or the type is unknown.
-    """
-    if not name or len(name) > MAX_PANEL_NAME_LENGTH:
-        raise HTTPException(status_code=400, detail="Invalid panel name")
-
-    if panel_type not in [t.value for t in PanelType]:
-        raise HTTPException(status_code=400, detail="Invalid panel type")
-
-
-def _parse_required_roles(value: Any) -> list[int]:
-    """Coerce the decoded ``required_roles`` payload into a list of role IDs.
-
-    The dashboard sends snowflakes as strings to keep their full 64-bit
-    precision in JavaScript, so both integers and digit strings are accepted.
-
-    Args:
-        value (Any): Decoded JSON value from the form.
-
-    Returns:
-        list[int]: Role IDs as integers.
-
-    Raises:
-        ValueError: If the value is not a list of integer or digit-string IDs.
-    """
-    if not isinstance(value, list):
-        raise ValueError("required roles must be a list")
-
-    role_ids: list[int] = []
-    for item in value:
-        if isinstance(item, bool) or not isinstance(item, int | str):
-            raise ValueError(f"invalid role ID: {item!r}")
-        try:
-            role_ids.append(int(item))
-        except ValueError:
-            raise ValueError(f"invalid role ID: {item!r}") from None
-    return role_ids
 
 
 def _notify_panels_changed(request: Request, guild_id: int) -> None:
@@ -338,19 +289,16 @@ async def create_panel(
         HTMLResponse: Updated panels list
     """
     # Validate inputs
-    _validate_panel_fields(name=name, panel_type=panel_type)
+    validate_panel_fields(name=name, panel_type=panel_type)
 
     try:
         channel_id_int = int(channel_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid channel ID") from None
 
-    # Parse JSON fields
-    try:
-        mappings = json.loads(role_mappings) if role_mappings else []
-        embed_cfg = json.loads(embed_config) if embed_config else {}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON data") from None
+    mappings, embed_cfg, _ = parse_panel_json_fields(
+        role_mappings=role_mappings, embed_config=embed_config
+    )
 
     discord_guild, channels, roles, emojis = _get_guild_data(request=request, guild_id=guild_id)
     guild_name = discord_guild.name if discord_guild else "Unknown"
@@ -485,7 +433,7 @@ async def update_panel(
     Returns:
         HTMLResponse: Updated panels list
     """
-    _validate_panel_fields(name=name, panel_type=panel_type)
+    validate_panel_fields(name=name, panel_type=panel_type)
 
     discord_guild, _, _, _ = _get_guild_data(request=request, guild_id=guild_id)
     guild_name = discord_guild.name if discord_guild else "Unknown"
@@ -502,18 +450,9 @@ async def update_panel(
         if existing:
             raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
 
-    # Parse JSON fields
-    try:
-        mappings = json.loads(role_mappings)
-        req_roles = json.loads(required_roles)
-        embed_cfg = json.loads(embed_config) if embed_config else {}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON data") from None
-
-    try:
-        req_roles = _parse_required_roles(req_roles)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid required roles: {e}") from None
+    mappings, embed_cfg, req_roles = parse_panel_json_fields(
+        role_mappings=role_mappings, embed_config=embed_config, required_roles=required_roles
+    )
 
     # Update panel
     try:
