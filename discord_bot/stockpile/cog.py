@@ -355,20 +355,24 @@ class StockpileCog(commands.Cog):
     async def _start(self) -> None:
         """Register stockpile commands in every guild, sync them and restore pinned messages."""
         logger.info("StockpileCog: Registering commands in all guilds...")
-        registered_guilds: list[discord.Guild] = []
+        changed_guilds: list[discord.Guild] = []
         for guild in self.bot.guilds:
+            before = dict(self._registered_commands.get(guild.id, {}))
             try:
                 await self._register_guild_commands(guild)
-                registered_guilds.append(guild)
             except Exception as e:
                 logger.error(f"[{guild.name}] Error registering stockpile commands: {e}")
+                continue
+            if self._registered_commands.get(guild.id, {}) != before:
+                changed_guilds.append(guild)
 
-        # Sync only guilds that registered cleanly: syncing after a failure would
-        # push a partial tree and wipe the guild's existing commands.
-        for guild in registered_guilds:
-            if guild.id in self._registered_commands:
-                with suppress(CommandSyncError):
-                    await self._sync_guild_commands(guild)
+        # Sync only guilds whose registration changed and completed cleanly:
+        # READY fires again on every reconnect with nothing new to push, and
+        # syncing after a failure would push a partial tree and wipe the
+        # guild's existing commands.
+        for guild in changed_guilds:
+            with suppress(CommandSyncError):
+                await self._sync_guild_commands(guild)
 
         # Restore pinned messages for all guilds
         for guild in self.bot.guilds:

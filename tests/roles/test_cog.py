@@ -3039,6 +3039,33 @@ class TestOnReadySkipsSyncForFailedGuilds:
         roles_cog.bot.tree.sync.assert_called_once_with(guild=ok_guild)
 
 
+class TestOnReadySyncsChangedGuilds:
+    """on_ready only syncs guilds whose registered commands actually changed."""
+
+    async def test_reconnect_does_not_resync_unchanged_guilds(
+        self,
+        roles_cog: RolesCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A READY after a reconnect must not re-sync guilds that were already registered."""
+        new_guild = MagicMock(spec=discord.Guild)
+        new_guild.id = 987
+        new_guild.name = "New"
+        roles_cog.bot.guilds = [mock_guild, new_guild]
+
+        # mock_guild was registered before this READY; new_guild is new
+        roles_cog._registered_commands[mock_guild.id] = {"prefix": "roles"}
+
+        async def register(guild: MagicMock) -> None:
+            if guild is new_guild:
+                roles_cog._registered_commands[guild.id] = {"prefix": "roles"}
+
+        with patch.object(roles_cog, "_register_guild_commands", side_effect=register):
+            await roles_cog.on_ready()
+
+        roles_cog.bot.tree.sync.assert_called_once_with(guild=new_guild)
+
+
 class TestUnregisterGuildCommands:
     """Tests for _unregister_guild_commands method."""
 

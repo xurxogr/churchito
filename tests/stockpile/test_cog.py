@@ -2212,6 +2212,36 @@ class TestOnReadySkipsSyncForFailedGuilds:
         stockpile_cog.bot.tree.sync.assert_called_once_with(guild=ok_guild)
 
 
+class TestOnReadySyncsChangedGuilds:
+    """on_ready only syncs guilds whose registered commands actually changed."""
+
+    async def test_reconnect_does_not_resync_unchanged_guilds(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A READY after a reconnect must not re-sync guilds that were already registered."""
+        new_guild = MagicMock(spec=discord.Guild)
+        new_guild.id = 987
+        new_guild.name = "New"
+        stockpile_cog.bot.guilds = [mock_guild, new_guild]
+
+        # mock_guild was registered before this READY; new_guild is new
+        stockpile_cog._registered_commands[mock_guild.id] = {"add": "stockpile_add"}
+
+        async def register(guild: MagicMock) -> None:
+            if guild is new_guild:
+                stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with (
+            patch.object(stockpile_cog, "_register_guild_commands", side_effect=register),
+            patch.object(stockpile_cog, "_update_pinned_message", AsyncMock()),
+        ):
+            await stockpile_cog.on_ready()
+
+        stockpile_cog.bot.tree.sync.assert_called_once_with(guild=new_guild)
+
+
 class TestUnregisterGuildCommands:
     """Tests for _unregister_guild_commands."""
 

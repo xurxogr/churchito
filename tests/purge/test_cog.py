@@ -4786,15 +4786,15 @@ class TestSendUserMessageNoChannel:
             )
 
 
-class TestOnReadySyncsRegisteredGuilds:
-    """Tests for on_ready syncing guilds with registered commands."""
+class TestOnReadySyncsChangedGuilds:
+    """on_ready only syncs guilds whose registered commands actually changed."""
 
-    async def test_syncs_only_registered_guilds(
+    async def test_reconnect_does_not_resync_unchanged_guilds(
         self,
         purge_cog: PurgeCog,
         mock_discord_bot: MagicMock,
     ) -> None:
-        """Test that only syncs guilds with registered commands."""
+        """A READY after a reconnect must not re-sync guilds that were already registered."""
         guild1 = MagicMock(spec=discord.Guild)
         guild1.id = 111
         guild1.name = "Guild1"
@@ -4803,11 +4803,15 @@ class TestOnReadySyncsRegisteredGuilds:
         guild2.name = "Guild2"
         mock_discord_bot.guilds = [guild1, guild2]
 
-        # Only guild1 has a registered command
+        # guild1 was registered before this READY; guild2 is new
         purge_cog._registered_commands[111] = {"war": "purge_war"}
 
+        async def register(guild: MagicMock) -> None:
+            if guild is guild2:
+                purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+
         with (
-            patch.object(purge_cog, "_register_guild_commands", new_callable=AsyncMock),
+            patch.object(purge_cog, "_register_guild_commands", side_effect=register),
             patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as mock_sync,
             patch.object(purge_cog, "_restore_active_purges", new_callable=AsyncMock),
             patch.object(purge_cog, "_check_expired_purges", new_callable=AsyncMock),
@@ -4815,8 +4819,31 @@ class TestOnReadySyncsRegisteredGuilds:
         ):
             await purge_cog.on_ready()
 
-            # Should only sync guild1
-            mock_sync.assert_called_once_with(guild1)
+        mock_sync.assert_awaited_once_with(guild2)
+
+    async def test_renamed_command_is_synced(
+        self,
+        purge_cog: PurgeCog,
+        mock_guild: MagicMock,
+        mock_discord_bot: MagicMock,
+    ) -> None:
+        """A guild whose command name changed during registration is synced."""
+        mock_discord_bot.guilds = [mock_guild]
+        purge_cog._registered_commands[mock_guild.id] = {"war": "purge_war"}
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id]["war"] = "war_purge"
+
+        with (
+            patch.object(purge_cog, "_register_guild_commands", side_effect=register),
+            patch.object(purge_cog, "_sync_guild_commands", new_callable=AsyncMock) as mock_sync,
+            patch.object(purge_cog, "_restore_active_purges", new_callable=AsyncMock),
+            patch.object(purge_cog, "_check_expired_purges", new_callable=AsyncMock),
+            patch.object(purge_cog.expiration_check_loop, "is_running", return_value=True),
+        ):
+            await purge_cog.on_ready()
+
+        mock_sync.assert_awaited_once_with(mock_guild)
 
 
 class TestExecutePurgePromotionNotInAffected:

@@ -549,8 +549,11 @@ Registration lives in `_start()`, called from `on_ready` at startup and from
 `cog_load` when the bot is already ready (dashboard "Reload cog"). `cog_unload`
 removes the instance's tracked commands from the tree first: discord.py only
 ejects decorator-defined commands, so without it a reloaded cog would find every
-name taken and the old instance would keep serving the commands. Purge's
-`_start()` also restores active purges and starts the expiration loop.
+name taken and the old instance would keep serving the commands. `_start()`
+only syncs guilds whose tracked commands changed during registration: READY
+fires again on every gateway reconnect, and re-pushing an unchanged tree for
+each guild would only burn Discord's command rate limits. Purge's `_start()`
+also restores active purges and starts the expiration loop.
 
 ---
 
