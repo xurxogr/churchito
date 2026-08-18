@@ -2283,6 +2283,84 @@ class TestOnMessageSteamProfile:
             assert updated is not None
             assert updated.status == VerificationStatus.PENDING_REVIEW
 
+    async def test_concurrent_screenshots_and_steam_dms_complete_requirements(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that screenshots and a Steam URL sent as overlapping DMs still complete."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "screenshots_received_awaiting_steam_message": "Screenshots received, send Steam URL",
+            "steam_url_received_message": "Steam URL received, send screenshots",
+            "screenshots_received_message": "All done!",
+        }
+
+        # Yield on every request read so both DMs load the request before
+        # either one stores its item
+        original_get_request = VerificationService.get_request
+
+        async def slow_get_request(self: VerificationService, request_id: int) -> Any:
+            await asyncio.sleep(0.01)
+            return await original_get_request(self, request_id)
+
+        screenshots_message = self._image_message(
+            456,
+            [
+                "https://cdn.discordapp.com/attachments/123/456/1.png",
+                "https://cdn.discordapp.com/attachments/123/456/2.png",
+            ],
+        )
+        steam_message = self._text_message(456, "https://steamcommunity.com/id/testuser123")
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(VerificationService, "get_request", slow_get_request),
+        ):
+            mock_config.return_value = config_values
+            await asyncio.gather(
+                verification_cog.on_message(screenshots_message),
+                verification_cog.on_message(steam_message),
+            )
+
+        # Requirements met - removed from pending and told exactly once
+        assert 456 not in verification_cog._pending_dm_verifications
+        replies = [
+            call.kwargs["content"]
+            for message in (screenshots_message, steam_message)
+            for call in message.channel.send.call_args_list
+        ]
+        assert replies.count("All done!") == 1
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_REVIEW
+            assert updated.steam_profile_url == "https://steamcommunity.com/id/testuser123"
+            assert (
+                updated.screenshot_1_url == "https://cdn.discordapp.com/attachments/123/456/1.png"
+            )
+
     async def test_invalid_steam_url_rejected(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:

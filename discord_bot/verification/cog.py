@@ -104,7 +104,7 @@ class VerificationCog(commands.Cog):
         self._no_pending_dm_cache: TTLCache[int, bool] = TTLCache(
             ttl_seconds=_NO_PENDING_DM_TTL_SECONDS, max_entries=_NO_PENDING_DM_MAX_USERS
         )
-        # User locks to prevent race conditions on verification start
+        # User locks to serialize verification starts and DM intake per user
         self._user_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
@@ -1127,6 +1127,19 @@ class VerificationCog(commands.Cog):
         if message.author.bot:
             return
 
+        # Serialize per user: screenshots and the Steam URL may arrive as two
+        # DMs almost at once, and each handler decides on the request state it
+        # loaded, so overlapping ones would both see the other item missing
+        # and neither would complete the submission
+        async with self._user_locks.acquire(message.author.id):
+            await self._handle_dm(message)
+
+    async def _handle_dm(self, message: discord.Message) -> None:
+        """Route a DM to the pending verification of its author, if any.
+
+        Args:
+            message (discord.Message): Received DM
+        """
         # Find pending verification in memory or database
         verification_info = await self._get_pending_verification(message.author.id)
 
