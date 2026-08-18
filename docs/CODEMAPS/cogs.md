@@ -171,7 +171,9 @@ Publishes:
 
 **File:** `discord_bot/verification/handlers/`
 
-- `flow.py` - Start verification, send instructions, moderator actions (accept/reject/review)
+- `start.py` - Start verification: pre-checks (enabled, mod channel, blocking roles,
+  pending requests), create request, DM instructions/Steam request, mod message, tracker
+- `flow.py` - Moderator actions (accept/reject/review)
 - `dm_intake.py` - DM with screenshots / Steam URL: store items, ack partial submissions,
   then API + Steam checks and mod notification (`handle_dm_screenshots`)
 - `auto_processing.py` - OCR integration (if enabled)

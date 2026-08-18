@@ -1,4 +1,4 @@
-"""Main verification flow and moderator actions."""
+"""Moderator actions: accept, reject and review."""
 
 from __future__ import annotations
 
@@ -10,28 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import has_any_role
-from discord_bot.verification.auto_processor import is_steam_profile_required
-from discord_bot.verification.config import SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 from discord_bot.verification.enums import (
     ConfigKey,
     VerificationStatus,
     VerificationType,
 )
 from discord_bot.verification.formatters import (
-    create_mod_embeds,
     format_message,
     get_verification_type_display,
 )
 from discord_bot.verification.handlers.mod_messages import (
-    build_initial_check_statuses,
     update_mod_message_for_manual_review,
     update_mod_message_status,
     update_tracker_message,
 )
-from discord_bot.verification.handlers.utils import (
-    calculate_expires_timestamp,
-    get_ready_for_approval_status,
-)
+from discord_bot.verification.handlers.utils import get_ready_for_approval_status
 from discord_bot.verification.models import VerificationRequest
 from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import RejectionReasonView
@@ -111,204 +104,6 @@ async def validate_mod_action(
         return None
 
     return ModActionContext(config=config, request=request, service=verification_service)
-
-
-async def handle_verification_start(
-    cog: VerificationCog,
-    interaction: discord.Interaction,
-    verification_type: VerificationType,
-) -> None:
-    """Handle verification start when user clicks a button.
-
-    Args:
-        cog (VerificationCog): Cog instance.
-        interaction (discord.Interaction): User interaction.
-        verification_type (VerificationType): Verification type.
-    """
-    if not interaction.guild or not interaction.user:
-        return
-
-    guild = interaction.guild
-    user = interaction.user
-
-    if not await cog._is_cog_enabled(guild.id):
-        return
-
-    await interaction.response.defer(ephemeral=True)
-
-    # Acquire user lock to prevent race conditions from rapid clicks
-    async with cog._user_locks.acquire(user.id):
-        await _handle_verification_start_locked(cog, interaction, guild, user, verification_type)
-
-
-async def _handle_verification_start_locked(
-    cog: VerificationCog,
-    interaction: discord.Interaction,
-    guild: discord.Guild,
-    user: discord.User | discord.Member,
-    verification_type: VerificationType,
-) -> None:
-    """Handle verification start (locked section).
-
-    Args:
-        cog (VerificationCog): Cog instance.
-        interaction (discord.Interaction): User interaction.
-        guild (discord.Guild): Guild where verification started.
-        user (discord.User | discord.Member): User starting verification.
-        verification_type (VerificationType): Verification type.
-    """
-    config = await cog._get_all_config(guild.id)
-
-    if config.get(ConfigKey.VERIFICATION_ENABLED) is False:
-        await interaction.followup.send(
-            config.get(ConfigKey.VERIFICATION_DISABLED_MESSAGE) or "", ephemeral=True
-        )
-        return
-
-    mod_channel = cog._get_mod_channel(guild=guild, config=config)
-    if not mod_channel:
-        await interaction.followup.send(
-            config.get(ConfigKey.VERIFICATION_DISABLED_MESSAGE) or "", ephemeral=True
-        )
-        return
-
-    type_display = get_verification_type_display(verification_type=verification_type, config=config)
-
-    blocking_roles = config.get(ConfigKey.BLOCKING_ROLES) or []
-    if blocking_roles and isinstance(user, discord.Member):
-        blocking_role_ids = set(blocking_roles)
-        user_role_ids = {role.id for role in user.roles}
-        if user_role_ids & blocking_role_ids:
-            await interaction.followup.send(
-                config.get(ConfigKey.ALREADY_VERIFIED_MESSAGE) or "", ephemeral=True
-            )
-            return
-
-    async with cog.bot.database.session() as session:
-        verification_service = VerificationService(session=session)
-
-        pending = await verification_service.get_pending_by_user(guild_id=guild.id, user_id=user.id)
-        if pending:
-            await interaction.followup.send(
-                config.get(ConfigKey.ALREADY_PENDING_MESSAGE) or "", ephemeral=True
-            )
-            return
-
-        pending_any = await verification_service.get_any_pending_by_user(user_id=user.id)
-        if pending_any:
-            await interaction.followup.send(
-                config.get(ConfigKey.PENDING_IN_OTHER_SERVER_MESSAGE)
-                or "You already have an ongoing verification in another server.",
-                ephemeral=True,
-            )
-            return
-
-        request = await verification_service.create_request(
-            guild_id=guild.id,
-            user_id=user.id,
-            username=user.name,
-            guild_name=guild.name,
-            verification_type=verification_type,
-        )
-
-        timeout_minutes = config.get(ConfigKey.SCREENSHOT_TIMEOUT_MINUTES) or 0
-        if timeout_minutes <= 0:
-            # Without a deadline, an abandoned verification would stay
-            # pending in the database forever
-            timeout_minutes = SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
-        expires_relative = calculate_expires_timestamp(
-            created_at=request.created_at, timeout_minutes=timeout_minutes
-        )
-
-        dm_template = (
-            config.get(ConfigKey.DM_INSTRUCTIONS_MESSAGE)
-            if verification_type == VerificationType.REGULAR
-            else config.get(ConfigKey.DM_INSTRUCTIONS_ALLY_MESSAGE)
-        )
-        formatted_dm = format_message(
-            template=dm_template,
-            username=user.name,
-            user_mention=user.mention,
-            server_name=guild.name,
-            verification_type=type_display,
-            expires=expires_relative,
-            expected_faction=config.get(ConfigKey.VERIFICATION_FACTION) or "",
-            expected_shard=config.get(ConfigKey.VERIFICATION_SHARD) or "",
-        )
-
-        try:
-            await user.send(content=formatted_dm)
-        except discord.Forbidden:
-            await verification_service.cancel(request_id=request.id, guild_name=guild.name)
-            await session.commit()
-            await interaction.followup.send(
-                config.get(ConfigKey.DM_DISABLED_MESSAGE) or "", ephemeral=True
-            )
-            return
-
-        if is_steam_profile_required(config=config, verification_type=verification_type):
-            formatted_steam_request = format_message(
-                template=config.get(ConfigKey.STEAM_PROFILE_REQUEST_MESSAGE),
-                username=user.name,
-                user_mention=user.mention,
-                server_name=guild.name,
-            )
-            try:
-                await user.send(content=formatted_steam_request)
-            except discord.Forbidden:
-                pass
-
-        cog._pending_dm_verifications[user.id] = (guild.id, request.id)
-
-        cog.start_screenshot_timer(
-            request_id=request.id,
-            guild_id=guild.id,
-            user_id=user.id,
-            timeout_minutes=timeout_minutes,
-        )
-
-        status_text = config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or ""
-        created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
-        member = user if isinstance(user, discord.Member) else None
-        user_display_name = member.display_name if member else user.display_name
-        mod_embeds = create_mod_embeds(
-            verification_type=verification_type,
-            config=config,
-            username=user.name,
-            user_mention=user.mention,
-            user_display_name=user_display_name,
-            user_id=user.id,
-            status=status_text,
-            created_at=created_at_str,
-            created_at_relative=created_at_relative,
-            guild=guild,
-            member=member,
-            additional_sections=None,
-            sections_context=None,
-            api_status="",
-            steam_profile_url="",
-            **build_initial_check_statuses(),
-        )
-
-        mod_message = await mod_channel.send(embeds=mod_embeds)
-        await verification_service.set_mod_message_id(
-            request_id=request.id, message_id=mod_message.id
-        )
-
-        await session.commit()
-
-        config_service = ConfigService(session=session)
-        await update_tracker_message(
-            guild=guild,
-            config=config,
-            verification_service=verification_service,
-            config_service=config_service,
-        )
-        await session.commit()
-
-    started_message = config.get(ConfigKey.VERIFICATION_STARTED_MESSAGE) or ""
-    await interaction.followup.send(started_message, ephemeral=True)
 
 
 async def handle_accept(
