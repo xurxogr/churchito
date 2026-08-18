@@ -88,8 +88,10 @@ class PurgeService:
     async def get_active_purge_for_update(self, guild_id: int) -> PurgeRecord | None:
         """Get the active purge of a guild with write lock.
 
-        Uses SELECT FOR UPDATE to prevent race conditions when creating
-        a new purge. Must be used within a transaction.
+        Uses SELECT FOR UPDATE so concurrent state changes on an existing
+        purge serialize. It cannot lock a row that does not exist yet, so the
+        cog serializes purge creation per guild itself. Must be used within a
+        transaction.
 
         Args:
             guild_id (int): Guild ID.

@@ -1,11 +1,13 @@
 """Tests for PurgeCog."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
+from sqlalchemy import select
 
 from discord_bot.bot import DiscordBot
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
@@ -15,6 +17,7 @@ from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.purge.cog import PurgeCog
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
+from discord_bot.purge.models import PurgeRecord
 from discord_bot.purge.service import PurgeService
 
 
@@ -609,6 +612,76 @@ class TestHandleGlobalPurge:
 
         # Should have sent message to users (auto-authorized)
         mock_user_channel.send.assert_called()
+
+
+class TestConcurrentPurgeCreation:
+    """Overlapping purge commands in one guild must not create two purges."""
+
+    async def test_concurrent_commands_create_a_single_purge(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Two overlapping commands create one purge and reject the other as already active."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 456
+        mock_mod_channel.mention = "#mods"
+
+        async def slow_send(**_kwargs: Any) -> MagicMock:
+            """Yield to the event loop like a real API call would."""
+            await asyncio.sleep(0.01)
+            return MagicMock(id=789)
+
+        mock_mod_channel.send = AsyncMock(side_effect=slow_send)
+        mock_interaction.guild.get_channel = MagicMock(
+            side_effect=lambda channel_id: mock_mod_channel if channel_id == 456 else None
+        )
+
+        second_interaction = MagicMock(spec=discord.Interaction)
+        second_interaction.guild = mock_interaction.guild
+        second_interaction.user = mock_member
+        second_interaction.response = MagicMock()
+        second_interaction.response.defer = AsyncMock()
+        second_interaction.followup = MagicMock()
+        second_interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.MOD_ACTIVE_PURGE_TEXT, "Already active"
+            )
+            await session.commit()
+
+        await asyncio.gather(
+            purge_cog._handle_purge(mock_interaction, 3, PurgeType.GLOBAL),
+            purge_cog._handle_purge(second_interaction, 3, PurgeType.GLOBAL),
+        )
+
+        assert mock_mod_channel.send.await_count == 1
+        async with test_database.session() as session:
+            result = await session.execute(
+                select(PurgeRecord).where(PurgeRecord.guild_id == guild_id)
+            )
+            assert len(result.scalars().all()) == 1
+
+        replies = [
+            str(call.args[0]) if call.args else str(call.kwargs)
+            for call in (
+                mock_interaction.followup.send.call_args_list
+                + second_interaction.followup.send.call_args_list
+            )
+        ]
+        assert sum("Already active" in reply for reply in replies) == 1
+        assert sum("Purge started" in reply for reply in replies) == 1
 
 
 class TestRegisterGlobalCommand:

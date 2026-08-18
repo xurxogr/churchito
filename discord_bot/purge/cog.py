@@ -14,7 +14,12 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
-from discord_bot.common.utils import choose_command_name, delete_message, has_any_role
+from discord_bot.common.utils import (
+    KeyedLocks,
+    choose_command_name,
+    delete_message,
+    has_any_role,
+)
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
@@ -53,6 +58,8 @@ class PurgeCog(commands.Cog):
         self._cancel_pending_purges: dict[int, tuple[int, datetime]] = {}
         # Track messages scheduled for deletion: {(channel_id, message_id): delete_at}
         self._pending_deletions: dict[tuple[int, int], datetime] = {}
+        # Per-guild locks so overlapping purge commands cannot both create a purge
+        self._creation_locks = KeyedLocks()
         # Cog-level settings (from env/json, not editable via web)
         self._cog_settings = get_purge_settings()
         logger.info("PurgeCog initialized")
@@ -463,10 +470,42 @@ class PurgeCog(commands.Cog):
             )
             return
 
+        # Serialize check-and-create per guild: SELECT ... FOR UPDATE cannot lock
+        # rows that do not exist yet (and SQLite ignores it), so two overlapping
+        # commands would both pass the active-purge check and create two purges
+        async with self._creation_locks.acquire(guild.id):
+            await self._create_purge(
+                interaction=interaction,
+                guild=guild,
+                user=user,
+                config=config,
+                hours=hours,
+                purge_type=purge_type,
+            )
+
+    async def _create_purge(
+        self,
+        interaction: discord.Interaction,
+        guild: discord.Guild,
+        user: discord.Member,
+        config: dict[str, Any],
+        hours: int,
+        purge_type: PurgeType,
+    ) -> None:
+        """Create the purge record and post the moderation message.
+
+        Args:
+            interaction (discord.Interaction): Deferred command interaction.
+            guild (discord.Guild): Guild where the purge is created.
+            user (discord.Member): Member who ran the command.
+            config (dict[str, Any]): Cog configuration for the guild.
+            hours (int): Number of hours until execution.
+            purge_type (PurgeType): Type of purge to start.
+        """
         async with self.bot.database.session() as session:
             purge_service = PurgeService(session)
 
-            # Check if there's an active purge (with lock to prevent race condition)
+            # Check if there's an active purge (creation is serialized per guild)
             active = await purge_service.get_active_purge_for_update(guild.id)
             if active:
                 await interaction.followup.send(
