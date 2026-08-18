@@ -9,6 +9,7 @@ import discord
 import pytest
 
 from discord_bot.bot import DiscordBot
+from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
 from discord_bot.purge.cog import PurgeCog
@@ -122,6 +123,10 @@ class TestGetConfigSchema:
         schema = purge_cog.get_config_schema()
         assert schema == PURGE_CONFIG_SCHEMA
         assert schema.cog_name == "purge"
+
+    def test_is_annotated_with_the_schema_type(self) -> None:
+        """The method advertises the concrete schema type, not Any."""
+        assert PurgeCog.get_config_schema.__annotations__["return"] is CogConfigSchema
 
 
 class TestIsCogEnabled:

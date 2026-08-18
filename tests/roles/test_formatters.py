@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import discord
 
 from discord_bot.roles.formatters import (
+    DEFAULT_PANEL_COLOR,
     build_panel_embed,
     build_panel_placeholder_data,
     build_role_change_placeholder_data,
@@ -128,7 +129,11 @@ class TestBuildPanelEmbed:
 
         assert embed.title == "TestPanel"
         assert embed.description is None  # No default description
-        assert embed.color is not None and embed.color.value == 0x5865F2
+        assert embed.color is not None and embed.color.value == DEFAULT_PANEL_COLOR
+
+    def test_default_panel_color_is_discord_blurple(self) -> None:
+        """The fallback panel color is Discord's blurple, shared with the other embeds."""
+        assert DEFAULT_PANEL_COLOR == discord.Color.blurple().value
 
     def test_embed_with_custom_config(self) -> None:
         """Test building embed with custom config."""

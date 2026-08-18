@@ -1523,7 +1523,7 @@ class RolesCog(commands.Cog):
 
         embed = discord.Embed(
             title="Reaction Role Panels",
-            color=0x5865F2,
+            color=discord.Color.blurple(),
         )
 
         for panel in panels:
@@ -1581,7 +1581,7 @@ class RolesCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"Panel: {panel.name}",
-            color=0x5865F2,
+            color=discord.Color.blurple(),
         )
         embed.add_field(name="Type", value=panel.panel_type, inline=True)
         embed.add_field(name="Channel", value=channel_name, inline=True)

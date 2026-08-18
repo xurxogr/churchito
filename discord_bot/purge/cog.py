@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from discord_bot.bot import DiscordBot
+from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import delete_message, has_any_role
@@ -60,7 +61,7 @@ class PurgeCog(commands.Cog):
         logger.info("PurgeCog initialized")
 
     @staticmethod
-    def get_config_schema() -> Any:
+    def get_config_schema() -> CogConfigSchema:
         """Get the cog configuration schema.
 
         Returns:

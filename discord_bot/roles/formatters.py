@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 import discord
 
 from discord_bot.roles.models import ReactionPanel
+
+# Discord blurple: fallback embed color when a panel has none configured.
+DEFAULT_PANEL_COLOR: Final[int] = discord.Color.blurple().value
 
 
 def format_message(template: str | None, **kwargs: Any) -> str:
@@ -55,12 +58,12 @@ def format_emoji_display(emoji: str, emoji_id: int | None) -> str:
     return emoji
 
 
-def _parse_color(color_value: Any, default: int = 0x5865F2) -> int:
+def _parse_color(color_value: Any, default: int = DEFAULT_PANEL_COLOR) -> int:
     """Parse a color value to an integer.
 
     Args:
-        color_value: Color as int, hex string (#RRGGBB), or None
-        default: Default color if parsing fails
+        color_value (Any): Color as int, hex string (#RRGGBB), or None.
+        default (int): Default color if parsing fails. Defaults to DEFAULT_PANEL_COLOR.
 
     Returns:
         int: Color as integer
@@ -98,7 +101,7 @@ def build_panel_embed(
 
     title = config.get("title") or panel.name
     description = config.get("description")  # No default - empty means no description
-    color = _parse_color(color_value=config.get("color"), default=0x5865F2)
+    color = _parse_color(color_value=config.get("color"), default=DEFAULT_PANEL_COLOR)
 
     embed = discord.Embed(
         title=title,
