@@ -10,6 +10,7 @@ import pytest
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
+from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.stockpile.cog import StockpileCog
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
@@ -2256,16 +2257,85 @@ class TestSyncGuildCommands:
 
         stockpile_cog.bot.tree.sync.assert_called_once_with(guild=mock_guild)
 
-    async def test_handles_sync_error(
+    async def test_sync_error_is_raised_with_details(
         self,
         stockpile_cog: StockpileCog,
         mock_guild: MagicMock,
     ) -> None:
-        """Test that sync errors are handled gracefully."""
+        """A failed sync raises CommandSyncError carrying Discord's message."""
         stockpile_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Sync failed"))
 
-        # Should not raise
-        await stockpile_cog._sync_guild_commands(mock_guild)
+        with pytest.raises(CommandSyncError, match="Sync failed"):
+            await stockpile_cog._sync_guild_commands(mock_guild)
+
+
+class TestSyncFailureSurfacesToDashboard:
+    """Dashboard callbacks propagate sync failures; startup paths only log them."""
+
+    async def test_on_config_changed_raises_when_sync_fails(
+        self, stockpile_cog: StockpileCog, mock_guild: MagicMock
+    ) -> None:
+        """A command-name change whose sync fails is reported to the caller."""
+        stockpile_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
+
+        with (
+            patch.object(stockpile_cog, "_register_guild_commands", AsyncMock()),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await stockpile_cog.on_config_changed(mock_guild, [ConfigKey.ADD_COMMAND_NAME])
+
+    async def test_on_cog_toggled_raises_when_sync_fails(
+        self, stockpile_cog: StockpileCog, mock_guild: MagicMock
+    ) -> None:
+        """Enabling the cog with a failing sync is reported to the caller."""
+        stockpile_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with (
+            patch.object(stockpile_cog, "_register_guild_commands", side_effect=register),
+            patch.object(stockpile_cog, "_update_pinned_message", AsyncMock()),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await stockpile_cog.on_cog_toggled(mock_guild, enabled=True)
+
+    async def test_on_ready_continues_after_a_failed_sync(
+        self, stockpile_cog: StockpileCog, mock_guild: MagicMock
+    ) -> None:
+        """A sync failure in one guild does not stop the others from syncing."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        stockpile_cog.bot.guilds = [mock_guild, ok_guild]
+        stockpile_cog.bot.tree.sync = AsyncMock(
+            side_effect=lambda guild: (
+                (_ for _ in ()).throw(Exception("boom")) if guild is mock_guild else None
+            )
+        )
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with (
+            patch.object(stockpile_cog, "_register_guild_commands", side_effect=register),
+            patch.object(stockpile_cog, "_update_pinned_message", AsyncMock()),
+        ):
+            await stockpile_cog.on_ready()
+
+        assert stockpile_cog.bot.tree.sync.await_count == 2
+
+    async def test_on_guild_join_does_not_raise_when_sync_fails(
+        self, stockpile_cog: StockpileCog, mock_guild: MagicMock
+    ) -> None:
+        """Joining a guild whose sync fails is logged, not raised."""
+        stockpile_cog.bot.tree.sync = AsyncMock(side_effect=Exception("boom"))
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with patch.object(stockpile_cog, "_register_guild_commands", side_effect=register):
+            await stockpile_cog.on_guild_join(mock_guild)
 
 
 # ===== EVENT LISTENER TESTS =====

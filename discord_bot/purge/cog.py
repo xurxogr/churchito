@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Sequence
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -15,6 +16,7 @@ from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import choose_command_name, delete_message, has_any_role
+from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
 from discord_bot.purge.execution import execute_purge
@@ -382,12 +384,11 @@ class PurgeCog(commands.Cog):
 
         Args:
             guild (discord.Guild): Discord guild.
+
+        Raises:
+            CommandSyncError: If Discord rejects the sync (already logged).
         """
-        try:
-            await self.bot.tree.sync(guild=guild)
-            logger.info(f"[{guild.name}] Commands synced")
-        except Exception as e:
-            logger.error(f"[{guild.name}] Error syncing commands: {e}")
+        await sync_guild_commands(tree=self.bot.tree, guild=guild, label="purge")
 
     async def _debounced_register_and_sync(self, guild: discord.Guild) -> None:
         """Register and sync commands with debounce.
@@ -409,6 +410,10 @@ class PurgeCog(commands.Cog):
                 await self._sync_guild_commands(guild)
             except asyncio.CancelledError:
                 pass  # Task was cancelled, a new one will run
+            except CommandSyncError:
+                pass  # Already logged by the sync helper
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error re-registering purge commands: {e}")
             finally:
                 # Only drop our own entry: a cancelled task must not pop
                 # the replacement task that superseded it
@@ -1271,7 +1276,8 @@ class PurgeCog(commands.Cog):
         # push a partial tree and wipe the guild's existing commands.
         for guild in registered_guilds:
             if guild.id in self._registered_commands:
-                await self._sync_guild_commands(guild)
+                with suppress(CommandSyncError):
+                    await self._sync_guild_commands(guild)
 
         logger.info("PurgeCog: Command registration completed")
 
@@ -1604,7 +1610,8 @@ class PurgeCog(commands.Cog):
         logger.info(f"[{guild.name}] PurgeCog: Bot joined, registering commands...")
         await self._register_guild_commands(guild)
         if guild.id in self._registered_commands:
-            await self._sync_guild_commands(guild)
+            with suppress(CommandSyncError):
+                await self._sync_guild_commands(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:

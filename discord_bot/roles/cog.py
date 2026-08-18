@@ -2,6 +2,7 @@
 
 import logging
 import re
+from contextlib import suppress
 from typing import Any
 
 import discord
@@ -12,6 +13,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.utils import KeyedLocks, TTLCache, choose_command_name, has_any_of_roles
+from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
 from discord_bot.roles.formatters import (
@@ -261,13 +263,12 @@ class RolesCog(commands.Cog):
         """Sync commands of a guild with Discord.
 
         Args:
-            guild: Discord guild
+            guild (discord.Guild): Discord guild.
+
+        Raises:
+            CommandSyncError: If Discord rejects the sync (already logged).
         """
-        try:
-            await self.bot.tree.sync(guild=guild)
-            logger.info(f"[{guild.name}] Roles commands synced")
-        except Exception as e:
-            logger.error(f"[{guild.name}] Error syncing roles commands: {e}")
+        await sync_guild_commands(tree=self.bot.tree, guild=guild, label="roles")
 
     # ===== EVENT LISTENERS =====
 
@@ -287,7 +288,8 @@ class RolesCog(commands.Cog):
         # push a partial tree and wipe the guild's existing commands.
         for guild in registered_guilds:
             if guild.id in self._registered_commands:
-                await self._sync_guild_commands(guild)
+                with suppress(CommandSyncError):
+                    await self._sync_guild_commands(guild)
 
         logger.info("RolesCog: Command registration completed")
 
@@ -301,7 +303,8 @@ class RolesCog(commands.Cog):
         logger.info(f"[{guild.name}] RolesCog: Bot joined, registering commands...")
         await self._register_guild_commands(guild)
         if guild.id in self._registered_commands:
-            await self._sync_guild_commands(guild)
+            with suppress(CommandSyncError):
+                await self._sync_guild_commands(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:

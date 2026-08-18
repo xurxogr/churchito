@@ -1,6 +1,7 @@
 """Stockpile management cog."""
 
 import logging
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,6 +23,7 @@ from discord_bot.common.utils import (
     is_valid_hex,
     load_hex_cities,
 )
+from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
 from discord_bot.stockpile.enums import ConfigKey
 from discord_bot.stockpile.formatters import (
@@ -313,13 +315,12 @@ class StockpileCog(commands.Cog):
         """Sync commands of a guild with Discord.
 
         Args:
-            guild (discord.Guild): Discord guild
+            guild (discord.Guild): Discord guild.
+
+        Raises:
+            CommandSyncError: If Discord rejects the sync (already logged).
         """
-        try:
-            await self.bot.tree.sync(guild=guild)
-            logger.info(f"[{guild.name}] Stockpile commands synced")
-        except Exception as e:
-            logger.error(f"[{guild.name}] Error syncing stockpile commands: {e}")
+        await sync_guild_commands(tree=self.bot.tree, guild=guild, label="stockpile")
 
     # ===== EVENT LISTENERS =====
 
@@ -339,7 +340,8 @@ class StockpileCog(commands.Cog):
         # push a partial tree and wipe the guild's existing commands.
         for guild in registered_guilds:
             if guild.id in self._registered_commands:
-                await self._sync_guild_commands(guild)
+                with suppress(CommandSyncError):
+                    await self._sync_guild_commands(guild)
 
         # Restore pinned messages for all guilds
         for guild in self.bot.guilds:
@@ -360,7 +362,8 @@ class StockpileCog(commands.Cog):
         logger.info(f"[{guild.name}] StockpileCog: Bot joined, registering commands...")
         await self._register_guild_commands(guild)
         if guild.id in self._registered_commands:
-            await self._sync_guild_commands(guild)
+            with suppress(CommandSyncError):
+                await self._sync_guild_commands(guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:

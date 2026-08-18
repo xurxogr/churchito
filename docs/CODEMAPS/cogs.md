@@ -533,6 +533,17 @@ the immediate auto-rejections spawned while restoring pending requests. `_sync_g
 is already running (`_syncing_guilds`), so the periodic loop and a dashboard
 change never run two passes over the same members at once.
 
+### Slash command syncs
+
+Stockpile, Roles and Purge push their per-guild command tree through
+`sync_guild_commands` (`discord_bot/common/utils/command_sync.py`), which
+logs the outcome and raises `CommandSyncError` when Discord rejects the sync
+(e.g. `403 Missing Access`). Startup paths (`on_ready`, `on_guild_join`)
+suppress the error so one guild cannot stop the others; dashboard callbacks
+(`on_config_changed`, `on_cog_toggled`) let it propagate so the config page
+shows the "Saved, but the bot could not apply the change" message. Purge's
+debounced re-sync runs in a task and only logs failures.
+
 ---
 
 ## Shared Cog Infrastructure

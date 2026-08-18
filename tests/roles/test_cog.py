@@ -9,6 +9,7 @@ import pytest
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
+from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.roles.cog import RolesCog
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
@@ -3082,15 +3083,81 @@ class TestSyncGuildCommands:
         await roles_cog._sync_guild_commands(mock_guild)
         roles_cog.bot.tree.sync.assert_called_with(guild=mock_guild)
 
-    async def test_handles_sync_error(
+    async def test_sync_error_is_raised_with_details(
         self,
         roles_cog: RolesCog,
         mock_guild: MagicMock,
     ) -> None:
-        """Test that sync errors are handled gracefully."""
+        """A failed sync raises CommandSyncError carrying Discord's message."""
         roles_cog.bot.tree.sync.side_effect = Exception("Sync failed")
-        # Should not raise
-        await roles_cog._sync_guild_commands(mock_guild)
+
+        with pytest.raises(CommandSyncError, match="Sync failed"):
+            await roles_cog._sync_guild_commands(mock_guild)
+
+
+class TestSyncFailureSurfacesToDashboard:
+    """Dashboard callbacks propagate sync failures; startup paths only log them."""
+
+    async def test_on_config_changed_raises_when_sync_fails(
+        self, roles_cog: RolesCog, mock_guild: MagicMock
+    ) -> None:
+        """A prefix change whose sync fails is reported to the caller."""
+        roles_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
+
+        with (
+            patch.object(roles_cog, "_register_guild_commands", AsyncMock()),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await roles_cog.on_config_changed(mock_guild, [ConfigKey.COMMAND_PREFIX])
+
+    async def test_on_cog_toggled_raises_when_sync_fails(
+        self, roles_cog: RolesCog, mock_guild: MagicMock
+    ) -> None:
+        """Enabling the cog with a failing sync is reported to the caller."""
+        roles_cog.bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
+
+        async def register(guild: MagicMock) -> None:
+            roles_cog._registered_commands[guild.id] = {"prefix": "roles"}
+
+        with (
+            patch.object(roles_cog, "_register_guild_commands", side_effect=register),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await roles_cog.on_cog_toggled(mock_guild, enabled=True)
+
+    async def test_on_ready_continues_after_a_failed_sync(
+        self, roles_cog: RolesCog, mock_guild: MagicMock
+    ) -> None:
+        """A sync failure in one guild does not stop the others from syncing."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        roles_cog.bot.guilds = [mock_guild, ok_guild]
+        roles_cog.bot.tree.sync = AsyncMock(
+            side_effect=lambda guild: (
+                (_ for _ in ()).throw(Exception("boom")) if guild is mock_guild else None
+            )
+        )
+
+        async def register(guild: MagicMock) -> None:
+            roles_cog._registered_commands[guild.id] = {"prefix": "roles"}
+
+        with patch.object(roles_cog, "_register_guild_commands", side_effect=register):
+            await roles_cog.on_ready()
+
+        assert roles_cog.bot.tree.sync.await_count == 2
+
+    async def test_on_guild_join_does_not_raise_when_sync_fails(
+        self, roles_cog: RolesCog, mock_guild: MagicMock
+    ) -> None:
+        """Joining a guild whose sync fails is logged, not raised."""
+        roles_cog.bot.tree.sync = AsyncMock(side_effect=Exception("boom"))
+
+        async def register(guild: MagicMock) -> None:
+            roles_cog._registered_commands[guild.id] = {"prefix": "roles"}
+
+        with patch.object(roles_cog, "_register_guild_commands", side_effect=register):
+            await roles_cog.on_guild_join(mock_guild)
 
 
 class TestOnReady:

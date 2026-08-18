@@ -1,6 +1,7 @@
 """Tests for PurgeCog."""
 
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,6 +13,7 @@ from discord_bot.bot import DiscordBot
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.database import DatabaseService
+from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.purge.cog import PurgeCog
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
 from discord_bot.purge.enums import ConfigKey, PurgeStatus, PurgeType
@@ -2072,17 +2074,93 @@ class TestSyncGuildCommands:
         await purge_cog._sync_guild_commands(mock_guild)
         mock_discord_bot.tree.sync.assert_called_once_with(guild=mock_guild)
 
-    async def test_handles_sync_error(
+    async def test_sync_error_is_raised_with_details(
         self,
         purge_cog: PurgeCog,
         mock_guild: MagicMock,
         mock_discord_bot: MagicMock,
     ) -> None:
-        """Test sync error handling."""
+        """A failed sync raises CommandSyncError carrying Discord's message."""
         mock_discord_bot.tree.sync = AsyncMock(side_effect=Exception("Sync error"))
 
-        # Should not raise exception
-        await purge_cog._sync_guild_commands(mock_guild)
+        with pytest.raises(CommandSyncError, match="Sync error"):
+            await purge_cog._sync_guild_commands(mock_guild)
+
+
+class TestSyncFailureSurfacesToDashboard:
+    """Dashboard callbacks propagate sync failures; startup paths only log them."""
+
+    async def test_on_cog_toggled_raises_when_sync_fails(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, mock_discord_bot: MagicMock
+    ) -> None:
+        """Enabling the cog with a failing sync is reported to the caller."""
+        mock_discord_bot.tree.sync = AsyncMock(side_effect=Exception("Missing Access"))
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+
+        with (
+            patch.object(purge_cog, "_register_guild_commands", side_effect=register),
+            pytest.raises(CommandSyncError, match="Missing Access"),
+        ):
+            await purge_cog.on_cog_toggled(mock_guild, enabled=True)
+
+    async def test_on_ready_continues_after_a_failed_sync(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, mock_discord_bot: MagicMock
+    ) -> None:
+        """A sync failure in one guild does not stop the others from syncing."""
+        ok_guild = MagicMock(spec=discord.Guild)
+        ok_guild.id = 987
+        ok_guild.name = "OK"
+        mock_discord_bot.guilds = [mock_guild, ok_guild]
+        mock_discord_bot.tree.sync = AsyncMock(
+            side_effect=lambda guild: (
+                (_ for _ in ()).throw(Exception("boom")) if guild is mock_guild else None
+            )
+        )
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+
+        with (
+            patch.object(purge_cog, "_register_guild_commands", side_effect=register),
+            patch.object(purge_cog, "_restore_active_purges", AsyncMock()),
+            patch.object(purge_cog, "_check_expired_purges", AsyncMock()),
+            patch.object(purge_cog.expiration_check_loop, "start"),
+        ):
+            await purge_cog.on_ready()
+
+        assert mock_discord_bot.tree.sync.await_count == 2
+
+    async def test_on_guild_join_does_not_raise_when_sync_fails(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, mock_discord_bot: MagicMock
+    ) -> None:
+        """Joining a guild whose sync fails is logged, not raised."""
+        mock_discord_bot.tree.sync = AsyncMock(side_effect=Exception("boom"))
+
+        async def register(guild: MagicMock) -> None:
+            purge_cog._registered_commands[guild.id] = {"war": "purge_war"}
+
+        with patch.object(purge_cog, "_register_guild_commands", side_effect=register):
+            await purge_cog.on_guild_join(mock_guild)
+
+    async def test_debounced_sync_logs_registration_errors(
+        self, purge_cog: PurgeCog, mock_guild: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A failure inside the delayed task is logged instead of dying silently."""
+        purge_cog._sync_debounce_delay = 0
+
+        with (
+            patch.object(
+                purge_cog, "_register_guild_commands", AsyncMock(side_effect=RuntimeError("db"))
+            ),
+            caplog.at_level(logging.ERROR),
+        ):
+            await purge_cog._debounced_register_and_sync(mock_guild)
+            await asyncio.gather(*purge_cog._pending_syncs.values(), return_exceptions=True)
+
+        assert "db" in caplog.text
+        assert mock_guild.id not in purge_cog._pending_syncs
 
 
 class TestDebouncedRegisterAndSync:
