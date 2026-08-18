@@ -103,6 +103,11 @@ def _replacement_roles(
 ) -> list[discord.Role]:
     """Compute the full role list a member should end up with.
 
+    Roles the bot cannot manage (at or above its top role, or managed by an
+    integration/boost) are never removed or added: ``member.edit`` would reject
+    the whole change otherwise, leaving the member untouched. They are kept as
+    they are and logged.
+
     Args:
         guild (discord.Guild): Discord guild.
         member (discord.Member): Member whose roles are being changed.
@@ -112,15 +117,32 @@ def _replacement_roles(
     Returns:
         list[discord.Role]: Kept roles followed by newly added ones.
     """
-    if remove_ids is None:
-        kept: list[discord.Role] = []
-    else:
-        kept = [r for r in member.roles if r != guild.default_role and r.id not in remove_ids]
+    kept: list[discord.Role] = []
+    unmanageable: list[str] = []
+    for role in member.roles:
+        if role == guild.default_role:
+            continue
+        drop = remove_ids is None or role.id in remove_ids
+        if drop and not role.is_assignable():
+            unmanageable.append(role.name)
+            drop = False
+        if not drop:
+            kept.append(role)
 
     for rid in add_ids:
-        role = guild.get_role(rid)
-        if role and role not in kept:
-            kept.append(role)
+        added = guild.get_role(rid)
+        if added is None or added in kept:
+            continue
+        if not added.is_assignable():
+            unmanageable.append(added.name)
+            continue
+        kept.append(added)
+
+    if unmanageable:
+        logger.warning(
+            f"[{guild.name}] Skipping roles the bot cannot manage for {member.name}: "
+            f"{', '.join(unmanageable)}"
+        )
     return kept
 
 
