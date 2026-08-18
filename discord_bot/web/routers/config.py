@@ -14,6 +14,7 @@ from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.config_service import ConfigService
 from discord_bot.common.services.embed_builder import COLOR_TAGS, GLOBAL_PLACEHOLDERS
+from discord_bot.common.utils.keyed_locks import KeyedLocks
 from discord_bot.i18n import get_i18n_service
 from discord_bot.web.dependencies import (
     DbSession,
@@ -35,6 +36,10 @@ from discord_bot.web.views.cog_settings import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/guild", tags=["config"])
+
+# Serialize toggles per (guild, cog): a double click would otherwise read the
+# same state twice and apply the same flip (and its cog callback) two times
+cog_toggle_locks = KeyedLocks()
 
 
 def get_templates(request: Request) -> Jinja2Templates:
@@ -438,17 +443,18 @@ async def toggle_cog(
         raise HTTPException(status_code=404, detail="Cog not found")
 
     config_service = ConfigService(session)
-    current = await config_service.is_cog_enabled(guild_id, cog_name)
-    new_state = not current
-    await config_service.set_cog_enabled(guild_id, cog_name, new_state)
+    async with cog_toggle_locks.acquire((guild_id, cog_name)):
+        current = await config_service.is_cog_enabled(guild_id, cog_name)
+        new_state = not current
+        await config_service.set_cog_enabled(guild_id, cog_name, new_state)
 
-    # Commit so the cog sees the change in its own session
-    await session.commit()
+        # Commit so the cog sees the change in its own session
+        await session.commit()
 
-    # Notify the cog of the change; report it if the bot could not apply it
-    apply_error = await _notify_cog_toggled(
-        request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state
-    )
+        # Notify the cog of the change; report it if the bot could not apply it
+        apply_error = await _notify_cog_toggled(
+            request=request, guild_id=guild_id, cog_name=cog_name, enabled=new_state
+        )
 
     return await _render_cog_settings(
         request=request,

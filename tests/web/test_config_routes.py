@@ -1,5 +1,6 @@
 """Tests for configuration routes."""
 
+import asyncio
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -390,6 +391,53 @@ class TestToggleCog:
             mock_config_service.set_cog_enabled.assert_called_once_with(
                 111222333, "test_cog", False
             )
+
+    async def test_concurrent_toggles_flip_the_state_twice(
+        self,
+        mock_config_request: MagicMock,
+        mock_schema_service: ConfigSchemaService,
+        test_user: dict[str, Any],
+        test_session: AsyncSession,
+    ) -> None:
+        """A double click must toggle twice, not apply the same flip two times."""
+        state = {"enabled": False}
+        writes: list[bool] = []
+
+        async def slow_is_enabled(guild_id: int, cog_name: str) -> bool:
+            # Read first, then yield: the second request sees the stale value
+            current = state["enabled"]
+            await asyncio.sleep(0.01)
+            return current
+
+        async def set_enabled(guild_id: int, cog_name: str, enabled: bool) -> None:
+            state["enabled"] = enabled
+            writes.append(enabled)
+
+        with (
+            patch(
+                "discord_bot.web.routers.config.get_config_schema_service",
+                return_value=mock_schema_service,
+            ),
+            patch("discord_bot.web.routers.config.ConfigService") as service_class,
+            patch(
+                "discord_bot.web.routers.config._notify_cog_toggled",
+                new_callable=AsyncMock,
+                return_value=None,
+            ) as notify,
+            patch("discord_bot.web.routers.config._render_cog_settings", new_callable=AsyncMock),
+        ):
+            service = MagicMock()
+            service.is_cog_enabled = AsyncMock(side_effect=slow_is_enabled)
+            service.set_cog_enabled = AsyncMock(side_effect=set_enabled)
+            service_class.return_value = service
+
+            await asyncio.gather(
+                toggle_cog(mock_config_request, 111222333, "test_cog", test_user, test_session),
+                toggle_cog(mock_config_request, 111222333, "test_cog", test_user, test_session),
+            )
+
+        assert writes == [True, False]
+        assert [c.kwargs["enabled"] for c in notify.call_args_list] == [True, False]
 
 
 class TestUpdateOption:
