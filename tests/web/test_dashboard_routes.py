@@ -8,7 +8,14 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 
-from discord_bot.web.routers.dashboard import _check_guild_access, dashboard, index, login_page
+from discord_bot.web.routers.dashboard import (
+    GuildAccessData,
+    _check_guild_access,
+    _load_guild_access_data,
+    dashboard,
+    index,
+    login_page,
+)
 
 
 class TestDashboardRoutes:
@@ -267,18 +274,43 @@ class TestDashboardRoutes:
         # No guilds should be shown (bot not in any of user's guilds)
         assert context["guilds"] == []
 
+    async def test_dashboard_batches_the_access_queries(
+        self,
+        mock_request_with_user: MagicMock,
+        mock_session: AsyncMock,
+    ) -> None:
+        """Access data for all guilds is loaded in two queries, not two per guild."""
+        mock_request_with_user.app.state.settings.web.owner_ids = []
+        mock_request_with_user.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request_with_user.app.state.templates.TemplateResponse.return_value = MagicMock()
+
+        guilds = []
+        for guild_id in (1, 2, 3):
+            mock_guild = MagicMock()
+            mock_guild.id = guild_id
+            mock_guild.name = f"Guild {guild_id}"
+            mock_guild.icon = None
+            mock_guild.owner_id = 0
+            mock_guild.chunked = True
+            mock_guild.get_member.return_value = None
+            guilds.append(mock_guild)
+
+        bot = MagicMock()
+        bot.guilds = guilds
+        bot.get_guild.side_effect = lambda searched_id: next(
+            guild for guild in guilds if guild.id == searched_id
+        )
+        bot.user = None
+        mock_request_with_user.app.state.bot = bot
+
+        user = {"id": "42", "username": "member", "avatar": None}
+        await dashboard(request=mock_request_with_user, user=user, session=mock_session)
+
+        assert mock_session.execute.await_count <= 2
+
 
 class TestCheckGuildAccess:
     """Tests for _check_guild_access."""
-
-    @pytest.fixture
-    def mock_session(self) -> AsyncMock:
-        """Create mock database session."""
-        session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        session.execute = AsyncMock(return_value=mock_result)
-        return session
 
     @pytest.fixture
     def mock_bot(self) -> MagicMock:
@@ -289,17 +321,32 @@ class TestCheckGuildAccess:
         bot.get_guild.return_value = mock_guild
         return bot
 
-    async def test_guild_owner_has_access(
+    def _access_data(
         self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+        invited_guild_ids: set[int] | None = None,
+        admin_role_ids: dict[int, set[int]] | None = None,
+    ) -> GuildAccessData:
+        """Build preloaded access data for the checks.
+
+        Args:
+            invited_guild_ids (set[int] | None): Guilds the user invited the bot to.
+            admin_role_ids (dict[int, set[int]] | None): Admin roles per guild.
+
+        Returns:
+            GuildAccessData: Access data with the given content.
+        """
+        return GuildAccessData(
+            invited_guild_ids=invited_guild_ids or set(),
+            admin_role_ids=admin_role_ids or {},
+        )
+
+    async def test_guild_owner_has_access(self, mock_bot: MagicMock) -> None:
         """Test that guild owner has access."""
         # User is guild owner
         mock_bot.get_guild.return_value.owner_id = 123456789012345678
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -307,25 +354,11 @@ class TestCheckGuildAccess:
         )
 
         assert result is True
-        # Should not make DB queries
-        mock_session.execute.assert_not_called()
 
-    async def test_invited_by_has_access(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_invited_by_has_access(self, mock_bot: MagicMock) -> None:
         """Test that user who invited the bot has access."""
-        # Mock Guild with invited_by_id
-        mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = 123456789012345678  # User invited the bot
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_guild_record
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(invited_guild_ids={111222333}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -334,26 +367,8 @@ class TestCheckGuildAccess:
 
         assert result is True
 
-    async def test_admin_role_has_access(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_admin_role_has_access(self, mock_bot: MagicMock) -> None:
         """Test that user with admin role has access."""
-        # Mock Guild record without invited_by
-        mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = None
-
-        # Mock admin_roles config
-        mock_guild_result = MagicMock()
-        mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
-
-        mock_config_result = MagicMock()
-        mock_config_result.scalar_one_or_none.return_value = [999888777]  # admin role ID
-
-        # Two calls to execute: Guild and GuildConfig
-        mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
-
         # Mock Discord guild with member that has the role
         mock_role = MagicMock()
         mock_role.id = 999888777
@@ -368,7 +383,7 @@ class TestCheckGuildAccess:
         mock_bot.get_guild.return_value = mock_discord_guild
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(admin_role_ids={111222333: {999888777}}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -377,27 +392,11 @@ class TestCheckGuildAccess:
 
         assert result is True
 
-    async def test_no_access_returns_false(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_no_access_returns_false(self, mock_bot: MagicMock) -> None:
         """Test that user without access returns False."""
-        # Mock Guild record without invited_by
-        mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = 999  # Another user invited
-
-        mock_guild_result = MagicMock()
-        mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
-
-        # No admin roles configured
-        mock_config_result = MagicMock()
-        mock_config_result.scalar_one_or_none.return_value = None
-
-        mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
-
+        # Another user invited the bot and no admin roles are configured
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(invited_guild_ids={444555666}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -406,25 +405,8 @@ class TestCheckGuildAccess:
 
         assert result is False
 
-    async def test_member_not_in_guild(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_member_not_in_guild(self, mock_bot: MagicMock) -> None:
         """Test when user is not in the Discord guild."""
-        # Mock Guild record without invited_by
-        mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = None
-
-        mock_guild_result = MagicMock()
-        mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
-
-        # Admin roles configured
-        mock_config_result = MagicMock()
-        mock_config_result.scalar_one_or_none.return_value = [999888777]
-
-        mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
-
         # Discord guild exists but user is not a member
         mock_discord_guild = MagicMock()
         mock_discord_guild.owner_id = 0
@@ -436,7 +418,7 @@ class TestCheckGuildAccess:
         mock_bot.get_guild.return_value = mock_discord_guild
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(admin_role_ids={111222333: {999888777}}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -445,24 +427,10 @@ class TestCheckGuildAccess:
 
         assert result is False
 
-    def _setup_admin_role_lookup(self, mock_session: AsyncMock) -> None:
-        """Make the DB return no inviter and one configured admin role."""
-        mock_guild_record = MagicMock()
-        mock_guild_record.invited_by_id = None
-        mock_guild_result = MagicMock()
-        mock_guild_result.scalar_one_or_none.return_value = mock_guild_record
-        mock_config_result = MagicMock()
-        mock_config_result.scalar_one_or_none.return_value = [999888777]
-        mock_session.execute = AsyncMock(side_effect=[mock_guild_result, mock_config_result])
-
     async def test_does_not_hit_api_when_member_cache_is_complete(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
+        self, mock_bot: MagicMock
     ) -> None:
         """Test that a cache miss on a chunked guild is authoritative and skips fetch_member."""
-        self._setup_admin_role_lookup(mock_session)
-
         mock_discord_guild = MagicMock()
         mock_discord_guild.owner_id = 0
         mock_discord_guild.chunked = True
@@ -471,7 +439,7 @@ class TestCheckGuildAccess:
         mock_bot.get_guild.return_value = mock_discord_guild
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(admin_role_ids={111222333: {999888777}}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -481,14 +449,8 @@ class TestCheckGuildAccess:
         assert result is False
         mock_discord_guild.fetch_member.assert_not_awaited()
 
-    async def test_fetches_member_when_cache_is_incomplete(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_fetches_member_when_cache_is_incomplete(self, mock_bot: MagicMock) -> None:
         """Test that fetch_member is used when the guild has not been chunked."""
-        self._setup_admin_role_lookup(mock_session)
-
         mock_role = MagicMock()
         mock_role.id = 999888777
         mock_member = MagicMock()
@@ -502,7 +464,7 @@ class TestCheckGuildAccess:
         mock_bot.get_guild.return_value = mock_discord_guild
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(admin_role_ids={111222333: {999888777}}),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -512,17 +474,13 @@ class TestCheckGuildAccess:
         assert result is True
         mock_discord_guild.fetch_member.assert_awaited_once_with(123456789012345678)
 
-    async def test_discord_guild_not_found(
-        self,
-        mock_session: AsyncMock,
-        mock_bot: MagicMock,
-    ) -> None:
+    async def test_discord_guild_not_found(self, mock_bot: MagicMock) -> None:
         """Test when bot is not in the guild."""
         # Bot is not in the guild
         mock_bot.get_guild.return_value = None
 
         result = await _check_guild_access(
-            session=mock_session,
+            access_data=self._access_data(),
             bot=mock_bot,
             guild_id=111222333,
             user_id=123456789012345678,
@@ -530,5 +488,32 @@ class TestCheckGuildAccess:
         )
 
         assert result is False
-        # Should not make DB queries if bot is not in the guild
-        mock_session.execute.assert_not_called()
+
+
+class TestLoadGuildAccessData:
+    """Tests for _load_guild_access_data."""
+
+    async def test_no_guilds_makes_no_queries(self) -> None:
+        """An empty guild list returns empty data without touching the DB."""
+        session = AsyncMock()
+
+        data = await _load_guild_access_data(session=session, user_id=42, guild_ids=[])
+
+        assert data == GuildAccessData(invited_guild_ids=set(), admin_role_ids={})
+        session.execute.assert_not_awaited()
+
+    async def test_builds_the_maps_from_two_queries(self) -> None:
+        """Invited guilds and admin roles come from one query each."""
+        invited_result = MagicMock()
+        invited_result.scalars.return_value.all.return_value = [1]
+        config_result = MagicMock()
+        config_result.all.return_value = [(2, [999888777, 111]), (3, None)]
+
+        session = AsyncMock()
+        session.execute = AsyncMock(side_effect=[invited_result, config_result])
+
+        data = await _load_guild_access_data(session=session, user_id=42, guild_ids=[1, 2, 3])
+
+        assert data.invited_guild_ids == {1}
+        assert data.admin_role_ids == {2: {999888777, 111}}
+        assert session.execute.await_count == 2

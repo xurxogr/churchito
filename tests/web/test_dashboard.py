@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from discord_bot.web.routers.dashboard import (
+    GuildAccessData,
     _check_guild_access,
     get_templates,
     router,
@@ -58,11 +59,10 @@ class TestCheckGuildAccess:
     @pytest.mark.asyncio
     async def test_bot_owner_always_has_access(self) -> None:
         """Test that bot owner always has access."""
-        session = MagicMock()
         bot = MagicMock()
 
         result = await _check_guild_access(
-            session=session,
+            access_data=GuildAccessData(invited_guild_ids=set(), admin_role_ids={}),
             bot=bot,
             guild_id=999999,
             user_id=123456789012345678,
@@ -74,7 +74,6 @@ class TestCheckGuildAccess:
     @pytest.mark.asyncio
     async def test_guild_owner_always_has_access(self) -> None:
         """Test that guild owner always has access."""
-        session = MagicMock()
         bot = MagicMock()
         # Guild owner is checked via discord_guild.owner_id
         mock_guild = MagicMock()
@@ -82,7 +81,7 @@ class TestCheckGuildAccess:
         bot.get_guild.return_value = mock_guild
 
         result = await _check_guild_access(
-            session=session,
+            access_data=GuildAccessData(invited_guild_ids=set(), admin_role_ids={}),
             bot=bot,
             guild_id=999999,
             user_id=123456789012345678,
