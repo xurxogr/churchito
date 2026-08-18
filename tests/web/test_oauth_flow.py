@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI, Request
 
-from discord_bot.web.auth.oauth import OAUTH_STATE_MAX_AGE, callback
+from discord_bot.web.auth.oauth import OAUTH_HTTP_TIMEOUT_SECONDS, OAUTH_STATE_MAX_AGE, callback
 
 
 class TestOAuthCallbackFlow:
@@ -73,6 +73,8 @@ class TestOAuthCallbackFlow:
             assert user["username"] == "testuser"
             assert user["avatar"] == "abc123"
             assert "guilds" not in user  # Guilds are no longer stored in session
+            # A hung Discord API must not pin the login worker forever
+            mock_client.assert_called_once_with(timeout=OAUTH_HTTP_TIMEOUT_SECONDS)
 
     async def test_callback_http_error(self, mock_request: MagicMock, simple_app: FastAPI) -> None:
         """Test callback with HTTP error."""
@@ -125,6 +127,27 @@ class TestOAuthCallbackFlow:
     async def test_callback_invalid_state(self, mock_request: MagicMock) -> None:
         """Test callback with invalid state."""
         response = await callback(mock_request, code="test", state="wrong_state")
+        assert response.status_code == 307
+        assert "error=invalid_state" in response.headers["location"]
+
+    async def test_callback_compares_state_in_constant_time(self, mock_request: MagicMock) -> None:
+        """The state check must not leak how many leading characters matched."""
+        with patch(
+            "discord_bot.web.auth.oauth.secrets.compare_digest", return_value=False
+        ) as compare:
+            response = await callback(mock_request, code="test", state="valid_state")
+
+        compare.assert_called_once_with("valid_state", "valid_state")
+        assert "error=invalid_state" in response.headers["location"]
+
+    async def test_callback_rejects_a_non_string_stored_state(
+        self, mock_request: MagicMock
+    ) -> None:
+        """A corrupted session value is treated as an invalid state, not a crash."""
+        mock_request.session["oauth_state"]["value"] = 12345
+
+        response = await callback(mock_request, code="test", state="12345")
+
         assert response.status_code == 307
         assert "error=invalid_state" in response.headers["location"]
 

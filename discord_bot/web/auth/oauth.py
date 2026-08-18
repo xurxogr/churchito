@@ -20,6 +20,9 @@ DISCORD_OAUTH_TOKEN_URL = "https://discord.com/api/oauth2/token"  # noqa: S105
 # Maximum time to complete OAuth flow (10 minutes)
 OAUTH_STATE_MAX_AGE = 600
 
+# Bound for each request to Discord during the token exchange
+OAUTH_HTTP_TIMEOUT_SECONDS = 10.0
+
 
 @router.get("/login")
 async def login(request: Request) -> RedirectResponse:
@@ -97,7 +100,12 @@ async def callback(
         request.session.pop("oauth_state", None)
         return RedirectResponse(url=f"{root_path}/login?error=state_expired")
 
-    if not state or state != stored_state:
+    # Constant-time comparison so response timing does not leak the stored state
+    if (
+        not state
+        or not isinstance(stored_state, str)
+        or not secrets.compare_digest(state, stored_state)
+    ):
         logger.warning("Invalid OAuth state")
         return RedirectResponse(url=f"{root_path}/login?error=invalid_state")
 
@@ -106,7 +114,7 @@ async def callback(
     settings = request.app.state.settings.web
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=OAUTH_HTTP_TIMEOUT_SECONDS) as client:
             token_response = await client.post(
                 DISCORD_OAUTH_TOKEN_URL,
                 data={
