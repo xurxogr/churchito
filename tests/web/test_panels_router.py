@@ -158,6 +158,15 @@ class TestPanelToDict:
 
         assert result["embed_config"] is None
 
+    def test_required_roles_are_strings(self) -> None:
+        """Test that required role IDs are stringified so the browser keeps full precision."""
+        panel = self._create_mock_panel()
+        panel.required_roles = [1234567890123456789, 987654321098765432]
+
+        result = _panel_to_dict(panel=panel, guild=None)
+
+        assert result["required_roles"] == ["1234567890123456789", "987654321098765432"]
+
 
 class TestFormatEmbedConfig:
     """Tests for _format_embed_config helper."""
@@ -1057,6 +1066,95 @@ class TestUpdatePanelDirectCall:
 
             assert exc_info.value.status_code == 400
             assert "Invalid channel ID" in exc_info.value.detail
+
+    async def test_stores_required_roles_as_integers(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that required roles sent as strings are stored as integer snowflakes."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+
+        mock_guild = MagicMock()
+        mock_guild.name = "Test Guild"
+        mock_guild.text_channels = []
+        mock_guild.roles = []
+        mock_guild.me = MagicMock()
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = mock_guild
+        mock_request.app.state.bot.user.id = 999
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.get_by_name = AsyncMock(return_value=None)
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await update_panel(
+                request=mock_request,
+                guild_id=123,
+                panel_id=1,
+                user=test_user,
+                session=mock_session,
+                name="Panel",
+                channel_id="456",
+                panel_type="toggle",
+                role_mappings="[]",
+                required_roles='["1234567890123456789", 987654321098765432]',
+            )
+
+        assert mock_panel.required_roles == [1234567890123456789, 987654321098765432]
+
+    @pytest.mark.parametrize(
+        "required_roles",
+        ['["abc"]', '"1234567890123456789"', "[true]", "[1.5]", '{"id": 1}'],
+    )
+    async def test_rejects_malformed_required_roles(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+        required_roles: str,
+    ) -> None:
+        """Test that required roles must be a JSON list of integer or digit-string IDs."""
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+
+        with patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls:
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await update_panel(
+                    request=mock_request,
+                    guild_id=123,
+                    panel_id=1,
+                    user=test_user,
+                    session=mock_session,
+                    name="Panel",
+                    channel_id="456",
+                    panel_type="toggle",
+                    role_mappings="[]",
+                    required_roles=required_roles,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "Invalid required roles" in exc_info.value.detail
+        mock_session.commit.assert_not_called()
 
 
 class TestDeletePanelDirectCall:

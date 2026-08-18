@@ -366,15 +366,16 @@ function addRequiredRole(selectEl) {
 
     const list = document.getElementById('required-roles-list');
     const input = document.getElementById('required-roles-input');
-    let roles = JSON.parse(input.value || '[]');
+    // NOTE: Keep IDs as strings to avoid JavaScript precision loss on 64-bit Discord snowflakes
+    let roles = JSON.parse(input.value || '[]').map(String);
 
     // Check if already added
-    if (roles.includes(parseInt(roleId))) {
+    if (roles.includes(roleId)) {
         selectEl.value = '';
         return;
     }
 
-    roles.push(parseInt(roleId));
+    roles.push(roleId);
     input.value = JSON.stringify(roles);
 
     // Add chip
@@ -389,8 +390,8 @@ function addRequiredRole(selectEl) {
 
 function removeRequiredRole(roleId) {
     const input = document.getElementById('required-roles-input');
-    let roles = JSON.parse(input.value || '[]');
-    roles = roles.filter(id => id !== parseInt(roleId));
+    let roles = JSON.parse(input.value || '[]').map(String);
+    roles = roles.filter(id => id !== String(roleId));
     input.value = JSON.stringify(roles);
 
     const chip = document.querySelector(`.role-chip[data-role-id="${roleId}"]`);

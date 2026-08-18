@@ -106,12 +106,42 @@ def _panel_to_dict(panel: ReactionPanel, guild: Any) -> dict[str, Any]:
         "is_posted": panel.message_id is not None,
         "mappings_count": len(panel.role_mappings),
         "role_mappings": panel.role_mappings,
-        "required_roles": panel.required_roles,
+        # Stringified so the browser never parses 64-bit snowflakes as JS numbers
+        "required_roles": [str(role_id) for role_id in panel.required_roles],
         "dm_on_missing_role": panel.dm_on_missing_role,
         "dm_on_role_change": panel.dm_on_role_change,
         "exclusive_require_existing": panel.exclusive_require_existing,
         "embed_config": _format_embed_config(panel.embed_config),
     }
+
+
+def _parse_required_roles(value: Any) -> list[int]:
+    """Coerce the decoded ``required_roles`` payload into a list of role IDs.
+
+    The dashboard sends snowflakes as strings to keep their full 64-bit
+    precision in JavaScript, so both integers and digit strings are accepted.
+
+    Args:
+        value (Any): Decoded JSON value from the form.
+
+    Returns:
+        list[int]: Role IDs as integers.
+
+    Raises:
+        ValueError: If the value is not a list of integer or digit-string IDs.
+    """
+    if not isinstance(value, list):
+        raise ValueError("required roles must be a list")
+
+    role_ids: list[int] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, int | str):
+            raise ValueError(f"invalid role ID: {item!r}")
+        try:
+            role_ids.append(int(item))
+        except ValueError:
+            raise ValueError(f"invalid role ID: {item!r}") from None
+    return role_ids
 
 
 def _notify_panels_changed(request: Request, guild_id: int) -> None:
@@ -461,6 +491,11 @@ async def update_panel(
         embed_cfg = json.loads(embed_config) if embed_config else {}
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON data") from None
+
+    try:
+        req_roles = _parse_required_roles(req_roles)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid required roles: {e}") from None
 
     # Update panel
     try:
