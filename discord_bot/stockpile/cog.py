@@ -64,6 +64,10 @@ class StockpileCog(commands.Cog):
         # Per-guild locks so overlapping add commands cannot both create a
         # stockpile with the same name (names are only unique app-side)
         self._creation_locks = KeyedLocks()
+        # Per-guild locks so overlapping commands replace the pinned message
+        # one at a time: both would otherwise delete the same stored ID and
+        # leave the extra message they post orphaned in the channel
+        self._pinned_locks = KeyedLocks()
 
     def get_locked_options(self) -> dict[str, dict[str, Any]]:
         """Get options locked by deployment configuration.
@@ -505,7 +509,16 @@ class StockpileCog(commands.Cog):
         """Update the pinned message showing all stockpiles.
 
         Deletes the existing message (if any) and creates a new one at the
-        bottom of the channel.
+        bottom of the channel. Serialized per guild: see _pinned_locks.
+
+        Args:
+            guild (discord.Guild): Guild to update pinned message for
+        """
+        async with self._pinned_locks.acquire(guild.id):
+            await self._replace_pinned_message(guild=guild)
+
+    async def _replace_pinned_message(self, guild: discord.Guild) -> None:
+        """Delete the stored pinned message and post a fresh one.
 
         Args:
             guild (discord.Guild): Guild to update pinned message for
@@ -578,7 +591,7 @@ class StockpileCog(commands.Cog):
         Args:
             guild (discord.Guild): Guild to delete pinned message for
         """
-        async with self.bot.database.session() as session:
+        async with self._pinned_locks.acquire(guild.id), self.bot.database.session() as session:
             config_service = ConfigService(session=session)
             config = await config_service.get_all_config(guild_id=guild.id, cog_name=COG_NAME)
 

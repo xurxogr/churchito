@@ -3771,6 +3771,64 @@ class TestUpdatePinnedMessage:
 
         mock_guild.get_channel.assert_called_once_with(12345)
 
+    async def test_concurrent_updates_leave_a_single_pinned_message(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Overlapping updates must each replace the previous message, not orphan one."""
+        guild_id = mock_guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            for key, value in [
+                (ConfigKey.PINNED_HEADER_TEXT, "**{hex}**"),
+                (ConfigKey.PINNED_ITEM_TEXT, "{name}"),
+                (ConfigKey.COMMAND_CHANNEL, 12345),
+                (ConfigKey.PINNED_MESSAGE_ID, 777),
+                (ConfigKey.PINNED_CHANNEL_ID, 12345),
+            ]:
+                await config_service.set_value(
+                    guild_id=guild_id, cog_name=COG_NAME, key=key, value=value
+                )
+            await session.commit()
+
+        sent_messages = [MagicMock(id=888), MagicMock(id=999)]
+
+        async def slow_send(**kwargs: Any) -> MagicMock:
+            # Yield to the event loop so the second update overlaps the first
+            await asyncio.sleep(0.01)
+            return sent_messages[mock_channel.send.await_count - 1]
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_channel.send = AsyncMock(side_effect=slow_send)
+        mock_guild.get_channel.return_value = mock_channel
+
+        deleted_ids: list[int] = []
+
+        async def fake_delete(guild: MagicMock, channel_id: int, message_id: int) -> bool:
+            deleted_ids.append(message_id)
+            return True
+
+        with patch("discord_bot.stockpile.cog.delete_message", side_effect=fake_delete):
+            await asyncio.gather(
+                stockpile_cog._update_pinned_message(mock_guild),
+                stockpile_cog._update_pinned_message(mock_guild),
+            )
+
+        # Each update deletes the message the previous one posted: no orphans
+        assert deleted_ids == [777, 888]
+        assert mock_channel.send.await_count == 2
+        async with test_database.session() as session:
+            stored = await ConfigService(session).get_all_config(
+                guild_id=guild_id, cog_name=COG_NAME
+            )
+        assert stored.get(ConfigKey.PINNED_MESSAGE_ID) == 999
+
     async def test_sends_embed_message(
         self,
         stockpile_cog: StockpileCog,
