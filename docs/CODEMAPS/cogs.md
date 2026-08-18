@@ -302,14 +302,17 @@ PENDING → AUTHORIZED → EXECUTED / CANCELLED
 **File:** `discord_bot/purge/execution.py`
 
 ```python
-async def execute_purge(
-    guild: discord.Guild,
-    purge_record: PurgeRecord,
-    config: dict,
-    db_service: DatabaseService
-) -> dict:
-    """Execute the purge on the guild. Return summary."""
+async def execute_purge(cog: PurgeCog, guild_id: int, purge_id: int) -> None:
+    """Load the authorized record, run the phases, finalize and publish."""
 ```
+
+`execute_purge` orchestrates small helpers: `_log_start` → `_run_phases`
+(cleaning, promotions, global removal, reaction-role cleanup; always
+followed by `results.flush()`) → `_finalize_purge_record` → `_publish_outcome`.
+
+**File:** `discord_bot/purge/plan.py` — `PurgePlan.from_record(record)` (typed,
+frozen view of the config snapshot), `PurgeStats` (phase counters →
+`to_execution_result`) and `build_finish_message(config, plan, stats)`.
 
 ### Configuration
 
