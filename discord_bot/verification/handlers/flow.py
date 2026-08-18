@@ -427,6 +427,77 @@ async def handle_accept(
         )
 
 
+REJECTION_REASON_KEYS: tuple[ConfigKey, ...] = (
+    ConfigKey.REJECT_WRONG_CAPTURES,
+    ConfigKey.REJECT_NAME_MISMATCH,
+    ConfigKey.REJECT_HAS_REGIMENT,
+    ConfigKey.REJECT_TIME_DIFF,
+    ConfigKey.REJECT_WRONG_SHARD,
+    ConfigKey.REJECT_WRONG_FACTION,
+    ConfigKey.REJECT_STEAM_PRIVATE,
+)
+
+
+def _rejection_reason(config: dict[str, Any], key: ConfigKey) -> str | None:
+    """Configured rejection reason for a key, with shard/faction filled in.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+        key (ConfigKey): Rejection reason key.
+
+    Returns:
+        str | None: The reason, or None when unset or missing its expected value.
+    """
+    reason = config.get(key) or ""
+    if not reason.strip():
+        return None
+    if key == ConfigKey.REJECT_WRONG_SHARD:
+        expected_shard = config.get(ConfigKey.VERIFICATION_SHARD) or ""
+        return reason.replace("{shard}", expected_shard) if expected_shard else None
+    if key == ConfigKey.REJECT_WRONG_FACTION:
+        expected_faction = config.get(ConfigKey.VERIFICATION_FACTION) or ""
+        return reason.replace("{faction}", expected_faction) if expected_faction else None
+    return reason
+
+
+def build_rejection_reasons(config: dict[str, Any]) -> list[str]:
+    """Rejection reasons offered in the selector, in canonical order.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+
+    Returns:
+        list[str]: Non-empty reasons; shard/faction ones only when configured.
+    """
+    reasons = (_rejection_reason(config=config, key=key) for key in REJECTION_REASON_KEYS)
+    return [reason for reason in reasons if reason is not None]
+
+
+def build_rejection_view(public_id: str, config: dict[str, Any]) -> RejectionReasonView:
+    """Rejection reason selector with all configurable texts resolved.
+
+    Args:
+        public_id (str): Public request ID (NanoID).
+        config (dict[str, Any]): Cog configuration.
+
+    Returns:
+        RejectionReasonView: The selector view.
+    """
+    return RejectionReasonView(
+        public_id=public_id,
+        reasons=build_rejection_reasons(config),
+        other_label=config.get(ConfigKey.REJECTION_OTHER_LABEL) or "Other reason...",
+        other_description=config.get(ConfigKey.REJECTION_OTHER_DESCRIPTION)
+        or "Write a custom reason",
+        placeholder=config.get(ConfigKey.REJECTION_SELECT_PLACEHOLDER)
+        or "Select the rejection reason...",
+        modal_title=config.get(ConfigKey.REJECTION_MODAL_TITLE) or "Rejection Reason",
+        modal_label=config.get(ConfigKey.REJECTION_MODAL_LABEL) or "Reason",
+        modal_placeholder=config.get(ConfigKey.REJECTION_MODAL_PLACEHOLDER)
+        or "Explain why the verification is being rejected...",
+    )
+
+
 async def show_rejection_select(
     cog: VerificationCog,
     interaction: discord.Interaction,
@@ -465,61 +536,9 @@ async def show_rejection_select(
             await interaction.response.send_message(content=not_found_msg, ephemeral=True)
             return
 
-    reasons: list[str] = []
-    rejection_reason_keys = [
-        ConfigKey.REJECT_WRONG_CAPTURES,
-        ConfigKey.REJECT_NAME_MISMATCH,
-        ConfigKey.REJECT_HAS_REGIMENT,
-        ConfigKey.REJECT_TIME_DIFF,
-        ConfigKey.REJECT_WRONG_SHARD,
-        ConfigKey.REJECT_WRONG_FACTION,
-        ConfigKey.REJECT_STEAM_PRIVATE,
-    ]
-    for key in rejection_reason_keys:
-        reason = config.get(key) or ""
-        if reason and reason.strip():
-            if key == ConfigKey.REJECT_WRONG_SHARD:
-                expected_shard = config.get(ConfigKey.VERIFICATION_SHARD) or ""
-                if expected_shard:
-                    reason = reason.replace("{shard}", expected_shard)
-                else:
-                    continue
-            elif key == ConfigKey.REJECT_WRONG_FACTION:
-                expected_faction = config.get(ConfigKey.VERIFICATION_FACTION) or ""
-                if expected_faction:
-                    reason = reason.replace("{faction}", expected_faction)
-                else:
-                    continue
-            reasons.append(reason)
-
-    select_message = (
-        config.get(ConfigKey.REJECTION_SELECT_MESSAGE) or "Select the rejection reason:"
-    )
-    placeholder = (
-        config.get(ConfigKey.REJECTION_SELECT_PLACEHOLDER) or "Select the rejection reason..."
-    )
-    other_label = config.get(ConfigKey.REJECTION_OTHER_LABEL) or "Other reason..."
-    other_description = config.get(ConfigKey.REJECTION_OTHER_DESCRIPTION) or "Write a custom reason"
-    modal_title = config.get(ConfigKey.REJECTION_MODAL_TITLE) or "Rejection Reason"
-    modal_label = config.get(ConfigKey.REJECTION_MODAL_LABEL) or "Reason"
-    modal_placeholder = (
-        config.get(ConfigKey.REJECTION_MODAL_PLACEHOLDER)
-        or "Explain why the verification is being rejected..."
-    )
-
-    view = RejectionReasonView(
-        public_id=public_id,
-        reasons=reasons,
-        other_label=other_label,
-        other_description=other_description,
-        placeholder=placeholder,
-        modal_title=modal_title,
-        modal_label=modal_label,
-        modal_placeholder=modal_placeholder,
-    )
     await interaction.response.send_message(
-        content=select_message,
-        view=view,
+        content=config.get(ConfigKey.REJECTION_SELECT_MESSAGE) or "Select the rejection reason:",
+        view=build_rejection_view(public_id=public_id, config=config),
         ephemeral=True,
     )
 
@@ -590,6 +609,88 @@ async def handle_reject(
         await interaction.followup.send(content=confirmation, ephemeral=True)
 
 
+def is_auto_rejected(request: VerificationRequest) -> bool:
+    """Whether the request was rejected automatically (by the "Auto" reviewer).
+
+    Args:
+        request (VerificationRequest): Request to check.
+
+    Returns:
+        bool: True if auto-rejected.
+    """
+    return request.status == VerificationStatus.REJECTED and request.reviewed_by_username == "Auto"
+
+
+async def review_refusal(
+    service: VerificationService,
+    config: dict[str, Any],
+    guild_id: int,
+    request: VerificationRequest | None,
+) -> str | None:
+    """Why a request cannot be sent back to manual review, if it cannot.
+
+    Args:
+        service (VerificationService): Verification service.
+        config (dict[str, Any]): Cog configuration.
+        guild_id (int): Guild of the interaction.
+        request (VerificationRequest | None): Request looked up by public ID.
+
+    Returns:
+        str | None: Message for the moderator, or None when the review may proceed.
+    """
+    if not request or request.guild_id != guild_id:
+        return config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Request not found."
+    if not is_auto_rejected(request):
+        return "This verification was not auto-rejected."
+    latest = await service.get_latest_by_user(guild_id=guild_id, user_id=request.user_id)
+    if not latest or latest.id != request.id:
+        return "Only the user's latest verification can be reviewed."
+    return None
+
+
+async def _revert_for_review(
+    session: AsyncSession,
+    guild: discord.Guild,
+    config: dict[str, Any],
+    service: VerificationService,
+    request: VerificationRequest,
+) -> bool:
+    """Revert the request to pending review and refresh the mod and tracker messages.
+
+    Args:
+        session (AsyncSession): Database session.
+        guild (discord.Guild): Guild of the request.
+        config (dict[str, Any]): Cog configuration.
+        service (VerificationService): Verification service.
+        request (VerificationRequest): Auto-rejected request.
+
+    Returns:
+        bool: False if the request could not be reverted.
+    """
+    # Save the original rejection reason before it gets cleared
+    original_rejection_reason = request.rejection_reason
+    if not await service.revert_to_pending_review(request_id=request.id, guild_name=guild.name):
+        return False
+
+    await update_mod_message_for_manual_review(
+        guild=guild,
+        request=request,
+        config=config,
+        public_id=request.public_id,
+        original_rejection_reason=original_rejection_reason,
+    )
+    await session.commit()
+
+    await update_tracker_message(
+        guild=guild,
+        config=config,
+        verification_service=service,
+        config_service=ConfigService(session=session),
+    )
+    await session.commit()
+    return True
+
+
 async def handle_review(
     cog: VerificationCog,
     interaction: discord.Interaction,
@@ -629,37 +730,22 @@ async def handle_review(
 
         verification_service = VerificationService(session=session)
         request = await verification_service.get_by_public_id(public_id=public_id)
-
-        if not request or request.guild_id != interaction.guild.id:
-            await interaction.response.send_message(
-                content=config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE) or "Request not found.",
-                ephemeral=True,
-            )
-            return
-
-        if request.status != VerificationStatus.REJECTED or request.reviewed_by_username != "Auto":
-            await interaction.response.send_message(
-                content="This verification was not auto-rejected.",
-                ephemeral=True,
-            )
-            return
-
-        latest = await verification_service.get_latest_by_user(
+        refusal = await review_refusal(
+            service=verification_service,
+            config=config,
             guild_id=interaction.guild.id,
-            user_id=request.user_id,
+            request=request,
         )
-        if not latest or latest.id != request.id:
-            await interaction.response.send_message(
-                content="Only the user's latest verification can be reviewed.",
-                ephemeral=True,
-            )
+        if refusal or not request:
+            await interaction.response.send_message(content=refusal, ephemeral=True)
             return
 
-        # Save the original rejection reason before it gets cleared
-        original_rejection_reason = request.rejection_reason
-
-        reverted = await verification_service.revert_to_pending_review(
-            request_id=request.id, guild_name=interaction.guild.name
+        reverted = await _revert_for_review(
+            session=session,
+            guild=interaction.guild,
+            config=config,
+            service=verification_service,
+            request=request,
         )
         if not reverted:
             await interaction.response.send_message(
@@ -667,24 +753,6 @@ async def handle_review(
                 ephemeral=True,
             )
             return
-
-        await update_mod_message_for_manual_review(
-            guild=interaction.guild,
-            request=request,
-            config=config,
-            public_id=request.public_id,
-            original_rejection_reason=original_rejection_reason,
-        )
-
-        await session.commit()
-
-        await update_tracker_message(
-            guild=interaction.guild,
-            config=config,
-            verification_service=verification_service,
-            config_service=config_service,
-        )
-        await session.commit()
 
         await interaction.response.send_message(
             content=f"Verification of {request.username} set for manual review.",
