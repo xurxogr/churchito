@@ -1,5 +1,6 @@
 """Common utilities."""
 
+from discord_bot.common.utils.background_tasks import BackgroundTasks
 from discord_bot.common.utils.command_name import (
     choose_command_name,
     normalize_command_name,
@@ -30,6 +31,7 @@ from discord_bot.common.utils.ttl_cache import TTLCache
 
 __all__ = [
     "DISCORD_CDN_DOMAINS",
+    "BackgroundTasks",
     "EMBED_SECTIONS_COLUMNS",
     "GuildScheduler",
     "KeyedLocks",

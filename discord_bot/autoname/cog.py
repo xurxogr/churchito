@@ -12,7 +12,7 @@ from discord_bot.autoname.service import compute_nickname
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
-from discord_bot.common.utils import GuildScheduler
+from discord_bot.common.utils import BackgroundTasks, GuildScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,11 @@ class AutonameCog(commands.Cog):
         # Per-guild next-due times, so idle minute ticks read no configuration
         self._schedule = GuildScheduler()
         self._sync_started = False
+        # Full-guild syncs triggered from the dashboard run here, so the web
+        # request returns immediately instead of waiting on member edits
+        self._background = BackgroundTasks(logger=logger)
+        # Guilds with a full sync in progress (a second one would only repeat it)
+        self._syncing_guilds: set[int] = set()
         # Per-guild enabled flag + config, so member updates and full syncs
         # do not open a database session per event / per member
         self._config_cache = CogConfigCache(database=bot.database, cog_name=COG_NAME)
@@ -53,6 +58,7 @@ class AutonameCog(commands.Cog):
         if self._sync_started:
             self.sync_loop.cancel()
             self._sync_started = False
+        self._background.cancel_all()
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
         """Check if the cog is enabled for a guild (cached).
@@ -284,6 +290,33 @@ class AutonameCog(commands.Cog):
     async def _sync_guild(self, guild: discord.Guild) -> None:
         """Sync nicknames of all members in a guild.
 
+        Skipped when a sync for the guild is already running: the periodic
+        loop and a dashboard change can both ask for one at nearly the same
+        time, and a second pass would only repeat the first.
+
+        Args:
+            guild (discord.Guild): Guild to sync
+        """
+        if guild.id in self._syncing_guilds:
+            logger.debug(f"[{guild.name}] Autoname sync already running, skipping")
+            return
+        self._syncing_guilds.add(guild.id)
+        try:
+            await self._sync_members(guild)
+        finally:
+            self._syncing_guilds.discard(guild.id)
+
+    def _sync_guild_in_background(self, guild: discord.Guild) -> None:
+        """Run a full-guild sync without blocking the caller.
+
+        Args:
+            guild (discord.Guild): Guild to sync
+        """
+        self._background.spawn(self._sync_guild(guild), name=f"autoname-sync-{guild.id}")
+
+    async def _sync_members(self, guild: discord.Guild) -> None:
+        """Apply the configured nicknames to every member of a guild.
+
         Args:
             guild (discord.Guild): Guild to sync
         """
@@ -327,7 +360,7 @@ class AutonameCog(commands.Cog):
         self._schedule.reset(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Autoname enabled, syncing nicknames")
-            await self._sync_guild(guild)
+            self._sync_guild_in_background(guild)
         else:
             logger.info(f"[{guild.name}] Autoname disabled")
 
@@ -350,7 +383,7 @@ class AutonameCog(commands.Cog):
         if set(keys) & resync_keys:
             changed = set(keys) & resync_keys
             logger.info(f"[{guild.name}] Configuration {changed} changed, re-syncing")
-            await self._sync_guild(guild)
+            self._sync_guild_in_background(guild)
 
 
 async def setup(bot: DiscordBot) -> None:

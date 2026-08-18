@@ -1,7 +1,8 @@
 """Tests for AutonameCog."""
 
+import asyncio
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import discord
@@ -653,7 +654,8 @@ class TestOnConfigChanged:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await autoname_cog.on_config_changed(mock_guild, [ConfigKey.ROLE_TAGS])
-            mock_sync.assert_called_once_with(mock_guild)
+            await autoname_cog._background.drain()
+            mock_sync.assert_awaited_once_with(mock_guild)
 
     async def test_resyncs_on_prefixes_change(self, autoname_cog: AutonameCog) -> None:
         """Test that re-syncs when prefixes change."""
@@ -662,7 +664,8 @@ class TestOnConfigChanged:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await autoname_cog.on_config_changed(mock_guild, [ConfigKey.ROLE_PREFIXES])
-            mock_sync.assert_called_once_with(mock_guild)
+            await autoname_cog._background.drain()
+            mock_sync.assert_awaited_once_with(mock_guild)
 
     async def test_resyncs_on_format_change(self, autoname_cog: AutonameCog) -> None:
         """Test that re-syncs when format changes."""
@@ -671,7 +674,8 @@ class TestOnConfigChanged:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await autoname_cog.on_config_changed(mock_guild, [ConfigKey.TAG_FORMAT])
-            mock_sync.assert_called_once_with(mock_guild)
+            await autoname_cog._background.drain()
+            mock_sync.assert_awaited_once_with(mock_guild)
 
     async def test_resyncs_on_required_roles_change(self, autoname_cog: AutonameCog) -> None:
         """Test that re-syncs when required roles change."""
@@ -680,7 +684,8 @@ class TestOnConfigChanged:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await autoname_cog.on_config_changed(mock_guild, [ConfigKey.REQUIRED_ROLES])
-            mock_sync.assert_called_once_with(mock_guild)
+            await autoname_cog._background.drain()
+            mock_sync.assert_awaited_once_with(mock_guild)
 
     async def test_ignores_interval_change(self, autoname_cog: AutonameCog) -> None:
         """Test that ignores interval changes."""
@@ -690,6 +695,79 @@ class TestOnConfigChanged:
         with patch.object(autoname_cog, "_sync_guild") as mock_sync:
             await autoname_cog.on_config_changed(mock_guild, [ConfigKey.SYNC_INTERVAL])
             mock_sync.assert_not_called()
+
+
+class TestSyncRunsInBackground:
+    """Dashboard callbacks must not block on a full-guild sync."""
+
+    async def test_on_config_changed_returns_before_sync_finishes(
+        self, autoname_cog: AutonameCog
+    ) -> None:
+        """The callback returns while the sync is still running."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 1
+        mock_guild.name = "Test"
+        release = asyncio.Event()
+        started = asyncio.Event()
+
+        async def slow_sync(guild: discord.Guild) -> None:
+            started.set()
+            await release.wait()
+
+        with patch.object(autoname_cog, "_sync_guild", side_effect=slow_sync):
+            await asyncio.wait_for(
+                autoname_cog.on_config_changed(mock_guild, [ConfigKey.ROLE_TAGS]), timeout=1
+            )
+            release.set()
+            await autoname_cog._background.drain()
+
+        assert started.is_set()
+
+    async def test_sync_guild_skips_when_already_running(self, autoname_cog: AutonameCog) -> None:
+        """A second sync for the same guild is skipped while the first is running."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 1
+        mock_guild.name = "Test"
+        mock_guild.members = []
+        release = asyncio.Event()
+        calls = 0
+
+        async def slow_config(guild_id: int) -> dict[str, Any]:
+            nonlocal calls
+            calls += 1
+            await release.wait()
+            return {ConfigKey.ROLE_TAGS: [{"role_id": 1, "tag": "X"}]}
+
+        with (
+            patch.object(
+                autoname_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(autoname_cog, "_get_config", side_effect=slow_config),
+        ):
+            first = asyncio.create_task(autoname_cog._sync_guild(mock_guild))
+            await asyncio.sleep(0)
+            await autoname_cog._sync_guild(mock_guild)
+            release.set()
+            await first
+
+        assert calls == 1
+
+    async def test_cog_unload_cancels_background_syncs(self, autoname_cog: AutonameCog) -> None:
+        """Unloading the cog cancels syncs that are still running."""
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 1
+        mock_guild.name = "Test"
+
+        async def forever(guild: discord.Guild) -> None:
+            await asyncio.Event().wait()
+
+        with patch.object(autoname_cog, "_sync_guild", side_effect=forever):
+            await autoname_cog.on_cog_toggled(mock_guild, enabled=True)
+            assert len(autoname_cog._background) == 1
+            await autoname_cog.cog_unload()
+            await autoname_cog._background.drain()
+
+        assert len(autoname_cog._background) == 0
 
 
 class TestOnCogToggled:
@@ -702,7 +780,8 @@ class TestOnCogToggled:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await autoname_cog.on_cog_toggled(mock_guild, enabled=True)
-            mock_sync.assert_called_once_with(mock_guild)
+            await autoname_cog._background.drain()
+            mock_sync.assert_awaited_once_with(mock_guild)
 
     async def test_no_sync_on_disabled(self, autoname_cog: AutonameCog) -> None:
         """Test that does not sync when cog is disabled."""
@@ -1229,6 +1308,7 @@ class TestConfigCaching:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock):
             await autoname_cog.on_config_changed(guild, [ConfigKey.TAG_FORMAT])
+            await autoname_cog._background.drain()
 
         assert (await autoname_cog._get_config(guild.id)).get(ConfigKey.TAG_FORMAT) == "[NEW]"
 
@@ -1249,6 +1329,7 @@ class TestConfigCaching:
 
         with patch.object(autoname_cog, "_sync_guild", new_callable=AsyncMock):
             await autoname_cog.on_cog_toggled(guild, enabled=True)
+            await autoname_cog._background.drain()
 
         assert await autoname_cog._is_cog_enabled(guild.id) is True
 

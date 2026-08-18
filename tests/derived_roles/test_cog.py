@@ -1,5 +1,6 @@
 """Tests for DerivedRolesCog."""
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -711,6 +712,80 @@ class TestRunSyncSchedule:
         assert mock_enabled.await_count == 3
 
 
+class TestSyncRunsInBackground:
+    """Dashboard callbacks must not block on a full-guild reconciliation."""
+
+    async def test_on_config_changed_returns_before_sync_finishes(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """The callback returns while the reconciliation is still running."""
+        release = asyncio.Event()
+        started = asyncio.Event()
+
+        async def slow_sync(*, guild: discord.Guild, config: dict[str, Any]) -> None:
+            started.set()
+            await release.wait()
+
+        with (
+            patch.object(derived_roles_cog, "_get_config", new_callable=AsyncMock, return_value={}),
+            patch.object(derived_roles_cog, "_sync_guild", side_effect=slow_sync),
+        ):
+            await asyncio.wait_for(
+                derived_roles_cog.on_config_changed(mock_guild, [ConfigKey.RULES]), timeout=1
+            )
+            release.set()
+            await derived_roles_cog._background.drain()
+
+        assert started.is_set()
+
+    async def test_sync_guild_skips_when_already_running(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """A second reconciliation for the same guild is skipped while the first runs."""
+        release = asyncio.Event()
+        member = make_member(mock_guild, [COLLIE])
+        mock_guild.members = [member]
+        config = {ConfigKey.RULES: [IMPLIES_RULE]}
+        calls = 0
+
+        async def slow_apply(*, member: discord.Member, config: dict[str, Any]) -> bool:
+            nonlocal calls
+            calls += 1
+            await release.wait()
+            return False
+
+        with patch.object(derived_roles_cog, "_apply_rules", side_effect=slow_apply):
+            first = asyncio.create_task(
+                derived_roles_cog._sync_guild(guild=mock_guild, config=config)
+            )
+            await asyncio.sleep(0)
+            await derived_roles_cog._sync_guild(guild=mock_guild, config=config)
+            release.set()
+            await first
+
+        assert calls == 1
+
+    async def test_cog_unload_cancels_background_syncs(
+        self, derived_roles_cog: DerivedRolesCog, mock_guild: MagicMock
+    ) -> None:
+        """Unloading the cog cancels reconciliations that are still running."""
+
+        async def forever(*, guild: discord.Guild, config: dict[str, Any]) -> None:
+            await asyncio.Event().wait()
+
+        with (
+            patch.object(derived_roles_cog, "_get_config", new_callable=AsyncMock, return_value={}),
+            patch.object(derived_roles_cog, "_sync_guild", side_effect=forever),
+        ):
+            await derived_roles_cog.on_cog_toggled(mock_guild, enabled=True)
+            await asyncio.sleep(0)
+            assert len(derived_roles_cog._background) == 1
+            await derived_roles_cog.cog_unload()
+            await derived_roles_cog._background.drain()
+
+        assert len(derived_roles_cog._background) == 0
+
+
 class TestConfigCaching:
     """Tests for the per-guild config cache on hot paths."""
 
@@ -747,6 +822,7 @@ class TestConfigCaching:
         await set_rules(test_database, GUILD_ID, [IMPLIES_RULE])
         with patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock) as mock_sync:
             await derived_roles_cog.on_config_changed(mock_guild, [ConfigKey.RULES])
+            await derived_roles_cog._background.drain()
 
         mock_sync.assert_awaited_once()
         assert mock_sync.await_args.kwargs["config"][ConfigKey.RULES] == [IMPLIES_RULE]
@@ -764,6 +840,7 @@ class TestConfigCaching:
         await enable_cog_for_guild(test_database, GUILD_ID)
         with patch.object(derived_roles_cog, "_sync_guild", new_callable=AsyncMock):
             await derived_roles_cog.on_cog_toggled(mock_guild, enabled=True)
+            await derived_roles_cog._background.drain()
 
         assert await derived_roles_cog._is_cog_enabled(GUILD_ID) is True
 

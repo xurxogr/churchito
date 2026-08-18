@@ -10,7 +10,7 @@ from discord.ext import commands, tasks
 from discord_bot.bot import DiscordBot
 from discord_bot.common.services.cog_config_cache import CogConfigCache
 from discord_bot.common.services.config_schema_service import get_config_schema_service
-from discord_bot.common.utils import GuildScheduler, KeyedLocks
+from discord_bot.common.utils import BackgroundTasks, GuildScheduler, KeyedLocks
 from discord_bot.derived_roles.config import COG_NAME, DERIVED_ROLES_CONFIG_SCHEMA, ConfigKey
 from discord_bot.derived_roles.engine import compute_role_changes
 from discord_bot.derived_roles.formatters import format_message
@@ -37,6 +37,11 @@ class DerivedRolesCog(commands.Cog):
         # Per-guild next-due times, so idle minute ticks read no configuration
         self._schedule = GuildScheduler()
         self._sync_started = False
+        # Full-guild reconciliations triggered from the dashboard run here, so
+        # the web request returns immediately instead of waiting on role edits
+        self._background = BackgroundTasks(logger=logger)
+        # Guilds with a reconciliation in progress (a second one would only repeat it)
+        self._syncing_guilds: set[int] = set()
         # Per-member locks to avoid concurrent rule application
         self._member_locks = KeyedLocks()
         # Guilds currently in permission-error state (notify on state change only)
@@ -64,6 +69,7 @@ class DerivedRolesCog(commands.Cog):
         if self._sync_started:
             self.sync_loop.cancel()
             self._sync_started = False
+        self._background.cancel_all()
 
     async def _is_cog_enabled(self, guild_id: int) -> bool:
         """Check if the cog is enabled for a guild (cached).
@@ -410,6 +416,45 @@ class DerivedRolesCog(commands.Cog):
     async def _sync_guild(self, guild: discord.Guild, config: dict[str, Any]) -> None:
         """Reconcile all members of a guild against the rules.
 
+        Skipped when a reconciliation for the guild is already running: the
+        periodic loop and a dashboard change can both ask for one at nearly
+        the same time, and a second pass would only repeat the first.
+
+        Args:
+            guild (discord.Guild): Guild to reconcile
+            config (dict[str, Any]): Cog configuration
+        """
+        if guild.id in self._syncing_guilds:
+            logger.debug(f"[{guild.name}] Derived roles sync already running, skipping")
+            return
+        self._syncing_guilds.add(guild.id)
+        try:
+            await self._sync_members(guild=guild, config=config)
+        finally:
+            self._syncing_guilds.discard(guild.id)
+
+    def _sync_guild_in_background(self, guild: discord.Guild) -> None:
+        """Load the guild configuration and reconcile members without blocking the caller.
+
+        Args:
+            guild (discord.Guild): Guild to reconcile
+        """
+        self._background.spawn(
+            self._load_and_sync_guild(guild), name=f"derived-roles-sync-{guild.id}"
+        )
+
+    async def _load_and_sync_guild(self, guild: discord.Guild) -> None:
+        """Reconcile a guild with its current configuration.
+
+        Args:
+            guild (discord.Guild): Guild to reconcile
+        """
+        config = await self._get_config(guild.id)
+        await self._sync_guild(guild=guild, config=config)
+
+    async def _sync_members(self, guild: discord.Guild, config: dict[str, Any]) -> None:
+        """Apply the rules to every member of a guild.
+
         Args:
             guild (discord.Guild): Guild to reconcile
             config (dict[str, Any]): Cog configuration
@@ -457,8 +502,7 @@ class DerivedRolesCog(commands.Cog):
         self._schedule.reset(guild.id)
         if enabled:
             logger.info(f"[{guild.name}] Derived roles enabled, reconciling members")
-            config = await self._get_config(guild.id)
-            await self._sync_guild(guild=guild, config=config)
+            self._sync_guild_in_background(guild)
         else:
             logger.info(f"[{guild.name}] Derived roles disabled")
 
@@ -473,8 +517,7 @@ class DerivedRolesCog(commands.Cog):
         self._schedule.reset(guild.id)
         if ConfigKey.RULES in set(keys):
             logger.info(f"[{guild.name}] Derived roles rules changed, reconciling members")
-            config = await self._get_config(guild.id)
-            await self._sync_guild(guild=guild, config=config)
+            self._sync_guild_in_background(guild)
 
 
 async def setup(bot: DiscordBot) -> None:
