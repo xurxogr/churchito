@@ -60,6 +60,10 @@ class PurgeCog(commands.Cog):
         self._pending_deletions: dict[tuple[int, int], datetime] = {}
         # Per-guild locks so overlapping purge commands cannot both create a purge
         self._creation_locks = KeyedLocks()
+        # Per-record locks so authorize/cancel/confirm clicks are serialized:
+        # two overlapping votes would otherwise read the same list and the
+        # second write would overwrite the first one (lost vote)
+        self._vote_locks = KeyedLocks()
         # Cog-level settings (from env/json, not editable via web)
         self._cog_settings = get_purge_settings()
         logger.info("PurgeCog initialized")
@@ -674,7 +678,8 @@ class PurgeCog(commands.Cog):
 
         config = await self._get_config(guild.id)
 
-        async with self.bot.database.session() as session:
+        # Serialized per record: see _vote_locks
+        async with self._vote_locks.acquire(public_id), self.bot.database.session() as session:
             purge_service = PurgeService(session)
 
             record = await purge_service.get_by_public_id(public_id)
@@ -782,7 +787,8 @@ class PurgeCog(commands.Cog):
 
         config = await self._get_config(guild.id)
 
-        async with self.bot.database.session() as session:
+        # Serialized per record: see _vote_locks
+        async with self._vote_locks.acquire(public_id), self.bot.database.session() as session:
             purge_service = PurgeService(session)
 
             record = await purge_service.get_by_public_id(public_id)
@@ -953,7 +959,8 @@ class PurgeCog(commands.Cog):
 
         config = await self._get_config(guild.id)
 
-        async with self.bot.database.session() as session:
+        # Serialized per record: see _vote_locks
+        async with self._vote_locks.acquire(public_id), self.bot.database.session() as session:
             purge_service = PurgeService(session)
 
             record = await purge_service.get_by_public_id(public_id)

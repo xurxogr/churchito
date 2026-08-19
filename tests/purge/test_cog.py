@@ -1042,6 +1042,73 @@ class TestHandleAuthorize:
         assert "already authorized" in str(call_args).lower()
 
 
+class TestConcurrentAuthorization:
+    """Overlapping authorize clicks must not lose a vote."""
+
+    async def test_concurrent_authorizations_keep_every_vote(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Two moderators authorizing at once record both votes and authorize the purge."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        second_member = MagicMock(spec=discord.Member)
+        second_member.id = 444555666
+        second_member.display_name = "SecondMod"
+        second_member.roles = mock_member.roles
+
+        second_interaction = MagicMock(spec=discord.Interaction)
+        second_interaction.guild = mock_interaction.guild
+        second_interaction.user = second_member
+        second_interaction.response = MagicMock()
+        second_interaction.response.defer = AsyncMock()
+        second_interaction.followup = MagicMock()
+        second_interaction.followup.send = AsyncMock()
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 3)
+
+            purge_service = PurgeService(session)
+            # The initiator auto-authorizes, leaving one vote already recorded
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        original_get = PurgeService.get_by_public_id
+
+        async def slow_get(self: PurgeService, public_id: str) -> Any:
+            """Read first, then yield: the second handler sees the stale vote list."""
+            found = await original_get(self, public_id)
+            await asyncio.sleep(0.01)
+            return found
+
+        with patch.object(PurgeService, "get_by_public_id", slow_get):
+            await asyncio.gather(
+                purge_cog._handle_authorize(mock_interaction, public_id),
+                purge_cog._handle_authorize(second_interaction, public_id),
+            )
+
+        async with test_database.session() as session:
+            result = await session.execute(select(PurgeRecord).where(PurgeRecord.id == purge_id))
+            final = result.scalar_one()
+            assert sorted(final.authorized_by) == sorted([999, mock_member.id, second_member.id])
+            assert final.status == PurgeStatus.AUTHORIZED
+
+
 class TestHandleCancel:
     """Tests for _handle_cancel."""
 
