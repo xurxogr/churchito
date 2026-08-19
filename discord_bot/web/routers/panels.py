@@ -465,6 +465,15 @@ async def update_panel(
             if existing:
                 raise HTTPException(status_code=400, detail=f"Panel '{name}' already exists")
 
+        # A posted panel's message lives in its current channel: moving the
+        # panel would orphan that message and silently stop its reactions,
+        # since unpost and the reaction cache would look in the new channel
+        if panel.message_id and channel_id_int != panel.channel_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Unpost the panel before moving it to another channel",
+            )
+
         # Update panel
         panel.name = name
         panel.channel_id = channel_id_int

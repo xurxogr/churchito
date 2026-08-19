@@ -1073,6 +1073,7 @@ class TestUpdatePanelDirectCall:
         mock_panel.id = 1
         mock_panel.name = "OldName"
         mock_panel.guild_id = 123
+        mock_panel.message_id = None
 
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
@@ -1098,6 +1099,91 @@ class TestUpdatePanelDirectCall:
 
             assert mock_panel.name == "NewName"
             mock_session.commit.assert_called()
+
+    async def test_rejects_channel_change_while_posted(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that a posted panel cannot be moved to another channel."""
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+        mock_panel.channel_id = 456
+        mock_panel.message_id = 789
+
+        with patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls:
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.get_by_name = AsyncMock(return_value=None)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await update_panel(
+                    request=mock_request,
+                    guild_id=123,
+                    panel_id=1,
+                    user=test_user,
+                    session=mock_session,
+                    name="Panel",
+                    channel_id="999",
+                    panel_type="toggle",
+                    role_mappings="[]",
+                    required_roles="[]",
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "Unpost" in exc_info.value.detail
+        assert mock_panel.channel_id == 456
+        mock_session.commit.assert_not_called()
+
+    async def test_allows_rename_while_posted_in_the_same_channel(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that a posted panel can still be edited when its channel is unchanged."""
+        mock_request.app.state.templates = MagicMock(spec=Jinja2Templates)
+        mock_request.app.state.templates.TemplateResponse.return_value = MagicMock()
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = None
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.id = 1
+        mock_panel.name = "Panel"
+        mock_panel.guild_id = 123
+        mock_panel.channel_id = 456
+        mock_panel.message_id = 789
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.get_csrf_token", return_value="test_token"),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_service.get_by_name = AsyncMock(return_value=None)
+            mock_service.get_all_for_guild = AsyncMock(return_value=[])
+
+            await update_panel(
+                request=mock_request,
+                guild_id=123,
+                panel_id=1,
+                user=test_user,
+                session=mock_session,
+                name="Renamed",
+                channel_id="456",
+                panel_type="toggle",
+                role_mappings="[]",
+                required_roles="[]",
+            )
+
+        assert mock_panel.name == "Renamed"
+        mock_session.commit.assert_called()
 
     async def test_raises_404_when_not_found(
         self,
@@ -1253,6 +1339,7 @@ class TestUpdatePanelDirectCall:
         mock_panel.id = 1
         mock_panel.name = "Panel"
         mock_panel.guild_id = 123
+        mock_panel.message_id = None
 
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
@@ -1335,6 +1422,7 @@ class TestUpdatePanelDirectCall:
         mock_panel.id = 1
         mock_panel.name = "Panel"
         mock_panel.guild_id = 123
+        mock_panel.message_id = None
 
         with (
             patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
