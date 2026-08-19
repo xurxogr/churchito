@@ -11,6 +11,7 @@ from typing import Any
 import discord
 
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.common.utils.keyed_locks import KeyedLocks
 from discord_bot.verification.config import COG_NAME
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import (
@@ -23,6 +24,12 @@ from discord_bot.verification.service import VerificationService
 from discord_bot.verification.views import ModReviewView
 
 logger = logging.getLogger(__name__)
+
+# Per-guild lock so overlapping verification events cannot each send a
+# tracker message: the stored tracker ID is re-read under this lock,
+# otherwise the second event would post a duplicate tracker whose ID is
+# overwritten and the first message would never be cleaned up
+_tracker_locks = KeyedLocks()
 
 # Status indicators for check results
 STATUS_PASSED = "✅"
@@ -293,9 +300,6 @@ async def update_tracker_message(
         verification_service (VerificationService): Verification service to get requests.
         config_service (ConfigService): Config service to save/get message ID.
     """
-    tracker_title = config.get(ConfigKey.TRACKER_TITLE)
-    tracker_enabled = bool(tracker_title)
-
     mod_channel_id = config.get(ConfigKey.MOD_NOTIFICATION_CHANNEL)
     if not mod_channel_id:
         return
@@ -304,12 +308,47 @@ async def update_tracker_message(
     if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
         return
 
+    # Serialized per guild: see _tracker_locks
+    async with _tracker_locks.acquire(guild.id):
+        await _update_tracker_message_locked(
+            guild=guild,
+            config=config,
+            mod_channel=mod_channel,
+            verification_service=verification_service,
+            config_service=config_service,
+        )
+
+
+async def _update_tracker_message_locked(
+    guild: discord.Guild,
+    config: dict[str, Any],
+    mod_channel: discord.TextChannel,
+    verification_service: VerificationService,
+    config_service: ConfigService,
+) -> None:
+    """Do the tracker update while holding the guild's tracker lock.
+
+    Args:
+        guild (discord.Guild): Guild where the moderation channel is.
+        config (dict[str, Any]): Cog configuration.
+        mod_channel (discord.TextChannel): Moderation channel with the tracker.
+        verification_service (VerificationService): Verification service to get requests.
+        config_service (ConfigService): Config service to save/get message ID.
+    """
+    tracker_title = config.get(ConfigKey.TRACKER_TITLE)
+    tracker_enabled = bool(tracker_title)
+
     pending_requests = await verification_service.get_pending_for_guild(guild.id)
 
-    # The tracker is only deleted or fully rewritten, so a partial message
-    # is enough: this runs on every verification event and fetching it
-    # first was one more request each time
-    tracker_message_id = config.get(ConfigKey.TRACKER_MESSAGE_ID)
+    # The stored ID is read fresh here instead of from the config snapshot,
+    # so a tracker just sent by an overlapping event is always seen; a
+    # partial message is enough because the tracker is only deleted or
+    # fully rewritten, never read
+    tracker_message_id = await config_service.get_value(
+        guild_id=guild.id,
+        cog_name=COG_NAME,
+        key=ConfigKey.TRACKER_MESSAGE_ID,
+    )
     tracker_message: discord.PartialMessage | None = None
     if tracker_message_id:
         tracker_message = mod_channel.get_partial_message(tracker_message_id)
@@ -327,7 +366,7 @@ async def update_tracker_message(
         pending_requests=pending_requests,
         config=config,
         guild_id=guild.id,
-        channel_id=mod_channel_id,
+        channel_id=mod_channel.id,
     )
 
     # The gateway keeps last_message_id updated, so finding out whether the

@@ -1,5 +1,6 @@
 """Tests for verification handlers."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -683,6 +684,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -719,6 +721,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -754,6 +757,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -768,6 +772,87 @@ class TestUpdateTrackerMessage:
             verification_service=mock_verification_service,
             config_service=mock_config_service,
         )
+
+    async def test_concurrent_updates_send_only_one_tracker(self) -> None:
+        """Test that two overlapping verification events send a single tracker.
+
+        Both events start before either has stored the new tracker ID, so
+        the second one must re-check the stored ID instead of trusting its
+        stale config snapshot and posting a duplicate tracker.
+        """
+        mock_tracker_message = MagicMock(spec=discord.PartialMessage)
+        mock_tracker_message.id = 9001
+        mock_tracker_message.edit = AsyncMock()
+
+        mock_new_tracker = MagicMock()
+        mock_new_tracker.id = 9001
+
+        async def slow_send(**kwargs: Any) -> Any:
+            """Yield before returning so both events overlap while sending."""
+            await asyncio.sleep(0.01)
+            return mock_new_tracker
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.get_partial_message = MagicMock(return_value=mock_tracker_message)
+        mock_mod_channel.last_message_id = None
+        mock_mod_channel.send = AsyncMock(side_effect=slow_send)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_request = MagicMock()
+        mock_request.username = "TestUser"
+        mock_request.status = VerificationStatus.PENDING_SCREENSHOTS
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.mod_message_id = 12345
+        mock_request.created_at = MagicMock()
+        mock_request.created_at.timestamp = MagicMock(return_value=1234567890)
+
+        mock_verification_service = MagicMock()
+        mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
+
+        stored: dict[str, Any] = {}
+
+        async def fake_set_value(
+            *, guild_id: int, cog_name: str, key: str, value: Any
+        ) -> tuple[bool, str | None]:
+            """Store the value like the real config service."""
+            stored[key] = value
+            return (True, None)
+
+        async def fake_get_value(*, guild_id: int, cog_name: str, key: str) -> Any:
+            """Return the stored value, or None like an unset option."""
+            return stored.get(key)
+
+        mock_config_service = MagicMock()
+        mock_config_service.set_value = AsyncMock(side_effect=fake_set_value)
+        mock_config_service.get_value = AsyncMock(side_effect=fake_get_value)
+
+        config: dict[str, Any] = {
+            ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
+            ConfigKey.MOD_NOTIFICATION_CHANNEL: 456,
+        }
+
+        await asyncio.gather(
+            update_tracker_message(
+                guild=mock_guild,
+                config=config,
+                verification_service=mock_verification_service,
+                config_service=mock_config_service,
+            ),
+            update_tracker_message(
+                guild=mock_guild,
+                config=dict(config),
+                verification_service=mock_verification_service,
+                config_service=mock_config_service,
+            ),
+        )
+
+        # Only one tracker is sent; the second event edits it instead
+        assert mock_mod_channel.send.await_count == 1
+        assert stored[ConfigKey.TRACKER_MESSAGE_ID] == 9001
+        mock_tracker_message.edit.assert_awaited_once()
 
     async def test_repositions_tracker_when_not_last_message(self) -> None:
         """Test that repositions tracker when it is not the last message."""
@@ -801,6 +886,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -847,6 +933,7 @@ class TestUpdateTrackerMessage:
         mock_verification_service.get_pending_for_guild = AsyncMock(return_value=[mock_request])
 
         mock_config_service = MagicMock()
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -897,11 +984,14 @@ class TestUpdateTrackerMessage:
             ConfigKey.TRACKER_MESSAGE_ID: 888,
         }
 
+        mock_config_service = MagicMock()
+        mock_config_service.get_value = AsyncMock(return_value=888)
+
         await update_tracker_message(
             guild=mock_guild,
             config=config,
             verification_service=mock_verification_service,
-            config_service=MagicMock(),
+            config_service=mock_config_service,
         )
 
         mock_tracker_message.edit.assert_awaited_once()
@@ -938,6 +1028,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
@@ -983,6 +1074,7 @@ class TestUpdateTrackerMessage:
 
         mock_config_service = MagicMock()
         mock_config_service.set_value = AsyncMock(return_value=(True, None))
+        mock_config_service.get_value = AsyncMock(return_value=888)
 
         config: dict[str, Any] = {
             ConfigKey.TRACKER_TITLE: "📋 Pending Verifications",
