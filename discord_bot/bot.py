@@ -59,6 +59,9 @@ class DiscordBot(commands.Bot):
         self.database = database
         self.event_bus = get_event_bus()
         self._monitor_task: asyncio.Task[None] | None = None
+        # on_ready fires again on every gateway re-IDENTIFY, so startup-only
+        # work (rate-limited command sync, BOT_READY event) is done just once
+        self._startup_synced = False
 
         # Configure intents
         # Note: message_content and members are privileged intents that must be
@@ -197,9 +200,16 @@ class DiscordBot(commands.Bot):
             for guild in self.guilds:
                 logger.info(f"  - {guild.name} (ID: {guild.id})")
 
+            # Reconciling runs on every ready: a re-IDENTIFY delivers guilds
+            # joined during the disconnect without firing on_guild_join
             await self._reconcile_guilds()
 
-            # Sync application commands with Discord
+            if self._startup_synced:
+                return
+            self._startup_synced = True
+
+            # Sync application commands with Discord: this global sync is
+            # heavily rate limited, so it must not repeat on reconnects
             try:
                 synced = await self.tree.sync()
                 logger.info(f"Synced {len(synced)} application commands")

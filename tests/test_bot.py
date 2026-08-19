@@ -96,6 +96,51 @@ async def test_bot_on_ready(test_bot: DiscordBot) -> None:
     )
 
 
+async def test_bot_on_ready_syncs_commands_only_once(test_bot: DiscordBot) -> None:
+    """Test that a reconnect on_ready does not repeat the rate-limited command sync.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    mock_emit = MagicMock()
+    test_bot.event_bus.emit = mock_emit
+
+    mock_tree = MagicMock()
+    mock_tree.sync = AsyncMock(return_value=[])
+
+    with patch.object(type(test_bot), "tree", new_callable=PropertyMock, return_value=mock_tree):
+        # First ready at startup, second one from a gateway re-IDENTIFY
+        await test_bot.on_ready()
+        await test_bot.on_ready()
+
+    assert mock_tree.sync.await_count == 1
+    assert mock_emit.call_count == 1
+
+
+async def test_bot_on_ready_reconciles_guilds_every_time(test_bot: DiscordBot) -> None:
+    """Test that guild reconciliation still runs on reconnects.
+
+    A guild that invited the bot during a disconnect only shows up in the
+    READY payload, so the reconnect must reconcile it into the database.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    test_bot.event_bus.emit = MagicMock()
+
+    mock_tree = MagicMock()
+    mock_tree.sync = AsyncMock(return_value=[])
+
+    with (
+        patch.object(type(test_bot), "tree", new_callable=PropertyMock, return_value=mock_tree),
+        patch.object(test_bot, "_reconcile_guilds", new=AsyncMock()) as mock_reconcile,
+    ):
+        await test_bot.on_ready()
+        await test_bot.on_ready()
+
+    assert mock_reconcile.await_count == 2
+
+
 async def test_bot_close(test_bot: DiscordBot) -> None:
     """Test the bot's close method.
 
