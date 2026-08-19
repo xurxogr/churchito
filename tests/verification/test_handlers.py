@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -20,7 +20,11 @@ from discord_bot.verification.handlers import (
     update_mod_message_for_manual_review,
     update_tracker_message,
 )
-from discord_bot.verification.handlers.auto_processing import send_mod_ping_message
+from discord_bot.verification.handlers.auto_processing import (
+    handle_auto_approval,
+    handle_auto_rejection,
+    send_mod_ping_message,
+)
 from discord_bot.verification.handlers.utils import (
     calculate_expires_timestamp,
     create_screenshot_embeds,
@@ -537,6 +541,123 @@ class TestUpdateModMessageCancelled:
             config=config,
             previous_statuses=["⏳ Pending"],
         )
+
+
+class TestAutoProcessingSurvivesMissingModMessage:
+    """Tests that auto approval/rejection tolerate an already-deleted mod message."""
+
+    def _create_mocks(self) -> tuple[MagicMock, MagicMock, MagicMock, AsyncMock, MagicMock]:
+        """Create the cog, guild, request, service and mod message mocks.
+
+        Returns:
+            tuple[MagicMock, MagicMock, MagicMock, AsyncMock, MagicMock]: Cog, guild,
+                request, verification service and mod message mocks.
+        """
+        mock_cog = MagicMock()
+        mock_cog.bot.user.id = 42
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=None)
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.public_id = "abc123"
+        mock_request.user_id = 456
+        mock_request.username = "user"
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.created_at = datetime(2026, 8, 19, 12, 0, 0)
+        mock_request.steam_profile_url = "https://steamcommunity.com/id/user"
+        mock_service = AsyncMock()
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 999
+        mock_message.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+        mock_message.edit = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+        return mock_cog, mock_guild, mock_request, mock_service, mock_message
+
+    @pytest.mark.asyncio
+    async def test_auto_approval_delete_tolerates_missing_mod_message(self) -> None:
+        """An already-deleted mod message must not fail (and roll back) an auto-approval."""
+        mock_cog, mock_guild, mock_request, mock_service, mock_message = self._create_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": True}
+
+        await handle_auto_approval(
+            cog=mock_cog,
+            guild=mock_guild,
+            request=mock_request,
+            verification_service=mock_service,
+            config=config,
+            mod_message=mock_message,
+            embeds=[],
+        )
+
+        mock_service.approve.assert_awaited_once()
+        mock_message.delete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_rejection_delete_tolerates_missing_mod_message(self) -> None:
+        """An already-deleted mod message must not fail (and roll back) an auto-rejection."""
+        mock_cog, mock_guild, mock_request, mock_service, mock_message = self._create_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": True}
+
+        await handle_auto_rejection(
+            cog=mock_cog,
+            guild=mock_guild,
+            request=mock_request,
+            verification_service=mock_service,
+            config=config,
+            mod_message=mock_message,
+            embeds=[],
+            reason="Auto-rejected",
+        )
+
+        mock_service.reject.assert_awaited_once()
+        mock_message.delete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_approval_edit_tolerates_missing_mod_message(self) -> None:
+        """Editing a mod message that no longer exists must not fail an auto-approval."""
+        mock_cog, mock_guild, mock_request, mock_service, mock_message = self._create_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with patch(
+            "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+            return_value=[discord.Embed()],
+        ):
+            await handle_auto_approval(
+                cog=mock_cog,
+                guild=mock_guild,
+                request=mock_request,
+                verification_service=mock_service,
+                config=config,
+                mod_message=mock_message,
+                embeds=[],
+            )
+
+        mock_service.approve.assert_awaited_once()
+        mock_message.edit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_rejection_edit_tolerates_missing_mod_message(self) -> None:
+        """Editing a mod message that no longer exists must not fail an auto-rejection."""
+        mock_cog, mock_guild, mock_request, mock_service, mock_message = self._create_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with patch(
+            "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+            return_value=[discord.Embed()],
+        ):
+            await handle_auto_rejection(
+                cog=mock_cog,
+                guild=mock_guild,
+                request=mock_request,
+                verification_service=mock_service,
+                config=config,
+                mod_message=mock_message,
+                embeds=[],
+                reason="Auto-rejected",
+            )
+
+        mock_service.reject.assert_awaited_once()
+        mock_message.edit.assert_awaited_once()
 
 
 class TestSendModPingMessage:

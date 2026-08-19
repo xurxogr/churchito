@@ -55,6 +55,46 @@ async def send_mod_ping_message(
     await channel.send(content=ping_message)
 
 
+async def _delete_mod_message(mod_message: discord.Message, guild_name: str) -> None:
+    """Delete the moderation message, tolerating one already deleted.
+
+    The approve/reject decision already ran when this is called: a mod message
+    deleted by hand must not bubble up and roll the decision back after the
+    member already received roles and the outcome DM.
+
+    Args:
+        mod_message (discord.Message): Moderation message to delete.
+        guild_name (str): Guild name for logging.
+    """
+    try:
+        await mod_message.delete()
+    except discord.NotFound:
+        logger.warning(f"[{guild_name}] Mod message already deleted: {mod_message.id}")
+
+
+async def _edit_mod_message(
+    mod_message: discord.Message,
+    guild_name: str,
+    embeds: list[discord.Embed],
+    view: discord.ui.View | None,
+) -> None:
+    """Update the moderation message, tolerating one already deleted.
+
+    Same rationale as ``_delete_mod_message``: the decision is already made and
+    must survive the status embed having nowhere to land.
+
+    Args:
+        mod_message (discord.Message): Moderation message to update.
+        guild_name (str): Guild name for logging.
+        embeds (list[discord.Embed]): Embeds to show.
+        view (discord.ui.View | None): View to attach, if any.
+    """
+    try:
+        await mod_message.edit(embeds=embeds, view=view)
+    except discord.NotFound:
+        logger.warning(f"[{guild_name}] Mod message already deleted: {mod_message.id}")
+
+
 async def handle_auto_approval(
     cog: VerificationCog,
     guild: discord.Guild,
@@ -134,7 +174,7 @@ async def handle_auto_approval(
 
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:
-        await mod_message.delete()
+        await _delete_mod_message(mod_message=mod_message, guild_name=guild.name)
     else:
         approved_status = format_message(
             template=config.get(ConfigKey.STATUS_APPROVED),
@@ -166,7 +206,9 @@ async def handle_auto_approval(
         for embed in main_embeds:
             embed.color = discord.Color.green()
         all_embeds = [*main_embeds, *embeds]
-        await mod_message.edit(embeds=all_embeds, view=None)
+        await _edit_mod_message(
+            mod_message=mod_message, guild_name=guild.name, embeds=all_embeds, view=None
+        )
 
 
 async def handle_auto_rejection(
@@ -225,7 +267,7 @@ async def handle_auto_rejection(
 
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:
-        await mod_message.delete()
+        await _delete_mod_message(mod_message=mod_message, guild_name=guild.name)
     else:
         rejected_status = format_message(
             template=config.get(ConfigKey.STATUS_REJECTED),
@@ -269,7 +311,9 @@ async def handle_auto_rejection(
         else:
             view = None
 
-        await mod_message.edit(embeds=all_embeds, view=view)
+        await _edit_mod_message(
+            mod_message=mod_message, guild_name=guild.name, embeds=all_embeds, view=view
+        )
 
 
 async def process_auto_verification(
