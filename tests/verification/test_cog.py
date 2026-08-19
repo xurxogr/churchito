@@ -2258,6 +2258,124 @@ class TestOnMessageSteamProfile:
                 updated.screenshot_2_url == "https://cdn.discordapp.com/attachments/123/456/2.png"
             )
 
+    async def test_wrong_image_count_still_saves_steam_url_from_same_dm(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A rejected screenshot batch must not swallow a valid Steam URL sent alongside."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "wrong_images_message": "Send exactly 2 images",
+            "steam_url_received_message": "Steam URL saved",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            combined_message = self._combined_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                    "https://cdn.discordapp.com/attachments/123/456/3.png",
+                ],
+                "https://steamcommunity.com/id/testuser123",
+            )
+            await verification_cog.on_message(combined_message)
+
+            # Screenshots rejected: the request must keep waiting for them
+            assert 456 in verification_cog._pending_dm_verifications
+
+        sent = [call.kwargs["content"] for call in combined_message.channel.send.call_args_list]
+        assert "Send exactly 2 images" in sent
+        assert "Steam URL saved" in sent
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+            assert updated.steam_profile_url == "https://steamcommunity.com/id/testuser123"
+            assert updated.screenshot_1_url is None
+
+    async def test_screenshots_with_plain_caption_still_acknowledged(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Valid screenshots with a non-URL caption must be stored and acknowledged."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        config_values = {
+            "steam_profile_required_regular": True,
+            "invalid_steam_url_message": "Invalid Steam URL",
+            "screenshots_received_awaiting_steam_message": "Screenshots saved, send the URL",
+        }
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            combined_message = self._combined_message(
+                456,
+                [
+                    "https://cdn.discordapp.com/attachments/123/456/1.png",
+                    "https://cdn.discordapp.com/attachments/123/456/2.png",
+                ],
+                "here are my screenshots",
+            )
+            await verification_cog.on_message(combined_message)
+
+            # Steam URL still missing: the request must keep waiting for it
+            assert 456 in verification_cog._pending_dm_verifications
+
+        sent = [call.kwargs["content"] for call in combined_message.channel.send.call_args_list]
+        assert "Screenshots saved, send the URL" in sent
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+            assert (
+                updated.screenshot_1_url == "https://cdn.discordapp.com/attachments/123/456/1.png"
+            )
+            assert updated.steam_profile_url is None
+
     async def test_screenshots_then_steam_url_completes_requirements(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:

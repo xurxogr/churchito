@@ -233,37 +233,53 @@ async def _ingest_items(
         message_text (str): Stripped text of the DM.
         steam_required (bool): Whether a Steam profile URL is required.
 
+    Each item is handled independently: a rejected screenshot batch does not
+    prevent a valid Steam URL sent in the same DM from being stored, and valid
+    screenshots are kept (and acknowledged) even when the caption is not a
+    valid Steam URL.
+
     Returns:
-        IngestResult: Updated request (None if the user was already answered)
-            and which items this DM completed.
+        IngestResult: Updated request (None when nothing left the request
+            complete enough to continue) and which items this DM completed.
     """
     screenshots_saved = bool(request.screenshot_1_url and request.screenshot_2_url)
     steam_saved = bool(request.steam_profile_url)
     completed_screenshots = False
     completed_steam = False
+    rejected = False  # the user was already told what was wrong
 
-    updated: VerificationRequest | None = request
+    updated = request
     if attachments and not screenshots_saved:
-        updated = await _store_screenshots(ctx=ctx, request_id=request.id, attachments=attachments)
-        if not updated:
-            return IngestResult(request=None, completed_screenshots=False, completed_steam=False)
-        completed_screenshots = True
+        stored = await _store_screenshots(ctx=ctx, request_id=request.id, attachments=attachments)
+        if stored:
+            updated = stored
+            completed_screenshots = True
+        else:
+            rejected = True
 
-    if steam_required and not steam_saved and message_text:
-        updated = await _store_steam_url(ctx=ctx, request_id=request.id, url=message_text)
-        if not updated:
-            return IngestResult(request=None, completed_screenshots=False, completed_steam=False)
-        completed_steam = True
+    # After a rejection, plain captions are skipped so the user is not also
+    # told the text was not a valid Steam URL
+    try_steam = steam_required and not steam_saved and bool(message_text)
+    if try_steam and rejected and not is_valid_steam_profile_url(message_text):
+        try_steam = False
+    if try_steam:
+        stored = await _store_steam_url(ctx=ctx, request_id=request.id, url=message_text)
+        if stored:
+            updated = stored
+            completed_steam = True
+        else:
+            rejected = True
 
     if not completed_screenshots and not completed_steam:
-        # Nothing new was submitted; remind the user what is still outstanding
-        key = reminder_key(
-            screenshots_saved=screenshots_saved,
-            steam_required=steam_required,
-            steam_saved=steam_saved,
-        )
-        if key:
-            await _reply(ctx=ctx, key=key)
+        if not rejected:
+            # Nothing new was submitted; remind the user what is still outstanding
+            key = reminder_key(
+                screenshots_saved=screenshots_saved,
+                steam_required=steam_required,
+                steam_saved=steam_saved,
+            )
+            if key:
+                await _reply(ctx=ctx, key=key)
         return IngestResult(request=None, completed_screenshots=False, completed_steam=False)
 
     return IngestResult(
