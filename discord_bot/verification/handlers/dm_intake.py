@@ -375,10 +375,6 @@ async def _complete_submission(
         request (VerificationRequest): Complete request.
         steam_required (bool): Whether a Steam profile URL is required.
     """
-    cog = ctx.cog
-    cog._pending_dm_verifications.pop(ctx.message.author.id, None)
-    cog.cancel_screenshot_timer(request.id)
-
     await ctx.verification_service.mark_pending_review(
         request_id=request.id, guild_name=ctx.guild_name
     )
@@ -399,6 +395,14 @@ async def _complete_submission(
         ctx=ctx, request=request, api_result=api_result, steam_check=steam_check
     )
     await ctx.session.commit()
+
+    # Dropped only after the commit: a failure above rolls the request back to
+    # awaiting screenshots, so the DM route and the screenshot timer must
+    # survive for it to still complete or time out (the timeout handler takes
+    # the same per-user lock and re-checks the status, so this cannot race it)
+    cog = ctx.cog
+    cog._pending_dm_verifications.pop(ctx.message.author.id, None)
+    cog.cancel_screenshot_timer(request.id)
     if ctx.guild:
         await _refresh_tracker(ctx=ctx, guild=ctx.guild)
         if not auto_processed:

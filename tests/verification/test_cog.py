@@ -1610,6 +1610,88 @@ class TestOnMessage:
                 updated.screenshot_2_url == "https://cdn.discordapp.com/attachments/123/456/2.jpg"
             )
 
+    async def test_mod_notify_failure_keeps_recovery_state(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A mod-notify failure must not discard the DM route or the screenshot timer.
+
+        If updating the moderation message fails after the screenshots were
+        received, the session rolls back and the request stays awaiting
+        screenshots: the in-memory DM route and the screenshot timer must
+        survive so the request can still complete or time out.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await service.set_mod_message_id(request_id=request.id, message_id=999)
+            await session.commit()
+            public_id = request.public_id
+            request_id = request.id
+
+        verification_cog._pending_dm_verifications[456] = (123, request_id)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=MagicMock(spec=discord.TextChannel))
+        object.__setattr__(verification_cog.bot, "get_guild", MagicMock(return_value=mock_guild))
+
+        message = MagicMock(spec=discord.Message)
+        message.guild = None
+        message.author = MagicMock()
+        message.author.bot = False
+        message.author.id = 456
+        message.author.name = "TestUser"
+        message.channel = MagicMock()
+        message.channel.send = AsyncMock()
+
+        attachment1 = MagicMock()
+        attachment1.content_type = "image/png"
+        attachment1.size = 1024
+        attachment1.url = "https://cdn.discordapp.com/attachments/123/456/1.png"
+        attachment2 = MagicMock()
+        attachment2.content_type = "image/jpeg"
+        attachment2.size = 1024
+        attachment2.url = "https://cdn.discordapp.com/attachments/123/456/2.jpg"
+        message.attachments = [attachment1, attachment2]
+
+        config_values: dict[str, object] = {
+            "screenshots_received_message": "Screenshots received",
+            "mod_notification_channel": 888,
+        }
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch(
+                "discord_bot.verification.handlers.dm_intake.update_mod_message_for_review",
+                new_callable=AsyncMock,
+            ) as mock_update,
+            patch.object(verification_cog, "cancel_screenshot_timer") as mock_cancel,
+        ):
+            mock_config.return_value = config_values
+            mock_update.side_effect = discord.Forbidden(MagicMock(), "")
+
+            with pytest.raises(discord.Forbidden):
+                await verification_cog.on_message(message)
+
+        # The DM route and the timer survive so the request is still recoverable
+        assert verification_cog._pending_dm_verifications.get(456) == (123, request_id)
+        mock_cancel.assert_not_called()
+
+        # The rollback left the request awaiting screenshots, as before the DM
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.PENDING_SCREENSHOTS
+
     async def test_invalid_discord_url_rejected(
         self, verification_cog: VerificationCog, test_database: DatabaseService
     ) -> None:
