@@ -519,6 +519,26 @@ class TestReconciliation:
         already_ok.add_roles.assert_not_called()
         bot_member.add_roles.assert_not_called()
 
+    async def test_background_sync_skips_disabled_cog(
+        self,
+        derived_roles_cog: DerivedRolesCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """A dashboard-triggered sync must not touch roles while the cog is disabled.
+
+        Editing the rules of a disabled cog fires on_config_changed, whose
+        background reconciliation has to respect the enabled flag.
+        """
+        await set_rules(test_database, GUILD_ID, [IMPLIES_RULE])
+
+        member = make_member(mock_guild, [COLLIE])
+        mock_guild.members = [member]
+
+        await derived_roles_cog._load_and_sync_guild(mock_guild)
+
+        member.add_roles.assert_not_called()
+
     async def test_sync_respects_empty_rules(
         self,
         derived_roles_cog: DerivedRolesCog,
@@ -754,7 +774,12 @@ class TestSyncRunsInBackground:
             await release.wait()
             return False
 
-        with patch.object(derived_roles_cog, "_apply_rules", side_effect=slow_apply):
+        with (
+            patch.object(
+                derived_roles_cog, "_is_cog_enabled", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(derived_roles_cog, "_apply_rules", side_effect=slow_apply),
+        ):
             first = asyncio.create_task(
                 derived_roles_cog._sync_guild(guild=mock_guild, config=config)
             )

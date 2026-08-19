@@ -459,6 +459,11 @@ class DerivedRolesCog(commands.Cog):
             guild (discord.Guild): Guild to reconcile
             config (dict[str, Any]): Cog configuration
         """
+        # Editing the rules of a disabled cog also lands here through the
+        # background reconciliation: a disabled cog must never touch roles
+        if not await self._is_cog_enabled(guild.id):
+            return
+
         rules = config.get(ConfigKey.RULES) or []
         if not rules:
             return
