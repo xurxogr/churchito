@@ -245,6 +245,21 @@ async def _create_and_notify(ctx: StartContext, mod_channel: discord.TextChannel
             return False
         await _send_steam_request(ctx)
 
+        try:
+            mod_message = await _post_mod_message(ctx=ctx, mod_channel=mod_channel, request=request)
+        except discord.HTTPException:
+            # Without the mod message no moderator would ever see the request,
+            # so it is cancelled instead of staying pending forever
+            logger.warning(f"[{guild.name}] Could not post mod message in #{mod_channel.name}")
+            await service.cancel(request_id=request.id, guild_name=guild.name)
+            await session.commit()
+            await _answer(ctx=ctx, key=ConfigKey.VERIFICATION_DISABLED_MESSAGE)
+            return False
+        await service.set_mod_message_id(request_id=request.id, message_id=mod_message.id)
+        await session.commit()
+
+        # Registered only after the commit: a failure above must not leave a
+        # DM route or a screenshot timer pointing at a request that was never saved
         cog._pending_dm_verifications[user.id] = (guild.id, request.id)
         cog.start_screenshot_timer(
             request_id=request.id,
@@ -252,10 +267,6 @@ async def _create_and_notify(ctx: StartContext, mod_channel: discord.TextChannel
             user_id=user.id,
             timeout_minutes=timeout_minutes,
         )
-
-        mod_message = await _post_mod_message(ctx=ctx, mod_channel=mod_channel, request=request)
-        await service.set_mod_message_id(request_id=request.id, message_id=mod_message.id)
-        await session.commit()
 
         await update_tracker_message(
             guild=guild,

@@ -4194,6 +4194,67 @@ class TestHandleVerificationStartHappyPath:
         mock_timer.assert_called_once()
         assert mock_timer.call_args.kwargs["timeout_minutes"] == SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 
+    async def test_mod_message_failure_cancels_the_request(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A failed mod message must cancel the request and leave no phantom state.
+
+        If the bot cannot post in the moderation channel, no moderator would
+        ever see the request: it has to be cancelled, the moderator answered,
+        and no DM route or screenshot timer may be left behind.
+        """
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.name = "mods"
+        mock_mod_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), ""))
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 456
+        mock_user.name = "NewUser"
+        mock_user.mention = "<@456>"
+        mock_user.send = AsyncMock()
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        config_values: dict[str, object] = {
+            "already_pending_message": "Pending",
+            "dm_instructions_message": "Instructions for {username}",
+            "mod_notification_channel": 888,
+            "verification_disabled_message": "Verification unavailable",
+            "verification_type_regular_display": "Normal",
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "start_screenshot_timer") as mock_timer,
+        ):
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        mock_timer.assert_not_called()
+        assert 456 not in verification_cog._pending_dm_verifications
+        interaction.followup.send.assert_called_once_with(
+            "Verification unavailable", ephemeral=True
+        )
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            assert await service.get_pending_by_user(123, 456) is None
+
 
 class TestRoleOperations:
     """Tests for role operations."""
