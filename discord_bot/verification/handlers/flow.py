@@ -43,19 +43,65 @@ class ModActionContext(NamedTuple):
     service: VerificationService
 
 
+async def authorize_and_defer(
+    cog: VerificationCog,
+    interaction: discord.Interaction,
+    permission_error_key: ConfigKey,
+    permission_error_default: str,
+    ephemeral: bool = False,
+) -> bool:
+    """Check moderator permission and acknowledge the click before any waiting.
+
+    Discord expires an unacknowledged interaction after a few seconds, so the
+    defer must happen BEFORE waiting on the per-request lock: a moderator
+    clicking while another decision is still in flight would otherwise see
+    "interaction failed" instead of the "already processed" notice.
+
+    Args:
+        cog (VerificationCog): Cog instance.
+        interaction (discord.Interaction): Moderator interaction.
+        permission_error_key (ConfigKey): Permission error message key.
+        permission_error_default (str): Default message if not configured.
+        ephemeral (bool): Whether the deferred response is ephemeral.
+
+    Returns:
+        bool: True when the moderator may proceed and the click was acknowledged.
+    """
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return False
+
+    async with cog.bot.database.session() as session:
+        config_service = ConfigService(session=session)
+        config = await cog._get_all_config(
+            guild_id=interaction.guild.id, config_service=config_service
+        )
+
+    if not has_any_role(member=interaction.user, role_ids=config.get(ConfigKey.MOD_ROLES) or []):
+        await interaction.response.send_message(
+            content=config.get(permission_error_key) or permission_error_default,
+            ephemeral=True,
+        )
+        return False
+
+    try:
+        await interaction.response.defer(ephemeral=ephemeral)
+    except discord.HTTPException as e:
+        logger.warning(f"[{interaction.guild.name}] Mod action click expired before defer: {e}")
+        return False
+    return True
+
+
 async def validate_mod_action(
     cog: VerificationCog,
     interaction: discord.Interaction,
     public_id: str,
     session: AsyncSession,
-    permission_error_key: ConfigKey,
-    permission_error_default: str,
 ) -> ModActionContext | None:
     """Validate and prepare context for moderation actions.
 
-    Performs all common validations for approve/reject:
-    - Verify moderator permissions
-    - Defer the interaction
+    The caller must have passed ``authorize_and_defer`` first: permission is
+    already checked and the interaction deferred. This performs the
+    validations that need the per-request lock:
     - Get the request
     - Verify it exists and is pending review
 
@@ -64,8 +110,6 @@ async def validate_mod_action(
         interaction (discord.Interaction): Moderator interaction.
         public_id (str): Public request ID (NanoID).
         session (AsyncSession): Database session.
-        permission_error_key (ConfigKey): Permission error message key.
-        permission_error_default (str): Default message if not configured.
 
     Returns:
         ModActionContext | None: Validated context or None if any validation failed.
@@ -75,15 +119,6 @@ async def validate_mod_action(
 
     config_service = ConfigService(session=session)
     config = await cog._get_all_config(guild_id=interaction.guild.id, config_service=config_service)
-
-    if not has_any_role(member=interaction.user, role_ids=config.get(ConfigKey.MOD_ROLES) or []):
-        await interaction.response.send_message(
-            content=config.get(permission_error_key) or permission_error_default,
-            ephemeral=True,
-        )
-        return None
-
-    await interaction.response.defer()
 
     verification_service = VerificationService(session=session)
     request = await verification_service.get_by_public_id(public_id=public_id)
@@ -380,6 +415,14 @@ async def handle_accept(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
+    if not await authorize_and_defer(
+        cog=cog,
+        interaction=interaction,
+        permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
+        permission_error_default="You do not have permission to approve verifications.",
+    ):
+        return
+
     # Serialize decisions per request: validate_mod_action checks the status
     # before the decision commits, so two overlapping moderators would both
     # pass it and both apply their decision (roles, DMs, mod message)
@@ -388,12 +431,7 @@ async def handle_accept(
         cog.bot.database.session() as session,
     ):
         ctx = await validate_mod_action(
-            cog=cog,
-            interaction=interaction,
-            public_id=public_id,
-            session=session,
-            permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-            permission_error_default="You do not have permission to approve verifications.",
+            cog=cog, interaction=interaction, public_id=public_id, session=session
         )
         if not ctx:
             return
@@ -569,18 +607,21 @@ async def handle_reject(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
+    if not await authorize_and_defer(
+        cog=cog,
+        interaction=interaction,
+        permission_error_key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
+        permission_error_default="You do not have permission to reject verifications.",
+    ):
+        return
+
     # Serialized per request, see handle_accept
     async with (
         cog._request_locks.acquire(public_id),
         cog.bot.database.session() as session,
     ):
         ctx = await validate_mod_action(
-            cog=cog,
-            interaction=interaction,
-            public_id=public_id,
-            session=session,
-            permission_error_key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
-            permission_error_default="You do not have permission to reject verifications.",
+            cog=cog, interaction=interaction, public_id=public_id, session=session
         )
         if not ctx:
             return
@@ -722,6 +763,15 @@ async def handle_review(
     if not await cog._is_cog_enabled(interaction.guild.id):
         return
 
+    if not await authorize_and_defer(
+        cog=cog,
+        interaction=interaction,
+        permission_error_key=ConfigKey.NO_PERMISSION_REJECT_MESSAGE,
+        permission_error_default="You do not have permission to review verifications.",
+        ephemeral=True,
+    ):
+        return
+
     # Serialized per request, see handle_accept
     async with (
         cog._request_locks.acquire(public_id),
@@ -732,16 +782,6 @@ async def handle_review(
             guild_id=interaction.guild.id, config_service=config_service
         )
 
-        if not has_any_role(
-            member=interaction.user, role_ids=config.get(ConfigKey.MOD_ROLES) or []
-        ):
-            await interaction.response.send_message(
-                content=config.get(ConfigKey.NO_PERMISSION_REJECT_MESSAGE)
-                or "You do not have permission to review verifications.",
-                ephemeral=True,
-            )
-            return
-
         verification_service = VerificationService(session=session)
         request = await verification_service.get_by_public_id(public_id=public_id)
         refusal = await review_refusal(
@@ -751,7 +791,7 @@ async def handle_review(
             request=request,
         )
         if refusal or not request:
-            await interaction.response.send_message(content=refusal, ephemeral=True)
+            await interaction.followup.send(content=refusal or "Request not found.", ephemeral=True)
             return
 
         reverted = await _revert_for_review(
@@ -762,13 +802,13 @@ async def handle_review(
             request=request,
         )
         if not reverted:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 content="Could not revert the verification.",
                 ephemeral=True,
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             content=f"Verification of {request.username} set for manual review.",
             ephemeral=True,
         )

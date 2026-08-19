@@ -444,6 +444,51 @@ class TestHandleAccept:
             call_args = interaction.followup.send.call_args
             assert "not found" in call_args.kwargs["content"].lower()
 
+    async def test_defers_before_waiting_on_request_lock(
+        self, verification_cog: VerificationCog
+    ) -> None:
+        """A click during another moderator's decision must be acknowledged immediately.
+
+        Discord expires an unacknowledged interaction after ~3 seconds, so the
+        defer must happen before waiting on the per-request lock.
+        """
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = MagicMock(spec=discord.Guild)
+        interaction.guild.id = 123
+        interaction.guild.name = "Test Guild"
+        interaction.user = MagicMock(spec=discord.Member)
+        interaction.user.id = 789
+        interaction.user.name = "Mod"
+        interaction.user.roles = []
+        interaction.user.guild_permissions = MagicMock()
+        interaction.user.guild_permissions.manage_guild = True
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = {"mod_roles": []}
+
+            async with verification_cog._request_locks.acquire("busy1"):
+                task = asyncio.create_task(
+                    verification_cog.handle_accept(interaction=interaction, public_id="busy1")
+                )
+                for _ in range(100):
+                    if interaction.response.defer.await_count:
+                        break
+                    await asyncio.sleep(0.01)
+                # Acknowledged while the lock is still held by the other decision
+                interaction.response.defer.assert_awaited_once()
+
+            await task
+
+        # After the lock frees, the mod is told the request does not exist
+        interaction.followup.send.assert_called_once()
+
 
 class TestHandleReject:
     """Tests for handle_reject."""
@@ -6534,8 +6579,6 @@ class TestValidateModActionEdgeCases:
                 interaction=interaction,
                 public_id="test1",
                 session=session,
-                permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-                permission_error_default="No permissions",
             )
 
         assert result is None
@@ -6553,8 +6596,6 @@ class TestValidateModActionEdgeCases:
                 interaction=interaction,
                 public_id="test1",
                 session=session,
-                permission_error_key=ConfigKey.NO_PERMISSION_APPROVE_MESSAGE,
-                permission_error_default="No permissions",
             )
 
         assert result is None
@@ -7199,8 +7240,8 @@ class TestHandleReview:
 
             await verification_cog.handle_review(interaction, public_id=request.public_id)
 
-            interaction.response.send_message.assert_called_once()
-            call_args = interaction.response.send_message.call_args
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
             assert "was not auto-rejected" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
@@ -7266,8 +7307,8 @@ class TestHandleReview:
             # Try to review the old request
             await verification_cog.handle_review(interaction, old_request_public_id)
 
-            interaction.response.send_message.assert_called_once()
-            call_args = interaction.response.send_message.call_args
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
             assert "latest verification" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
@@ -7365,8 +7406,8 @@ class TestHandleReview:
             await verification_cog.handle_review(interaction, public_id)
 
             # Verify successful response
-            interaction.response.send_message.assert_called_once()
-            call_args = interaction.response.send_message.call_args
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
             assert "manual review" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
@@ -7423,7 +7464,10 @@ class TestHandleReview:
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
         interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
         interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
 
         # Enable cog
         async with test_database.session() as session:
@@ -7445,8 +7489,8 @@ class TestHandleReview:
 
             await verification_cog.handle_review(interaction, public_id="nonexistent")
 
-            interaction.response.send_message.assert_called_once()
-            call_args = interaction.response.send_message.call_args
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
             assert "does not exist" in call_args.kwargs["content"]
             assert call_args.kwargs["ephemeral"] is True
 
@@ -9227,7 +9271,10 @@ class TestOnInteractionReview:
         interaction.type = discord.InteractionType.component
         interaction.data = {"custom_id": "verification:review:invalid"}
         interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
         interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
 
         # Enable cog
         with patch.object(
@@ -9430,7 +9477,10 @@ class TestHandleReviewRevertFails:
         interaction.user.guild_permissions = MagicMock()
         interaction.user.guild_permissions.manage_guild = True
         interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
         interaction.response.send_message = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
 
         async with test_database.session() as session:
             from discord_bot.common.services.config_service import ConfigService
@@ -9455,8 +9505,8 @@ class TestHandleReviewRevertFails:
 
             await verification_cog.handle_review(interaction, public_id)
 
-            interaction.response.send_message.assert_called_once()
-            call_args = interaction.response.send_message.call_args
+            interaction.followup.send.assert_called_once()
+            call_args = interaction.followup.send.call_args
             assert "Could not revert" in call_args.kwargs["content"]
 
 

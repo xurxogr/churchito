@@ -1110,8 +1110,6 @@ class VerificationCog(commands.Cog):
         interaction: discord.Interaction,
         public_id: str,
         session: Any,
-        permission_error_key: ConfigKey,
-        permission_error_default: str,
     ) -> Any:
         """Validate and prepare context for moderation actions.
 
@@ -1119,8 +1117,6 @@ class VerificationCog(commands.Cog):
             interaction (discord.Interaction): Moderator interaction
             public_id (str): Public request ID (NanoID)
             session (AsyncSession): Database session
-            permission_error_key (ConfigKey): Error message key
-            permission_error_default (str): Default message
 
         Returns:
             ModActionContext | None: Validated context or None if failed
@@ -1130,8 +1126,6 @@ class VerificationCog(commands.Cog):
             interaction=interaction,
             public_id=public_id,
             session=session,
-            permission_error_key=permission_error_key,
-            permission_error_default=permission_error_default,
         )
 
     async def handle_verification_start(
