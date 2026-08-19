@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import discord
 
 from discord_bot.common.services.config_service import ConfigService
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.auto_processor import is_steam_profile_required
 from discord_bot.verification.config import SCREENSHOT_FALLBACK_TIMEOUT_MINUTES
 from discord_bot.verification.enums import ConfigKey, VerificationType
@@ -178,7 +179,7 @@ async def _post_mod_message(
         user_id=user.id,
         status=ctx.config.get(ConfigKey.STATUS_AWAITING_SCREENSHOTS) or "",
         created_at=request.created_at.strftime("%Y-%m-%d %H:%M"),
-        created_at_relative=f"<t:{int(request.created_at.timestamp())}:R>",
+        created_at_relative=f"<t:{utc_timestamp(request.created_at)}:R>",
         guild=ctx.guild,
         member=member,
         additional_sections=None,

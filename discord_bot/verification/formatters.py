@@ -12,6 +12,7 @@ from discord_bot.common.services.embed_builder import (
     PlaceholderContext,
     build_embeds,
 )
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.steam_client import get_steam_profile_display_id
 
@@ -406,7 +407,7 @@ def create_tracker_embed(
             status_text = _clean_status_text(status_text)
 
             # Discord relative timestamp
-            unix_timestamp = int(request.created_at.timestamp())
+            unix_timestamp = utc_timestamp(request.created_at)
             relative_time = f"<t:{unix_timestamp}:R>"
 
             # Link username to moderation message

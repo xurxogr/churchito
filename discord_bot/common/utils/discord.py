@@ -1,10 +1,30 @@
 """Utilities for Discord operations."""
 
 import logging
+from datetime import UTC, datetime
 
 import discord
 
 logger = logging.getLogger(__name__)
+
+
+def utc_timestamp(dt: datetime) -> int:
+    """Convert a datetime to a Unix timestamp, treating naive values as UTC.
+
+    SQLite returns naive datetimes even for timezone-aware columns, and
+    ``datetime.timestamp()`` interprets naive values in the host timezone:
+    every rendered Discord timestamp would shift by the local UTC offset.
+
+    Args:
+        dt (datetime): Datetime to convert, naive (UTC) or timezone-aware.
+
+    Returns:
+        int: Unix timestamp in seconds.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return int(dt.timestamp())
+
 
 # Valid domains for Discord CDN URLs
 DISCORD_CDN_DOMAINS: frozenset[str] = frozenset(

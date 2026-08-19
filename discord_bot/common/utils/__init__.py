@@ -13,6 +13,7 @@ from discord_bot.common.utils.discord import (
     has_any_of_roles,
     has_any_role,
     is_valid_discord_cdn_url,
+    utc_timestamp,
 )
 from discord_bot.common.utils.embed_config_columns import (
     EMBED_SECTIONS_COLUMNS,
@@ -49,5 +50,6 @@ __all__ = [
     "load_hex_cities",
     "normalize_command_name",
     "resolve_command_name",
+    "utc_timestamp",
     "validate_command_name",
 ]

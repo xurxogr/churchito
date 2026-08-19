@@ -7,6 +7,7 @@ from typing import Any, Final
 import discord
 
 from discord_bot.common.services.embed_builder import DEFAULT_EMBED_COLOR
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.roles.models import ReactionPanel
 
 # Fallback embed color when a panel has none configured (Discord blurple).
@@ -172,7 +173,7 @@ def build_panel_placeholder_data(
     channel_mention = channel.mention if channel else f"<#{panel.channel_id}>"
 
     created_at_str = panel.created_at.strftime("%Y-%m-%d %H:%M")
-    created_at_unix = int(panel.created_at.timestamp())
+    created_at_unix = utc_timestamp(panel.created_at)
     created_at_relative = f"<t:{created_at_unix}:R>"
 
     data: dict[str, Any] = {

@@ -7,6 +7,7 @@ from typing import Any
 
 import discord
 
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.stockpile.models import Stockpile
 
 
@@ -97,7 +98,7 @@ def build_stockpile_embed_context(
     """
     # Format created_at
     created_at_str = created_at.strftime("%Y-%m-%d %H:%M")
-    created_at_unix = int(created_at.timestamp())
+    created_at_unix = utc_timestamp(created_at)
     created_at_relative = f"<t:{created_at_unix}:R>"
 
     # Build roles strings
@@ -249,7 +250,7 @@ def format_pinned_message(
         for stockpile in location_stockpiles:
             created_at_str = stockpile.created_at.strftime("%Y-%m-%d %H:%M")
             # Discord relative timestamp format: <t:UNIX:R> shows "X ago"
-            created_at_unix = int(stockpile.created_at.timestamp())
+            created_at_unix = utc_timestamp(stockpile.created_at)
             created_at_relative = f"<t:{created_at_unix}:R>"
             # Role names (no mentions)
             roles_str = format_roles_list(stockpile.view_roles, guild)

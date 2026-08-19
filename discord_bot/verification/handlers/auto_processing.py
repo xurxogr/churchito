@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.formatters import (
     create_mod_embeds,
@@ -142,7 +143,7 @@ async def handle_auto_approval(
         )
         verification_type = VerificationType(request.verification_type)
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+        created_at_relative = f"<t:{utc_timestamp(request.created_at)}:R>"
         user_display_name = member.display_name if member else request.username
         main_embeds = create_mod_embeds(
             verification_type=verification_type,
@@ -233,7 +234,7 @@ async def handle_auto_rejection(
             reason=reason,
         )
         created_at_str = request.created_at.strftime("%Y-%m-%d %H:%M")
-        created_at_relative = f"<t:{int(request.created_at.timestamp())}:R>"
+        created_at_relative = f"<t:{utc_timestamp(request.created_at)}:R>"
         user_display_name = member.display_name if member else request.username
         main_embeds = create_mod_embeds(
             verification_type=verification_type,

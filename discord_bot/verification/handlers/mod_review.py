@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import discord
 from pydantic import BaseModel, ConfigDict
 
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.auto_processor import (
     get_auto_rejectable_failures,
     get_rejection_message,
@@ -521,7 +522,7 @@ async def _show_manual_review(
         user_id=request.user_id,
         status=status_text,
         created_at=request.created_at.strftime("%Y-%m-%d %H:%M"),
-        created_at_relative=f"<t:{int(request.created_at.timestamp())}:R>",
+        created_at_relative=f"<t:{utc_timestamp(request.created_at)}:R>",
         guild=ctx.guild,
         member=member,
         additional_sections=ctx.additional_sections,

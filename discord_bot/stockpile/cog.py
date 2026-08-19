@@ -23,6 +23,7 @@ from discord_bot.common.utils import (
     is_valid_city,
     is_valid_hex,
     load_hex_cities,
+    utc_timestamp,
 )
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
@@ -1560,7 +1561,7 @@ class StockpileCog(commands.Cog):
             creator_mention_str = f"<@{stockpile_created_by}>"
 
             created_at_str = stockpile_created_at.strftime("%Y-%m-%d %H:%M")
-            created_at_unix = int(stockpile_created_at.timestamp())
+            created_at_unix = utc_timestamp(stockpile_created_at)
             created_at_relative = f"<t:{created_at_unix}:R>"
 
             success_msg = format_message(
@@ -1745,7 +1746,7 @@ class StockpileCog(commands.Cog):
             creator_mention_str = f"<@{stockpile_created_by}>"
 
             created_at_str = stockpile_created_at.strftime("%Y-%m-%d %H:%M")
-            created_at_unix = int(stockpile_created_at.timestamp())
+            created_at_unix = utc_timestamp(stockpile_created_at)
             created_at_relative = f"<t:{created_at_unix}:R>"
 
             success_msg = format_message(

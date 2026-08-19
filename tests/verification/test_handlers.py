@@ -1,7 +1,11 @@
 """Tests for verification handlers."""
 
 import asyncio
-from datetime import UTC, datetime
+import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,6 +27,26 @@ from discord_bot.verification.handlers.utils import (
     get_api_error_message,
 )
 from discord_bot.verification.models import VerificationRequest
+
+
+@contextmanager
+def _forced_timezone(name: str) -> Iterator[None]:
+    """Temporarily switch the process timezone, restoring it afterwards.
+
+    Args:
+        name (str): TZ database name, e.g. "America/New_York".
+    """
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = name
+    time.tzset()
+    try:
+        yield
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
 
 
 class TestBuildInitialCheckStatuses:
@@ -65,6 +89,21 @@ class TestCalculateExpiresTimestamp:
         # Verify it has the correct format <t:TIMESTAMP:R>
         assert result.startswith("<t:")
         assert result.endswith(":R>")
+
+    def test_naive_created_at_is_treated_as_utc(self) -> None:
+        """A naive created_at (as SQLite returns them) must render the UTC instant.
+
+        Interpreting it in the host timezone would shift the {expires}
+        placeholder shown to users by the local UTC offset.
+        """
+        aware = datetime(2026, 8, 19, 12, 0, 0, tzinfo=UTC)
+        naive = aware.replace(tzinfo=None)
+        expected = int((aware + timedelta(minutes=60)).timestamp())
+
+        with _forced_timezone("America/New_York"):
+            result = calculate_expires_timestamp(created_at=naive, timeout_minutes=60)
+
+        assert result == f"<t:{expected}:R>"
 
     def test_calculates_correct_expiration_time(self) -> None:
         """Test that calculates correct expiration time."""

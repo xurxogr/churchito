@@ -1,10 +1,54 @@
 """Tests for role helpers in discord_bot.common.utils.discord."""
 
+import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import discord
 
-from discord_bot.common.utils import has_any_of_roles, has_any_role
+from discord_bot.common.utils import has_any_of_roles, has_any_role, utc_timestamp
+
+
+@contextmanager
+def _forced_timezone(name: str) -> Iterator[None]:
+    """Temporarily switch the process timezone, restoring it afterwards.
+
+    Args:
+        name (str): TZ database name, e.g. "America/New_York".
+    """
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = name
+    time.tzset()
+    try:
+        yield
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
+
+
+class TestUtcTimestamp:
+    """Tests for utc_timestamp."""
+
+    def test_naive_datetime_is_treated_as_utc(self) -> None:
+        """A naive datetime (as SQLite returns them) must be read as UTC, not local time."""
+        aware = datetime(2026, 8, 19, 12, 0, 0, tzinfo=UTC)
+        naive = aware.replace(tzinfo=None)
+
+        with _forced_timezone("America/New_York"):
+            assert utc_timestamp(naive) == int(aware.timestamp())
+
+    def test_aware_datetime_is_unchanged(self) -> None:
+        """A timezone-aware datetime keeps its own instant regardless of host timezone."""
+        aware = datetime(2026, 8, 19, 12, 0, 0, tzinfo=UTC)
+
+        with _forced_timezone("America/New_York"):
+            assert utc_timestamp(aware) == int(aware.timestamp())
 
 
 def _member_with_roles(*role_ids: int) -> MagicMock:

@@ -5,6 +5,7 @@ from typing import Any
 
 import discord
 
+from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.formatters import build_mod_embed_sections, format_message
 from discord_bot.verification.models import VerificationRequest
@@ -32,7 +33,7 @@ def calculate_expires_timestamp(created_at: datetime, timeout_minutes: int) -> s
     if timeout_minutes <= 0:
         return ""
     expires_at = created_at + timedelta(minutes=timeout_minutes)
-    return f"<t:{int(expires_at.timestamp())}:R>"
+    return f"<t:{utc_timestamp(expires_at)}:R>"
 
 
 def get_api_error_message(status_code: int) -> str:

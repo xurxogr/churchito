@@ -18,6 +18,7 @@ from discord_bot.common.utils import (
     choose_command_name,
     delete_message,
     has_any_of_roles,
+    utc_timestamp,
 )
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
@@ -1656,7 +1657,7 @@ class RolesCog(commands.Cog):
         embed.add_field(name="Created by", value=creator_str, inline=True)
         embed.add_field(
             name="Created at",
-            value=f"<t:{int(panel.created_at.timestamp())}:R>",
+            value=f"<t:{utc_timestamp(panel.created_at)}:R>",
             inline=True,
         )
 

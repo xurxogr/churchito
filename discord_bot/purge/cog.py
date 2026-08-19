@@ -19,6 +19,7 @@ from discord_bot.common.utils import (
     choose_command_name,
     delete_message,
     has_any_role,
+    utc_timestamp,
 )
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.purge.config import COG_NAME, PURGE_CONFIG_SCHEMA
@@ -1225,7 +1226,7 @@ class PurgeCog(commands.Cog):
         discord_timestamp = ""
         discord_timestamp_relative = ""
         if record.scheduled_for:
-            unix_ts = int(record.scheduled_for.timestamp())
+            unix_ts = utc_timestamp(record.scheduled_for)
             scheduled_date = record.scheduled_for.strftime("%Y-%m-%d")
             scheduled_time = record.scheduled_for.strftime("%H:%M UTC")
             # Discord format: full date + relative
