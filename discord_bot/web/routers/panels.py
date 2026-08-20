@@ -642,6 +642,12 @@ async def _post_panel_message(
 
     except discord.Forbidden:
         raise HTTPException(status_code=400, detail="Cannot send message to channel") from None
+    except discord.HTTPException as e:
+        # Discord can reject the message itself (e.g. an embed pushed past its
+        # limits by long display names), so surface a friendly 400 instead of
+        # letting the error bubble up to the dashboard as a raw 500
+        logger.error(f"[{guild_name}] Discord rejected the panel message: {e}")
+        raise HTTPException(status_code=400, detail="Discord rejected the panel message") from None
 
 
 @router.post("/{guild_id}/panels/{panel_id}/unpost", response_class=HTMLResponse)

@@ -2176,6 +2176,64 @@ class TestPostPanelDirectCall:
             assert exc_info.value.status_code == 400
             assert "Cannot send message" in exc_info.value.detail
 
+    async def test_discord_rejection_returns_friendly_error(
+        self,
+        mock_request: MagicMock,
+        mock_session: AsyncMock,
+        test_user: dict[str, Any],
+    ) -> None:
+        """Test that a non-Forbidden Discord rejection becomes a 400, not a raw 500."""
+        import builtins
+
+        # Setup mock channel whose send is rejected by Discord (e.g. embed too long)
+        mock_channel = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status = 400
+        mock_channel.send = AsyncMock(
+            side_effect=discord.HTTPException(mock_response, "Invalid Form Body")
+        )
+
+        mock_guild = MagicMock()
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel.return_value = mock_channel
+        mock_request.app.state.bot = MagicMock()
+        mock_request.app.state.bot.get_guild.return_value = mock_guild
+
+        mock_panel = MagicMock(spec=ReactionPanel)
+        mock_panel.guild_id = 123
+        mock_panel.channel_id = 456
+        mock_panel.message_id = None
+        mock_panel.role_mappings = [{"emoji": "\U0001f44d", "role_id": 100}]
+
+        # Patch isinstance to handle TextChannel check
+        original_isinstance = builtins.isinstance
+
+        def patched_isinstance(obj: Any, classinfo: Any) -> bool:
+            if classinfo is discord.TextChannel and obj is mock_channel:
+                return True
+            return original_isinstance(obj, classinfo)
+
+        with (
+            patch("discord_bot.web.routers.panels.ReactionRolesService") as mock_service_cls,
+            patch("discord_bot.web.routers.panels.build_panel_embed") as mock_build_embed,
+            patch.object(builtins, "isinstance", patched_isinstance),
+        ):
+            mock_service = mock_service_cls.return_value
+            mock_service.get_by_id = AsyncMock(return_value=mock_panel)
+            mock_build_embed.return_value = MagicMock()
+
+            with pytest.raises(HTTPException) as exc_info:
+                await post_panel(
+                    request=mock_request,
+                    guild_id=123,
+                    panel_id=1,
+                    user=test_user,
+                    session=mock_session,
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "Discord rejected" in exc_info.value.detail
+
     async def test_posts_with_custom_emoji(
         self,
         mock_request: MagicMock,
