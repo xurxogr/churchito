@@ -378,14 +378,15 @@ class VerificationCog(commands.Cog):
                 reason=reason,
                 guild_name=guild_name,
             )
-            # Flush so changes are visible in subsequent queries
-            await session.flush()
+            # Persist the rejection before touching Discord: the timer is
+            # already consumed, so if a message edit or DM below failed, the
+            # rollback would leave the request awaiting screenshots forever
+            await session.commit()
 
             # Clean from memory
             if user_id in self._pending_dm_verifications:
                 del self._pending_dm_verifications[user_id]
             if not guild:
-                await session.commit()
                 return
 
             # Update moderation message

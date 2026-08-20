@@ -11241,6 +11241,59 @@ class TestAutoRejectByTimeout:
                 user_id=456,
             )
 
+    async def test_rejection_persisted_when_mod_message_update_fails(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """Test that the timeout rejection is committed even if the Discord update fails."""
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+            request_id = request.id
+            public_id = request.public_id
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 123
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member.return_value = None
+
+        with (
+            patch.object(verification_cog, "bot") as mock_bot,
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new_callable=AsyncMock,
+                side_effect=discord.HTTPException(MagicMock(), "edit failed"),
+            ),
+            patch(
+                "discord_bot.verification.cog.update_tracker_message",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_bot.database = test_database
+            mock_bot.wait_until_ready = AsyncMock()
+            mock_bot.user = MagicMock()
+            mock_bot.user.id = 999
+            mock_bot.get_guild.return_value = mock_guild
+
+            with pytest.raises(discord.HTTPException):
+                await verification_cog._auto_reject_by_timeout(
+                    request_id=request_id,
+                    guild_id=123,
+                    user_id=456,
+                )
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            updated = await service.get_by_public_id(public_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
+
 
 class TestScreenshotTimerTask:
     """Tests for the task for the screenshot timer."""
