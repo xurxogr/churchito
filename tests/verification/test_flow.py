@@ -8,6 +8,8 @@ import pytest
 from discord_bot.verification.enums import ConfigKey, VerificationType
 from discord_bot.verification.handlers.flow import (
     RoleChanges,
+    _grant_approval,
+    _notify_rejection,
     apply_role_changes,
     approval_confirmation,
     approval_role_changes,
@@ -170,3 +172,63 @@ def test_approval_role_changes_accepts_str_or_enum(verification_type: str) -> No
     )
 
     assert changes.add == [1]
+
+
+class TestDecisionDmBestEffort:
+    """The decision DMs must never abort an accept/reject already applied."""
+
+    def _member(self) -> MagicMock:
+        """Build a member mock whose DM fails with an HTTP 400.
+
+        Returns:
+            MagicMock: Member mock with a failing ``send``.
+        """
+        member = MagicMock(spec=discord.Member)
+        member.name = "TestUser"
+        member.add_roles = AsyncMock()
+        member.remove_roles = AsyncMock()
+        member.send = AsyncMock(
+            side_effect=discord.HTTPException(
+                MagicMock(status=400), "Must be 2000 or fewer in length."
+            )
+        )
+        return member
+
+    def _request(self) -> MagicMock:
+        """Build a verification request mock.
+
+        Returns:
+            MagicMock: Request mock for a regular verification.
+        """
+        request = MagicMock()
+        request.user_id = 654
+        request.username = "TestUser"
+        request.verification_type = VerificationType.REGULAR.value
+        request.rejection_reason = None
+        return request
+
+    async def test_approval_dm_http_error_does_not_abort_approval(self) -> None:
+        """An oversized approval DM is swallowed after the roles were applied."""
+        member = self._member()
+        guild = _guild({1: _role(1, "Member")})
+        guild.get_member.return_value = member
+        config = {ConfigKey.REGULAR_ROLES_ADD: [1]}
+
+        failed_roles = await _grant_approval(guild=guild, config=config, request=self._request())
+
+        assert failed_roles == []
+        member.add_roles.assert_awaited_once()
+        member.send.assert_awaited_once()
+
+    async def test_rejection_dm_http_error_does_not_abort_rejection(self) -> None:
+        """An oversized rejection DM (template + long reason) is swallowed."""
+        member = self._member()
+        guild = _guild()
+        guild.get_member.return_value = member
+        config = {ConfigKey.REJECTION_MESSAGE: "Rejected: {reason}"}
+
+        await _notify_rejection(
+            guild=guild, config=config, request=self._request(), reason="x" * 500
+        )
+
+        member.send.assert_awaited_once()

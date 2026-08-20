@@ -280,7 +280,7 @@ async def apply_role_changes(
 
 
 async def _dm_member(member: discord.Member, content: str) -> None:
-    """DM the member, ignoring closed DMs.
+    """DM the member, ignoring delivery failures.
 
     Args:
         member (discord.Member): Member to notify.
@@ -290,6 +290,13 @@ async def _dm_member(member: discord.Member, content: str) -> None:
         await member.send(content=content)
     except discord.Forbidden:
         pass
+    except discord.HTTPException as e:
+        # Best effort: a rendered template pushed over the 2000-character DM
+        # limit by its placeholders (e.g. a 500-character rejection reason)
+        # must not crash the handler — the decision would be rolled back
+        # AFTER the approval roles were already applied, and the same reason
+        # would fail again on every retry
+        logger.warning(f"Could not DM the decision to {member.name}: {e}")
 
 
 async def _grant_approval(
