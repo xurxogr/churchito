@@ -773,6 +773,114 @@ class TestAutoProcessingPersistsDecisionBeforeDiscord:
             assert updated.status == VerificationStatus.REJECTED
 
 
+class TestAutoProcessingDmBestEffort:
+    """The outcome DM must not abort the auto decision's Discord updates."""
+
+    async def _create_request(self, test_database: DatabaseService) -> int:
+        """Create a verification request in its own committed transaction.
+
+        Args:
+            test_database (DatabaseService): Test database service.
+
+        Returns:
+            int: ID of the created request.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            return request.id
+
+    def _create_discord_mocks(self) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
+        """Create cog, guild, member and mod message mocks with a failing DM.
+
+        Returns:
+            tuple[MagicMock, MagicMock, MagicMock, MagicMock]: Cog, guild,
+                member and mod message mocks.
+        """
+        mock_cog = MagicMock()
+        mock_cog.bot.user.id = 42
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.name = "TestUser"
+        mock_member.display_name = "TestUser"
+        mock_member.send = AsyncMock(
+            side_effect=discord.HTTPException(
+                MagicMock(status=400), "Must be 2000 or fewer in length."
+            )
+        )
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=mock_member)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 999
+        mock_message.edit = AsyncMock()
+        return mock_cog, mock_guild, mock_member, mock_message
+
+    async def test_approval_dm_http_error_still_updates_mod_message(
+        self, test_database: DatabaseService
+    ) -> None:
+        """Test that an oversized approval DM does not abort the approval flow."""
+        request_id = await self._create_request(test_database)
+        mock_cog, mock_guild, mock_member, mock_message = self._create_discord_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with patch(
+            "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+            return_value=[discord.Embed()],
+        ):
+            async with test_database.session() as session:
+                service = VerificationService(session=session)
+                request = await service.get_request(request_id)
+                assert request is not None
+                await handle_auto_approval(
+                    cog=mock_cog,
+                    guild=mock_guild,
+                    request=request,
+                    verification_service=service,
+                    config=config,
+                    mod_message=mock_message,
+                    embeds=[],
+                )
+
+        mock_member.send.assert_awaited_once()
+        mock_message.edit.assert_awaited_once()
+
+    async def test_rejection_dm_http_error_still_updates_mod_message(
+        self, test_database: DatabaseService
+    ) -> None:
+        """Test that an oversized rejection DM does not abort the rejection flow."""
+        request_id = await self._create_request(test_database)
+        mock_cog, mock_guild, mock_member, mock_message = self._create_discord_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with patch(
+            "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+            return_value=[discord.Embed()],
+        ):
+            async with test_database.session() as session:
+                service = VerificationService(session=session)
+                request = await service.get_request(request_id)
+                assert request is not None
+                await handle_auto_rejection(
+                    cog=mock_cog,
+                    guild=mock_guild,
+                    request=request,
+                    verification_service=service,
+                    config=config,
+                    mod_message=mock_message,
+                    embeds=[],
+                    reason="Reason 1\nReason 2\nReason 3",
+                )
+
+        mock_member.send.assert_awaited_once()
+        mock_message.edit.assert_awaited_once()
+
+
 class TestSendModPingMessage:
     """Tests for send_mod_ping_message."""
 

@@ -178,6 +178,11 @@ async def handle_auto_approval(
             await member.send(content=approval_msg)
         except discord.Forbidden:
             pass
+        except discord.HTTPException as e:
+            # Best effort: the approval is already committed, and a rendered
+            # template pushed over the 2000-character DM limit must not stop
+            # the mod message update and the intake cleanup that follow
+            logger.warning(f"[{guild.name}] Could not DM the approval to {member.name}: {e}")
 
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:
@@ -275,6 +280,12 @@ async def handle_auto_rejection(
             await member.send(content=rejection_msg)
         except discord.Forbidden:
             pass
+        except discord.HTTPException as e:
+            # Best effort: the rejection is already committed, and the reason
+            # can stack several configured messages over the 2000-character
+            # DM limit — that must not stop the mod message update and the
+            # intake cleanup that follow
+            logger.warning(f"[{guild.name}] Could not DM the rejection to {member.name}: {e}")
 
     delete_messages = config.get(ConfigKey.DELETE_PROCESSED_MESSAGES)
     if delete_messages:
