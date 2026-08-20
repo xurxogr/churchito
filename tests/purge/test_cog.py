@@ -1851,6 +1851,122 @@ class TestHandleConfirmExtended:
         assert "no longer active" in str(call_args).lower()
 
 
+class TestHandleConfirmRoleBestEffort:
+    """The confirmation toggle must survive reaction-role HTTP failures."""
+
+    async def test_confirmation_persists_when_role_assignment_fails(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing role assignment does not roll back the confirmation.
+
+        The confirmation decides who survives the purge, so an HTTP error on
+        the decorative reaction role must not discard it and leave the user
+        with a dead interaction.
+        """
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        role = MagicMock(spec=discord.Role)
+        role.id = 555
+        role.name = "Confirmed"
+        mock_interaction.guild.get_role = MagicMock(
+            side_effect=lambda rid: role if rid == 555 else None
+        )
+        mock_member.add_roles = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=404), "Unknown Role")
+        )
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_REACTION_ROLE, 555)
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.USER_FIRST_REACTION_TEXT, "Confirmed"
+            )
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purge_service.update_status(record.id, PurgeStatus.AUTHORIZED)
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_confirm(mock_interaction, public_id)
+
+        mock_interaction.response.send_message.assert_called()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "confirmed" in str(call_args).lower()
+
+        async with test_database.session() as session:
+            result = await session.execute(select(PurgeRecord).where(PurgeRecord.id == purge_id))
+            stored = result.scalar_one()
+            assert mock_member.id in stored.confirmed_by
+
+    async def test_withdrawal_persists_when_role_removal_fails(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing role removal does not roll back the withdrawal."""
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        role = MagicMock(spec=discord.Role)
+        role.id = 555
+        role.name = "Confirmed"
+        mock_interaction.guild.get_role = MagicMock(
+            side_effect=lambda rid: role if rid == 555 else None
+        )
+        mock_member.remove_roles = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=404), "Unknown Role")
+        )
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_REACTION_ROLE, 555)
+            await config_service.set_value(
+                guild_id, COG_NAME, ConfigKey.USER_REMOVED_REACTION_TEXT, "Withdrawn"
+            )
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purge_service.update_status(record.id, PurgeStatus.AUTHORIZED)
+            await purge_service.add_confirmation(purge_id=record.id, user_id=mock_member.id)
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_confirm(mock_interaction, public_id)
+
+        mock_interaction.response.send_message.assert_called()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "withdrawn" in str(call_args).lower()
+
+        async with test_database.session() as session:
+            result = await session.execute(select(PurgeRecord).where(PurgeRecord.id == purge_id))
+            stored = result.scalar_one()
+            assert mock_member.id not in stored.confirmed_by
+
+
 class TestScheduleMessageDeletion:
     """Tests for _schedule_message_deletion."""
 

@@ -1013,10 +1013,13 @@ class PurgeCog(commands.Cog):
                     if role:
                         try:
                             await user.remove_roles(role)
-                        except discord.Forbidden:
+                        except discord.HTTPException as e:
+                            # Best effort: the withdrawal decides the purge
+                            # outcome and must commit even when the decorative
+                            # role cannot be updated
                             logger.warning(
                                 f"[{guild.name}] Could not remove role "
-                                f"@{role.name} from {user.name}"
+                                f"@{role.name} from {user.name}: {e}"
                             )
             else:
                 record = await purge_service.add_confirmation(purge_id=record.id, user_id=user.id)
@@ -1031,9 +1034,13 @@ class PurgeCog(commands.Cog):
                     if role:
                         try:
                             await user.add_roles(role)
-                        except discord.Forbidden:
+                        except discord.HTTPException as e:
+                            # Best effort: the confirmation is what spares the
+                            # user from the purge, so a failing role assignment
+                            # must not roll it back and kill the interaction
                             logger.warning(
-                                f"[{guild.name}] Could not assign role @{role.name} to {user.name}"
+                                f"[{guild.name}] Could not assign role "
+                                f"@{role.name} to {user.name}: {e}"
                             )
 
             await session.commit()
