@@ -317,6 +317,18 @@ class TestBuildNickname:
         assert len(result) == 32
         assert result == "A" * 32
 
+    def test_unbalanced_brace_format_left_literal(self) -> None:
+        """A tag format with a brace typo must not raise; it is kept literal."""
+        result = build_nickname(base_name="Xurxo", tag="CAP", prefix="", tag_format="[ABC | {tag]")
+        assert result == "[ABC | {tag] Xurxo"
+
+    def test_unknown_placeholder_left_literal(self) -> None:
+        """Unknown placeholders in the tag format must not raise; they stay literal."""
+        result = build_nickname(
+            base_name="Xurxo", tag="CAP", prefix="", tag_format="[{clan} | {tag}]"
+        )
+        assert result == "[{clan} | CAP] Xurxo"
+
 
 class TestComputeNickname:
     """Tests for compute_nickname."""
