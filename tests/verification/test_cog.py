@@ -1537,6 +1537,7 @@ class TestOnMessage:
 
         config_values = {
             "wrong_images_message": "You must send 2 images",
+            "request_not_found_message": "Request not found.",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock
@@ -1571,6 +1572,7 @@ class TestOnMessage:
 
         config_values = {
             "wrong_images_message": "You must send 2 images",
+            "request_not_found_message": "Request not found.",
         }
         with patch.object(
             verification_cog, "_get_all_config", new_callable=AsyncMock

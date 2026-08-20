@@ -143,6 +143,11 @@ async def _reply(ctx: IntakeContext, key: ConfigKey, **values: str | None) -> No
     formatted = format_message(
         template=ctx.config.get(key), username=ctx.message.author.name, **values
     )
+    # The dashboard stores empty strings for cleared messages and Discord
+    # rejects empty content with a 400, which would roll back the whole
+    # intake — including screenshots stored in this same session
+    if not formatted:
+        return
     await ctx.message.channel.send(content=formatted)
 
 
@@ -152,7 +157,11 @@ async def _send_not_found(ctx: IntakeContext) -> None:
     Args:
         ctx (IntakeContext): Intake context.
     """
-    await ctx.message.channel.send(content=ctx.config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE))
+    text = ctx.config.get(ConfigKey.REQUEST_NOT_FOUND_MESSAGE)
+    # Skipped when cleared in the dashboard: empty content is a Discord 400
+    if not text:
+        return
+    await ctx.message.channel.send(content=text)
 
 
 async def _store_screenshots(

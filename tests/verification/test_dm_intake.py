@@ -1,10 +1,14 @@
 """Tests for the pure helpers behind handle_dm_screenshots."""
 
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 from discord_bot.verification.api_client import MAX_IMAGE_BYTES
 from discord_bot.verification.enums import ConfigKey
 from discord_bot.verification.handlers.dm_intake import (
+    IntakeContext,
+    _reply,
+    _send_not_found,
     ack_key,
     image_attachments_of,
     reminder_key,
@@ -119,3 +123,63 @@ class TestRequirementsMet:
         """Steam URL is mandatory when configured as required."""
         assert not requirements_met(request=_request("a", "b", None), steam_required=True)
         assert requirements_met(request=_request("a", "b", "https://s"), steam_required=True)
+
+
+def _intake_ctx(config: dict[str, Any]) -> IntakeContext:
+    """Build an intake context with a mocked DM channel.
+
+    Args:
+        config (dict[str, Any]): Cog configuration.
+
+    Returns:
+        IntakeContext: Context whose ``message.channel.send`` is an AsyncMock.
+    """
+    message = MagicMock()
+    message.author.name = "TestUser"
+    message.channel.send = AsyncMock()
+    return IntakeContext(
+        cog=MagicMock(),
+        message=message,
+        guild=MagicMock(),
+        guild_name="Test Guild",
+        config=config,
+        session=MagicMock(),
+        verification_service=MagicMock(),
+        config_service=MagicMock(),
+    )
+
+
+class TestReplySkipsEmptyMessages:
+    """Cleared dashboard messages must not crash the intake with empty sends."""
+
+    async def test_cleared_reply_message_sends_nothing(self) -> None:
+        """A message cleared in the dashboard (stored as "") is not sent."""
+        ctx = _intake_ctx(config={ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE: ""})
+
+        await _reply(ctx=ctx, key=ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE, server_name="Test Guild")
+
+        ctx.message.channel.send.assert_not_called()
+
+    async def test_configured_reply_message_is_sent(self) -> None:
+        """A configured message is formatted and sent."""
+        ctx = _intake_ctx(config={ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE: "Thanks {username}!"})
+
+        await _reply(ctx=ctx, key=ConfigKey.SCREENSHOTS_RECEIVED_MESSAGE)
+
+        ctx.message.channel.send.assert_awaited_once_with(content="Thanks TestUser!")
+
+    async def test_cleared_not_found_message_sends_nothing(self) -> None:
+        """A cleared (or missing) not-found message is not sent."""
+        ctx = _intake_ctx(config={ConfigKey.REQUEST_NOT_FOUND_MESSAGE: ""})
+
+        await _send_not_found(ctx)
+
+        ctx.message.channel.send.assert_not_called()
+
+    async def test_configured_not_found_message_is_sent(self) -> None:
+        """A configured not-found message is sent as-is."""
+        ctx = _intake_ctx(config={ConfigKey.REQUEST_NOT_FOUND_MESSAGE: "Not found."})
+
+        await _send_not_found(ctx)
+
+        ctx.message.channel.send.assert_awaited_once_with(content="Not found.")
