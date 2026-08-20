@@ -150,6 +150,30 @@ class TestModReviewView:
         assert accept_btn.style == discord.ButtonStyle.success
         assert reject_btn.style == discord.ButtonStyle.danger
 
+    async def test_labels_clamped_to_discord_button_limit(self) -> None:
+        """Test that rendered labels over 80 characters are clamped.
+
+        The accept template allows 80 characters BEFORE the
+        {verification_type} placeholder (up to 50 characters) is substituted,
+        and Discord rejects the whole message edit with a 400 when a button
+        label exceeds 80 characters.
+        """
+        long_accept = "Accept the " + "x" * 80 + " verification"
+        long_reject = "Reject " + "y" * 90
+
+        view = ModReviewView(
+            public_id="test123", accept_label=long_accept, reject_label=long_reject
+        )
+
+        accept_btn = next(c for c in view.children if isinstance(c, AcceptButton))
+        reject_btn = next(c for c in view.children if isinstance(c, RejectButton))
+        assert accept_btn.label is not None
+        assert reject_btn.label is not None
+        assert len(accept_btn.label) <= 80
+        assert len(reject_btn.label) <= 80
+        assert accept_btn.label == long_accept[:80]
+        assert reject_btn.label == long_reject[:80]
+
     # Buttons do not have their own callbacks.
     # Interactions are handled by the cog's on_interaction.
 

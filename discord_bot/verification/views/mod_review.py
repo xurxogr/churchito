@@ -7,6 +7,11 @@ which allows them to work even after the bot restarts.
 
 import discord
 
+# Discord rejects the whole message edit with a 400 when a button label
+# exceeds 80 characters, and the accept template allows 80 characters BEFORE
+# the {verification_type} placeholder (up to 50 characters) is substituted
+MAX_BUTTON_LABEL_LENGTH = 80
+
 
 class AcceptButton(discord.ui.Button["ModReviewView"]):
     """Button to accept a verification request."""
@@ -65,8 +70,14 @@ class ModReviewView(discord.ui.View):
         super().__init__(timeout=None)
         self.public_id = public_id
 
-        self.add_item(AcceptButton(public_id=public_id, label=accept_label))
-        self.add_item(RejectButton(public_id=public_id, label=reject_label))
+        # Clamped here so every construction site (manual review, review
+        # revert, embed rebuild) stays within the Discord label limit
+        self.add_item(
+            AcceptButton(public_id=public_id, label=accept_label[:MAX_BUTTON_LABEL_LENGTH])
+        )
+        self.add_item(
+            RejectButton(public_id=public_id, label=reject_label[:MAX_BUTTON_LABEL_LENGTH])
+        )
 
         # Display-only view: interactions are handled by on_interaction, so
         # stop it immediately to keep Message.edit from registering it in the
