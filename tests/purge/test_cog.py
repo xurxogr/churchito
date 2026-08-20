@@ -684,6 +684,103 @@ class TestConcurrentPurgeCreation:
         assert sum("Purge started" in reply for reply in replies) == 1
 
 
+class TestCreatePurgeConsistency:
+    """Creation failures must not leave committed or in-memory purge state."""
+
+    async def test_missing_mod_channel_leaves_no_purge_record(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a missing mod channel does not commit a zombie purge.
+
+        The session auto-commits on a clean exit, so returning after
+        ``create_purge`` used to persist a PENDING purge that no loop
+        tracked and that blocked every new purge until the next restart.
+        """
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            # Do not configure MOD_CHANNEL
+            await session.commit()
+
+        await purge_cog._handle_purge(mock_interaction, 3, PurgeType.GLOBAL)
+
+        call_args = mock_interaction.followup.send.call_args
+        assert "not configured" in str(call_args).lower()
+
+        async with test_database.session() as session:
+            result = await session.execute(
+                select(PurgeRecord).where(PurgeRecord.guild_id == guild_id)
+            )
+            assert result.scalars().all() == []
+
+    async def test_mod_message_failure_cancels_the_purge(
+        self,
+        purge_cog: PurgeCog,
+        mock_interaction: MagicMock,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing mod message rolls back the purge and its tracking.
+
+        Without the explicit rollback the auto-authorized purge stayed
+        registered in ``_authorized_purges`` for a record the session
+        discarded, and the invoker never got an answer.
+        """
+        guild_id = mock_interaction.guild.id
+        mock_interaction.user = mock_member
+
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_channel.id = 456
+        mock_mod_channel.mention = "#mods"
+        mock_mod_channel.send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=403), "Missing Permissions")
+        )
+
+        mock_user_channel = MagicMock(spec=discord.TextChannel)
+        mock_user_channel.id = 789
+        mock_user_channel.send = AsyncMock(return_value=MagicMock(id=101112))
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            """Return the mocked mod or user channel."""
+            if channel_id == 456:
+                return mock_mod_channel
+            if channel_id == 789:
+                return mock_user_channel
+            return None
+
+        mock_interaction.guild.get_channel = MagicMock(side_effect=get_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_CHANNEL, 789)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+            await session.commit()
+
+        await purge_cog._handle_purge(mock_interaction, 3, PurgeType.GLOBAL)
+
+        assert guild_id not in purge_cog._authorized_purges
+        call_args = mock_interaction.followup.send.call_args
+        assert "moderation channel" in str(call_args).lower()
+
+        async with test_database.session() as session:
+            result = await session.execute(
+                select(PurgeRecord).where(PurgeRecord.guild_id == guild_id)
+            )
+            assert result.scalars().all() == []
+
+
 class TestRegisterGlobalCommand:
     """Tests for _register_purge_command with PurgeType.GLOBAL."""
 
@@ -1195,10 +1292,27 @@ class TestLogTemplateTolerance:
         mock_interaction.user = mock_member
         log_channel = self._setup_log_channel(mock_interaction.guild)
 
+        # The creation log only fires for purges that pass the moderation
+        # channel validation, so configure one
+        mod_channel = MagicMock(spec=discord.TextChannel)
+        mod_channel.id = 456
+        mod_channel.mention = "#mods"
+        mod_channel.send = AsyncMock(return_value=MagicMock(id=789))
+        log_get_channel = mock_interaction.guild.get_channel
+
+        def get_channel(channel_id: int) -> MagicMock | None:
+            """Return the mocked mod channel or fall back to the log lookup."""
+            if channel_id == mod_channel.id:
+                return mod_channel
+            return log_get_channel(channel_id)
+
+        mock_interaction.guild.get_channel = MagicMock(side_effect=get_channel)
+
         async with test_database.session() as session:
             config_service = ConfigService(session)
             await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
             await config_service.set_value(guild_id, COG_NAME, ConfigKey.GLOBAL_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_CHANNEL, 456)
             await config_service.set_value(
                 guild_id, COG_NAME, ConfigKey.LOG_CHANNEL, self.LOG_CHANNEL_ID
             )

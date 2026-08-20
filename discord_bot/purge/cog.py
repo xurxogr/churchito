@@ -522,6 +522,25 @@ class PurgeCog(commands.Cog):
                 )
                 return
 
+            # Resolve the moderation channel BEFORE creating the record: the
+            # session auto-commits on a clean exit, so returning after the
+            # creation would persist a purge that nothing tracks in memory,
+            # blocking every new purge until the next restart
+            mod_channel_id = config.get(ConfigKey.MOD_CHANNEL)
+            if not mod_channel_id:
+                await interaction.followup.send(
+                    "Error: Moderation channel not configured.",
+                    ephemeral=True,
+                )
+                return
+            mod_channel = guild.get_channel(mod_channel_id)
+            if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
+                await interaction.followup.send(
+                    "Error: Moderation channel not found.",
+                    ephemeral=True,
+                )
+                return
+
             # Calculate execution date (rounded to the next hour)
             now = datetime.now(UTC)
             scheduled_for = now + timedelta(hours=hours)
@@ -575,22 +594,6 @@ class PurgeCog(commands.Cog):
                 message=log_message,
             )
 
-            # Get moderation channel
-            mod_channel_id = config.get(ConfigKey.MOD_CHANNEL)
-            if not mod_channel_id:
-                await interaction.followup.send(
-                    "Error: Moderation channel not configured.",
-                    ephemeral=True,
-                )
-                return
-            mod_channel = guild.get_channel(mod_channel_id)
-            if not mod_channel or not isinstance(mod_channel, discord.TextChannel):
-                await interaction.followup.send(
-                    "Error: Moderation channel not found.",
-                    ephemeral=True,
-                )
-                return
-
             # Calculate required authorizations
             required = self._get_required_reactions(config)
 
@@ -612,7 +615,21 @@ class PurgeCog(commands.Cog):
             content = get_mod_message_content(guild=guild, record=record, config=config)
             view = self._create_mod_view(record=record, config=config)
 
-            mod_message = await mod_channel.send(content=content, view=view)
+            try:
+                mod_message = await mod_channel.send(content=content, view=view)
+            except discord.HTTPException as e:
+                # Without a moderation message nobody can authorize or cancel
+                # the purge, so cancel the creation: roll back the record
+                # (the session would auto-commit it on a clean exit) and drop
+                # the execution entry a self-authorization just registered
+                logger.error(f"[{guild.name}] Could not post the purge moderation message: {e}")
+                await session.rollback()
+                self._authorized_purges.pop(guild.id, None)
+                await interaction.followup.send(
+                    "Error: Could not send the message to the moderation channel.",
+                    ephemeral=True,
+                )
+                return
 
             # Update record with message ID
             await purge_service.update_mod_message(
