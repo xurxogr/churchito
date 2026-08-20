@@ -651,6 +651,11 @@ class RolesCog(commands.Cog):
                 await self._on_role_removed(panel, guild, member, role, config)
             except discord.Forbidden:
                 logger.warning(f"[{guild.name}] Cannot remove role {role.name}")
+            except discord.HTTPException as e:
+                # Tolerated like in the react branch: an escaping error (e.g.
+                # the role was deleted between the lookup and this call) would
+                # bubble out of the reaction event instead
+                logger.warning(f"[{guild.name}] Could not remove role {role.name}: {e}")
             return
 
         # Check if user must have an existing role to switch (exclusive_require_existing)
@@ -826,6 +831,13 @@ class RolesCog(commands.Cog):
                     await member.send(msg)
                 except discord.Forbidden:
                     pass
+                except discord.HTTPException as e:
+                    # Best effort: an undeliverable or over-limit DM must not
+                    # skip the audit notification below
+                    logger.warning(
+                        f"[{guild.name}] Could not DM role-added notice to "
+                        f"{member.display_name}: {e}"
+                    )
 
         # Send audit notification if configured
         if config.get(ConfigKey.AUDIT_USER_ROLE_ADD):
@@ -868,6 +880,13 @@ class RolesCog(commands.Cog):
                     await member.send(msg)
                 except discord.Forbidden:
                     pass
+                except discord.HTTPException as e:
+                    # Best effort: an undeliverable or over-limit DM must not
+                    # skip the audit notification below
+                    logger.warning(
+                        f"[{guild.name}] Could not DM role-removed notice to "
+                        f"{member.display_name}: {e}"
+                    )
 
         # Send audit notification if configured
         if config.get(ConfigKey.AUDIT_USER_ROLE_REMOVE):
@@ -905,6 +924,12 @@ class RolesCog(commands.Cog):
             await member.send(msg)
         except discord.Forbidden:
             pass
+        except discord.HTTPException as e:
+            # Best effort: an undeliverable or over-limit DM (the template is
+            # admin-configured) must not escape the reaction event
+            logger.warning(
+                f"[{guild.name}] Could not DM missing-role notice to {member.display_name}: {e}"
+            )
 
     async def _send_audit_message(
         self,

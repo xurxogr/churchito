@@ -2188,6 +2188,177 @@ class TestSendMissingRoleDM:
         mock_member.send.assert_not_called()
 
 
+class TestReactionNotificationBestEffort:
+    """Non-Forbidden DM failures must not abort the notification chain.
+
+    The user DM templates are admin-configured, so a rendered message can
+    exceed Discord's 2000-character limit (HTTP 400); such a failure must
+    not skip the audit notification nor escape the reaction event.
+    """
+
+    def _http_error(self) -> discord.HTTPException:
+        """Build a Discord HTTP 400 error like an over-limit message rejection.
+
+        Returns:
+            discord.HTTPException: Error with a 400 status response.
+        """
+        return discord.HTTPException(MagicMock(status=400), "Invalid Form Body")
+
+    def _audit_channel(self, mock_guild: MagicMock) -> MagicMock:
+        """Attach a sendable audit channel to the guild mock.
+
+        Args:
+            mock_guild (MagicMock): Guild mock to attach the channel to.
+
+        Returns:
+            MagicMock: The audit channel mock.
+        """
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.send = AsyncMock()
+        mock_guild.get_channel.return_value = channel
+        return channel
+
+    async def _create_dm_panel(
+        self, test_database: DatabaseService, guild_id: int
+    ) -> ReactionPanel:
+        """Create a toggle panel with role-change DMs enabled.
+
+        Args:
+            test_database (DatabaseService): Test database.
+            guild_id (int): Guild ID.
+
+        Returns:
+            ReactionPanel: The created panel.
+        """
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=guild_id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+                dm_on_role_change=True,
+            )
+            await session.commit()
+            return panel
+
+    async def test_role_added_dm_http_error_still_sends_audit(
+        self,
+        roles_cog: RolesCog,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing role-added DM does not skip the audit message."""
+        panel = await self._create_dm_panel(test_database, mock_guild.id)
+        audit_channel = self._audit_channel(mock_guild)
+        mock_member.send = AsyncMock(side_effect=self._http_error())
+        config = {
+            ConfigKey.DM_ROLE_ADDED_MSG: "You got the {role_name} role!",
+            ConfigKey.AUDIT_USER_ROLE_ADD: True,
+            ConfigKey.AUDIT_CHANNEL: 555,
+            ConfigKey.AUDIT_USER_ROLE_ADD_MSG: "{user_name} got {role_name}",
+        }
+
+        await roles_cog._on_role_added(panel, mock_guild, mock_member, mock_role, config)
+
+        mock_member.send.assert_awaited_once()
+        audit_channel.send.assert_awaited_once()
+
+    async def test_role_removed_dm_http_error_still_sends_audit(
+        self,
+        roles_cog: RolesCog,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing role-removed DM does not skip the audit message."""
+        panel = await self._create_dm_panel(test_database, mock_guild.id)
+        audit_channel = self._audit_channel(mock_guild)
+        mock_member.send = AsyncMock(side_effect=self._http_error())
+        config = {
+            ConfigKey.DM_ROLE_REMOVED_MSG: "You lost the {role_name} role!",
+            ConfigKey.AUDIT_USER_ROLE_REMOVE: True,
+            ConfigKey.AUDIT_CHANNEL: 555,
+            ConfigKey.AUDIT_USER_ROLE_REMOVE_MSG: "{user_name} lost {role_name}",
+        }
+
+        await roles_cog._on_role_removed(panel, mock_guild, mock_member, mock_role, config)
+
+        mock_member.send.assert_awaited_once()
+        audit_channel.send.assert_awaited_once()
+
+    async def test_missing_role_dm_http_error_is_swallowed(
+        self,
+        roles_cog: RolesCog,
+        mock_member: MagicMock,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing missing-role DM does not escape the reaction event."""
+        await enable_cog_for_guild(test_database, mock_guild.id)
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=mock_guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.DM_MISSING_ROLE_MSG,
+                value="You need a required role for {panel_name}",
+            )
+            await session.commit()
+        panel = await self._create_dm_panel(test_database, mock_guild.id)
+        mock_member.send = AsyncMock(side_effect=self._http_error())
+
+        await roles_cog._send_missing_role_dm(panel, mock_guild, mock_member)
+
+        mock_member.send.assert_awaited_once()
+
+    async def test_exclusive_unreact_http_error_is_swallowed(
+        self,
+        roles_cog: RolesCog,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        mock_role2: MagicMock,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a failing role removal on unreact does not escape the event.
+
+        A role deleted between the lookup and the call (404 Unknown Role) or a
+        transient Discord error must be tolerated like in the react branch.
+        """
+        async with test_database.session() as session:
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="ExclusivePanel",
+                panel_type=PanelType.EXCLUSIVE,
+                created_by=789,
+                guild_name="Test Guild",
+                role_mappings=[
+                    {"emoji": "\U0001f44d", "role_id": 100},
+                    {"emoji": "\U0001f44e", "role_id": 200},
+                ],
+            )
+            await session.commit()
+        # Member holds both panel roles, so the unreacted one may be removed
+        mock_member.roles = [mock_role, mock_role2]
+        mock_member.remove_roles = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=404), "Unknown Role")
+        )
+
+        await roles_cog._handle_exclusive(
+            panel, mock_guild, mock_member, mock_role, False, {}, 456, 999
+        )
+
+        mock_member.remove_roles.assert_awaited_once()
+
+
 class TestHandleAddRoleSuccess:
     """Additional tests for _handle_add_role command handler."""
 
