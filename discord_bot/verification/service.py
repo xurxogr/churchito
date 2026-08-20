@@ -27,6 +27,14 @@ class VerificationService:
         """
         self._session = session
 
+    async def commit(self) -> None:
+        """Commit the underlying session, persisting the pending changes.
+
+        Lets handlers that only hold the service persist a decision before
+        running Discord side effects that could fail and roll it back.
+        """
+        await self._session.commit()
+
     async def create_request(
         self,
         guild_id: int,

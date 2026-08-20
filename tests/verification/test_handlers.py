@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
+from discord_bot.common.services.database import DatabaseService
 from discord_bot.common.utils import is_valid_discord_cdn_url
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers import (
@@ -31,6 +32,7 @@ from discord_bot.verification.handlers.utils import (
     get_api_error_message,
 )
 from discord_bot.verification.models import VerificationRequest
+from discord_bot.verification.service import VerificationService
 
 
 @contextmanager
@@ -658,6 +660,117 @@ class TestAutoProcessingSurvivesMissingModMessage:
 
         mock_service.reject.assert_awaited_once()
         mock_message.edit.assert_awaited_once()
+
+
+class TestAutoProcessingPersistsDecisionBeforeDiscord:
+    """Tests that the auto decision is committed before the Discord updates run."""
+
+    async def _create_request(self, test_database: DatabaseService) -> int:
+        """Create a verification request in its own committed transaction.
+
+        Args:
+            test_database (DatabaseService): Test database service.
+
+        Returns:
+            int: ID of the created request.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            return request.id
+
+    def _create_discord_mocks(self) -> tuple[MagicMock, MagicMock, MagicMock]:
+        """Create the cog, guild and failing mod message mocks.
+
+        Returns:
+            tuple[MagicMock, MagicMock, MagicMock]: Cog, guild and mod message mocks.
+        """
+        mock_cog = MagicMock()
+        mock_cog.bot.user.id = 42
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=None)
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 999
+        mock_message.edit = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "edit failed"))
+        return mock_cog, mock_guild, mock_message
+
+    async def test_auto_approval_persists_when_mod_message_edit_fails(
+        self, test_database: DatabaseService
+    ) -> None:
+        """Test that the approval is committed even if the mod message edit fails."""
+        request_id = await self._create_request(test_database)
+        mock_cog, mock_guild, mock_message = self._create_discord_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with (
+            patch(
+                "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+                return_value=[discord.Embed()],
+            ),
+            pytest.raises(discord.HTTPException),
+        ):
+            async with test_database.session() as session:
+                service = VerificationService(session=session)
+                request = await service.get_request(request_id)
+                assert request is not None
+                await handle_auto_approval(
+                    cog=mock_cog,
+                    guild=mock_guild,
+                    request=request,
+                    verification_service=service,
+                    config=config,
+                    mod_message=mock_message,
+                    embeds=[],
+                )
+
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.APPROVED
+
+    async def test_auto_rejection_persists_when_mod_message_edit_fails(
+        self, test_database: DatabaseService
+    ) -> None:
+        """Test that the rejection is committed even if the mod message edit fails."""
+        request_id = await self._create_request(test_database)
+        mock_cog, mock_guild, mock_message = self._create_discord_mocks()
+        config: dict[str, Any] = {"delete_processed_messages": False}
+
+        with (
+            patch(
+                "discord_bot.verification.handlers.auto_processing.create_mod_embeds",
+                return_value=[discord.Embed()],
+            ),
+            pytest.raises(discord.HTTPException),
+        ):
+            async with test_database.session() as session:
+                service = VerificationService(session=session)
+                request = await service.get_request(request_id)
+                assert request is not None
+                await handle_auto_rejection(
+                    cog=mock_cog,
+                    guild=mock_guild,
+                    request=request,
+                    verification_service=service,
+                    config=config,
+                    mod_message=mock_message,
+                    embeds=[],
+                    reason="Auto-rejected",
+                )
+
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            updated = await service.get_request(request_id)
+            assert updated is not None
+            assert updated.status == VerificationStatus.REJECTED
 
 
 class TestSendModPingMessage:

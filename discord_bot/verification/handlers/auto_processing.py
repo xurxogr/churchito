@@ -131,6 +131,11 @@ async def handle_auto_approval(
         reviewer_username="Auto",
         guild_name=guild.name,
     )
+    # Persist the approval before touching Discord: a failing role edit, DM or
+    # mod message update below would otherwise roll the request back to
+    # awaiting screenshots after the member already got the roles and the
+    # approval DM, and the still-armed screenshot timer would later reject it
+    await verification_service.commit()
 
     member = guild.get_member(request.user_id)
     if member:
@@ -250,6 +255,10 @@ async def handle_auto_rejection(
         reason=reason,
         guild_name=guild.name,
     )
+    # Persist the rejection before touching Discord: a failing DM or mod
+    # message update below would otherwise roll the request back to awaiting
+    # screenshots after the member was already told it was rejected
+    await verification_service.commit()
 
     member = guild.get_member(request.user_id)
     verification_type = VerificationType(request.verification_type)
