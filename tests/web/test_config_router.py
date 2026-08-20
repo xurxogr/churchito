@@ -403,19 +403,19 @@ class TestConvertFormValueEmbedSections:
         assert result == []
 
     def test_invalid_json(self) -> None:
-        """Test that invalid JSON returns None."""
-        result = _convert_form_value("{invalid json}", ConfigOptionType.EMBED_SECTIONS)
-        assert result is None
+        """Test that invalid JSON raises ValueError."""
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _convert_form_value("{invalid json}", ConfigOptionType.EMBED_SECTIONS)
 
     def test_json_not_list(self) -> None:
-        """Test that JSON that is not a list returns None."""
-        result = _convert_form_value('{"key": "value"}', ConfigOptionType.EMBED_SECTIONS)
-        assert result is None
+        """Test that JSON that is not a list raises ValueError."""
+        with pytest.raises(ValueError, match="must be a list"):
+            _convert_form_value('{"key": "value"}', ConfigOptionType.EMBED_SECTIONS)
 
     def test_json_too_large(self) -> None:
-        """Test that JSON too large returns None."""
+        """Test that JSON too large raises ValueError."""
         # Create a JSON larger than 100KB
         large_value = "[" + ",".join(['"x"' * 1000] * 200) + "]"
         assert len(large_value) > 100_000
-        result = _convert_form_value(large_value, ConfigOptionType.EMBED_SECTIONS)
-        assert result is None
+        with pytest.raises(ValueError, match="too large"):
+            _convert_form_value(large_value, ConfigOptionType.EMBED_SECTIONS)

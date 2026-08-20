@@ -1033,8 +1033,11 @@ def _convert_form_value(
         Any: Converted value
 
     Raises:
-        ValueError: If the value is not a string or is not a valid number for
-            numeric option types.
+        ValueError: If the value is not a string, is not a valid number for
+            numeric option types, or is malformed/oversized JSON for
+            TABLE/EMBED/EMBED_SECTIONS. A malformed submission must surface an
+            error rather than convert to None, which would silently overwrite
+            the stored configuration.
     """
     if not isinstance(value, str):
         raise ValueError("value must be a string")
@@ -1063,19 +1066,16 @@ def _convert_form_value(
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"JSON too large: {len(value)} bytes")
-                return None
+                raise ValueError(f"table data is too large ({len(value)} bytes)")
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"Invalid JSON in TABLE config: {e}")
-                return None
+                raise ValueError(f"table data is not valid JSON: {e}") from None
 
             # Validate that data is a list
             if not isinstance(data, list):
-                logger.warning("TABLE config must be a list")
-                return None
+                raise ValueError("table data must be a list")
 
             # Process rows
             if option and option.columns:
@@ -1114,19 +1114,16 @@ def _convert_form_value(
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"EMBED JSON too large: {len(value)} bytes")
-                return None
+                raise ValueError(f"embed data is too large ({len(value)} bytes)")
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"Invalid JSON in EMBED config: {e}")
-                return None
+                raise ValueError(f"embed data is not valid JSON: {e}") from None
 
             # Validate that data is a dictionary
             if not isinstance(data, dict):
-                logger.warning("EMBED config must be a dictionary")
-                return None
+                raise ValueError("embed data must be an object")
 
             # Validate embed structure
             valid_embed_keys = {
@@ -1166,22 +1163,19 @@ def _convert_form_value(
             # Limit JSON size to prevent DoS
             max_json_size = 100_000  # 100KB
             if len(value) > max_json_size:
-                logger.warning(f"EMBED_SECTIONS JSON too large: {len(value)} bytes")
-                return None
+                raise ValueError(f"sections data is too large ({len(value)} bytes)")
 
             try:
                 data = json.loads(value)
             except json.JSONDecodeError as e:
-                logger.warning(f"Invalid JSON in EMBED_SECTIONS config: {e}")
-                return None
+                raise ValueError(f"sections data is not valid JSON: {e}") from None
 
             # Handle both list and dict with "sections" key
             if isinstance(data, dict) and "sections" in data:
                 data = data["sections"]
 
             if not isinstance(data, list):
-                logger.warning("EMBED_SECTIONS config must be a list")
-                return None
+                raise ValueError("sections data must be a list")
 
             return data
         case _:

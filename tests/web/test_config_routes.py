@@ -16,6 +16,7 @@ from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services.config_schema_service import ConfigSchemaService
 from discord_bot.web.routers.config import (
     _convert_form_value,
+    _prepare_option_value,
     cog_settings,
     guild_config,
     reload_cog,
@@ -1512,25 +1513,25 @@ class TestConvertFormValueTable:
         assert result == [{"key": "value"}]
 
     def test_table_json_too_large(self) -> None:
-        """Test that JSON too large returns None."""
+        """Test that JSON too large raises ValueError."""
         # Create JSON larger than 100KB
         large_value = "[" + ",".join(['{"x": "y"}'] * 20000) + "]"
         assert len(large_value) > 100_000
 
-        result = _convert_form_value(large_value, ConfigOptionType.TABLE)
-        assert result is None
+        with pytest.raises(ValueError, match="too large"):
+            _convert_form_value(large_value, ConfigOptionType.TABLE)
 
     def test_table_invalid_json(self) -> None:
-        """Test that invalid JSON returns None."""
+        """Test that invalid JSON raises ValueError."""
         value = "not valid json {"
-        result = _convert_form_value(value, ConfigOptionType.TABLE)
-        assert result is None
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _convert_form_value(value, ConfigOptionType.TABLE)
 
     def test_table_not_a_list(self) -> None:
-        """Test that JSON that is not a list returns None."""
+        """Test that JSON that is not a list raises ValueError."""
         value = '{"key": "value"}'
-        result = _convert_form_value(value, ConfigOptionType.TABLE)
-        assert result is None
+        with pytest.raises(ValueError, match="must be a list"):
+            _convert_form_value(value, ConfigOptionType.TABLE)
 
     def test_table_with_columns_filters_keys(self) -> None:
         """Test that invalid keys are filtered according to columns."""
@@ -1643,26 +1644,26 @@ class TestConvertFormValueEmbed:
         assert result == {"title": "My Embed", "color": "#ff0000"}
 
     def test_embed_json_too_large(self) -> None:
-        """Test that JSON too large returns None."""
+        """Test that JSON too large raises ValueError."""
         # Create JSON larger than 100KB
         large_title = "x" * 100_001
         large_value = '{"title": "' + large_title + '"}'
         assert len(large_value) > 100_000
 
-        result = _convert_form_value(large_value, ConfigOptionType.EMBED)
-        assert result is None
+        with pytest.raises(ValueError, match="too large"):
+            _convert_form_value(large_value, ConfigOptionType.EMBED)
 
     def test_embed_invalid_json(self) -> None:
-        """Test that invalid JSON returns None."""
+        """Test that invalid JSON raises ValueError."""
         value = "not valid json {"
-        result = _convert_form_value(value, ConfigOptionType.EMBED)
-        assert result is None
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _convert_form_value(value, ConfigOptionType.EMBED)
 
     def test_embed_not_a_dict(self) -> None:
-        """Test that JSON that is not a dictionary returns None."""
+        """Test that JSON that is not a dictionary raises ValueError."""
         value = '["item1", "item2"]'
-        result = _convert_form_value(value, ConfigOptionType.EMBED)
-        assert result is None
+        with pytest.raises(ValueError, match="must be an object"):
+            _convert_form_value(value, ConfigOptionType.EMBED)
 
     def test_embed_filters_invalid_keys(self) -> None:
         """Test that invalid keys are filtered."""
@@ -1753,10 +1754,80 @@ class TestConvertFormValueEmbedSections:
         assert result == [{"type": "text", "content": "Hello"}]
 
     def test_embed_sections_not_list(self) -> None:
-        """Test that value that is not a list returns None."""
+        """Test that value that is not a list raises ValueError."""
         value = '{"type": "text"}'
-        result = _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
-        assert result is None
+        with pytest.raises(ValueError, match="must be a list"):
+            _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+
+    def test_embed_sections_invalid_json(self) -> None:
+        """Test that invalid JSON raises ValueError."""
+        value = "not valid json {"
+        with pytest.raises(ValueError, match="not valid JSON"):
+            _convert_form_value(value, ConfigOptionType.EMBED_SECTIONS)
+
+    def test_embed_sections_json_too_large(self) -> None:
+        """Test that JSON too large raises ValueError."""
+        large_value = "[" + ",".join(['{"type": "text"}'] * 20000) + "]"
+        assert len(large_value) > 100_000
+
+        with pytest.raises(ValueError, match="too large"):
+            _convert_form_value(large_value, ConfigOptionType.EMBED_SECTIONS)
+
+
+class TestPrepareOptionValueMalformedJson:
+    """Malformed JSON must produce an error, never a silent None save."""
+
+    @staticmethod
+    def _make_request_without_bot() -> MagicMock:
+        """Build a request whose app has no bot, skipping guild-side checks.
+
+        Returns:
+            MagicMock: Request mock with ``app.state.bot`` set to None.
+        """
+        request = MagicMock(spec=Request)
+        request.app = MagicMock()
+        request.app.state.bot = None
+        return request
+
+    def test_invalid_table_json_reports_error(self) -> None:
+        """Test that invalid TABLE JSON returns an error instead of a None value."""
+        option = ConfigOption(
+            key="reject_reasons",
+            name="Reject Reasons",
+            option_type=ConfigOptionType.TABLE,
+        )
+
+        value, error = _prepare_option_value(
+            request=self._make_request_without_bot(),
+            guild_id=123,
+            option=option,
+            value="not valid json {",
+            locked_options={},
+        )
+
+        assert value is None
+        assert error is not None
+        assert "reject_reasons" in error
+
+    def test_invalid_embed_json_reports_error(self) -> None:
+        """Test that invalid EMBED JSON returns an error instead of a None value."""
+        option = ConfigOption(
+            key="mod_embed",
+            name="Mod Embed",
+            option_type=ConfigOptionType.EMBED,
+        )
+
+        value, error = _prepare_option_value(
+            request=self._make_request_without_bot(),
+            guild_id=123,
+            option=option,
+            value='["not", "a", "dict"]',
+            locked_options={},
+        )
+
+        assert value is None
+        assert error is not None
+        assert "mod_embed" in error
 
 
 class TestConvertFormValueDefault:
