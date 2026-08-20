@@ -990,6 +990,67 @@ class TestCreateTrackerEmbed:
         assert "User1" in embed.description
         assert "User2" in embed.description
 
+    def test_caps_description_at_discord_limit(self) -> None:
+        """Test that caps the description and summarizes hidden requests on long queues."""
+        requests = []
+        for index in range(120):
+            request = MagicMock()
+            request.username = f"PendingUser{index:03d}"
+            request.status = VerificationStatus.PENDING_REVIEW
+            request.verification_type = VerificationType.REGULAR
+            request.mod_message_id = 100000000000000000 + index
+            request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+            requests.append(request)
+
+        config: dict[str, Any] = {
+            ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pending review",
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Member",
+        }
+
+        embed = create_tracker_embed(
+            pending_requests=requests,
+            config=config,
+            guild_id=123456789012345678,
+            channel_id=234567890123456789,
+        )
+
+        assert embed.description is not None
+        # Discord rejects embed descriptions over 4096 characters with a 400
+        assert len(embed.description) <= 4096
+        # The first requests are still listed and the rest are summarized
+        assert "PendingUser000" in embed.description
+        assert "more" in embed.description
+
+    def test_short_queue_keeps_every_request_without_overflow_line(self) -> None:
+        """Test that short queues list every request and add no overflow line."""
+        requests = []
+        for index in range(3):
+            request = MagicMock()
+            request.username = f"User{index}"
+            request.status = VerificationStatus.PENDING_REVIEW
+            request.verification_type = VerificationType.REGULAR
+            request.mod_message_id = 100000000000000000 + index
+            request.created_at = datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
+            requests.append(request)
+
+        config: dict[str, Any] = {
+            ConfigKey.STATUS_PENDING_REVIEW: "🔍 Pending review",
+            ConfigKey.VERIFICATION_TYPE_REGULAR_DISPLAY: "Member",
+        }
+
+        embed = create_tracker_embed(
+            pending_requests=requests,
+            config=config,
+            guild_id=123,
+            channel_id=456,
+        )
+
+        assert embed.description is not None
+        assert "User0" in embed.description
+        assert "User1" in embed.description
+        assert "User2" in embed.description
+        assert "more" not in embed.description
+
 
 class TestCleanStatusText:
     """Tests for _clean_status_text."""

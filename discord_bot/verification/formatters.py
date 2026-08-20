@@ -16,6 +16,10 @@ from discord_bot.common.utils import utc_timestamp
 from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.steam_client import get_steam_profile_display_id
 
+# Discord rejects embed descriptions over 4096 characters with a 400; keep
+# headroom for the overflow summary line appended when the queue is truncated
+TRACKER_DESCRIPTION_MAX_LENGTH = 4000
+
 # Default embed config for moderation
 DEFAULT_MOD_EMBED_CONFIG: dict[str, Any] = {
     "color": "#FFA500",
@@ -387,7 +391,9 @@ def create_tracker_embed(
             grouped[v_type] = []
         grouped[v_type].append(request)
 
-    sections = []
+    # Each entry is (text, is_request): headers and blank separators do not
+    # count towards the number of listed requests
+    entries: list[tuple[str, bool]] = []
     for v_type, requests in grouped.items():
         # Get type display name for header
         verification_type = VerificationType(v_type)
@@ -395,7 +401,9 @@ def create_tracker_embed(
             verification_type=verification_type, config=config
         )
 
-        lines = [f"**{type_display}**"]
+        if entries:
+            entries.append(("", False))
+        entries.append((f"**{type_display}**", False))
         for request in requests:
             # Get status text
             if request.status == VerificationStatus.PENDING_SCREENSHOTS:
@@ -421,11 +429,31 @@ def create_tracker_embed(
 
             # Compact line: username - status - time
             line = f"{username_text} - {status_text} - {relative_time}"
-            lines.append(line)
+            entries.append((line, True))
 
-        sections.append("\n".join(lines))
+    # Discord rejects embed descriptions over 4096 characters with a 400,
+    # which would make every tracker update fail on a busy queue: keep whole
+    # lines within the budget and summarize the rest in one overflow line
+    kept: list[tuple[str, bool]] = []
+    length = 0
+    shown = 0
+    for text, is_request in entries:
+        extra = len(text) + (1 if kept else 0)
+        if length + extra > TRACKER_DESCRIPTION_MAX_LENGTH:
+            break
+        kept.append((text, is_request))
+        length += extra
+        if is_request:
+            shown += 1
 
-    embed.description = "\n\n".join(sections)
+    hidden = len(pending_requests) - shown
+    if hidden > 0:
+        # Drop trailing headers or separators left without any request line
+        while kept and not kept[-1][1]:
+            kept.pop()
+        kept.append((f"… and {hidden} more", False))
+
+    embed.description = "\n".join(text for text, _ in kept)
     return embed
 
 
