@@ -48,8 +48,12 @@ EMBED_FIELD_VALUE_LIMIT = 1024
 EMBED_FOOTER_TEXT_LIMIT = 2048
 
 
-def _clamp(text: str, limit: int) -> str:
+def clamp_embed_text(text: str, limit: int) -> str:
     """Truncate a rendered embed part to a Discord limit.
+
+    Shared with formatters that build embeds from admin-provided text (e.g.
+    the reaction panel embed config), so every part stays within what
+    Discord accepts.
 
     Args:
         text (str): Rendered text.
@@ -385,7 +389,7 @@ def build_embed(
     if embed_title is None and config.title:
         embed_title = format_placeholders(config.title, context)
     if embed_title is not None:
-        embed_title = _clamp(text=embed_title, limit=EMBED_TITLE_LIMIT)
+        embed_title = clamp_embed_text(text=embed_title, limit=EMBED_TITLE_LIMIT)
 
     # Determine color
     color = _parse_hex_color(config.color) or default_color or DEFAULT_EMBED_COLOR
@@ -394,7 +398,7 @@ def build_embed(
 
     # Description (appears before fields)
     if config.description:
-        embed.description = _clamp(
+        embed.description = clamp_embed_text(
             text=format_placeholders(config.description, context),
             limit=EMBED_DESCRIPTION_LIMIT,
         )
@@ -404,8 +408,8 @@ def build_embed(
         rendered = _render_section(section, context)
         for field_data in rendered["fields"]:
             embed.add_field(
-                name=_clamp(text=field_data["name"], limit=EMBED_FIELD_NAME_LIMIT),
-                value=_clamp(text=field_data["value"], limit=EMBED_FIELD_VALUE_LIMIT),
+                name=clamp_embed_text(text=field_data["name"], limit=EMBED_FIELD_NAME_LIMIT),
+                value=clamp_embed_text(text=field_data["value"], limit=EMBED_FIELD_VALUE_LIMIT),
                 inline=field_data["inline"],
             )
 
@@ -433,7 +437,8 @@ def build_embed(
             if "{" not in icon_url:
                 footer_icon = icon_url
         embed.set_footer(
-            text=_clamp(text=footer_text, limit=EMBED_FOOTER_TEXT_LIMIT), icon_url=footer_icon
+            text=clamp_embed_text(text=footer_text, limit=EMBED_FOOTER_TEXT_LIMIT),
+            icon_url=footer_icon,
         )
 
     return embed

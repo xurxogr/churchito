@@ -339,6 +339,60 @@ class TestBuildPanelEmbed:
 
         assert embed.fields[0].value == "\U0001f44d - Alpha\n\U0001f389 - Beta"
 
+    def test_config_title_clamped_to_discord_limit(self) -> None:
+        """Test that an oversized configured title is cut to 256 characters.
+
+        The dashboard stores the embed config as raw JSON without length
+        limits, so a long title would make Discord reject the whole panel
+        message with a 400 on every post or refresh.
+        """
+        panel = self._create_mock_panel(embed_config={"title": "T" * 500})
+        guild = self._create_mock_guild()
+
+        embed = build_panel_embed(panel, guild)
+
+        assert embed.title is not None
+        assert len(embed.title) == 256
+        assert embed.title.startswith("TTT")
+        assert embed.title.endswith("\u2026")
+
+    def test_config_description_clamped_to_discord_limit(self) -> None:
+        """Test that an oversized configured description is cut to 4096 characters."""
+        panel = self._create_mock_panel(embed_config={"description": "D" * 5000})
+        guild = self._create_mock_guild()
+
+        embed = build_panel_embed(panel, guild)
+
+        assert embed.description is not None
+        assert len(embed.description) == 4096
+        assert embed.description.endswith("\u2026")
+
+    def test_config_footer_clamped_to_discord_limit(self) -> None:
+        """Test that an oversized configured footer is cut to 2048 characters."""
+        panel = self._create_mock_panel(embed_config={"footer": "F" * 3000})
+        guild = self._create_mock_guild()
+
+        embed = build_panel_embed(panel, guild)
+
+        assert embed.footer is not None and embed.footer.text is not None
+        assert len(embed.footer.text) == 2048
+        assert embed.footer.text.endswith("\u2026")
+
+    def test_config_roles_field_name_clamped_to_discord_limit(self) -> None:
+        """Test that an oversized configured roles field name is cut to 256 characters."""
+        mappings = [{"emoji": "\U0001f44d", "role_id": 100, "display_name": "Alpha"}]
+        panel = self._create_mock_panel(
+            role_mappings=mappings, embed_config={"roles_field_name": "N" * 500}
+        )
+        guild = self._create_mock_guild()
+        guild.get_role.return_value = None
+
+        embed = build_panel_embed(panel, guild)
+
+        name = embed.fields[0].name or ""
+        assert len(name) == 256
+        assert name.endswith("\u2026")
+
 
 class TestBuildPanelPlaceholderData:
     """Tests for build_panel_placeholder_data function."""

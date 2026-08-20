@@ -6,7 +6,14 @@ from typing import Any, Final
 
 import discord
 
-from discord_bot.common.services.embed_builder import DEFAULT_EMBED_COLOR
+from discord_bot.common.services.embed_builder import (
+    DEFAULT_EMBED_COLOR,
+    EMBED_DESCRIPTION_LIMIT,
+    EMBED_FIELD_NAME_LIMIT,
+    EMBED_FOOTER_TEXT_LIMIT,
+    EMBED_TITLE_LIMIT,
+    clamp_embed_text,
+)
 from discord_bot.common.utils import utc_timestamp
 from discord_bot.roles.models import ReactionPanel
 
@@ -139,13 +146,18 @@ def build_panel_embed(
     """
     config = custom_config or panel.embed_config or {}
 
-    title = config.get("title") or panel.name
+    # The dashboard stores the embed config as raw JSON without length limits,
+    # so every admin-provided part is clamped to what Discord accepts: one
+    # oversized part would 400 the whole message on every post or refresh
+    title = clamp_embed_text(text=str(config.get("title") or panel.name), limit=EMBED_TITLE_LIMIT)
     description = config.get("description")  # No default - empty means no description
     color = _parse_color(color_value=config.get("color"), default=DEFAULT_PANEL_COLOR)
 
     embed = discord.Embed(
         title=title,
-        description=description if description else None,
+        description=clamp_embed_text(text=str(description), limit=EMBED_DESCRIPTION_LIMIT)
+        if description
+        else None,
         color=color,
     )
 
@@ -170,7 +182,7 @@ def build_panel_embed(
             else:
                 field_name = "Roles"
             embed.add_field(
-                name=field_name,
+                name=clamp_embed_text(text=str(field_name), limit=EMBED_FIELD_NAME_LIMIT),
                 value=_clamp_options_text(options_text=options_text),
                 inline=False,
             )
@@ -187,7 +199,9 @@ def build_panel_embed(
         footer_text = type_labels.get(panel.panel_type, "")
 
     if footer_text:  # Only add footer if there's text
-        embed.set_footer(text=footer_text)
+        embed.set_footer(
+            text=clamp_embed_text(text=str(footer_text), limit=EMBED_FOOTER_TEXT_LIMIT)
+        )
 
     return embed
 
