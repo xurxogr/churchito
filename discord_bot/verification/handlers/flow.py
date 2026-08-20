@@ -245,6 +245,12 @@ async def _change_role(
             f"its role is above @{role.name} in the hierarchy."
         )
         return False
+    except discord.HTTPException as e:
+        # Report like a Forbidden change: an escaping error (e.g. the role was
+        # deleted between the lookup and this call) would roll back the
+        # decision after other roles were already applied
+        logger.warning(f"Could not {action} role {role.name} ({role.id}): {e}")
+        return False
     return True
 
 

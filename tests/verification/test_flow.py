@@ -167,6 +167,24 @@ class TestApplyRoleChanges:
 
         assert failed == ["@Member (add)", "@Guest (remove)"]
 
+    async def test_http_error_is_reported(self) -> None:
+        """Non-Forbidden Discord errors are reported instead of propagating.
+
+        A role deleted between the lookup and the call (404 Unknown Role) or a
+        transient Discord error must not bubble up: the exception would roll
+        back the approval after other roles were already applied.
+        """
+        guild = _guild({1: _role(1, "Member"), 2: _role(2, "Guest")})
+        member = MagicMock(spec=discord.Member)
+        http_error = discord.HTTPException(MagicMock(status=404), "Unknown Role")
+        member.add_roles = AsyncMock(side_effect=http_error)
+        member.remove_roles = AsyncMock(side_effect=http_error)
+        changes = RoleChanges(add=[1], remove=[2], message_key=ConfigKey.APPROVAL_MESSAGE_REGULAR)
+
+        failed = await apply_role_changes(guild=guild, member=member, changes=changes)
+
+        assert failed == ["@Member (add)", "@Guest (remove)"]
+
 
 @pytest.mark.parametrize("verification_type", [VerificationType.REGULAR, "regular"])
 def test_approval_role_changes_accepts_str_or_enum(verification_type: str) -> None:
