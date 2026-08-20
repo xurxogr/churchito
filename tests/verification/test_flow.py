@@ -1,20 +1,24 @@
 """Tests for the helpers behind the moderator accept/reject actions."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
 
-from discord_bot.verification.enums import ConfigKey, VerificationType
+from discord_bot.common.services.database import DatabaseService
+from discord_bot.verification.enums import ConfigKey, VerificationStatus, VerificationType
 from discord_bot.verification.handlers.flow import (
+    ModActionContext,
     RoleChanges,
     _grant_approval,
     _notify_rejection,
+    _publish_decision,
     apply_role_changes,
     approval_confirmation,
     approval_role_changes,
     previous_statuses,
 )
+from discord_bot.verification.service import VerificationService
 
 
 def _guild(roles: dict[int, MagicMock] | None = None) -> MagicMock:
@@ -232,3 +236,66 @@ class TestDecisionDmBestEffort:
         )
 
         member.send.assert_awaited_once()
+
+
+class TestPublishDecisionPersistsFirst:
+    """The decision must be committed before the mod message is updated."""
+
+    async def test_approval_persists_when_mod_message_update_fails(
+        self, test_database: DatabaseService
+    ) -> None:
+        """Test that the approval commits even if the mod message edit fails.
+
+        The verification roles are already granted when the mod message is
+        updated, so a rollback would leave a verified member with a pending
+        request that a second moderator could still reject.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="TestUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            request_id = request.id
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.name = "Test Guild"
+        moderator = MagicMock(spec=discord.Member)
+        moderator.name = "Mod"
+        moderator.display_name = "Mod"
+
+        with (
+            patch(
+                "discord_bot.verification.handlers.flow.update_mod_message_status",
+                new=AsyncMock(side_effect=discord.HTTPException(MagicMock(), "edit failed")),
+            ),
+            pytest.raises(discord.HTTPException),
+        ):
+            async with test_database.session() as session:
+                service = VerificationService(session=session)
+                stored = await service.get_request(request_id)
+                assert stored is not None
+                await service.approve(
+                    request_id=request_id,
+                    reviewer_id=789,
+                    reviewer_username="Mod",
+                    guild_name="Test Guild",
+                )
+                await _publish_decision(
+                    session=session,
+                    guild=guild,
+                    ctx=ModActionContext(config={}, request=stored, service=service),
+                    moderator=moderator,
+                    status_key=ConfigKey.STATUS_APPROVED,
+                    color=discord.Color.green(),
+                    previous=[],
+                )
+
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            stored = await service.get_request(request_id)
+            assert stored is not None
+            assert stored.status == VerificationStatus.APPROVED

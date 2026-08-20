@@ -367,7 +367,7 @@ async def _publish_decision(
     previous: list[str],
     **status_values: str,
 ) -> None:
-    """Update the mod message with the decision, commit and refresh the tracker.
+    """Commit the decision, then update the mod message and refresh the tracker.
 
     Args:
         session (AsyncSession): Database session.
@@ -385,6 +385,12 @@ async def _publish_decision(
         moderator_display_name=moderator.display_name,
         **status_values,
     )
+    # The decision already happened on Discord (roles granted or rejection
+    # DM sent), so persist it BEFORE editing the mod message: a failing edit
+    # must not roll back an approval into a request another moderator could
+    # still reject
+    await session.commit()
+
     await update_mod_message_status(
         guild=guild,
         request=ctx.request,
@@ -393,7 +399,6 @@ async def _publish_decision(
         color=color,
         previous_statuses=previous,
     )
-    await session.commit()
 
     await update_tracker_message(
         guild=guild,
