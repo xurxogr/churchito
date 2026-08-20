@@ -38,6 +38,30 @@ ANSI_COLORS: dict[str, str] = {
 }
 ANSI_RESET = "\u001b[0m"
 
+# Discord rejects the whole message with a 400 when any embed part exceeds
+# its limit, so an oversized placeholder expansion (a long role list, player
+# info, a verbose reason) would make every send or edit of the embed fail
+EMBED_TITLE_LIMIT = 256
+EMBED_DESCRIPTION_LIMIT = 4096
+EMBED_FIELD_NAME_LIMIT = 256
+EMBED_FIELD_VALUE_LIMIT = 1024
+EMBED_FOOTER_TEXT_LIMIT = 2048
+
+
+def _clamp(text: str, limit: int) -> str:
+    """Truncate a rendered embed part to a Discord limit.
+
+    Args:
+        text (str): Rendered text.
+        limit (int): Maximum length Discord accepts for the part.
+
+    Returns:
+        str: The text unchanged, or cut to the limit ending with an ellipsis.
+    """
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + "\u2026"
+
 
 class PlaceholderContext(BaseModel):
     """Context with data for resolving placeholders.
@@ -360,6 +384,8 @@ def build_embed(
     embed_title = title
     if embed_title is None and config.title:
         embed_title = format_placeholders(config.title, context)
+    if embed_title is not None:
+        embed_title = _clamp(text=embed_title, limit=EMBED_TITLE_LIMIT)
 
     # Determine color
     color = _parse_hex_color(config.color) or default_color or DEFAULT_EMBED_COLOR
@@ -368,15 +394,18 @@ def build_embed(
 
     # Description (appears before fields)
     if config.description:
-        embed.description = format_placeholders(config.description, context)
+        embed.description = _clamp(
+            text=format_placeholders(config.description, context),
+            limit=EMBED_DESCRIPTION_LIMIT,
+        )
 
     # Build fields from sections (all sections are fields now)
     for section in config.sections:
         rendered = _render_section(section, context)
         for field_data in rendered["fields"]:
             embed.add_field(
-                name=field_data["name"],
-                value=field_data["value"],
+                name=_clamp(text=field_data["name"], limit=EMBED_FIELD_NAME_LIMIT),
+                value=_clamp(text=field_data["value"], limit=EMBED_FIELD_VALUE_LIMIT),
                 inline=field_data["inline"],
             )
 
@@ -403,7 +432,9 @@ def build_embed(
             # Only use icon if placeholder was resolved (no { remaining)
             if "{" not in icon_url:
                 footer_icon = icon_url
-        embed.set_footer(text=footer_text, icon_url=footer_icon)
+        embed.set_footer(
+            text=_clamp(text=footer_text, limit=EMBED_FOOTER_TEXT_LIMIT), icon_url=footer_icon
+        )
 
     return embed
 

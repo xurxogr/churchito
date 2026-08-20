@@ -495,6 +495,85 @@ class TestBuildEmbed:
         assert len(embed.fields) == 27
 
 
+class TestBuildEmbedDiscordLimits:
+    """Built embeds must respect Discord's length limits.
+
+    Discord rejects the whole message with a 400 when any embed part is over
+    its limit, so an oversized placeholder expansion would make every send or
+    edit of the embed fail.
+    """
+
+    def test_field_value_clamped_after_placeholder_expansion(self) -> None:
+        """A placeholder expanding past 1024 characters is clamped with an ellipsis."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(type=EmbedSectionType.TEXT, title="Info", content="Hello {name}!")
+            ]
+        )
+        context = PlaceholderContext(extra_data={"name": "x" * 2000})
+        embed = build_embed(config, context)
+
+        value = embed.fields[0].value or ""
+        assert len(value) == 1024
+        assert value.startswith("Hello xxx")
+        assert value.endswith("\u2026")
+
+    def test_field_name_clamped(self) -> None:
+        """A field name over 256 characters is clamped with an ellipsis."""
+        config = EmbedConfig(
+            sections=[EmbedSection(type=EmbedSectionType.TEXT, title="T" * 500, content="ok")]
+        )
+        embed = build_embed(config, PlaceholderContext())
+
+        name = embed.fields[0].name or ""
+        assert len(name) == 256
+        assert name.endswith("\u2026")
+
+    def test_title_clamped(self) -> None:
+        """An embed title over 256 characters is clamped with an ellipsis."""
+        config = EmbedConfig(title="T" * 500, sections=[])
+        embed = build_embed(config, PlaceholderContext())
+
+        assert embed.title is not None
+        assert len(embed.title) == 256
+        assert embed.title.endswith("\u2026")
+
+    def test_description_clamped(self) -> None:
+        """An embed description over 4096 characters is clamped with an ellipsis."""
+        config = EmbedConfig(description="D" * 5000, sections=[])
+        embed = build_embed(config, PlaceholderContext())
+
+        assert embed.description is not None
+        assert len(embed.description) == 4096
+        assert embed.description.endswith("\u2026")
+
+    def test_footer_clamped(self) -> None:
+        """A footer text over 2048 characters is clamped with an ellipsis."""
+        config = EmbedConfig(footer_text="F" * 3000, sections=[])
+        embed = build_embed(config, PlaceholderContext())
+
+        assert embed.footer is not None
+        footer_text = embed.footer.text or ""
+        assert len(footer_text) == 2048
+        assert footer_text.endswith("\u2026")
+
+    def test_short_parts_unchanged(self) -> None:
+        """Parts within the limits are left exactly as rendered."""
+        config = EmbedConfig(
+            title="Title",
+            description="Description",
+            footer_text="Footer",
+            sections=[EmbedSection(type=EmbedSectionType.TEXT, title="Name", content="Value")],
+        )
+        embed = build_embed(config, PlaceholderContext())
+
+        assert embed.title == "Title"
+        assert embed.description == "Description"
+        assert embed.footer is not None and embed.footer.text == "Footer"
+        assert embed.fields[0].name == "Name"
+        assert embed.fields[0].value == "Value"
+
+
 class TestBuildEmbedFromRows:
     """Tests for build_embed_from_rows."""
 
