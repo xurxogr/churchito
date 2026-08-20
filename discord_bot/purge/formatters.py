@@ -179,6 +179,13 @@ def get_mod_message_content(
         dia=execution_date,
     )
 
+    # The template is capped at Discord's content limit BEFORE the
+    # placeholders (status, authorizer names, dates) are substituted, so the
+    # rendered content can exceed it: Discord would 400 the send the purge
+    # creation depends on, so the base content is clamped first
+    if len(content) > _MAX_CONTENT_LENGTH:
+        content = content[: _MAX_CONTENT_LENGTH - 1] + _TRUNCATION_MARKER
+
     # Append execution logs if provided, keeping the newest lines that fit
     if execution_logs:
         available = _MAX_CONTENT_LENGTH - len(content) - len(_LOGS_HEADER)

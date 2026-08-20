@@ -303,6 +303,46 @@ class TestGetModMessageContent:
         assert "[099]" in result
         assert "[000]" not in result
 
+    def test_base_content_clamped_to_discord_limit(
+        self,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Test that placeholder substitution cannot push the content over the limit."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "{status}" + "x" * 1992,
+            ConfigKey.MOD_STATUS_PENDING: "P" * 50,
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+
+        result = get_mod_message_content(guild=mock_guild, record=mock_purge_record, config=config)
+
+        assert len(result) == 2000
+        assert result.startswith("P" * 50)
+        assert result.endswith("\u2026")
+
+    def test_logs_skipped_when_base_content_fills_limit(
+        self,
+        mock_guild: MagicMock,
+        mock_purge_record: MagicMock,
+    ) -> None:
+        """Test that logs are dropped when the clamped base content leaves no room."""
+        config: dict[str, Any] = {
+            ConfigKey.MOD_MESSAGE_TEMPLATE: "{status}" + "x" * 1992,
+            ConfigKey.MOD_STATUS_PENDING: "P" * 50,
+            ConfigKey.MOD_REQUIRED_REACTIONS: 2,
+        }
+
+        result = get_mod_message_content(
+            guild=mock_guild,
+            record=mock_purge_record,
+            config=config,
+            execution_logs=["Log line 1"],
+        )
+
+        assert len(result) <= 2000
+        assert "**Logs:**" not in result
+
     def test_without_execution_logs(
         self,
         mock_guild: MagicMock,
