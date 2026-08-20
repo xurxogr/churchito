@@ -11663,3 +11663,123 @@ class TestOnGuildRemove:
         assert verification_cog._schedule.next_due(guild.id) is None
         assert 456 not in verification_cog._pending_dm_verifications
         assert verification_cog._pending_dm_verifications[789] == (999, 2)
+
+
+class TestStartVerificationDMHttpErrors:
+    """Tests for DM failures other than Forbidden during verification start."""
+
+    def _create_interaction(self, user_send: AsyncMock) -> MagicMock:
+        """Build an interaction whose guild resolves the mod channel.
+
+        Args:
+            user_send (AsyncMock): Mock for the user DM send.
+
+        Returns:
+            MagicMock: Interaction mock ready for handle_verification_start.
+        """
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 321
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 654
+        mock_user.name = "NewUser"
+        mock_user.mention = "<@654>"
+        mock_user.send = user_send
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+        return interaction
+
+    async def test_instructions_dm_http_error_cancels_request(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """An instructions DM rejected by Discord must cancel the request.
+
+        A rendered template over the 2000-character DM limit raises
+        HTTPException (not Forbidden): the request must be cancelled and the
+        user answered instead of crashing with the request rolled back and
+        the deferred interaction left unanswered.
+        """
+        user_send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "Must be 2000 or fewer in length")
+        )
+        interaction = self._create_interaction(user_send=user_send)
+
+        config_values: dict[str, object] = {
+            "dm_instructions_message": "Instructions for {username}",
+            "dm_disabled_message": "DMs unavailable",
+            "mod_notification_channel": 888,
+            "verification_type_regular_display": "Normal",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        interaction.followup.send.assert_called()
+        assert "DMs unavailable" in str(interaction.followup.send.call_args)
+        assert 654 not in verification_cog._pending_dm_verifications
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            pending = await service.get_pending_by_user(guild_id=321, user_id=654)
+            assert pending is None
+
+    async def test_steam_request_dm_http_error_keeps_verification(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A failing Steam request DM must not abort a started verification.
+
+        The instructions DM already reached the user, so a crash here would
+        roll the request back and their screenshots would arrive with no
+        pending request to attach to.
+        """
+        user_send = AsyncMock(side_effect=[MagicMock(), discord.HTTPException(MagicMock(), "boom")])
+        interaction = self._create_interaction(user_send=user_send)
+
+        config_values: dict[str, object] = {
+            "dm_instructions_message": "Instructions for {username}",
+            "steam_profile_required_regular": True,
+            "steam_profile_request_message": "Send your Steam URL, {username}",
+            "verification_started_message": "Verification started",
+            "mod_notification_channel": 888,
+            "verification_type_regular_display": "Normal",
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "start_screenshot_timer"),
+        ):
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        assert user_send.call_count == 2
+        assert "Verification started" in str(interaction.followup.send.call_args)
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            pending = await service.get_pending_by_user(guild_id=321, user_id=654)
+            assert pending is not None
+            assert pending.status == VerificationStatus.PENDING_SCREENSHOTS

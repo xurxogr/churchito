@@ -132,6 +132,13 @@ async def _send_instructions(
         await ctx.user.send(content=formatted_dm)
     except discord.Forbidden:
         return False
+    except discord.HTTPException as e:
+        # Any other delivery failure (e.g. a rendered template over the
+        # 2000-character DM limit) must cancel the start the same way:
+        # crashing here would roll the request back and leave the deferred
+        # interaction unanswered
+        logger.warning(f"[{ctx.guild.name}] Could not DM instructions to {ctx.user.name}: {e}")
+        return False
     return True
 
 
@@ -151,8 +158,11 @@ async def _send_steam_request(ctx: StartContext) -> None:
     )
     try:
         await ctx.user.send(content=formatted)
-    except discord.Forbidden:
-        pass
+    except discord.HTTPException as e:
+        # Best effort: the instructions DM already reached the user, so a
+        # crash here would roll the request back and their screenshots would
+        # arrive with no pending request to attach to
+        logger.warning(f"[{ctx.guild.name}] Could not DM Steam request to {ctx.user.name}: {e}")
 
 
 async def _post_mod_message(
