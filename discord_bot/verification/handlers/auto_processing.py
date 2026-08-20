@@ -52,7 +52,9 @@ async def send_mod_ping_message(
     roles_text = ", ".join(role_mentions)
     ping_message = format_message(template=ping_template, roles=roles_text)
 
-    await channel.send(content=ping_message)
+    # Pinging the mod roles is the purpose of this message, so opt back into
+    # the role pings the bot default suppresses
+    await channel.send(content=ping_message, allowed_mentions=discord.AllowedMentions(roles=True))
 
 
 async def _delete_mod_message(mod_message: discord.Message, guild_name: str) -> None:

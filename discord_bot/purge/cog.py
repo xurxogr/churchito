@@ -1258,7 +1258,13 @@ class PurgeCog(commands.Cog):
         )
 
         try:
-            user_message = await channel.send(content=content, view=view)
+            # The admin-authored template pings the affected/reaction roles on
+            # purpose, so opt back into the pings the bot default suppresses
+            user_message = await channel.send(
+                content=content,
+                view=view,
+                allowed_mentions=discord.AllowedMentions(everyone=True, roles=True),
+            )
         except discord.HTTPException as e:
             # The decision is already recorded; losing the announcement must
             # not roll back the committed purge state

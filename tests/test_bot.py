@@ -70,6 +70,25 @@ def test_bot_disables_message_cache(
         assert mock_init.call_args.kwargs["max_messages"] is None
 
 
+def test_bot_disables_mass_mentions_by_default(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Test that everyone/role pings are disabled in the default allowed mentions.
+
+    Args:
+        test_settings (AppSettings): Test application settings
+        test_database (DatabaseService): Test database service
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None) as mock_init:
+        DiscordBot(test_settings, test_database)
+
+        allowed = mock_init.call_args.kwargs["allowed_mentions"]
+        assert allowed.everyone is False
+        assert allowed.roles is False
+        assert allowed.users is True
+        assert allowed.replied_user is True
+
+
 async def test_bot_on_ready(test_bot: DiscordBot) -> None:
     """Test the bot's on_ready method.
 

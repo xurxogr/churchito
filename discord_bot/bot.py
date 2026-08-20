@@ -74,12 +74,19 @@ class DiscordBot(commands.Bot):
         # Initialize bot
         # max_messages=None disables the internal message cache: the bot only
         # consumes raw events and on_message, so the cache is never read
+        # allowed_mentions disables everyone/role pings by default so
+        # user-controlled text (nicknames, in-game names) echoed back in
+        # message content cannot mass-ping; sends whose role pings are the
+        # feature opt back in with a per-message AllowedMentions
         super().__init__(
             command_prefix=settings.bot.command_prefix,
             description=settings.bot.description,
             intents=intents,
             owner_id=settings.bot.owner_id,
             max_messages=None,
+            allowed_mentions=discord.AllowedMentions(
+                everyone=False, roles=False, users=True, replied_user=True
+            ),
         )
 
     async def setup_hook(self) -> None:

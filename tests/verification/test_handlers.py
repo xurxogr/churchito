@@ -688,6 +688,29 @@ class TestSendModPingMessage:
         assert "<@&123> - New verification" in call_args.kwargs["content"]
 
     @pytest.mark.asyncio
+    async def test_role_pings_explicitly_allowed(self) -> None:
+        """Test that the mod ping opts back into role pings."""
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.mention = "<@&123>"
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.guild = mock_guild
+        mock_channel.send = AsyncMock()
+
+        config = {
+            "mod_ping_message": "{roles} - New verification",
+            "mod_roles": [123],
+        }
+
+        await send_mod_ping_message(mock_channel, config)
+
+        allowed = mock_channel.send.call_args.kwargs["allowed_mentions"]
+        assert allowed.roles is True
+
+    @pytest.mark.asyncio
     async def test_does_not_send_when_no_template(self) -> None:
         """Test that does not send if no template is configured."""
         mock_channel = MagicMock(spec=discord.TextChannel)
