@@ -68,6 +68,11 @@ async def delete_message(
         channel_id (int): Channel ID
         message_id (int): Message ID
 
+    Best-effort: every Discord failure is reported through the return value.
+    Callers run this after other side effects (a replacement message already
+    sent, a decision already recorded), so a transient Discord error must not
+    propagate and roll their session back.
+
     Returns:
         bool: True if deleted, False if it could not be deleted
     """
@@ -84,6 +89,9 @@ async def delete_message(
         return False
     except discord.Forbidden:
         logger.warning(f"[{guild.name}] No permissions to delete message in #{channel.name}")
+        return False
+    except discord.HTTPException as e:
+        logger.warning(f"[{guild.name}] Could not delete message in #{channel.name}: {e}")
         return False
 
 

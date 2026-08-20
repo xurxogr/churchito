@@ -4148,6 +4148,40 @@ class TestUpdatePinnedMessage:
             )
         assert stored.get(ConfigKey.PINNED_MESSAGE_ID) == 777
 
+    async def test_new_board_is_tracked_when_old_delete_fails(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the new board is stored even when deleting the old one fails.
+
+        A transient Discord error on the deletion must not roll back the
+        commit that tracks the freshly sent board, or the new message would
+        be orphaned in the channel forever.
+        """
+        guild_id = mock_guild.id
+        await self._prepare_pinned_board(test_database=test_database, guild_id=guild_id)
+
+        new_message = MagicMock(spec=discord.Message)
+        new_message.id = 999
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_channel.send = AsyncMock(return_value=new_message)
+        mock_channel.get_partial_message.return_value.delete = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "Server error")
+        )
+        mock_guild.get_channel.return_value = mock_channel
+
+        await stockpile_cog._update_pinned_message(mock_guild)
+
+        async with test_database.session() as session:
+            stored = await ConfigService(session).get_all_config(
+                guild_id=guild_id, cog_name=COG_NAME
+            )
+        assert stored.get(ConfigKey.PINNED_MESSAGE_ID) == 999
+
 
 class TestDeletePinnedMessage:
     """Tests for _delete_pinned_message method."""

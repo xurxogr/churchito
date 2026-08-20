@@ -5,11 +5,11 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 
-from discord_bot.common.utils import has_any_of_roles, has_any_role, utc_timestamp
+from discord_bot.common.utils import delete_message, has_any_of_roles, has_any_role, utc_timestamp
 
 
 @contextmanager
@@ -123,3 +123,49 @@ class TestHasAnyRoleFallback:
 
         assert has_any_role(member=manager, role_ids=[200]) is False
         assert has_any_role(member=manager, role_ids=[100]) is True
+
+
+class TestDeleteMessage:
+    """Tests for delete_message."""
+
+    @staticmethod
+    def _make_guild(delete_mock: AsyncMock) -> MagicMock:
+        """Build a guild whose channel's partial-message delete uses the given mock.
+
+        Args:
+            delete_mock (AsyncMock): Mock wired as the partial message's delete.
+
+        Returns:
+            MagicMock: Guild mock resolving channel ID 1 to a text channel.
+        """
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.name = "general"
+        channel.get_partial_message.return_value.delete = delete_mock
+        guild = MagicMock(spec=discord.Guild)
+        guild.name = "Test Guild"
+        guild.get_channel.return_value = channel
+        return guild
+
+    async def test_returns_true_on_success(self) -> None:
+        """A successful deletion returns True."""
+        guild = self._make_guild(delete_mock=AsyncMock())
+
+        assert await delete_message(guild=guild, channel_id=1, message_id=2) is True
+
+    async def test_returns_false_when_message_missing(self) -> None:
+        """An already-deleted message returns False without raising."""
+        delete_mock = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Unknown Message"))
+        guild = self._make_guild(delete_mock=delete_mock)
+
+        assert await delete_message(guild=guild, channel_id=1, message_id=2) is False
+
+    async def test_returns_false_on_http_error(self) -> None:
+        """A transient Discord error returns False instead of propagating.
+
+        Callers treat delete_message as best-effort; a raised HTTPException
+        would roll back their session after other side effects already ran.
+        """
+        delete_mock = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "Server error"))
+        guild = self._make_guild(delete_mock=delete_mock)
+
+        assert await delete_message(guild=guild, channel_id=1, message_id=2) is False
