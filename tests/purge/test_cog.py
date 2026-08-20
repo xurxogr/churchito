@@ -7047,3 +7047,180 @@ class TestOnGuildRemove:
         assert mock_guild.id not in purge_cog._active_purges
         assert mock_guild.id not in purge_cog._authorized_purges
         assert mock_guild.id not in purge_cog._cancel_pending_purges
+
+
+class TestPurgeDecisionSurvivesDiscordFailures:
+    """A committed purge decision must survive Discord API failures."""
+
+    @staticmethod
+    def _make_interaction(guild_id: int, mock_member: MagicMock) -> MagicMock:
+        """Build an interaction with a fresh guild mock.
+
+        Args:
+            guild_id (int): Guild ID for the fresh guild mock.
+            mock_member (MagicMock): Member clicking the button.
+
+        Returns:
+            MagicMock: Interaction mock ready for the vote handlers.
+        """
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=None)
+        mock_guild.get_role = MagicMock(return_value=None)
+        mock_guild.get_member = MagicMock(return_value=None)
+
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_interaction.response = MagicMock()
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup = MagicMock()
+        mock_interaction.followup.send = AsyncMock()
+        return mock_interaction
+
+    async def test_cancel_commits_when_mod_message_edit_forbidden(
+        self,
+        purge_cog: PurgeCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the cancellation commits even if the mod message edit is forbidden."""
+        guild_id = 971001
+        mock_interaction = self._make_interaction(guild_id=guild_id, mock_member=mock_member)
+
+        mock_message = MagicMock(spec=discord.PartialMessage)
+        mock_message.edit = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "Missing permissions")
+        )
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.get_partial_message = MagicMock(return_value=mock_message)
+        mock_interaction.guild.get_channel = MagicMock(return_value=mock_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purge_service.update_mod_message(
+                purge_id=record.id, channel_id=555666777, message_id=888999000
+            )
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_cancel(mock_interaction, public_id)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            updated = await purge_service.get_purge(purge_id)
+            assert updated is not None
+            assert updated.status == PurgeStatus.CANCELLED
+
+        call_args = mock_interaction.followup.send.call_args
+        assert "cancelled" in str(call_args).lower()
+
+    async def test_cancel_commits_when_role_removal_fails(
+        self,
+        purge_cog: PurgeCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the cancellation commits even if removing a confirmer role fails."""
+        guild_id = 971002
+        mock_interaction = self._make_interaction(guild_id=guild_id, mock_member=mock_member)
+
+        mock_role = MagicMock(spec=discord.Role)
+        mock_role.name = "Stay"
+        confirmer = MagicMock(spec=discord.Member)
+        confirmer.name = "confirmer"
+        confirmer.roles = [mock_role]
+        confirmer.remove_roles = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "Unknown Member")
+        )
+        mock_interaction.guild.get_role = MagicMock(return_value=mock_role)
+        mock_interaction.guild.get_member = MagicMock(return_value=confirmer)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_REACTION_ROLE, 500)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await purge_service.add_confirmation(purge_id=record.id, user_id=424242)
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_cancel(mock_interaction, public_id)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            updated = await purge_service.get_purge(purge_id)
+            assert updated is not None
+            assert updated.status == PurgeStatus.CANCELLED
+
+    async def test_authorize_commits_when_user_message_send_fails(
+        self,
+        purge_cog: PurgeCog,
+        mock_member: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the authorization commits even if the user channel send fails."""
+        guild_id = 971003
+        mock_interaction = self._make_interaction(guild_id=guild_id, mock_member=mock_member)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "Missing permissions")
+        )
+        mock_interaction.guild.get_channel = MagicMock(return_value=mock_channel)
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.WAR_ADMIN_ROLES, [100])
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.TEST_MODE, True)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.MOD_REQUIRED_REACTIONS, 1)
+            await config_service.set_value(guild_id, COG_NAME, ConfigKey.USER_CHANNEL, 777888999)
+
+            purge_service = PurgeService(session)
+            record = await purge_service.create_purge(
+                guild_id=guild_id,
+                purge_type=PurgeType.WAR_END,
+                initiated_by=999,
+                config_snapshot={},
+                scheduled_for=datetime.now(UTC) + timedelta(days=3),
+            )
+            await session.commit()
+            public_id = record.public_id
+            purge_id = record.id
+
+        await purge_cog._handle_authorize(mock_interaction, public_id)
+
+        async with test_database.session() as session:
+            purge_service = PurgeService(session)
+            updated = await purge_service.get_purge(purge_id)
+            assert updated is not None
+            assert updated.status == PurgeStatus.AUTHORIZED
+            assert updated.user_message_id is None

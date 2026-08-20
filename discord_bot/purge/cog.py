@@ -902,7 +902,7 @@ class PurgeCog(commands.Cog):
                             if member and role in member.roles:
                                 try:
                                     await member.remove_roles(role)
-                                except discord.Forbidden:
+                                except discord.HTTPException:
                                     logger.warning(
                                         f"Could not remove role {role.name} from {member.name}"
                                     )
@@ -1179,8 +1179,8 @@ class PurgeCog(commands.Cog):
                 await message.edit(content=content, view=view)
             else:
                 await message.edit(content=content)
-        except discord.NotFound:
-            logger.warning(f"[{guild.name}] Purge moderation message not found")
+        except discord.HTTPException as e:
+            logger.warning(f"[{guild.name}] Could not update purge moderation message: {e}")
 
     async def _send_user_message(
         self,
@@ -1257,7 +1257,13 @@ class PurgeCog(commands.Cog):
             button_style=get_button_style(button_color),
         )
 
-        user_message = await channel.send(content=content, view=view)
+        try:
+            user_message = await channel.send(content=content, view=view)
+        except discord.HTTPException as e:
+            # The decision is already recorded; losing the announcement must
+            # not roll back the committed purge state
+            logger.warning(f"[{guild.name}] Could not send purge user message: {e}")
+            return
 
         # Update record
         purge_service = PurgeService(session)
