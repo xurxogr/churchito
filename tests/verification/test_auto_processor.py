@@ -42,14 +42,14 @@ class TestCalculateTimeDiffDays:
         assert result == 10
 
     def test_invalid_format(self) -> None:
-        """Test with invalid format returns 0."""
+        """Test with invalid format returns None."""
         result = calculate_time_diff_days("invalid", "278, 08:34")
-        assert result == 0
+        assert result is None
 
     def test_empty_string(self) -> None:
-        """Test with empty string returns 0."""
+        """Test with empty string returns None."""
         result = calculate_time_diff_days("", "278, 08:34")
-        assert result == 0
+        assert result is None
 
 
 class TestNamesMatch:
@@ -411,6 +411,40 @@ class TestProcessVerification:
         assert RejectType.TIME_DIFF in failures
         message = get_rejection_message(config=config, reason=RejectType.TIME_DIFF)
         assert message == "Old screenshot"
+
+    def test_unreadable_time_fails_when_limit_configured(self) -> None:
+        """Test that an unreadable screenshot time fails the configured age check."""
+        request = self._create_request()
+        api_response = self._create_api_response(ingame_time="")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_TIME_DIFF: 30,
+        }
+
+        failures = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert RejectType.TIME_DIFF in failures
+
+    def test_unreadable_current_time_fails_when_limit_configured(self) -> None:
+        """Test that an unreadable current in-game time fails the configured age check."""
+        request = self._create_request()
+        api_response = self._create_api_response(current_ingame_time="garbled")
+        config: dict[str, Any] = {
+            ConfigKey.VERIFICATION_TIME_DIFF: 30,
+        }
+
+        failures = process_verification(
+            request=request,
+            api_response=api_response,
+            config=config,
+            member_display_name="TestPlayer",
+        )
+
+        assert RejectType.TIME_DIFF in failures
 
     def test_wrong_shard_rejected(self) -> None:
         """Test rejection for incorrect shard."""

@@ -15,7 +15,7 @@ from discord_bot.verification.models import VerificationAPIResponse, Verificatio
 logger = logging.getLogger(__name__)
 
 
-def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
+def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int | None:
     """Calculate difference in days between in-game times.
 
     Args:
@@ -23,7 +23,8 @@ def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
         current_ingame_time (str): Current game time (format "278, 08:34").
 
     Returns:
-        int: Absolute difference in days.
+        int | None: Absolute difference in days, or None when either time
+            cannot be parsed (missing or garbled OCR value).
     """
     try:
         # Extract days (number before the comma)
@@ -34,7 +35,7 @@ def calculate_time_diff_days(ingame_time: str, current_ingame_time: str) -> int:
         logger.warning(
             f"Error parsing time difference: {ingame_time} vs {current_ingame_time}: {e}"
         )
-        return 0
+        return None
 
 
 def _extract_alpha_only(text: str) -> str:
@@ -281,7 +282,10 @@ def process_verification(
             ingame_time=api_response.ingame_time,
             current_ingame_time=api_response.current_ingame_time,
         )
-        if diff > time_diff_limit:
+        # An unreadable time cannot prove the screenshot is recent, so it
+        # fails the check just like an unreadable faction or shard would;
+        # otherwise obscuring the clock would bypass the age check entirely
+        if diff is None or diff > time_diff_limit:
             failures.add(RejectType.TIME_DIFF)
 
     return failures
