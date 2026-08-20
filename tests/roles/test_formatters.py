@@ -284,6 +284,61 @@ class TestBuildPanelEmbed:
 
         assert len(embed.fields) == 0
 
+    def test_roles_field_clamped_to_discord_limit(self) -> None:
+        """Test that an overflowing options list is cut to whole lines within 1024 chars.
+
+        Twenty mappings with 100-character display names join to well over the
+        1024-character embed field limit; Discord would reject the message with
+        a 400, so the field must keep only the lines that fit plus an ellipsis.
+        """
+        mappings = [
+            {"emoji": "\U0001f44d", "role_id": 100 + i, "display_name": f"Role {i} " + "x" * 92}
+            for i in range(20)
+        ]
+        panel = self._create_mock_panel(role_mappings=mappings)
+        guild = self._create_mock_guild()
+        guild.get_role.return_value = None
+
+        embed = build_panel_embed(panel, guild)
+
+        assert len(embed.fields) == 1
+        value = embed.fields[0].value or ""
+        assert len(value) <= 1024
+        lines = value.split("\n")
+        assert lines[-1] == "\u2026"
+        expected_lines = [f"\U0001f44d - Role {i} " + "x" * 92 for i in range(20)]
+        # Every kept line is a full option line, never cut mid-way
+        assert lines[:-1] == expected_lines[: len(lines) - 1]
+        assert len(lines) > 1
+
+    def test_roles_field_single_oversized_line_truncated(self) -> None:
+        """Test that one display name longer than the whole limit is hard-truncated."""
+        mappings = [{"emoji": "\U0001f44d", "role_id": 100, "display_name": "y" * 2000}]
+        panel = self._create_mock_panel(role_mappings=mappings)
+        guild = self._create_mock_guild()
+        guild.get_role.return_value = None
+
+        embed = build_panel_embed(panel, guild)
+
+        value = embed.fields[0].value or ""
+        assert len(value) <= 1024
+        assert value.startswith("\U0001f44d - yyy")
+        assert value.endswith("\u2026")
+
+    def test_roles_field_below_limit_not_clamped(self) -> None:
+        """Test that a normal options list keeps every line and gains no ellipsis."""
+        mappings = [
+            {"emoji": "\U0001f44d", "role_id": 100, "display_name": "Alpha"},
+            {"emoji": "\U0001f389", "role_id": 101, "display_name": "Beta"},
+        ]
+        panel = self._create_mock_panel(role_mappings=mappings)
+        guild = self._create_mock_guild()
+        guild.get_role.return_value = None
+
+        embed = build_panel_embed(panel, guild)
+
+        assert embed.fields[0].value == "\U0001f44d - Alpha\n\U0001f389 - Beta"
+
 
 class TestBuildPanelPlaceholderData:
     """Tests for build_panel_placeholder_data function."""

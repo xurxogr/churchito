@@ -13,6 +13,11 @@ from discord_bot.roles.models import ReactionPanel
 # Fallback embed color when a panel has none configured (Discord blurple).
 DEFAULT_PANEL_COLOR: Final[int] = DEFAULT_EMBED_COLOR.value
 
+# Discord rejects embed field values over 1024 characters with a 400, so a
+# panel with many long role names could never be posted; the options list is
+# clamped to whole lines within this limit and the cut marked with an ellipsis
+MAX_FIELD_VALUE_LENGTH: Final[int] = 1024
+
 
 def format_message(template: str | None, **kwargs: Any) -> str:
     r"""Replace placeholders in a message template.
@@ -84,6 +89,39 @@ def _parse_color(color_value: Any, default: int = DEFAULT_PANEL_COLOR) -> int:
     return default
 
 
+def _clamp_options_text(options_text: list[str]) -> str:
+    """Join option lines, dropping whole trailing lines past the Discord field limit.
+
+    Args:
+        options_text (list[str]): Formatted option lines.
+
+    Returns:
+        str: Joined text guaranteed to fit in a 1024-character embed field value,
+            ending with an ellipsis when anything was cut.
+    """
+    value = "\n".join(options_text)
+    if len(value) <= MAX_FIELD_VALUE_LENGTH:
+        return value
+
+    clamped: list[str] = []
+    used = 0
+    for line in options_text:
+        extra = len(line) + (1 if clamped else 0)
+        # Keep room for the "\n…" marker appended after the loop
+        if used + extra > MAX_FIELD_VALUE_LENGTH - 2:
+            break
+        clamped.append(line)
+        used += extra
+
+    if not clamped:
+        # A single line longer than the whole limit: hard-truncate it so the
+        # field still shows something instead of only the ellipsis
+        clamped.append(options_text[0][: MAX_FIELD_VALUE_LENGTH - 2])
+
+    clamped.append("\u2026")
+    return "\n".join(clamped)
+
+
 def build_panel_embed(
     panel: ReactionPanel,
     guild: discord.Guild,
@@ -133,7 +171,7 @@ def build_panel_embed(
                 field_name = "Roles"
             embed.add_field(
                 name=field_name,
-                value="\n".join(options_text),
+                value=_clamp_options_text(options_text=options_text),
                 inline=False,
             )
 
