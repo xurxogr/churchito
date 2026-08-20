@@ -1484,9 +1484,18 @@ class RolesCog(commands.Cog):
                 )
 
             except discord.NotFound:
+                # The posted message is gone (deleted by hand or by a purge).
+                # Clear the stale ID before answering: `post` refuses to run
+                # while it is set, so keeping it would lock the panel out of
+                # both commands and force a trip to the dashboard.
+                await service.set_message_id(
+                    panel_id=panel.id, message_id=None, guild_name=interaction.guild.name
+                )
+                await session.commit()
+                self.invalidate_panel_cache(interaction.guild.id)
                 await interaction.followup.send(
                     "Panel message not found - it may have been deleted. "
-                    "Use `post` to create a new one.",
+                    "The panel is now unposted; use `post` to create a new one.",
                     ephemeral=True,
                 )
             except discord.Forbidden:

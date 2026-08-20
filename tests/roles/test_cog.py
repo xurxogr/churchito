@@ -2392,6 +2392,57 @@ class TestHandleRefreshNotFound:
 
         mock_interaction.response.send_message.assert_called_once()
 
+    async def test_deleted_message_unposts_panel(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that refreshing a deleted panel message clears the stored message ID."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        panel_channel = MagicMock(spec=discord.TextChannel)
+        panel_channel.fetch_message = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(), "not found")
+        )
+        mock_guild.get_channel.return_value = panel_channel
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=mock_guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.MANAGE_ROLES,
+                value=[mock_role.id],
+            )
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+            )
+            await service.set_message_id(panel_id=panel.id, message_id=555, guild_name="Test Guild")
+            await session.commit()
+            panel_id = panel.id
+
+        await roles_cog._handle_refresh(interaction=mock_interaction, panel_name="TestPanel")
+
+        mock_interaction.followup.send.assert_called_once()
+        # The stale message ID must be cleared so `post` can publish the panel again
+        async with test_database.session() as session:
+            refreshed = await ReactionRolesService(session).get_by_id(panel_id)
+            assert refreshed is not None
+            assert refreshed.message_id is None
+
 
 class TestHandlePostNoMappings:
     """Tests for _handle_post when panel has no mappings."""
