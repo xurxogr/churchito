@@ -13,6 +13,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         self,
         public_id: str,
         options: list[discord.SelectOption],
+        reasons: list[str],
         placeholder: str,
         modal_title: str,
         modal_label: str,
@@ -23,6 +24,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
         Args:
             public_id (str): Public request ID (NanoID).
             options (list[discord.SelectOption]): Selector options.
+            reasons (list[str]): Full reasons, indexed by option value.
             placeholder (str): Placeholder text.
             modal_title (str): Custom reason modal title.
             modal_label (str): Modal text field label.
@@ -34,6 +36,7 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
             custom_id=f"verification:reject_reason:{public_id}",
         )
         self.public_id = public_id
+        self.reasons = reasons
         self.modal_title = modal_title
         self.modal_label = modal_label
         self.modal_placeholder = modal_placeholder
@@ -55,12 +58,15 @@ class ReasonSelect(discord.ui.Select["RejectionReasonView"]):
             )
             await interaction.response.send_modal(modal)
         else:
+            # Option values are indexes into the full reasons list: the
+            # 100-character option value would otherwise truncate the reason
+            index = int(selected) if selected.isdigit() else -1
             cog = get_verification_cog(interaction)
-            if cog:
+            if cog and 0 <= index < len(self.reasons):
                 await cog.handle_reject(
                     interaction=interaction,
                     public_id=self.public_id,
-                    reason=selected,
+                    reason=self.reasons[index],
                 )
 
         if self.view:
@@ -99,10 +105,14 @@ class RejectionReasonView(discord.ui.View):
         """
         super().__init__(timeout=60)
 
+        # The value is the index into the reasons list: values must be unique
+        # (Discord rejects the whole select on duplicates, and two reasons may
+        # share their first 100 characters) and the callback recovers the full
+        # reason instead of the 100-character truncation
+        valid_reasons = [reason for reason in reasons if reason.strip()]
         options = [
-            discord.SelectOption(label=reason[:100], value=reason[:100])
-            for reason in reasons
-            if reason.strip()
+            discord.SelectOption(label=reason[:100], value=str(index))
+            for index, reason in enumerate(valid_reasons)
         ]
         options.append(
             discord.SelectOption(
@@ -116,6 +126,7 @@ class RejectionReasonView(discord.ui.View):
             ReasonSelect(
                 public_id=public_id,
                 options=options,
+                reasons=valid_reasons,
                 placeholder=placeholder,
                 modal_title=modal_title,
                 modal_label=modal_label,

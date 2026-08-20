@@ -213,6 +213,36 @@ class TestRejectionReasonView:
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
         assert len(select.options[0].label) == 100
 
+    async def test_option_values_unique_for_shared_prefixes(self) -> None:
+        """Test that reasons sharing their first 100 characters get unique option values."""
+        reasons = ["A" * 100 + "first", "A" * 100 + "second"]
+        view = RejectionReasonView(public_id="test123", reasons=reasons)
+
+        select = next(c for c in view.children if isinstance(c, ReasonSelect))
+        values = [option.value for option in select.options]
+        assert len(values) == len(set(values))
+
+    async def test_callback_passes_untruncated_reason(self) -> None:
+        """Test that the callback passes the full reason, not the truncated option value."""
+        long_reason = "B" * 150
+        view = RejectionReasonView(public_id="test789", reasons=[long_reason])
+
+        interaction = MagicMock(spec=discord.Interaction)
+        bot = MagicMock(spec=commands.Bot)
+        mock_cog = MagicMock()
+        mock_cog.handle_reject = AsyncMock()
+        bot.get_cog.return_value = mock_cog
+        interaction.client = bot
+
+        select = next(c for c in view.children if isinstance(c, ReasonSelect))
+        object.__setattr__(select, "_values", [select.options[0].value])
+
+        await select.callback(interaction)
+
+        mock_cog.handle_reject.assert_called_once_with(
+            interaction=interaction, public_id="test789", reason=long_reason
+        )
+
     async def test_select_predefined_reason_callback(self) -> None:
         """Test callback with predefined reason."""
         view = RejectionReasonView(public_id="test789", reasons=["Test reason"])
@@ -226,7 +256,7 @@ class TestRejectionReasonView:
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
         # Set the internal values list directly
-        object.__setattr__(select, "_values", ["Test reason"])
+        object.__setattr__(select, "_values", [select.options[0].value])
 
         await select.callback(interaction)
 
@@ -262,7 +292,7 @@ class TestRejectionReasonView:
         interaction.client = bot
 
         select = next(c for c in view.children if isinstance(c, ReasonSelect))
-        object.__setattr__(select, "_values", ["Test reason"])
+        object.__setattr__(select, "_values", [select.options[0].value])
 
         # Should not fail, just return early
         await select.callback(interaction)
