@@ -157,6 +157,14 @@ async def handle_auto_approval(
                     logger.warning(
                         f"[{guild.name}] No permission to add role {role.name} to {member.name}"
                     )
+                except discord.HTTPException as e:
+                    # Best effort: the approval is already committed, so a
+                    # failing role change (e.g. the role was deleted between
+                    # the cache lookup and this call) must not skip the DM,
+                    # the mod message update and the intake cleanup below
+                    logger.warning(
+                        f"[{guild.name}] Could not add role {role.name} to {member.name}: {e}"
+                    )
 
         for role_id in roles_remove or []:
             role = guild.get_role(role_id)
@@ -167,6 +175,11 @@ async def handle_auto_approval(
                     logger.warning(
                         f"[{guild.name}] No permission to remove role "
                         f"{role.name} from {member.name}"
+                    )
+                except discord.HTTPException as e:
+                    # Best effort, same as the add loop above
+                    logger.warning(
+                        f"[{guild.name}] Could not remove role {role.name} from {member.name}: {e}"
                     )
 
         approval_msg = format_message(

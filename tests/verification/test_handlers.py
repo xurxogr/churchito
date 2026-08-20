@@ -1493,3 +1493,74 @@ class TestUpdateTrackerMessage:
             verification_service=mock_verification_service,
             config_service=mock_config_service,
         )
+
+
+class TestAutoApprovalRoleBestEffort:
+    """Role failures must not abort the auto-approval notification chain."""
+
+    @pytest.mark.asyncio
+    async def test_role_http_error_does_not_abort_the_chain(self) -> None:
+        """A non-Forbidden role failure must not skip the DM and the cleanup.
+
+        The approval is already committed when the roles are applied, so a
+        role deleted between the cache lookup and the call (404 Unknown Role)
+        must be logged like a Forbidden one: an escaping error would leave the
+        mod message actionable and the member without the approval DM.
+        """
+        mock_cog = MagicMock()
+        mock_cog.bot.user.id = 42
+
+        add_role = MagicMock(spec=discord.Role)
+        add_role.name = "Member"
+        remove_role = MagicMock(spec=discord.Role)
+        remove_role.name = "Guest"
+        roles = {100: add_role, 200: remove_role}
+
+        member = MagicMock(spec=discord.Member)
+        member.name = "user"
+        member.display_name = "user"
+        http_error = discord.HTTPException(MagicMock(status=404), "Unknown Role")
+        member.add_roles = AsyncMock(side_effect=http_error)
+        member.remove_roles = AsyncMock(side_effect=http_error)
+        member.send = AsyncMock()
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.name = "Test Guild"
+        mock_guild.get_member = MagicMock(return_value=member)
+        mock_guild.get_role = MagicMock(side_effect=roles.get)
+
+        mock_request = MagicMock()
+        mock_request.id = 1
+        mock_request.public_id = "abc123"
+        mock_request.user_id = 456
+        mock_request.username = "user"
+        mock_request.verification_type = VerificationType.REGULAR
+        mock_request.created_at = datetime(2026, 8, 19, 12, 0, 0)
+        mock_request.steam_profile_url = "https://steamcommunity.com/id/user"
+
+        mock_service = AsyncMock()
+        mock_message = MagicMock(spec=discord.Message)
+        mock_message.id = 999
+        mock_message.delete = AsyncMock()
+
+        config: dict[str, Any] = {
+            "regular_roles_add": [100],
+            "regular_roles_remove": [200],
+            "approval_message_regular": "Welcome {username}",
+            "delete_processed_messages": True,
+        }
+
+        await handle_auto_approval(
+            cog=mock_cog,
+            guild=mock_guild,
+            request=mock_request,
+            verification_service=mock_service,
+            config=config,
+            mod_message=mock_message,
+            embeds=[],
+        )
+
+        member.add_roles.assert_awaited_once_with(add_role)
+        member.remove_roles.assert_awaited_once_with(remove_role)
+        member.send.assert_awaited_once()
+        mock_message.delete.assert_awaited_once()
