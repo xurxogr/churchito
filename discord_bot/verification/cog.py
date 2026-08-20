@@ -396,14 +396,23 @@ class VerificationCog(commands.Cog):
                 moderator_display_name="Auto",
                 reason=reason,
             )
-            await update_mod_message_status(
-                guild=guild,
-                request=request,
-                config=config,
-                status=rejected_status,
-                color=discord.Color.red(),
-                previous_statuses=[previous_status],
-            )
+            try:
+                await update_mod_message_status(
+                    guild=guild,
+                    request=request,
+                    config=config,
+                    status=rejected_status,
+                    color=discord.Color.red(),
+                    previous_statuses=[previous_status],
+                )
+            except discord.HTTPException as e:
+                # Best effort: the rejection is already committed and this runs
+                # in a background timer, so a failing edit must not skip the
+                # user DM and the tracker refresh below
+                logger.warning(
+                    f"[{guild.name}] Could not update the mod message for the "
+                    f"screenshot-timeout rejection: {e}"
+                )
 
             # Notify the user
             member = guild.get_member(user_id)
@@ -422,8 +431,12 @@ class VerificationCog(commands.Cog):
                 )
                 try:
                     await member.send(rejection_msg)
-                except discord.Forbidden:
-                    pass
+                except discord.HTTPException as e:
+                    # Best effort: an undeliverable or over-limit DM must not
+                    # skip the tracker refresh below
+                    logger.warning(
+                        f"[{guild.name}] Could not DM the timeout rejection to {member.name}: {e}"
+                    )
 
             # Update tracker
             await update_tracker_message(

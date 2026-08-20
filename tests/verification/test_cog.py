@@ -11284,12 +11284,12 @@ class TestAutoRejectByTimeout:
             mock_bot.user.id = 999
             mock_bot.get_guild.return_value = mock_guild
 
-            with pytest.raises(discord.HTTPException):
-                await verification_cog._auto_reject_by_timeout(
-                    request_id=request_id,
-                    guild_id=123,
-                    user_id=456,
-                )
+            # The failing edit is tolerated (best effort), never propagated
+            await verification_cog._auto_reject_by_timeout(
+                request_id=request_id,
+                guild_id=123,
+                user_id=456,
+            )
 
         async with test_database.session() as session:
             service = VerificationService(session)
@@ -11894,3 +11894,104 @@ class TestStartVerificationEmptyMessages:
             pending = await service.get_pending_by_user(guild_id=741, user_id=852)
             assert pending is not None
             assert pending.status == VerificationStatus.PENDING_SCREENSHOTS
+
+
+class TestScreenshotTimeoutNotificationChain:
+    """The timeout auto-rejection must finish its notifications best-effort."""
+
+    def _make_guild_with_member(self) -> tuple[MagicMock, MagicMock]:
+        """Build a mock guild whose member 456 can receive DMs.
+
+        Returns:
+            tuple[MagicMock, MagicMock]: The guild and the member mocks.
+        """
+        member = MagicMock(spec=discord.Member)
+        member.name = "NewUser"
+        member.send = AsyncMock()
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 123
+        guild.name = "Test Guild"
+        guild.get_member = MagicMock(return_value=member)
+        return guild, member
+
+    async def _create_pending_request(self, test_database: DatabaseService) -> int:
+        """Create a committed request awaiting screenshots.
+
+        Args:
+            test_database (DatabaseService): Test database service.
+
+        Returns:
+            int: The created request ID.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session=session)
+            request = await service.create_request(
+                guild_id=123,
+                user_id=456,
+                username="NewUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            return request.id
+
+    async def test_mod_message_failure_still_notifies_user_and_tracker(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A failing mod message edit must not skip the user DM and the tracker.
+
+        The rejection is already committed and the chain runs in a background
+        timer task: an escaping error would leave the user unnotified and the
+        tracker showing a verification that no longer exists.
+        """
+        request_id = await self._create_pending_request(test_database)
+        guild, member = self._make_guild_with_member()
+        verification_cog.bot.get_guild = MagicMock(return_value=guild)
+        verification_cog.bot.user = MagicMock()
+        verification_cog.bot.user.id = 999
+
+        with (
+            patch(
+                "discord_bot.verification.cog.update_mod_message_status",
+                new=AsyncMock(side_effect=discord.HTTPException(MagicMock(), "edit failed")),
+            ),
+            patch(
+                "discord_bot.verification.cog.update_tracker_message", new_callable=AsyncMock
+            ) as mock_tracker,
+        ):
+            await verification_cog._reject_if_awaiting_screenshots(
+                request_id=request_id, guild_id=123, user_id=456
+            )
+
+        member.send.assert_awaited_once()
+        mock_tracker.assert_awaited_once()
+        async with test_database.session() as session:
+            stored = await VerificationService(session=session).get_request(request_id)
+            assert stored is not None
+            assert stored.status == VerificationStatus.REJECTED
+
+    async def test_dm_failure_still_updates_tracker(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A non-Forbidden DM failure must not skip the tracker refresh.
+
+        A rejection template pushed over the 2000-character DM limit raises a
+        plain HTTPException; only Forbidden was tolerated before.
+        """
+        request_id = await self._create_pending_request(test_database)
+        guild, member = self._make_guild_with_member()
+        member.send = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "Invalid Form Body"))
+        verification_cog.bot.get_guild = MagicMock(return_value=guild)
+        verification_cog.bot.user = MagicMock()
+        verification_cog.bot.user.id = 999
+
+        with (
+            patch("discord_bot.verification.cog.update_mod_message_status", new_callable=AsyncMock),
+            patch(
+                "discord_bot.verification.cog.update_tracker_message", new_callable=AsyncMock
+            ) as mock_tracker,
+        ):
+            await verification_cog._reject_if_awaiting_screenshots(
+                request_id=request_id, guild_id=123, user_id=456
+            )
+
+        mock_tracker.assert_awaited_once()
