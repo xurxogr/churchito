@@ -15,7 +15,7 @@ from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.roles.cog import RolesCog
 from discord_bot.roles.config import COG_NAME, ROLES_CONFIG_SCHEMA
 from discord_bot.roles.enums import ConfigKey
-from discord_bot.roles.models import PanelType, ReactionPanel
+from discord_bot.roles.models import MAX_ROLE_MAPPINGS, PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService
 
 
@@ -2237,6 +2237,61 @@ class TestHandleAddRoleSuccess:
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
         assert "added" in call_args[0][0] or "mapping" in call_args[0][0].lower()
+
+    async def test_rejects_mapping_beyond_reaction_limit(
+        self,
+        roles_cog: RolesCog,
+        mock_interaction: MagicMock,
+        mock_guild: MagicMock,
+        mock_member: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that handler refuses a 21st mapping, which could never get a reaction."""
+        mock_interaction.guild = mock_guild
+        mock_interaction.user = mock_member
+        mock_member.roles = [mock_role]
+        await enable_cog_for_guild(test_database, mock_guild.id)
+
+        full_mappings = [
+            {"emoji": chr(0x1F600 + i), "role_id": 1000 + i} for i in range(MAX_ROLE_MAPPINGS)
+        ]
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=mock_guild.id,
+                cog_name=COG_NAME,
+                key=ConfigKey.MANAGE_ROLES,
+                value=[mock_role.id],
+            )
+            service = ReactionRolesService(session)
+            panel = await service.create_panel(
+                guild_id=mock_guild.id,
+                channel_id=456,
+                name="TestPanel",
+                panel_type=PanelType.TOGGLE,
+                created_by=789,
+                guild_name="Test Guild",
+                role_mappings=full_mappings,
+            )
+            await session.commit()
+            panel_id = panel.id
+
+        target_role = MagicMock(spec=discord.Role)
+        target_role.id = 555
+        target_role.name = "TargetRole"
+        target_role.mention = "<@&555>"
+
+        await roles_cog._handle_add_role(mock_interaction, "TestPanel", "🆕", target_role, None)
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert str(MAX_ROLE_MAPPINGS) in call_args[0][0]
+        # The mapping must not have been stored
+        async with test_database.session() as session:
+            stored = await ReactionRolesService(session).get_by_id(panel_id)
+            assert stored is not None
+            assert len(stored.role_mappings) == MAX_ROLE_MAPPINGS
 
 
 class TestHandleRemoveRoleSuccess:

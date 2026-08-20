@@ -5,13 +5,10 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from discord_bot.roles.models import PanelType
+from discord_bot.roles.models import MAX_ROLE_MAPPINGS, PanelType
 
 # Matches the ReactionPanel.name column length
 MAX_PANEL_NAME_LENGTH = 100
-# Discord allows this many distinct reactions on a message, and every
-# mapping needs its own reaction to be usable
-MAX_ROLE_MAPPINGS = 20
 
 
 def validate_panel_fields(name: str, panel_type: str) -> None:

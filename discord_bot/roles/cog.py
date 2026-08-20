@@ -31,7 +31,7 @@ from discord_bot.roles.formatters import (
     format_mappings_display,
     format_message,
 )
-from discord_bot.roles.models import PanelType, ReactionPanel
+from discord_bot.roles.models import MAX_ROLE_MAPPINGS, PanelType, ReactionPanel
 from discord_bot.roles.service import ReactionRolesService, panel_name_locks, panel_post_locks
 
 logger = logging.getLogger(__name__)
@@ -1191,6 +1191,17 @@ class RolesCog(commands.Cog):
             if existing:
                 await interaction.response.send_message(
                     f"Emoji {emoji} is already mapped to a role in this panel.",
+                    ephemeral=True,
+                )
+                return
+
+            # A message holds at most MAX_ROLE_MAPPINGS distinct reactions,
+            # so any mapping beyond that could never be selected (the
+            # dashboard enforces the same limit)
+            if len(panel.role_mappings) >= MAX_ROLE_MAPPINGS:
+                await interaction.response.send_message(
+                    f"This panel already has {MAX_ROLE_MAPPINGS} mappings, the most "
+                    "reactions Discord allows on a message. Remove one first.",
                     ephemeral=True,
                 )
                 return

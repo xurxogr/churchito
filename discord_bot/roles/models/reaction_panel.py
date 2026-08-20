@@ -10,6 +10,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from discord_bot.common.models import Base
 
+# Discord allows this many distinct reactions on a message, and every
+# mapping needs its own reaction to be usable
+MAX_ROLE_MAPPINGS = 20
+
 
 def _generate_public_id() -> str:
     """Generate a unique public ID using NanoID."""
