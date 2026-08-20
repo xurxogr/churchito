@@ -4067,6 +4067,87 @@ class TestUpdatePinnedMessage:
         # Should send new message
         mock_channel.send.assert_called_once()
 
+    async def _prepare_pinned_board(self, test_database: DatabaseService, guild_id: int) -> None:
+        """Configure a pinned board with an existing message for a guild.
+
+        Args:
+            test_database (DatabaseService): Test database.
+            guild_id (int): Guild ID to configure.
+        """
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            for key, value in [
+                (ConfigKey.PINNED_HEADER_TEXT, "**{hex}**"),
+                (ConfigKey.PINNED_ITEM_TEXT, "{name}"),
+                (ConfigKey.COMMAND_CHANNEL, 12345),
+                (ConfigKey.PINNED_MESSAGE_ID, 777),
+                (ConfigKey.PINNED_CHANNEL_ID, 12345),
+            ]:
+                await config_service.set_value(
+                    guild_id=guild_id, cog_name=COG_NAME, key=key, value=value
+                )
+            await session.commit()
+
+    async def test_keeps_old_message_when_send_forbidden(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the old pinned message survives when the new send is forbidden."""
+        guild_id = mock_guild.id
+        await self._prepare_pinned_board(test_database=test_database, guild_id=guild_id)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_channel.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No permission"))
+        mock_guild.get_channel.return_value = mock_channel
+
+        with patch(
+            "discord_bot.stockpile.cog.delete_message", new_callable=AsyncMock
+        ) as mock_delete_message:
+            await stockpile_cog._update_pinned_message(mock_guild)
+
+        # The board must stay visible: no deletion and the stored ID unchanged
+        mock_delete_message.assert_not_called()
+        async with test_database.session() as session:
+            stored = await ConfigService(session).get_all_config(
+                guild_id=guild_id, cog_name=COG_NAME
+            )
+        assert stored.get(ConfigKey.PINNED_MESSAGE_ID) == 777
+
+    async def test_keeps_old_message_when_send_fails(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the old pinned message survives a generic send failure."""
+        guild_id = mock_guild.id
+        await self._prepare_pinned_board(test_database=test_database, guild_id=guild_id)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 12345
+        mock_channel.name = "stockpiles"
+        mock_channel.send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "Server error")
+        )
+        mock_guild.get_channel.return_value = mock_channel
+
+        with patch(
+            "discord_bot.stockpile.cog.delete_message", new_callable=AsyncMock
+        ) as mock_delete_message:
+            await stockpile_cog._update_pinned_message(mock_guild)
+
+        mock_delete_message.assert_not_called()
+        async with test_database.session() as session:
+            stored = await ConfigService(session).get_all_config(
+                guild_id=guild_id, cog_name=COG_NAME
+            )
+        assert stored.get(ConfigKey.PINNED_MESSAGE_ID) == 777
+
 
 class TestDeletePinnedMessage:
     """Tests for _delete_pinned_message method."""

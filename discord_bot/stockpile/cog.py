@@ -509,8 +509,9 @@ class StockpileCog(commands.Cog):
     async def _update_pinned_message(self, guild: discord.Guild) -> None:
         """Update the pinned message showing all stockpiles.
 
-        Deletes the existing message (if any) and creates a new one at the
-        bottom of the channel. Serialized per guild: see _pinned_locks.
+        Posts a fresh message at the bottom of the channel and then deletes
+        the previous one (if any), so a failed send never erases the board.
+        Serialized per guild: see _pinned_locks.
 
         Args:
             guild (discord.Guild): Guild to update pinned message for
@@ -519,7 +520,7 @@ class StockpileCog(commands.Cog):
             await self._replace_pinned_message(guild=guild)
 
     async def _replace_pinned_message(self, guild: discord.Guild) -> None:
-        """Delete the stored pinned message and post a fresh one.
+        """Post a fresh pinned message and delete the stored one.
 
         Args:
             guild (discord.Guild): Guild to update pinned message for
@@ -542,11 +543,8 @@ class StockpileCog(commands.Cog):
             if not channel or not isinstance(channel, discord.TextChannel):
                 return
 
-            # Delete existing message (if any)
             old_message_id = config.get(ConfigKey.PINNED_MESSAGE_ID)
             old_channel_id = config.get(ConfigKey.PINNED_CHANNEL_ID)
-            if old_message_id and old_channel_id:
-                await delete_message(guild, old_channel_id, old_message_id)
 
             # Get all stockpiles (no role filtering)
             service = StockpileService(session=session)
@@ -566,7 +564,8 @@ class StockpileCog(commands.Cog):
                 empty_text = config.get(ConfigKey.SHOW_EMPTY_TEXT) or "No stockpiles"
                 embed = discord.Embed(description=empty_text)
 
-            # Send new message with embed
+            # Send the new message BEFORE deleting the old one, so a failed
+            # send keeps the previous board visible instead of erasing it
             try:
                 new_message = await channel.send(embed=embed)
             except discord.Forbidden:
@@ -575,6 +574,10 @@ class StockpileCog(commands.Cog):
             except Exception as e:
                 logger.error(f"[{guild.name}] Error sending pinned message: {e}")
                 return
+
+            # Delete the replaced message (if any)
+            if old_message_id and old_channel_id:
+                await delete_message(guild, old_channel_id, old_message_id)
 
             # Save message ID
             await config_service.set_value(
