@@ -92,12 +92,19 @@ def dm_template_key(verification_type: VerificationType) -> ConfigKey:
 async def _answer(ctx: StartContext, key: ConfigKey, fallback: str = "") -> None:
     """Answer the interaction with a configured ephemeral message.
 
+    Skipped entirely when the resolved text is empty: the dashboard stores
+    empty strings for cleared options and Discord rejects empty content with
+    a 400, which would crash the handler instead of answering.
+
     Args:
         ctx (StartContext): Start context.
         key (ConfigKey): Message key.
         fallback (str): Text used when the key is not configured.
     """
-    await ctx.interaction.followup.send(ctx.config.get(key) or fallback, ephemeral=True)
+    text = ctx.config.get(key) or fallback
+    if not text:
+        return
+    await ctx.interaction.followup.send(text, ephemeral=True)
 
 
 async def _send_instructions(

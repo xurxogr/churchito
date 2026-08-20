@@ -4353,6 +4353,7 @@ class TestHandleVerificationStartHappyPath:
         config_values: dict[str, object] = {
             "already_pending_message": "Pending",
             "dm_instructions_message": "Instructions for {username}",
+            "verification_started_message": "Verification started",
             "mod_notification_channel": 888,
             "mod_message_template": "New verification from {username}",
             "verification_type_regular_display": "Normal",
@@ -11781,5 +11782,113 @@ class TestStartVerificationDMHttpErrors:
         async with test_database.session() as session:
             service = VerificationService(session)
             pending = await service.get_pending_by_user(guild_id=321, user_id=654)
+            assert pending is not None
+            assert pending.status == VerificationStatus.PENDING_SCREENSHOTS
+
+
+class TestStartVerificationEmptyMessages:
+    """Tests for admin-cleared answer messages during verification start."""
+
+    def _create_interaction(self) -> MagicMock:
+        """Build an interaction whose guild resolves the mod channel.
+
+        Returns:
+            MagicMock: Interaction mock ready for handle_verification_start.
+        """
+        mock_mod_channel = MagicMock(spec=discord.TextChannel)
+        mock_mod_message = MagicMock()
+        mock_mod_message.id = 999
+        mock_mod_channel.send = AsyncMock(return_value=mock_mod_message)
+
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 741
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_mod_channel)
+
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.id = 852
+        mock_user.name = "NewUser"
+        mock_user.mention = "<@852>"
+        mock_user.send = AsyncMock()
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.guild = mock_guild
+        interaction.user = mock_user
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+        return interaction
+
+    async def test_cleared_pending_message_sends_nothing(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A cleared already-pending message must skip the answer, not send "".
+
+        The dashboard stores empty strings for cleared STRING/TEXTAREA options
+        and Discord rejects empty content with a 400, which would crash the
+        handler on every duplicate click.
+        """
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            await service.create_request(
+                guild_id=741,
+                user_id=852,
+                username="NewUser",
+                guild_name="Test Guild",
+                verification_type=VerificationType.REGULAR,
+            )
+            await session.commit()
+
+        interaction = self._create_interaction()
+        config_values: dict[str, object] = {
+            "already_pending_message": "",
+            "mod_notification_channel": 888,
+            "verification_type_regular_display": "Normal",
+        }
+
+        with patch.object(
+            verification_cog, "_get_all_config", new_callable=AsyncMock
+        ) as mock_config:
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        interaction.followup.send.assert_not_called()
+
+    async def test_cleared_started_message_still_starts_verification(
+        self, verification_cog: VerificationCog, test_database: DatabaseService
+    ) -> None:
+        """A cleared confirmation message must not break a successful start.
+
+        The request must be created and no empty followup sent.
+        """
+        interaction = self._create_interaction()
+        config_values: dict[str, object] = {
+            "dm_instructions_message": "Instructions for {username}",
+            "verification_started_message": "",
+            "mod_notification_channel": 888,
+            "verification_type_regular_display": "Normal",
+        }
+
+        with (
+            patch.object(
+                verification_cog, "_get_all_config", new_callable=AsyncMock
+            ) as mock_config,
+            patch.object(verification_cog, "start_screenshot_timer"),
+        ):
+            mock_config.return_value = config_values
+
+            await verification_cog.handle_verification_start(
+                interaction=interaction, verification_type=VerificationType.REGULAR
+            )
+
+        interaction.followup.send.assert_not_called()
+
+        async with test_database.session() as session:
+            service = VerificationService(session)
+            pending = await service.get_pending_by_user(guild_id=741, user_id=852)
             assert pending is not None
             assert pending.status == VerificationStatus.PENDING_SCREENSHOTS
