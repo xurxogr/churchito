@@ -46,6 +46,52 @@ EMBED_DESCRIPTION_LIMIT = 4096
 EMBED_FIELD_NAME_LIMIT = 256
 EMBED_FIELD_VALUE_LIMIT = 1024
 EMBED_FOOTER_TEXT_LIMIT = 2048
+EMBED_TOTAL_LIMIT = 6000
+
+
+def clamp_embed_total(embed: discord.Embed) -> discord.Embed:
+    """Trim embed parts until the combined length fits Discord's total limit.
+
+    Discord also enforces a 6000-character cap on the sum of title,
+    description, field names/values and footer text, so an embed whose parts
+    are each within their own limit can still 400 the whole message.
+    Decorative parts are trimmed first (description, then footer text) and
+    trailing fields are dropped only as a last resort.
+
+    Args:
+        embed (discord.Embed): Embed to trim; modified in place.
+
+    Returns:
+        discord.Embed: The same embed, now within the total limit.
+    """
+    overage = len(embed) - EMBED_TOTAL_LIMIT
+    if overage <= 0:
+        return embed
+
+    if embed.description:
+        allowed = len(embed.description) - overage
+        embed.description = (
+            clamp_embed_text(text=embed.description, limit=allowed) if allowed >= 1 else None
+        )
+        overage = len(embed) - EMBED_TOTAL_LIMIT
+        if overage <= 0:
+            return embed
+
+    footer_text = embed.footer.text
+    if footer_text:
+        allowed = len(footer_text) - overage
+        if allowed >= 1:
+            embed.set_footer(
+                text=clamp_embed_text(text=footer_text, limit=allowed),
+                icon_url=embed.footer.icon_url,
+            )
+        else:
+            embed.remove_footer()
+
+    while len(embed) > EMBED_TOTAL_LIMIT and embed.fields:
+        embed.remove_field(len(embed.fields) - 1)
+
+    return embed
 
 
 def clamp_embed_text(text: str, limit: int) -> str:
@@ -441,7 +487,7 @@ def build_embed(
             icon_url=footer_icon,
         )
 
-    return embed
+    return clamp_embed_total(embed)
 
 
 def build_embeds(

@@ -573,6 +573,48 @@ class TestBuildEmbedDiscordLimits:
         assert embed.fields[0].name == "Name"
         assert embed.fields[0].value == "Value"
 
+    def test_total_size_clamped_via_description(self) -> None:
+        """Parts individually within limits but over 6000 combined trim the description."""
+        config = EmbedConfig(
+            title="T" * 256,
+            description="D" * 4096,
+            footer_text="F" * 2048,
+            sections=[],
+        )
+        embed = build_embed(config, PlaceholderContext())
+
+        assert len(embed) <= 6000
+        assert embed.title == "T" * 256
+        assert embed.footer is not None and embed.footer.text == "F" * 2048
+        assert embed.description is not None
+        assert embed.description.endswith("\u2026")
+
+    def test_total_size_drops_trailing_fields_as_last_resort(self) -> None:
+        """With no description or footer to trim, trailing fields are dropped."""
+        config = EmbedConfig(
+            sections=[
+                EmbedSection(type=EmbedSectionType.TEXT, title="N" * 200, content="V" * 1024)
+                for _ in range(6)
+            ]
+        )
+        embed = build_embed(config, PlaceholderContext())
+
+        assert len(embed) <= 6000
+        assert 0 < len(embed.fields) < 6
+        assert embed.fields[0].value == "V" * 1024
+
+    def test_total_size_within_limit_unchanged(self) -> None:
+        """An embed at or under 6000 characters keeps every part intact."""
+        config = EmbedConfig(
+            description="D" * 4096,
+            footer_text="F" * 1000,
+            sections=[],
+        )
+        embed = build_embed(config, PlaceholderContext())
+
+        assert embed.description == "D" * 4096
+        assert embed.footer is not None and embed.footer.text == "F" * 1000
+
 
 class TestBuildEmbedFromRows:
     """Tests for build_embed_from_rows."""

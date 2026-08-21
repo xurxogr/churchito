@@ -13,6 +13,7 @@ from discord_bot.common.services.embed_builder import (
     EMBED_FOOTER_TEXT_LIMIT,
     EMBED_TITLE_LIMIT,
     clamp_embed_text,
+    clamp_embed_total,
 )
 from discord_bot.common.utils import utc_timestamp
 from discord_bot.roles.models import ReactionPanel
@@ -203,7 +204,9 @@ def build_panel_embed(
             text=clamp_embed_text(text=str(footer_text), limit=EMBED_FOOTER_TEXT_LIMIT)
         )
 
-    return embed
+    # Each part is clamped individually above, but their sum can still exceed
+    # Discord's 6000-character total cap, which would 400 the whole message
+    return clamp_embed_total(embed)
 
 
 def build_panel_placeholder_data(

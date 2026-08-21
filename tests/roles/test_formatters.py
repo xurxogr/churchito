@@ -378,6 +378,21 @@ class TestBuildPanelEmbed:
         assert len(embed.footer.text) == 2048
         assert embed.footer.text.endswith("\u2026")
 
+    def test_config_parts_clamped_to_embed_total_limit(self) -> None:
+        """Test that individually valid parts over 6000 combined are trimmed."""
+        panel = self._create_mock_panel(
+            embed_config={
+                "title": "T" * 256,
+                "description": "D" * 4096,
+                "footer": "F" * 2048,
+            }
+        )
+        guild = self._create_mock_guild()
+
+        embed = build_panel_embed(panel, guild)
+
+        assert len(embed) <= 6000
+
     def test_config_roles_field_name_clamped_to_discord_limit(self) -> None:
         """Test that an oversized configured roles field name is cut to 256 characters."""
         mappings = [{"emoji": "\U0001f44d", "role_id": 100, "display_name": "Alpha"}]
