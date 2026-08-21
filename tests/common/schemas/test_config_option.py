@@ -417,3 +417,92 @@ class TestConfigOptionValidation:
         is_valid, error = option.validate_value(table_value)
         assert is_valid is True
         assert error is None
+
+    def test_validate_table_string_column_too_long(self) -> None:
+        """Test that a string column value over its max_length is rejected."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "max_length": 10},
+            ],
+        )
+        table_value = [{"role_id": 123, "tag": "X" * 11}]
+
+        is_valid, error = option.validate_value(table_value)
+
+        assert is_valid is False
+        assert error is not None and "cannot exceed 10" in error
+
+    def test_validate_table_string_column_wrong_type(self) -> None:
+        """Test that a non-string value in a string column is rejected."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "max_length": 10},
+            ],
+        )
+        table_value = [{"role_id": 123, "tag": 456}]
+
+        is_valid, error = option.validate_value(table_value)
+
+        assert is_valid is False
+        assert error is not None and "must be text" in error
+
+    def test_validate_table_textarea_column_too_long(self) -> None:
+        """Test that a textarea column value over its max_length is rejected."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "content", "name": "Content", "type": "textarea", "max_length": 1024},
+            ],
+        )
+        table_value = [{"content": "X" * 1025}]
+
+        is_valid, error = option.validate_value(table_value)
+
+        assert is_valid is False
+        assert error is not None and "cannot exceed 1024" in error
+
+    def test_validate_table_string_column_within_limit(self) -> None:
+        """Test that a string column value at its max_length is accepted."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "max_length": 10},
+            ],
+        )
+        table_value = [{"role_id": 123, "tag": "X" * 10}]
+
+        is_valid, error = option.validate_value(table_value)
+
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_table_role_column_legacy_string_id_accepted(self) -> None:
+        """Test that role columns are not type-checked (legacy string IDs exist)."""
+        option = ConfigOption(
+            key="test",
+            name="Test",
+            option_type=ConfigOptionType.TABLE,
+            columns=[
+                {"key": "role_id", "name": "Role", "type": "role", "required": True},
+                {"key": "tag", "name": "Tag", "type": "string", "max_length": 10},
+            ],
+        )
+        table_value = [{"role_id": "123456789", "tag": "CAP"}]
+
+        is_valid, error = option.validate_value(table_value)
+
+        assert is_valid is True
+        assert error is None

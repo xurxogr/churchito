@@ -118,7 +118,7 @@ class ConfigOption(BaseModel):
                 for i, row in enumerate(value):
                     if not isinstance(row, dict):
                         return False, f"'{self.name}' row {i + 1} must be an object"
-                    # Validate required columns
+                    # Validate required columns and string constraints
                     if self.columns:
                         for col in self.columns:
                             if col.get("required") and not row.get(col["key"]):
@@ -126,6 +126,11 @@ class ConfigOption(BaseModel):
                                     False,
                                     f"'{self.name}' row {i + 1}: '{col['name']}' is required",
                                 )
+                            cell_error = self._validate_table_cell(
+                                row=row, col=col, row_number=i + 1
+                            )
+                            if cell_error:
+                                return False, cell_error
 
         if self.custom_validator is not None and value is not None:
             error = self.custom_validator(value)
@@ -133,3 +138,37 @@ class ConfigOption(BaseModel):
                 return False, error
 
         return True, None
+
+    def _validate_table_cell(
+        self, row: dict[str, Any], col: dict[str, Any], row_number: int
+    ) -> str | None:
+        """Validate one table cell against its column definition.
+
+        Only string-like columns are checked: the declared ``max_length`` was
+        previously never enforced server-side, so oversized values reached the
+        stored configuration. Role/channel columns are deliberately not
+        type-checked here because legacy rows hold string IDs that the web
+        router still normalizes on save.
+
+        Args:
+            row (dict[str, Any]): Table row being validated.
+            col (dict[str, Any]): Column definition.
+            row_number (int): 1-indexed row number for error messages.
+
+        Returns:
+            str | None: Error message, or None when the cell is valid.
+        """
+        if col.get("type") not in ("string", "textarea"):
+            return None
+        cell = row.get(col["key"])
+        if cell is None:
+            return None
+        if not isinstance(cell, str):
+            return f"'{self.name}' row {row_number}: '{col['name']}' must be text"
+        max_length = col.get("max_length")
+        if max_length and len(cell) > max_length:
+            return (
+                f"'{self.name}' row {row_number}: '{col['name']}' cannot exceed "
+                f"{max_length} characters"
+            )
+        return None
