@@ -39,5 +39,13 @@
     "api_url": "",
     "api_key": "",
     "api_timeout": 30
+  },
+  "cogs": {
+    "verification": true,
+    "autoname": true,
+    "purge": true,
+    "stockpile": true,
+    "roles": true,
+    "derived_roles": true
   }
 }

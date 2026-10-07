@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from discord_bot.bot import DiscordBot
 from discord_bot.common.core import AppSettings
+from discord_bot.common.core.settings.cogs import CogsSettings
 from discord_bot.common.models import Guild as GuildModel
 from discord_bot.common.services import DatabaseService
 
@@ -700,6 +701,35 @@ async def test_bot_load_cogs_loads_all_configured_cogs(
                 call for call in mock_logger.info.call_args_list if "Loaded cog:" in str(call)
             ]
             assert len(info_calls) > 0, "Expected info log about loaded cogs"
+
+
+async def test_bot_load_cogs_skips_cogs_disabled_in_config(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """A cog switched off in the config is never loaded, so its schema never reaches the web.
+
+    Args:
+        test_settings: Test application settings
+        test_database: Test database service
+    """
+    settings = test_settings.model_copy(
+        update={"cogs": CogsSettings(verification=False, autoname=False, derived_roles=False)}
+    )
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(settings, test_database)
+        bot.load_extension = AsyncMock()
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            await bot._load_cogs()
+
+        loaded = [call.args[0] for call in bot.load_extension.await_args_list]
+        assert loaded == [
+            "discord_bot.purge.cog",
+            "discord_bot.stockpile.cog",
+            "discord_bot.roles.cog",
+        ]
+        skipped = [str(call) for call in mock_logger.info.call_args_list if "disabled" in str(call)]
+        assert len(skipped) == 3
 
 
 async def test_bot_load_cogs_logs_errors(

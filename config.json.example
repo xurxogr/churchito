@@ -28,5 +28,13 @@
     "client_secret": "YOUR_DISCORD_OAUTH_CLIENT_SECRET",
     "redirect_uri": "https://your-domain.com/auth/callback",
     "owner_ids": []
+  },
+  "cogs": {
+    "verification": true,
+    "autoname": true,
+    "purge": true,
+    "stockpile": true,
+    "roles": true,
+    "derived_roles": true
   }
 }

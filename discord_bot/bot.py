@@ -244,17 +244,15 @@ class DiscordBot(commands.Bot):
         logger.info("Database migrations applied")
 
     async def _load_cogs(self) -> None:
-        """Load all cogs."""
-        cogs_to_load = [
-            "discord_bot.verification.cog",
-            "discord_bot.autoname.cog",
-            "discord_bot.purge.cog",
-            "discord_bot.stockpile.cog",
-            "discord_bot.roles.cog",
-            "discord_bot.derived_roles.cog",
-        ]
+        """Load every cog left enabled in the ``cogs`` config block.
 
-        for cog in cogs_to_load:
+        A disabled cog never enters the process: its commands, listeners and
+        dashboard section (registered by the extension's ``setup``) all stay out.
+        """
+        for name in self.settings.cogs.disabled_cogs():
+            logger.info(f"Cog disabled by config, not loading: {name}")
+
+        for cog in self.settings.cogs.enabled_extensions():
             try:
                 await self.load_extension(cog)
                 logger.info(f"Loaded cog: {cog}")
