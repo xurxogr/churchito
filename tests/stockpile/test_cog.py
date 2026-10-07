@@ -15,7 +15,7 @@ from discord_bot.common.services.database import DatabaseService
 from discord_bot.common.utils.command_sync import CommandSyncError
 from discord_bot.stockpile.cog import StockpileCog
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
-from discord_bot.stockpile.enums import ConfigKey
+from discord_bot.stockpile.enums import ConfigKey, ShowMode
 from discord_bot.stockpile.models import Stockpile
 from discord_bot.stockpile.service import StockpileService
 
@@ -1494,6 +1494,173 @@ class TestStockpileShowCommand:
         second_batch = mock_interaction.followup.send.call_args.kwargs.get("embeds")
         assert second_batch is not None
         assert len(second_batch) == 5
+
+
+class TestStockpileShowCompactMode:
+    """Tests for the show command in compact mode (single list embed)."""
+
+    async def _seed(
+        self,
+        test_database: DatabaseService,
+        guild_id: int,
+        *,
+        header_template: str = "**{hex} - {city}**",
+        count: int = 15,
+    ) -> None:
+        """Enable compact mode and create stockpiles across two cities."""
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.SHOW_MODE,
+                value=ShowMode.COMPACT,
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.SHOW_COMPACT_HEADER_TEXT,
+                value=header_template,
+            )
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.SHOW_COMPACT_ITEM_TEXT,
+                value="{name} - `{code}` - {city}",
+            )
+            service = StockpileService(session)
+            for i in range(count):
+                await service.create(
+                    guild_id=guild_id,
+                    hex_key="AcrithiaHex",
+                    city="Patridia" if i % 2 == 0 else "Swordfort",
+                    name=f"Stock{i:03d}",
+                    code=f"{i:06d}",
+                    view_roles=[100],
+                    created_by=111,
+                    guild_name="Test Guild",
+                )
+            # One the member cannot view: must not be listed
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Hidden",
+                code="999999",
+                view_roles=[999],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+    async def test_sends_single_message_with_one_embed(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that 15 stockpiles fit in one ephemeral message with one embed."""
+        await self._seed(test_database, mock_interaction.guild.id)
+
+        await stockpile_cog._handle_stockpile_show(mock_interaction)
+
+        mock_interaction.response.send_message.assert_called_once()
+        mock_interaction.followup.send.assert_not_called()
+        kwargs = mock_interaction.response.send_message.call_args.kwargs
+        assert kwargs["ephemeral"] is True
+        embed = kwargs["embed"]
+        assert embed.description is not None
+        for i in range(15):
+            assert f"Stock{i:03d} - `{i:06d}`" in embed.description
+        assert "Hidden" not in embed.description
+        assert "999999" not in embed.description
+
+    async def test_groups_by_location_with_header(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that each location gets one header line followed by its stockpiles."""
+        await self._seed(test_database, mock_interaction.guild.id, count=4)
+
+        await stockpile_cog._handle_stockpile_show(mock_interaction)
+
+        description = mock_interaction.response.send_message.call_args.kwargs["embed"].description
+        lines = description.split("\n")
+        assert lines == [
+            "**Acrithia - Patridia**",
+            "Stock000 - `000000` - Patridia",
+            "Stock002 - `000002` - Patridia",
+            "**Acrithia - Swordfort**",
+            "Stock001 - `000001` - Swordfort",
+            "Stock003 - `000003` - Swordfort",
+        ]
+
+    async def test_empty_header_gives_flat_list(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that clearing the header template lists every stockpile with no grouping lines."""
+        await self._seed(test_database, mock_interaction.guild.id, header_template="", count=4)
+
+        await stockpile_cog._handle_stockpile_show(mock_interaction)
+
+        description = mock_interaction.response.send_message.call_args.kwargs["embed"].description
+        lines = description.split("\n")
+        assert len(lines) == 4
+        assert all(line.startswith("Stock") for line in lines)
+
+    async def test_respects_hex_and_city_filter(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the optional location filter still applies in compact mode."""
+        await self._seed(test_database, mock_interaction.guild.id, count=4)
+
+        await stockpile_cog._handle_stockpile_show(
+            mock_interaction, hex="AcrithiaHex", city="Swordfort"
+        )
+
+        description = mock_interaction.response.send_message.call_args.kwargs["embed"].description
+        assert "Patridia" not in description
+        assert "Stock001" in description
+        assert "Stock003" in description
+
+    async def test_detailed_mode_remains_default(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that without the option set, the show command keeps sending per-stockpile embeds."""
+        guild_id = mock_interaction.guild.id
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Only",
+                code="123456",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        await stockpile_cog._handle_stockpile_show(mock_interaction)
+
+        kwargs = mock_interaction.response.send_message.call_args.kwargs
+        assert "embeds" in kwargs
+        assert len(kwargs["embeds"]) == 1
 
 
 class TestStockpileDeleteCommand:

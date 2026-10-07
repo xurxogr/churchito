@@ -4,7 +4,7 @@ import pytest
 
 from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
-from discord_bot.stockpile.enums import ConfigKey
+from discord_bot.stockpile.enums import ConfigKey, ShowMode
 
 
 class TestStockpileConfigSchema:
@@ -105,6 +105,35 @@ class TestStockpileConfigSchema:
         assert "creator" in opt.placeholders
         assert "hex" in opt.placeholders
         assert "city" in opt.placeholders
+
+    def test_show_mode_option(self) -> None:
+        """Test the show mode choice defaults to detailed and offers compact."""
+        options = {opt.key: opt for opt in STOCKPILE_CONFIG_SCHEMA.options}
+
+        opt = options[ConfigKey.SHOW_MODE]
+        assert opt.option_type == ConfigOptionType.TEXT_CHOICE
+        assert opt.default == ShowMode.DETAILED
+        assert opt.choices is not None
+        assert {value for _, value in opt.choices} == {ShowMode.DETAILED, ShowMode.COMPACT}
+        assert opt.group == "Show Command"
+
+    def test_show_compact_templates(self) -> None:
+        """Test the compact templates: header may be emptied, item has the basic placeholders."""
+        options = {opt.key: opt for opt in STOCKPILE_CONFIG_SCHEMA.options}
+
+        header = options[ConfigKey.SHOW_COMPACT_HEADER_TEXT]
+        assert header.option_type == ConfigOptionType.STRING
+        assert header.default
+        assert header.placeholders is not None
+        assert set(header.placeholders) == {"hex", "city", "count"}
+        assert header.group == "Show Command"
+
+        item = options[ConfigKey.SHOW_COMPACT_ITEM_TEXT]
+        assert item.option_type == ConfigOptionType.STRING
+        assert item.default
+        assert item.placeholders is not None
+        assert set(item.placeholders) == {"name", "code", "hex", "city"}
+        assert item.group == "Show Command"
 
     def test_all_options_have_group(self) -> None:
         """Test all options have a group assigned."""

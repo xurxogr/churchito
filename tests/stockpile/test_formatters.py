@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 from discord_bot.stockpile.formatters import (
     format_message,
-    format_pinned_message,
     format_roles_list,
+    format_stockpile_list,
     group_stockpiles_by_location,
     validate_code,
 )
@@ -165,7 +165,7 @@ class TestValidateCode:
 
 
 class TestFormatPinnedMessage:
-    """Tests for format_pinned_message function."""
+    """Tests for format_stockpile_list function."""
 
     def _create_stockpile(
         self,
@@ -190,7 +190,7 @@ class TestFormatPinnedMessage:
     def test_empty_stockpiles(self) -> None:
         """Test with no stockpiles returns None."""
         guild = MagicMock()
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[],
             header_template="**{hex} - {city}** ({count})",
             item_template="**{name}** - `{code}`",
@@ -211,7 +211,7 @@ class TestFormatPinnedMessage:
             city="Patridia",
         )
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[stockpile],
             header_template="**{hex} - {city}** ({count})",
             item_template="**{name}**",
@@ -235,7 +235,7 @@ class TestFormatPinnedMessage:
         s1 = self._create_stockpile(name="Stock1", hex_key="AcrithiaHex", city="Patridia")
         s2 = self._create_stockpile(name="Stock2", hex_key="AcrithiaHex", city="Patridia")
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[s1, s2],
             header_template="**{hex} - {city}** ({count})",
             item_template="**{name}**",
@@ -259,7 +259,7 @@ class TestFormatPinnedMessage:
         s1 = self._create_stockpile(name="Stock1", hex_key="AcrithiaHex", city="Patridia")
         s2 = self._create_stockpile(name="Stock2", hex_key="AcrithiaHex", city="Swordfort")
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[s1, s2],
             header_template="**{hex} - {city}** ({count})",
             item_template="**{name}**",
@@ -293,7 +293,7 @@ class TestFormatPinnedMessage:
             created_by=99999,
         )
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[stockpile],
             header_template="{hex} | {city} | {count}",
             item_template="{name} | {code} | {hex} | {city} | {roles} | {creator} | {created_at}",
@@ -323,7 +323,7 @@ class TestFormatPinnedMessage:
             created_by=99999,
         )
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[stockpile],
             header_template="{hex}",
             item_template="{name} by {creator}",
@@ -348,7 +348,7 @@ class TestFormatPinnedMessage:
         )
         # datetime(2024, 1, 15, 10, 30, tzinfo=UTC) -> 1705314600
 
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=[stockpile],
             header_template="{hex}",
             item_template="{name} ({created_at_relative})",
@@ -380,7 +380,7 @@ class TestFormatPinnedMessage:
             )
 
         item_tpl = "**{name}**: `{code}` - {hex}/{city} - {roles} - {creator} - {created_at}"
-        result = format_pinned_message(
+        result = format_stockpile_list(
             stockpiles=stockpiles,
             header_template="**{hex} - {city}** ({count})",
             item_template=item_tpl,
@@ -394,3 +394,27 @@ class TestFormatPinnedMessage:
         assert len(result.description) <= 4096
         # Should end with "..." when truncated
         assert result.description.endswith("...")
+
+    def test_without_header_template_lists_items_flat(self) -> None:
+        """Test that an empty header template yields a flat list with no location lines."""
+        guild = MagicMock()
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+
+        stockpiles = [
+            self._create_stockpile(name="Main", hex_key="AcrithiaHex", city="Patridia"),
+            self._create_stockpile(name="Spare", hex_key="AcrithiaHex", city="Swordfort"),
+        ]
+
+        result = format_stockpile_list(
+            stockpiles=stockpiles,
+            header_template=None,
+            item_template="{name} - `{code}` - {hex}/{city}",
+            guild=guild,
+            hex_display_name_func=lambda x: "Acrithia",
+        )
+
+        assert result is not None
+        assert result.description == (
+            "Main - `123456` - Acrithia/Patridia\nSpare - `123456` - Acrithia/Swordfort"
+        )

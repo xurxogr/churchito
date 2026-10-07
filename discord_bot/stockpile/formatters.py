@@ -209,18 +209,21 @@ def validate_code(code: str) -> bool:
     return bool(re.match(r"^\d{6}$", code))
 
 
-def format_pinned_message(
+def format_stockpile_list(
     stockpiles: list[Stockpile],
-    header_template: str,
+    header_template: str | None,
     item_template: str,
     guild: discord.Guild,
     hex_display_name_func: Any,
 ) -> discord.Embed | None:
-    """Format the complete pinned message as an embed with all stockpiles grouped by location.
+    """Format stockpiles as a single embed, one line each, grouped by location.
+
+    Used by the pinned message and by the show command in compact mode.
 
     Args:
-        stockpiles (list[Stockpile]): List of all stockpiles
-        header_template (str): Template for location headers
+        stockpiles (list[Stockpile]): Stockpiles to list
+        header_template (str | None): Template for location headers; empty or
+            None yields a flat list with no header lines
         item_template (str): Template for each stockpile item
         guild (discord.Guild): Guild to resolve role names
         hex_display_name_func: Function to convert hex_key to display name
@@ -237,14 +240,15 @@ def format_pinned_message(
     for (hex_key, city), location_stockpiles in grouped.items():
         hex_display = hex_display_name_func(hex_key)
 
-        # Add header
-        header = format_message(
-            header_template,
-            hex=hex_display,
-            city=city,
-            count=len(location_stockpiles),
-        )
-        lines.append(header)
+        # Add header (optional)
+        if header_template:
+            header = format_message(
+                header_template,
+                hex=hex_display,
+                city=city,
+                count=len(location_stockpiles),
+            )
+            lines.append(header)
 
         # Add items
         for stockpile in location_stockpiles:

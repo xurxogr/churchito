@@ -25,8 +25,11 @@ class ConfigKey:
 
     # Messages
     ADD_SUCCESS_TEXT = "add_success_text"
+    SHOW_MODE = "show_mode"
     SHOW_HEADER_TEXT = "show_header_text"
     SHOW_LOCATION_EMBED = "show_location_embed"
+    SHOW_COMPACT_HEADER_TEXT = "show_compact_header_text"
+    SHOW_COMPACT_ITEM_TEXT = "show_compact_item_text"
     SHOW_EMPTY_EMBED = "show_empty_embed"
     DELETE_SUCCESS_TEXT = "delete_success_text"
     EDIT_SUCCESS_TEXT = "edit_success_text"

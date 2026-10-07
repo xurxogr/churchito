@@ -4,7 +4,7 @@ from discord_bot.common.enums.config_option_type import ConfigOptionType
 from discord_bot.common.schemas.cog_config_schema import CogConfigSchema
 from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.utils.command_name import validate_command_name
-from discord_bot.stockpile.enums import ConfigKey
+from discord_bot.stockpile.enums import ConfigKey, ShowMode
 
 COG_NAME = "stockpile"
 
@@ -157,10 +157,49 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
         ),
         # ===== 4. SHOW COMMAND =====
         ConfigOption(
-            key=ConfigKey.SHOW_HEADER_TEXT,
-            name="Location header",
+            key=ConfigKey.SHOW_MODE,
+            name="Display mode",
             description=(
-                "Header shown before stockpiles at each location. "
+                "Detailed sends one embed per stockpile using the options below. "
+                "Compact sends a single message listing name and code grouped by "
+                "location, which stays readable with many stockpiles."
+            ),
+            option_type=ConfigOptionType.TEXT_CHOICE,
+            choices=[
+                ("Detailed (one embed per stockpile)", ShowMode.DETAILED),
+                ("Compact (single list)", ShowMode.COMPACT),
+            ],
+            default=ShowMode.DETAILED,
+            group="Show Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_COMPACT_HEADER_TEXT,
+            name="Compact: location header",
+            description=(
+                "Compact mode only. Line shown before the stockpiles at each location. "
+                "Leave empty for a flat list without grouping."
+            ),
+            option_type=ConfigOptionType.STRING,
+            default="**{hex} - {city}**",
+            max_length=200,
+            placeholders=["hex", "city", "count"],
+            group="Show Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_COMPACT_ITEM_TEXT,
+            name="Compact: stockpile line",
+            description="Compact mode only. One line per stockpile.",
+            option_type=ConfigOptionType.STRING,
+            default="{name} - `{code}`",
+            max_length=200,
+            placeholders=["name", "code", "hex", "city"],
+            group="Show Command",
+        ),
+        ConfigOption(
+            key=ConfigKey.SHOW_HEADER_TEXT,
+            name="Detailed: location header",
+            description=(
+                "Detailed mode only. Header shown before stockpiles at each location. "
                 "Leave empty to show stockpiles without location grouping."
             ),
             option_type=ConfigOptionType.STRING,
@@ -171,8 +210,11 @@ STOCKPILE_CONFIG_SCHEMA = CogConfigSchema(
         ),
         ConfigOption(
             key=ConfigKey.SHOW_LOCATION_EMBED,
-            name="Stockpile embed",
-            description="Embed shown for each stockpile. One embed is sent per stockpile.",
+            name="Detailed: stockpile embed",
+            description=(
+                "Detailed mode only. Embed shown for each stockpile. "
+                "One embed is sent per stockpile."
+            ),
             option_type=ConfigOptionType.EMBED,
             default={
                 "description": "**{name}**: `{code}` (by {creator_mention})",

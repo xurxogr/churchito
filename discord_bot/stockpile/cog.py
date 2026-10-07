@@ -27,12 +27,12 @@ from discord_bot.common.utils import (
 )
 from discord_bot.common.utils.command_sync import CommandSyncError, sync_guild_commands
 from discord_bot.stockpile.config import COG_NAME, STOCKPILE_CONFIG_SCHEMA
-from discord_bot.stockpile.enums import ConfigKey
+from discord_bot.stockpile.enums import ConfigKey, ShowMode
 from discord_bot.stockpile.formatters import (
     build_stockpile_embed_context,
     build_stockpile_placeholder_data,
     format_message,
-    format_pinned_message,
+    format_stockpile_list,
     group_stockpiles_by_location,
     validate_code,
 )
@@ -600,7 +600,7 @@ class StockpileCog(commands.Cog):
             stockpiles = await service.get_all_for_guild(guild.id)
 
             # Format message as embed
-            embed = format_pinned_message(
+            embed = format_stockpile_list(
                 list(stockpiles),
                 header_template,
                 item_template,
@@ -1478,6 +1478,14 @@ class StockpileCog(commands.Cog):
                 )
             return
 
+        if config.get(ConfigKey.SHOW_MODE) == ShowMode.COMPACT:
+            await self._send_compact_show(
+                interaction=interaction,
+                config=config,
+                stockpiles=list(stockpiles),
+            )
+            return
+
         # Get embed configuration
         location_embed_config = config.get(ConfigKey.SHOW_LOCATION_EMBED)
         if not location_embed_config:
@@ -1540,6 +1548,37 @@ class StockpileCog(commands.Cog):
                 first_message = False
             else:
                 await interaction.followup.send(content=header or "", embeds=embeds, ephemeral=True)
+
+    async def _send_compact_show(
+        self,
+        interaction: discord.Interaction,
+        config: dict[str, Any],
+        stockpiles: list[Stockpile],
+    ) -> None:
+        """Answer the show command with a single list embed (compact mode).
+
+        Only name and code per stockpile, optionally grouped under a location
+        header, so many stockpiles stay readable in one ephemeral message.
+
+        Args:
+            interaction (discord.Interaction): Discord interaction
+            config (dict[str, Any]): Cog configuration
+            stockpiles (list[Stockpile]): Stockpiles the member may view
+        """
+        if not interaction.guild:
+            return
+
+        item_template = config.get(ConfigKey.SHOW_COMPACT_ITEM_TEXT) or "{name} - `{code}`"
+        embed = format_stockpile_list(
+            stockpiles,
+            config.get(ConfigKey.SHOW_COMPACT_HEADER_TEXT),
+            item_template,
+            interaction.guild,
+            get_hex_display_name,
+        )
+        if embed is None:
+            return
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def _handle_stockpile_delete(
         self,
