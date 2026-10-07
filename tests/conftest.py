@@ -20,6 +20,7 @@ from discord_bot.common.core.settings.database import DatabaseSettings
 from discord_bot.common.core.settings.logging import LoggingSettings
 from discord_bot.common.models.base import Base
 from discord_bot.common.services import DatabaseService
+from discord_bot.common.utils import command_sync
 from discord_bot.verification import api_client, steam_client
 from discord_bot.verification.handlers import welcome_card
 
@@ -28,6 +29,17 @@ _SHARED_HTTP_CLIENTS = (
     steam_client._shared_client,
     welcome_card._template_client,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_sync_coalesce_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run guild command syncs without the coalescing wait.
+
+    Cog tests await a sync and assert on ``tree.sync`` right after; the
+    real delay only matters in production, where several cogs request the
+    same guild within a second.
+    """
+    monkeypatch.setattr(command_sync, "SYNC_COALESCE_DELAY", 0.0)
 
 
 @pytest.fixture(autouse=True)
