@@ -546,7 +546,8 @@ cogs re-register and sync inline in `on_config_changed`: the dashboard saves
 every changed option in a single request, so no debouncing is needed.
 
 Registration lives in `_start()`, called from `on_ready` at startup and from
-`cog_load` when the bot is already ready (dashboard "Reload cog"). `cog_unload`
+`cog_load` when the bot is already ready (the health checker reloading a
+missing extension; the dashboard no longer offers a reload button). `cog_unload`
 removes the instance's tracked commands from the tree first: discord.py only
 ejects decorator-defined commands, so without it a reloaded cog would find every
 name taken and the old instance would keep serving the commands. `_start()`

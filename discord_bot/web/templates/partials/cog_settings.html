@@ -35,16 +35,6 @@
                     <span class="toggle-label">{{ _('ui.labels.enabled', lang) if enabled else _('ui.labels.disabled', lang) }}</span>
                 </label>
             </form>
-
-            {% if can_reload %}
-            <button
-                class="btn btn-secondary"
-                hx-post="{{ root_path }}/guild/{{ guild_id }}/cog/{{ cog_name }}/reload"
-                hx-target="#cog-settings"
-                hx-swap="innerHTML"
-            >
-                {{ _('ui.buttons.reload', lang) }}
-            </button>
             {% endif %}
         </div>
         {% endif %}

@@ -19,8 +19,6 @@ from discord_bot.i18n import get_i18n_service
 from discord_bot.web.dependencies import (
     DbSession,
     RequireAuth,
-    is_bot_owner,
-    require_bot_owner,
     require_guild_access,
 )
 from discord_bot.web.middleware import get_csrf_token
@@ -375,7 +373,6 @@ async def _render_cog_settings(
             },
             "options": options_data,
             "enabled": is_enabled,
-            "can_reload": is_bot_owner(request=request, user=user) if user else False,
             "channels": channels,
             "roles": roles,
             "assignable_roles": assignable_roles,
@@ -652,85 +649,6 @@ async def update_options_batch(
         session=session,
         user=user,
         error=error_message,
-    )
-
-
-@router.post("/{guild_id}/cog/{cog_name}/reload", response_class=HTMLResponse)
-async def reload_cog(
-    request: Request,
-    guild_id: int,
-    cog_name: str,
-    user: GuildAccess,
-    session: DbSession,
-) -> HTMLResponse:
-    """Reload a cog (extension reload).
-
-    Reloading an extension affects every guild served by this bot process,
-    so it is restricted to bot owners even though the route is guild-scoped.
-
-    Args:
-        request (Request): FastAPI request
-        guild_id (int): Guild ID
-        cog_name (str): Cog name
-        user (GuildAccess): User with verified access
-        session (DbSession): Database session
-
-    Returns:
-        HTMLResponse: Updated partial
-
-    Raises:
-        HTTPException: 403 if the user is not a bot owner, 404 if the cog does not exist
-    """
-    require_bot_owner(request=request, user=user)
-
-    # Validate cog exists before any operation
-    schema_service = get_config_schema_service()
-    if not schema_service.get_schema(cog_name):
-        raise HTTPException(status_code=404, detail="Cog not found")
-
-    # The "bot" cog cannot be reloaded
-    if cog_name == "bot":
-        return await _render_cog_settings(
-            request=request,
-            guild_id=guild_id,
-            cog_name=cog_name,
-            session=session,
-            user=user,
-            error="The 'bot' module cannot be reloaded",
-        )
-
-    bot = request.app.state.bot
-    if not bot:
-        return await _render_cog_settings(
-            request=request,
-            guild_id=guild_id,
-            cog_name=cog_name,
-            session=session,
-            user=user,
-            error="Bot not available",
-        )
-
-    extension_name = f"discord_bot.{cog_name}.cog"
-    try:
-        await bot.reload_extension(extension_name)
-        logger.info(f"Cog {cog_name} reloaded by user {user.get('id')}")
-    except Exception as e:
-        logger.error(f"Error reloading cog {cog_name}: {e}")
-        return await _render_cog_settings(
-            request=request,
-            guild_id=guild_id,
-            cog_name=cog_name,
-            session=session,
-            user=user,
-            error=f"Error reloading: {e}",
-        )
-
-    return await _render_cog_settings(
-        request=request,
-        guild_id=guild_id,
-        cog_name=cog_name,
-        session=session,
-        user=user,
     )
 
 
