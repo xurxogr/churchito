@@ -36,9 +36,35 @@ from discord_bot.stockpile.formatters import (
     group_stockpiles_by_location,
     validate_code,
 )
+from discord_bot.stockpile.models import Stockpile
 from discord_bot.stockpile.service import StockpileService
 
 logger = logging.getLogger(__name__)
+
+
+def _duplicate_message(*, name: str, existing: Stockpile, user_role_ids: list[int]) -> str:
+    """Build the error shown when a stockpile name is already taken.
+
+    Uniqueness is guild-wide, so the existing stockpile may sit at a location
+    the user never typed. Its location is only revealed when the user is
+    allowed to view it.
+
+    Args:
+        name (str): Requested stockpile name
+        existing (Stockpile): Stockpile already holding that name
+        user_role_ids (list[int]): Role IDs of the user running the command
+
+    Returns:
+        str: Error message
+    """
+    if not existing.can_view(user_role_ids):
+        return f"A stockpile named **{name}** already exists."
+    existing_hex_display = get_hex_display_name(existing.hex_key)
+    return (
+        f"A stockpile named **{name}** already exists at "
+        f"**{existing_hex_display}** - **{existing.city}**."
+    )
+
 
 # Command key -> (config key holding the name, default name, description)
 STOCKPILE_COMMANDS: dict[str, tuple[str, str, str]] = {
@@ -420,6 +446,29 @@ class StockpileCog(commands.Cog):
             guild (discord.Guild): Guild the bot left.
         """
         await self._unregister_guild_commands(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role: discord.Role) -> None:
+        """Drop a deleted role from every stockpile's view roles.
+
+        A stockpile that kept the stale ID would be invisible to everyone,
+        since nobody can hold a role that no longer exists.
+
+        Args:
+            role (discord.Role): Role that was deleted
+        """
+        guild = role.guild
+        async with self.bot.database.session() as session:
+            service = StockpileService(session=session)
+            updated = await service.remove_view_role(
+                guild_id=guild.id,
+                role_id=role.id,
+                guild_name=guild.name,
+            )
+            await session.commit()
+
+        if updated:
+            await self._update_pinned_message(guild)
 
     # ===== CONFIG CHANGE CALLBACKS =====
 
@@ -1060,7 +1109,9 @@ class StockpileCog(commands.Cog):
         if not isinstance(member, discord.Member):
             return []
 
-        user_role_ids = [role.id for role in member.roles]
+        user_role_ids = await self._autocomplete_role_filter(
+            member=member, manage_key=ConfigKey.DELETE_ROLES
+        )
         current_lower = current.lower()
 
         async with self.bot.database.session() as session:
@@ -1103,7 +1154,9 @@ class StockpileCog(commands.Cog):
         if not isinstance(member, discord.Member):
             return []
 
-        user_role_ids = [role.id for role in member.roles]
+        user_role_ids = await self._autocomplete_role_filter(
+            member=member, manage_key=ConfigKey.EDIT_ROLES
+        )
         current_lower = current.lower()
 
         async with self.bot.database.session() as session:
@@ -1119,6 +1172,30 @@ class StockpileCog(commands.Cog):
             if current_lower in name.lower()
         ]
         return choices[:25]
+
+    async def _autocomplete_role_filter(
+        self,
+        member: discord.Member,
+        manage_key: str,
+    ) -> list[int] | None:
+        """Decide which view-role filter a name autocomplete should apply.
+
+        Members holding one of the configured manage roles (delete or edit)
+        may act on any stockpile, so they get every name. Everyone else only
+        sees the names they are allowed to view.
+
+        Args:
+            member (discord.Member): Member typing the command
+            manage_key (str): Config key holding the manage roles for the command
+
+        Returns:
+            list[int] | None: The member's role IDs, or None to bypass the filter
+        """
+        config = await self._get_config(member.guild.id)
+        manage_roles = config.get(manage_key) or []
+        if has_any_of_roles(member=member, role_ids=manage_roles):
+            return None
+        return [role.id for role in member.roles]
 
     # ===== COMMAND HANDLERS =====
 
@@ -1244,7 +1321,17 @@ class StockpileCog(commands.Cog):
 
         view_role_ids = [role.id for role in selected_roles]
 
+        # The creator must be able to see what they create: otherwise the
+        # stockpile is invisible to them right after the success message
+        if not has_any_of_roles(member=member, role_ids=view_role_ids):
+            await interaction.response.send_message(
+                "You must have at least one of the selected view roles.",
+                ephemeral=True,
+            )
+            return
+
         hex_display = get_hex_display_name(hex)
+        user_role_ids = [role.id for role in member.roles]
 
         # Check for duplicate stockpile (guild-wide uniqueness). The table has
         # no unique constraint on the name, so check-and-create is serialized
@@ -1259,10 +1346,12 @@ class StockpileCog(commands.Cog):
                 name=name,
             )
             if existing:
-                existing_hex_display = get_hex_display_name(existing.hex_key)
                 await interaction.response.send_message(
-                    f"A stockpile named **{name}** already exists at "
-                    f"**{existing_hex_display}** - **{existing.city}**.",
+                    _duplicate_message(
+                        name=name,
+                        existing=existing,
+                        user_role_ids=user_role_ids,
+                    ),
                     ephemeral=True,
                 )
                 return
@@ -1493,12 +1582,11 @@ class StockpileCog(commands.Cog):
             )
             return
 
-        user_role_ids = [role.id for role in member.roles]
-
         async with self.bot.database.session() as session:
             service = StockpileService(session=session)
 
-            # First check if stockpile exists and user can view it
+            # Holding a delete role is enough: no view-role check, so a
+            # stockpile whose view role nobody holds anymore can still be removed
             stockpile = await service.get_by_location_and_name(
                 guild_id=interaction.guild.id,
                 hex_key=hex,
@@ -1509,14 +1597,6 @@ class StockpileCog(commands.Cog):
             if not stockpile:
                 await interaction.response.send_message(
                     config.get(ConfigKey.NOT_FOUND_TEXT) or "Not found.",
-                    ephemeral=True,
-                )
-                return
-
-            # Verify user can view this stockpile before allowing deletion
-            if not stockpile.can_view(user_role_ids):
-                await interaction.response.send_message(
-                    config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
                     ephemeral=True,
                 )
                 return
@@ -1657,12 +1737,11 @@ class StockpileCog(commands.Cog):
             )
             return
 
-        user_role_ids = [role.id for role in member.roles]
-
         async with self.bot.database.session() as session:
             service = StockpileService(session=session)
 
-            # Find stockpile(s) matching the name, narrowing by hex/city if given
+            # Find stockpile(s) matching the name, narrowing by hex/city if given.
+            # Holding an edit role is enough: no view-role check (see delete)
             candidates = list(
                 await service.get_all_by_guild_and_name(
                     guild_id=interaction.guild.id,
@@ -1695,14 +1774,6 @@ class StockpileCog(commands.Cog):
                 return
 
             stockpile = candidates[0]
-
-            # Verify user can view this stockpile before allowing an edit
-            if not stockpile.can_view(user_role_ids):
-                await interaction.response.send_message(
-                    config.get(ConfigKey.NO_PERMISSION_TEXT) or "No permission.",
-                    ephemeral=True,
-                )
-                return
 
             stockpile_hex_key = stockpile.hex_key
             stockpile_city = stockpile.city

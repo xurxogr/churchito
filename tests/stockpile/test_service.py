@@ -451,6 +451,125 @@ class TestStockpileService:
         names = await service.get_distinct_stockpile_names(guild_id=123, user_role_ids=[111])
         assert names == ["Stock1"]
 
+    async def test_name_lookups_skip_role_filter_when_roles_is_none(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Test that passing None as user roles returns every name (manager bypass)."""
+        service = StockpileService(test_session)
+
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock1",
+            code="111111",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock2",
+            code="222222",
+            view_roles=[222],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        at_location = await service.get_stockpile_names_at_location(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            user_role_ids=None,
+        )
+        assert at_location == ["Stock1", "Stock2"]
+
+        distinct = await service.get_distinct_stockpile_names(guild_id=123, user_role_ids=None)
+        assert distinct == ["Stock1", "Stock2"]
+
+    async def test_remove_view_role_strips_role_from_guild_stockpiles(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Test that a deleted role is removed from every stockpile of that guild only."""
+        service = StockpileService(test_session)
+
+        # Role 111 alongside another role: stays restricted to 222
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Shared",
+            code="111111",
+            view_roles=[111, 222],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        # Role 111 alone: becomes public (empty list)
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Swordfort",
+            name="Alone",
+            code="222222",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        # Not referencing role 111: untouched
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Nereid Keep",
+            name="Other",
+            code="333333",
+            view_roles=[222],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+        # Same role ID in another guild: untouched
+        await service.create(
+            guild_id=999,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Foreign",
+            code="444444",
+            view_roles=[111],
+            created_by=456,
+            guild_name="Other Guild",
+        )
+
+        updated = await service.remove_view_role(guild_id=123, role_id=111, guild_name="Test Guild")
+        assert updated == 2
+
+        test_session.expire_all()
+        by_name = {s.name: s.view_roles for s in await service.get_all_for_guild(guild_id=123)}
+        assert by_name == {"Shared": [222], "Alone": [], "Other": [222]}
+
+        foreign = await service.get_all_for_guild(guild_id=999)
+        assert [s.view_roles for s in foreign] == [[111]]
+
+    async def test_remove_view_role_returns_zero_when_nothing_matches(
+        self, test_session: AsyncSession
+    ) -> None:
+        """Test that removing an unreferenced role touches nothing."""
+        service = StockpileService(test_session)
+
+        await service.create(
+            guild_id=123,
+            hex_key="AcrithiaHex",
+            city="Patridia",
+            name="Stock1",
+            code="111111",
+            view_roles=[222],
+            created_by=456,
+            guild_name="Test Guild",
+        )
+
+        updated = await service.remove_view_role(guild_id=123, role_id=111, guild_name="Test Guild")
+        assert updated == 0
+
     async def test_name_autocomplete_does_not_hydrate_entities(
         self, test_session: AsyncSession
     ) -> None:

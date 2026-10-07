@@ -409,6 +409,174 @@ class TestEditStockpileNameAutocomplete:
         assert result[0].name == "Alpha"
 
 
+class TestManagerAutocompleteBypass:
+    """Managers (delete/edit roles) see every stockpile name, not only the ones they can view."""
+
+    async def _seed(self, test_database: DatabaseService, guild_id: int, manage_key: str) -> None:
+        """Enable the given manage role for role 100 and create a hidden stockpile."""
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=manage_key,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Hidden",
+                code="123456",
+                view_roles=[999],  # Role the member does not have
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+    async def test_delete_autocomplete_lists_hidden_names_for_delete_role(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a member with a delete role gets names they cannot view."""
+        await self._seed(test_database, mock_interaction.guild.id, ConfigKey.DELETE_ROLES)
+        mock_interaction.namespace.hex = "AcrithiaHex"
+        mock_interaction.namespace.city = "Patridia"
+
+        result = await stockpile_cog.stockpile_name_autocomplete(mock_interaction, "")
+        assert [c.name for c in result] == ["Hidden"]
+
+    async def test_delete_autocomplete_still_filters_without_delete_role(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that without a delete role the hidden name is not suggested."""
+        # Edit role is configured but delete is not: no bypass for the delete command
+        await self._seed(test_database, mock_interaction.guild.id, ConfigKey.EDIT_ROLES)
+        mock_interaction.namespace.hex = "AcrithiaHex"
+        mock_interaction.namespace.city = "Patridia"
+
+        result = await stockpile_cog.stockpile_name_autocomplete(mock_interaction, "")
+        assert result == []
+
+    async def test_edit_autocomplete_lists_hidden_names_for_edit_role(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that a member with an edit role gets names they cannot view."""
+        await self._seed(test_database, mock_interaction.guild.id, ConfigKey.EDIT_ROLES)
+
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "")
+        assert [c.name for c in result] == ["Hidden"]
+
+    async def test_edit_autocomplete_still_filters_without_edit_role(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that without an edit role the hidden name is not suggested."""
+        await self._seed(test_database, mock_interaction.guild.id, ConfigKey.DELETE_ROLES)
+
+        result = await stockpile_cog.edit_stockpile_name_autocomplete(mock_interaction, "")
+        assert result == []
+
+
+class TestOnGuildRoleDelete:
+    """Tests for on_guild_role_delete cleanup of stale view roles."""
+
+    async def test_removes_deleted_role_from_view_roles(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the deleted role is stripped and the pinned board is refreshed."""
+        guild_id = mock_guild.id
+        mock_role.guild = mock_guild
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Shared",
+                code="111111",
+                view_roles=[100, 200],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Swordfort",
+                name="Alone",
+                code="222222",
+                view_roles=[100],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        with patch.object(
+            stockpile_cog, "_update_pinned_message", new_callable=AsyncMock
+        ) as update_pinned:
+            await stockpile_cog.on_guild_role_delete(mock_role)
+
+        update_pinned.assert_awaited_once_with(mock_guild)
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            by_name = {s.name: s.view_roles for s in await service.get_all_for_guild(guild_id)}
+            assert by_name == {"Shared": [200], "Alone": []}
+
+    async def test_does_nothing_when_role_is_unreferenced(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the pinned board is left alone when no stockpile used the role."""
+        guild_id = mock_guild.id
+        mock_role.guild = mock_guild
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Other",
+                code="111111",
+                view_roles=[200],
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        with patch.object(
+            stockpile_cog, "_update_pinned_message", new_callable=AsyncMock
+        ) as update_pinned:
+            await stockpile_cog.on_guild_role_delete(mock_role)
+
+        update_pinned.assert_not_awaited()
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            by_name = {s.name: s.view_roles for s in await service.get_all_for_guild(guild_id)}
+            assert by_name == {"Other": [200]}
+
+
 # ===== COMMAND TESTS =====
 
 
@@ -696,6 +864,141 @@ class TestStockpileAddCommand:
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
         assert "already exists" in call_args[0][0]
+        # The user can view the existing stockpile, so its location is shown
+        assert "Patridia" in call_args[0][0]
+
+    async def test_duplicate_message_hides_location_of_invisible_stockpile(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        mock_role: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the duplicate error omits the location when the user cannot view it."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.ADD_ROLES,
+                value=[100],
+            )
+            service = StockpileService(session)
+            await service.create(
+                guild_id=guild_id,
+                hex_key="AcrithiaHex",
+                city="Patridia",
+                name="Test",
+                code="111111",
+                view_roles=[999],  # User doesn't have this role
+                created_by=111,
+                guild_name="Test Guild",
+            )
+            await session.commit()
+
+        mock_interaction.guild.get_role = MagicMock(return_value=mock_role)
+
+        await stockpile_cog._handle_stockpile_add(
+            mock_interaction,
+            hex="AcrithiaHex",
+            city="Patridia",
+            name="Test",
+            code="123456",
+            role1=str(mock_role.id),
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "already exists" in call_args[0][0]
+        assert "Patridia" not in call_args[0][0]
+        assert "Acrithia" not in call_args[0][0]
+        assert call_args[1]["ephemeral"] is True
+
+    async def test_rejects_view_roles_the_creator_does_not_hold(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        mock_role2: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that the creator must hold at least one of the selected view roles."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.ADD_ROLES,
+                value=[100],
+            )
+            await session.commit()
+
+        # Member only has role 100; role 200 exists and is allowed but not held
+        mock_interaction.guild.get_role = MagicMock(return_value=mock_role2)
+
+        await stockpile_cog._handle_stockpile_add(
+            mock_interaction,
+            hex="AcrithiaHex",
+            city="Patridia",
+            name="Test",
+            code="123456",
+            role1=str(mock_role2.id),
+        )
+
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args
+        assert "at least one" in call_args[0][0]
+        assert call_args[1]["ephemeral"] is True
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            assert await service.get_by_guild_and_name(guild_id=guild_id, name="Test") is None
+
+    async def test_accepts_when_creator_holds_one_of_several_view_roles(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_interaction: MagicMock,
+        mock_role: MagicMock,
+        mock_role2: MagicMock,
+        test_database: DatabaseService,
+    ) -> None:
+        """Test that holding any one of the selected view roles is enough."""
+        guild_id = mock_interaction.guild.id
+
+        async with test_database.session() as session:
+            config_service = ConfigService(session)
+            await config_service.set_cog_enabled(guild_id=guild_id, cog_name=COG_NAME, enabled=True)
+            await config_service.set_value(
+                guild_id=guild_id,
+                cog_name=COG_NAME,
+                key=ConfigKey.ADD_ROLES,
+                value=[100],
+            )
+            await session.commit()
+
+        roles_by_id = {mock_role.id: mock_role, mock_role2.id: mock_role2}
+        mock_interaction.guild.get_role = MagicMock(side_effect=lambda rid: roles_by_id.get(rid))
+
+        await stockpile_cog._handle_stockpile_add(
+            mock_interaction,
+            hex="AcrithiaHex",
+            city="Patridia",
+            name="Test",
+            code="123456",
+            role1=str(mock_role2.id),  # Not held
+            role2=str(mock_role.id),  # Held
+        )
+
+        async with test_database.session() as session:
+            service = StockpileService(session)
+            stockpile = await service.get_by_guild_and_name(guild_id=guild_id, name="Test")
+            assert stockpile is not None
+            assert stockpile.view_roles == [200, 100]
 
     async def test_creates_stockpile_successfully(
         self,
@@ -1330,13 +1633,17 @@ class TestStockpileDeleteCommand:
         # Should indicate not found
         assert call_args[1]["ephemeral"] is True
 
-    async def test_checks_view_permission_before_delete(
+    async def test_delete_role_bypasses_view_roles(
         self,
         stockpile_cog: StockpileCog,
         mock_interaction: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Test that verifies user can view stockpile before deleting."""
+        """Test that a member with a delete role can delete a stockpile they cannot view.
+
+        Otherwise a stockpile whose view role was lost by everyone could never
+        be removed from Discord.
+        """
         guild_id = mock_interaction.guild.id
 
         async with test_database.session() as session:
@@ -1369,12 +1676,6 @@ class TestStockpileDeleteCommand:
             name="HiddenStock",
         )
 
-        mock_interaction.response.send_message.assert_called_once()
-        call_args = mock_interaction.response.send_message.call_args
-        # Should deny permission (can't delete what you can't see)
-        assert call_args[1]["ephemeral"] is True
-
-        # Verify stockpile was NOT deleted
         async with test_database.session() as session:
             service = StockpileService(session)
             stockpile = await service.get_by_location_and_name(
@@ -1383,7 +1684,7 @@ class TestStockpileDeleteCommand:
                 city="Patridia",
                 name="HiddenStock",
             )
-            assert stockpile is not None
+            assert stockpile is None
 
     async def test_deletes_stockpile_successfully(
         self,
@@ -1823,13 +2124,13 @@ class TestStockpileEditCommand:
             assert swordfort is not None
             assert swordfort.code == "654321"
 
-    async def test_checks_view_permission_before_edit(
+    async def test_edit_role_bypasses_view_roles(
         self,
         stockpile_cog: StockpileCog,
         mock_interaction: MagicMock,
         test_database: DatabaseService,
     ) -> None:
-        """Test that verifies user can view stockpile before editing it."""
+        """Test that a member with an edit role can edit a stockpile they cannot view."""
         guild_id = mock_interaction.guild.id
 
         async with test_database.session() as session:
@@ -1860,17 +2161,13 @@ class TestStockpileEditCommand:
             code="654321",
         )
 
-        mock_interaction.response.send_message.assert_called_once()
-        call_args = mock_interaction.response.send_message.call_args
-        assert call_args[1]["ephemeral"] is True
-
         async with test_database.session() as session:
             service = StockpileService(session)
             stockpile = await service.get_by_location_and_name(
                 guild_id=guild_id, hex_key="AcrithiaHex", city="Patridia", name="HiddenStock"
             )
             assert stockpile is not None
-            assert stockpile.code == "111111"
+            assert stockpile.code == "654321"
 
     async def test_handles_update_returning_none(
         self,

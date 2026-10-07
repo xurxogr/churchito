@@ -11,6 +11,21 @@ from discord_bot.stockpile.models import Stockpile, roles_can_view
 logger = logging.getLogger(__name__)
 
 
+def _name_visible(*, view_roles: list[int], user_role_ids: list[int] | None) -> bool:
+    """Decide whether a stockpile name shows up in autocomplete.
+
+    Args:
+        view_roles (list[int]): Role IDs allowed to view the stockpile
+        user_role_ids (list[int] | None): User's role IDs, or None to bypass the filter
+
+    Returns:
+        bool: True if the name should be listed
+    """
+    if user_role_ids is None:
+        return True
+    return roles_can_view(view_roles=view_roles, user_role_ids=user_role_ids)
+
+
 class StockpileService:
     """Service for stockpile CRUD operations.
 
@@ -232,7 +247,7 @@ class StockpileService:
         guild_id: int,
         hex_key: str,
         city: str,
-        user_role_ids: list[int],
+        user_role_ids: list[int] | None,
     ) -> list[str]:
         """Get names of accessible stockpiles at a location.
 
@@ -242,7 +257,8 @@ class StockpileService:
             guild_id (int): Guild ID
             hex_key (str): Hex key
             city (str): City name
-            user_role_ids (list[int]): User's role IDs for filtering
+            user_role_ids (list[int] | None): User's role IDs for filtering, or
+                None to skip the view-role filter (managers see every name)
 
         Returns:
             list[str]: List of stockpile names
@@ -262,13 +278,13 @@ class StockpileService:
         return [
             name
             for name, view_roles in result.all()
-            if roles_can_view(view_roles=view_roles, user_role_ids=user_role_ids)
+            if _name_visible(view_roles=view_roles, user_role_ids=user_role_ids)
         ]
 
     async def get_distinct_stockpile_names(
         self,
         guild_id: int,
-        user_role_ids: list[int],
+        user_role_ids: list[int] | None,
     ) -> list[str]:
         """Get distinct names of accessible stockpiles across the guild.
 
@@ -277,7 +293,8 @@ class StockpileService:
 
         Args:
             guild_id (int): Guild ID
-            user_role_ids (list[int]): User's role IDs for filtering
+            user_role_ids (list[int] | None): User's role IDs for filtering, or
+                None to skip the view-role filter (managers see every name)
 
         Returns:
             list[str]: Sorted list of distinct stockpile names
@@ -290,9 +307,48 @@ class StockpileService:
             {
                 name
                 for name, view_roles in result.all()
-                if roles_can_view(view_roles=view_roles, user_role_ids=user_role_ids)
+                if _name_visible(view_roles=view_roles, user_role_ids=user_role_ids)
             }
         )
+
+    async def remove_view_role(
+        self,
+        guild_id: int,
+        role_id: int,
+        guild_name: str,
+    ) -> int:
+        """Strip a role from the view roles of every stockpile in a guild.
+
+        Called when the role is deleted in Discord, so no stockpile keeps a
+        stale ID that nobody can hold. A stockpile left with no view roles
+        becomes visible to everyone.
+
+        Args:
+            guild_id (int): Guild ID
+            role_id (int): ID of the deleted role
+            guild_name (str): Guild name for logging
+
+        Returns:
+            int: Number of stockpiles updated
+        """
+        stockpiles = await self.get_all_for_guild(guild_id)
+        affected = [s for s in stockpiles if role_id in s.view_roles]
+        for stockpile in affected:
+            # Assign a new list: SQLAlchemy only tracks JSON changes on reassignment
+            remaining = [rid for rid in stockpile.view_roles if rid != role_id]
+            stockpile.view_roles = remaining
+            if not remaining:
+                logger.warning(
+                    f"[{guild_name}] Stockpile {stockpile.name} at "
+                    f"{stockpile.hex_key}/{stockpile.city} (ID: {stockpile.id}) lost its "
+                    f"last view role {role_id} and is now visible to everyone"
+                )
+        if affected:
+            await self._session.flush()
+            logger.info(
+                f"[{guild_name}] Removed deleted role {role_id} from {len(affected)} stockpile(s)"
+            )
+        return len(affected)
 
     async def update_code(
         self,
