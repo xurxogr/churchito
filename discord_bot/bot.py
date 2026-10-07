@@ -20,6 +20,7 @@ from discord_bot.common.schemas.config_option import ConfigOption
 from discord_bot.common.services import DatabaseService
 from discord_bot.common.services.config_schema_service import get_config_schema_service
 from discord_bot.common.services.event_bus import get_event_bus
+from discord_bot.health import HealthChecker
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class DiscordBot(commands.Bot):
         self.database = database
         self.event_bus = get_event_bus()
         self._monitor_task: asyncio.Task[None] | None = None
+        self._health_task: asyncio.Task[None] | None = None
         # on_ready fires again on every gateway re-IDENTIFY, so startup-only
         # work (rate-limited command sync, BOT_READY event) is done just once
         self._startup_synced = False
@@ -122,6 +124,11 @@ class DiscordBot(commands.Bot):
 
         # Start event loop monitoring
         self._monitor_task = asyncio.create_task(self._monitor_event_loop())
+
+        # Periodic self-check, process-wide; the operator sets the cadence in
+        # the config (health.interval_minutes), 0 keeps it off
+        if self.settings.health.enabled:
+            self._health_task = asyncio.create_task(HealthChecker(bot=self).run())
 
         logger.info("Setup hook completed")
 
@@ -432,13 +439,14 @@ class DiscordBot(commands.Bot):
         """Clean shutdown of the bot."""
         logger.info("Shutting down the bot...")
 
-        # Stop event loop monitoring
-        if self._monitor_task and not self._monitor_task.done():
-            self._monitor_task.cancel()
-            try:
-                await self._monitor_task
-            except asyncio.CancelledError:
-                pass
+        # Stop the background tasks (event loop monitor, health check)
+        for task in (self._monitor_task, self._health_task):
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
         # Emit shutdown event
         self.event_bus.emit(EventType.BOT_SHUTDOWN, {})

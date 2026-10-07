@@ -80,6 +80,7 @@ See [docs/config/config.example.json](docs/config/config.example.json) for a com
 | `VERIFICATION__API_KEY` | OCR verification API key | (empty) |
 | `VERIFICATION__API_TIMEOUT` | API timeout in seconds | `30` |
 | `COGS__<NAME>` | Load the cog (`VERIFICATION`, `AUTONAME`, `PURGE`, `STOCKPILE`, `ROLES`, `DERIVED_ROLES`); a disabled cog has no commands and no dashboard section | `true` |
+| `HEALTH__INTERVAL_MINUTES` | Minutes between self-checks of loaded cogs and guild commands against Discord, with automatic repair; `0` disables, minimum `5` | `0` |
 | `LOGGING__LOG_LEVEL` | Log level | `INFO` |
 | `LOGGING__LOG_FILE` | Log file path | `null` |
 

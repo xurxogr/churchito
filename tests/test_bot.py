@@ -12,6 +12,7 @@ from sqlalchemy import select
 from discord_bot.bot import DiscordBot
 from discord_bot.common.core import AppSettings
 from discord_bot.common.core.settings.cogs import CogsSettings
+from discord_bot.common.core.settings.health import HealthSettings
 from discord_bot.common.models import Guild as GuildModel
 from discord_bot.common.services import DatabaseService
 
@@ -701,6 +702,83 @@ async def test_bot_load_cogs_loads_all_configured_cogs(
                 call for call in mock_logger.info.call_args_list if "Loaded cog:" in str(call)
             ]
             assert len(info_calls) > 0, "Expected info log about loaded cogs"
+
+
+async def test_bot_setup_hook_starts_health_checker_when_configured(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """With a health interval the periodic checker runs as a bot-level task.
+
+    Args:
+        test_settings: Test application settings
+        test_database: Test database service
+    """
+    settings = test_settings.model_copy(update={"health": HealthSettings(interval_minutes=5)})
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(settings, test_database)
+        bot._BotBase__tree = MagicMock()
+        test_database.initialize = AsyncMock()
+
+        with (
+            patch.object(bot, "_create_tables", new_callable=AsyncMock),
+            patch.object(bot, "_load_cogs", new_callable=AsyncMock),
+            patch("discord_bot.bot.HealthChecker") as mock_checker,
+        ):
+            mock_checker.return_value.run = AsyncMock()
+            await bot.setup_hook()
+            await asyncio.sleep(0)
+
+        assert bot._health_task is not None
+        mock_checker.assert_called_once_with(bot=bot)
+        mock_checker.return_value.run.assert_awaited_once()
+        bot._monitor_task.cancel()
+
+
+async def test_bot_setup_hook_leaves_health_checker_off_by_default(
+    test_settings: AppSettings, test_database: DatabaseService
+) -> None:
+    """Interval 0 means no health task at all.
+
+    Args:
+        test_settings: Test application settings
+        test_database: Test database service
+    """
+    with patch("discord_bot.bot.commands.Bot.__init__", return_value=None):
+        bot = DiscordBot(test_settings, test_database)
+        bot._BotBase__tree = MagicMock()
+        test_database.initialize = AsyncMock()
+
+        with (
+            patch.object(bot, "_create_tables", new_callable=AsyncMock),
+            patch.object(bot, "_load_cogs", new_callable=AsyncMock),
+            patch("discord_bot.bot.HealthChecker") as mock_checker,
+        ):
+            await bot.setup_hook()
+
+        assert bot._health_task is None
+        mock_checker.assert_not_called()
+        bot._monitor_task.cancel()
+
+
+async def test_bot_close_cancels_health_task(test_bot: DiscordBot) -> None:
+    """Shutdown stops the health checker like the event loop monitor.
+
+    Args:
+        test_bot: Test bot instance
+    """
+    test_bot.database.close = AsyncMock()
+    test_bot.event_bus.emit = MagicMock()
+
+    async def forever() -> None:
+        await asyncio.sleep(100)
+
+    health_task = asyncio.create_task(forever())
+    test_bot._health_task = health_task
+
+    with patch("discord_bot.bot.commands.Bot.close", new_callable=AsyncMock):
+        await test_bot.close()
+
+    assert health_task.cancelled()
 
 
 async def test_bot_load_cogs_skips_cogs_disabled_in_config(

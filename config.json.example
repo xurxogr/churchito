@@ -36,5 +36,8 @@
     "stockpile": true,
     "roles": true,
     "derived_roles": true
+  },
+  "health": {
+    "interval_minutes": 60
   }
 }

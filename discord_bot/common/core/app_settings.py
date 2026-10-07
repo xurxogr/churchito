@@ -13,6 +13,7 @@ from pydantic_settings import (
 from discord_bot.common.core.settings.bot import BotSettings
 from discord_bot.common.core.settings.cogs import CogsSettings
 from discord_bot.common.core.settings.database import DatabaseSettings
+from discord_bot.common.core.settings.health import HealthSettings
 from discord_bot.common.core.settings.logging import LoggingSettings
 from discord_bot.common.core.settings.verification import VerificationSettings
 from discord_bot.common.core.settings.web import WebSettings
@@ -27,6 +28,7 @@ class AppSettings(BaseSettings):
     web: WebSettings = Field(default_factory=WebSettings)
     verification: VerificationSettings = Field(default_factory=VerificationSettings)
     cogs: CogsSettings = Field(default_factory=CogsSettings)
+    health: HealthSettings = Field(default_factory=HealthSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",
