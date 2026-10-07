@@ -65,11 +65,21 @@ class HealthChecker:
 
         await self._ensure_extensions_loaded()
 
-        for guild in list(self.bot.guilds):
+        guilds = list(self.bot.guilds)
+        repaired = 0
+        failed = 0
+        for guild in guilds:
             try:
-                await self.check_guild(guild)
+                if await self.check_guild(guild):
+                    repaired += 1
             except Exception as e:
+                failed += 1
                 logger.error(f"[{guild.name}] Health check failed: {e}", exc_info=True)
+
+        # One line per pass, even when clean, so the log shows the check is alive
+        logger.info(
+            f"Health check done: {len(guilds)} guilds, {repaired} repaired, {failed} failed"
+        )
 
     async def _ensure_extensions_loaded(self) -> None:
         """Load any extension the config enables but the bot no longer has."""

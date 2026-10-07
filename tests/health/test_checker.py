@@ -212,6 +212,41 @@ class TestCheckAll:
         bot.load_extension.assert_not_awaited()
         bot.tree.fetch_commands.assert_not_awaited()
 
+    async def test_clean_pass_logs_a_summary(
+        self, bot: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A pass that finds nothing wrong still leaves one info line, so it is visibly running."""
+        bot.guilds = [_guild(guild_id=1), _guild(guild_id=2)]
+
+        with caplog.at_level(logging.INFO):
+            await HealthChecker(bot=bot).check_all()
+
+        summaries = [r for r in caplog.records if "Health check done" in r.getMessage()]
+        assert len(summaries) == 1
+        assert summaries[0].levelno == logging.INFO
+        assert "2 guilds" in summaries[0].getMessage()
+        assert "0 repaired" in summaries[0].getMessage()
+        assert "0 failed" in summaries[0].getMessage()
+
+    async def test_summary_counts_repairs_and_failures(
+        self, bot: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Repaired and failed guilds show up in the summary counts."""
+        bot.guilds = [_guild(guild_id=1), _guild(guild_id=2), _guild(guild_id=3)]
+        bot.tree.get_commands.side_effect = [
+            [_command("x")],
+            [_command("x"), _command("new")],
+            RuntimeError("boom"),
+        ]
+        bot.tree.fetch_commands = AsyncMock(return_value=[_command("x")])
+
+        with caplog.at_level(logging.INFO):
+            await HealthChecker(bot=bot).check_all()
+
+        messages = [r.getMessage() for r in caplog.records]
+        summary = next(m for m in messages if "Health check done" in m)
+        assert "3 guilds" in summary and "1 repaired" in summary and "1 failed" in summary
+
     async def test_one_failing_guild_does_not_stop_the_others(
         self, bot: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
