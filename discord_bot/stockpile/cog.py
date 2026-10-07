@@ -378,6 +378,38 @@ class StockpileCog(commands.Cog):
         """
         await self._unregister_all_guild_commands()
 
+    async def recover_guild_commands(self, guild: discord.Guild) -> bool:
+        """Put back the guild's commands that Discord still offers but the tree lost.
+
+        Called by the bot on ``CommandNotFound``. Tracked names whose command
+        is no longer in the tree are forgotten first, otherwise the regular
+        registration would skip them as already registered under that name.
+
+        Args:
+            guild (discord.Guild): Guild whose commands went stale
+
+        Returns:
+            bool: True when commands were registered and a sync was attempted
+        """
+        tracked = self._registered_commands.get(guild.id)
+        if tracked is not None:
+            self._registered_commands[guild.id] = {
+                key: name
+                for key, name in tracked.items()
+                if self.bot.tree.get_command(name, guild=guild) is not None
+            }
+        before = dict(self._registered_commands.get(guild.id, {}))
+
+        await self._register_guild_commands(guild)
+
+        if self._registered_commands.get(guild.id, {}) == before:
+            logger.debug(f"[{guild.name}] Stockpile commands already in the tree, nothing to do")
+            return False
+        logger.info(f"[{guild.name}] Stockpile commands restored, syncing with Discord")
+        with suppress(CommandSyncError):
+            await self._sync_guild_commands(guild)
+        return True
+
     async def _unregister_all_guild_commands(self) -> None:
         """Remove the tracked commands of every guild from the command tree."""
         for guild_id in list(self._registered_commands):

@@ -23,6 +23,11 @@ from discord_bot.common.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
+# Seconds between two command recoveries of the same guild: a stale command
+# raises one CommandNotFound per keystroke, so the first one starts the
+# recovery and the rest ride on it.
+COMMAND_RECOVERY_COOLDOWN = 300.0
+
 # Bot configuration schema (admin permissions)
 BOT_CONFIG_SCHEMA = CogConfigSchema(
     cog_name="bot",
@@ -62,6 +67,9 @@ class DiscordBot(commands.Bot):
         # on_ready fires again on every gateway re-IDENTIFY, so startup-only
         # work (rate-limited command sync, BOT_READY event) is done just once
         self._startup_synced = False
+        # Last command recovery per guild (monotonic time) and the tasks running
+        self._command_recovery_at: dict[int, float] = {}
+        self._command_recovery_tasks: set[asyncio.Task[None]] = set()
 
         # Configure intents
         # Note: message_content and members are privileged intents that must be
@@ -129,21 +137,16 @@ class DiscordBot(commands.Bot):
             error: The error that was raised.
         """
         if isinstance(error, app_commands.CommandNotFound):
-            # This happens when Discord has a cached command that the bot
-            # no longer has registered (e.g., after config changes or restart)
+            # Discord still offers a command the tree no longer holds: an
+            # extension reload strips the module's commands, a registration
+            # failed... Answer the interaction, then ask the cogs to put the
+            # guild's commands back.
             logger.warning(
                 f"CommandNotFound: /{error.name} (guild: {interaction.guild}). "
                 "Discord has a stale cached command."
             )
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(
-                        "This command is no longer available. "
-                        "Please wait a few minutes for Discord to update.",
-                        ephemeral=True,
-                    )
-            except discord.HTTPException:
-                pass  # Interaction may have expired
+            await self._acknowledge_stale_command(interaction)
+            self._schedule_command_recovery(interaction.guild)
             return
 
         # Log other errors and tell the user, so the interaction does not
@@ -151,6 +154,65 @@ class DiscordBot(commands.Bot):
         cmd_name = interaction.command.name if interaction.command else "unknown"
         logger.error(f"App command error in /{cmd_name}: {error}", exc_info=error)
         await self._reply_command_error(interaction)
+
+    async def _acknowledge_stale_command(self, interaction: discord.Interaction) -> None:
+        """Answer an interaction for a command the tree does not hold.
+
+        An autocomplete interaction cannot take a message: replying with an
+        empty choice list keeps Discord from showing its generic loading error
+        while the recovery runs.
+
+        Args:
+            interaction: The interaction Discord sent for the stale command.
+        """
+        try:
+            if interaction.response.is_done():
+                return
+            if interaction.type is discord.InteractionType.autocomplete:
+                await interaction.response.autocomplete([])
+            else:
+                await interaction.response.send_message(
+                    "This command is being restored. Please try again in a few seconds.",
+                    ephemeral=True,
+                )
+        except discord.HTTPException:
+            pass  # Interaction may have expired
+
+    def _schedule_command_recovery(self, guild: discord.Guild | None) -> None:
+        """Start a background recovery of a guild's commands, at most once per cooldown.
+
+        Args:
+            guild: Guild whose commands went stale; None for interactions outside a guild.
+        """
+        if guild is None:
+            return
+        now = time.monotonic()
+        last = self._command_recovery_at.get(guild.id)
+        if last is not None and now - last < COMMAND_RECOVERY_COOLDOWN:
+            return
+        self._command_recovery_at[guild.id] = now
+        task = asyncio.create_task(self._recover_guild_commands(guild))
+        self._command_recovery_tasks.add(task)
+        task.add_done_callback(self._command_recovery_tasks.discard)
+
+    async def _recover_guild_commands(self, guild: discord.Guild) -> None:
+        """Ask every cog that registers commands dynamically to restore the guild's.
+
+        Cogs opt in by implementing ``recover_guild_commands(guild=...)``; one
+        cog failing does not stop the others.
+
+        Args:
+            guild: Guild whose commands are being restored.
+        """
+        logger.info(f"[{guild.name}] Restoring commands Discord still offers but the bot lost")
+        for cog in list(self.cogs.values()):
+            recover = getattr(cog, "recover_guild_commands", None)
+            if recover is None:
+                continue
+            try:
+                await recover(guild=guild)
+            except Exception as e:
+                logger.error(f"[{guild.name}] Error restoring {cog.qualified_name} commands: {e}")
 
     async def _reply_command_error(self, interaction: discord.Interaction) -> None:
         """Send a generic ephemeral failure message for an unhandled command error.

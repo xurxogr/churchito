@@ -37,6 +37,7 @@ async def test_bot(
         mock_user.id = 123456789
         type(bot).user = PropertyMock(return_value=mock_user)
         bot.load_extension = AsyncMock()
+        type(bot).cogs = PropertyMock(return_value={})
         yield bot
 
 
@@ -1674,4 +1675,122 @@ class TestAppCommandErrorReply:
 
         await test_bot._on_app_command_error(
             interaction, discord.app_commands.AppCommandError("db")
+        )
+
+
+class TestStaleCommandRecovery:
+    """CommandNotFound means Discord still offers a command the tree lost: heal it."""
+
+    @staticmethod
+    def _stale(guild: MagicMock | None, *, autocomplete: bool = False) -> MagicMock:
+        interaction = MagicMock()
+        interaction.guild = guild
+        interaction.type = (
+            discord.InteractionType.autocomplete
+            if autocomplete
+            else discord.InteractionType.application_command
+        )
+        interaction.response.is_done.return_value = False
+        interaction.response.send_message = AsyncMock()
+        interaction.response.autocomplete = AsyncMock()
+        return interaction
+
+    @staticmethod
+    def _guild(guild_id: int = 846) -> MagicMock:
+        guild = MagicMock()
+        guild.id = guild_id
+        guild.name = "Guild"
+        return guild
+
+    @staticmethod
+    async def _settle(test_bot: DiscordBot) -> None:
+        await asyncio.gather(*test_bot._command_recovery_tasks)
+
+    async def test_autocomplete_gets_an_empty_choice_list(self, test_bot: DiscordBot) -> None:
+        """An autocomplete cannot take a message; an empty choice list avoids Discord's error."""
+        interaction = self._stale(self._guild(), autocomplete=True)
+
+        with patch("discord_bot.bot.logger"):
+            await test_bot._on_app_command_error(
+                interaction, discord.app_commands.CommandNotFound("stockpile_show", [])
+            )
+            await self._settle(test_bot)
+
+        interaction.response.autocomplete.assert_awaited_once_with([])
+        interaction.response.send_message.assert_not_called()
+
+    async def test_recovers_commands_through_the_cogs(self, test_bot: DiscordBot) -> None:
+        """Every cog exposing recover_guild_commands is asked to restore the guild."""
+        guild = self._guild()
+        healing_cog = MagicMock()
+        healing_cog.recover_guild_commands = AsyncMock()
+        plain_cog = MagicMock(spec=[])  # no recover_guild_commands attribute
+        type(test_bot).cogs = PropertyMock(
+            return_value={"Healing": healing_cog, "Plain": plain_cog}
+        )
+
+        with patch("discord_bot.bot.logger"):
+            await test_bot._on_app_command_error(
+                self._stale(guild), discord.app_commands.CommandNotFound("stockpile_show", [])
+            )
+            await self._settle(test_bot)
+
+        healing_cog.recover_guild_commands.assert_awaited_once_with(guild=guild)
+
+    async def test_recovery_runs_once_per_guild_within_cooldown(self, test_bot: DiscordBot) -> None:
+        """A stale command fires one error per keystroke; only the first triggers a recovery."""
+        guild = self._guild()
+        other_guild = self._guild(guild_id=999)
+        healing_cog = MagicMock()
+        healing_cog.recover_guild_commands = AsyncMock()
+        type(test_bot).cogs = PropertyMock(return_value={"Healing": healing_cog})
+        error = discord.app_commands.CommandNotFound("stockpile_show", [])
+
+        with patch("discord_bot.bot.logger"):
+            await test_bot._on_app_command_error(self._stale(guild), error)
+            await test_bot._on_app_command_error(self._stale(guild, autocomplete=True), error)
+            await test_bot._on_app_command_error(self._stale(other_guild), error)
+            await self._settle(test_bot)
+
+        assert healing_cog.recover_guild_commands.await_count == 2
+        awaited = {c.kwargs["guild"].id for c in healing_cog.recover_guild_commands.await_args_list}
+        assert awaited == {guild.id, other_guild.id}
+
+    async def test_no_recovery_outside_a_guild(self, test_bot: DiscordBot) -> None:
+        """Commands are registered per guild; a DM interaction has nothing to restore."""
+        healing_cog = MagicMock()
+        healing_cog.recover_guild_commands = AsyncMock()
+        type(test_bot).cogs = PropertyMock(return_value={"Healing": healing_cog})
+
+        with patch("discord_bot.bot.logger"):
+            await test_bot._on_app_command_error(
+                self._stale(None), discord.app_commands.CommandNotFound("stockpile_show", [])
+            )
+            await self._settle(test_bot)
+
+        healing_cog.recover_guild_commands.assert_not_awaited()
+
+    async def test_failing_cog_is_logged_and_does_not_stop_the_others(
+        self, test_bot: DiscordBot
+    ) -> None:
+        """One cog's recovery error is logged; the remaining cogs still get their turn."""
+        guild = self._guild()
+        broken_cog = MagicMock()
+        broken_cog.qualified_name = "Broken"
+        broken_cog.recover_guild_commands = AsyncMock(side_effect=RuntimeError("db down"))
+        healing_cog = MagicMock()
+        healing_cog.recover_guild_commands = AsyncMock()
+        type(test_bot).cogs = PropertyMock(
+            return_value={"Broken": broken_cog, "Healing": healing_cog}
+        )
+
+        with patch("discord_bot.bot.logger") as mock_logger:
+            await test_bot._on_app_command_error(
+                self._stale(guild), discord.app_commands.CommandNotFound("stockpile_show", [])
+            )
+            await self._settle(test_bot)
+
+        healing_cog.recover_guild_commands.assert_awaited_once_with(guild=guild)
+        assert any(
+            "Broken" in str(c) and "db down" in str(c) for c in mock_logger.error.call_args_list
         )

@@ -3045,6 +3045,130 @@ class TestReloadLifecycle:
         mock_register.assert_not_awaited()
 
 
+class TestRecoverGuildCommands:
+    """recover_guild_commands puts back commands Discord still offers but the tree lost."""
+
+    async def test_registers_and_syncs_when_the_tree_is_empty(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """After a reload wiped the tree the guild's commands are registered and synced."""
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with (
+            patch.object(
+                stockpile_cog,
+                "_register_guild_commands",
+                new_callable=AsyncMock,
+                side_effect=register,
+            ) as mock_register,
+            patch.object(
+                stockpile_cog, "_sync_guild_commands", new_callable=AsyncMock
+            ) as mock_sync,
+        ):
+            restored = await stockpile_cog.recover_guild_commands(guild=mock_guild)
+
+        assert restored is True
+        mock_register.assert_awaited_once_with(mock_guild)
+        mock_sync.assert_awaited_once_with(mock_guild)
+
+    async def test_nothing_to_do_when_tracked_commands_are_still_in_the_tree(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """Another cog's stale command must not trigger a stockpile sync."""
+        stockpile_cog._registered_commands[mock_guild.id] = {"add": "stockpile_add"}
+        mock_discord_bot.tree.get_command.return_value = MagicMock()
+
+        with (
+            patch.object(
+                stockpile_cog, "_register_guild_commands", new_callable=AsyncMock
+            ) as mock_register,
+            patch.object(
+                stockpile_cog, "_sync_guild_commands", new_callable=AsyncMock
+            ) as mock_sync,
+        ):
+            restored = await stockpile_cog.recover_guild_commands(guild=mock_guild)
+
+        assert restored is False
+        mock_register.assert_awaited_once_with(mock_guild)
+        mock_sync.assert_not_awaited()
+        assert stockpile_cog._registered_commands[mock_guild.id] == {"add": "stockpile_add"}
+
+    async def test_forgets_tracked_names_missing_from_the_tree_before_registering(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_discord_bot: MagicMock,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A tracked name whose command vanished would otherwise be skipped as registered."""
+        stockpile_cog._registered_commands[mock_guild.id] = {
+            "add": "stockpile_add",
+            "show": "stockpile_show",
+        }
+        mock_discord_bot.tree.get_command.side_effect = lambda name, guild: (
+            MagicMock() if name == "stockpile_add" else None
+        )
+        seen_at_register: dict[str, str] = {}
+
+        async def register(guild: MagicMock) -> None:
+            seen_at_register.update(stockpile_cog._registered_commands[guild.id])
+            stockpile_cog._registered_commands[guild.id] = {
+                "add": "stockpile_add",
+                "show": "stockpile_show",
+            }
+
+        with (
+            patch.object(
+                stockpile_cog,
+                "_register_guild_commands",
+                new_callable=AsyncMock,
+                side_effect=register,
+            ),
+            patch.object(
+                stockpile_cog, "_sync_guild_commands", new_callable=AsyncMock
+            ) as mock_sync,
+        ):
+            restored = await stockpile_cog.recover_guild_commands(guild=mock_guild)
+
+        assert restored is True
+        assert seen_at_register == {"add": "stockpile_add"}
+        mock_sync.assert_awaited_once_with(mock_guild)
+
+    async def test_sync_failure_is_swallowed(
+        self,
+        stockpile_cog: StockpileCog,
+        mock_guild: MagicMock,
+    ) -> None:
+        """A rejected sync is already logged by the helper; recovery must not raise."""
+
+        async def register(guild: MagicMock) -> None:
+            stockpile_cog._registered_commands[guild.id] = {"add": "stockpile_add"}
+
+        with (
+            patch.object(
+                stockpile_cog,
+                "_register_guild_commands",
+                new_callable=AsyncMock,
+                side_effect=register,
+            ),
+            patch.object(
+                stockpile_cog,
+                "_sync_guild_commands",
+                new_callable=AsyncMock,
+                side_effect=CommandSyncError("rate limited"),
+            ),
+        ):
+            restored = await stockpile_cog.recover_guild_commands(guild=mock_guild)
+
+        assert restored is True
+
+
 class TestOnGuildJoin:
     """Tests for on_guild_join event listener."""
 
